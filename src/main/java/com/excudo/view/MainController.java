@@ -1,0 +1,1011 @@
+package com.excudo.view;
+
+import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.orchestration.PresentationMetadata;
+import com.excudo.core.orchestration.SlideMetadata;
+import com.excudo.view.components.PresentationExplorerController;
+import com.excudo.view.components.SlideEditorController;
+import com.excudo.view.components.TechnicalConsoleController;
+import com.excudo.view.components.PropertiesController;
+import com.excudo.view.components.OutputController;
+import com.excudo.view.components.ValidationController;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.concurrent.Task;
+import javafx.application.Platform;
+import com.excudo.core.utils.OOXMLAttributeOrder;
+import com.excudo.core.utils.XMLFactoryProvider;
+import java.io.File;
+import java.net.URL;
+import java.util.ResourceBundle;
+import java.util.Optional;
+import java.util.List;
+import com.excudo.core.utils.Logger;
+import com.excudo.core.utils.ComponentLogger;
+
+/**
+ * Main controller for the Excudo application.
+ * Coordinates between different view components and manages application state.
+ */
+public class MainController implements Initializable {
+
+    private static final ComponentLogger logger = Logger.rendering();
+
+    // ========== FXML COMPONENTS ==========
+    
+    @FXML private BorderPane rootPane;
+    @FXML private MenuBar menuBar;
+    @FXML private ToolBar toolBar;
+    @FXML private Label statusBar;
+    
+    // Menu items
+    @FXML private MenuItem newPresentationItem;
+    @FXML private MenuItem openPresentationItem;
+    @FXML private MenuItem savePresentationItem;
+    @FXML private MenuItem saveAsPresentationItem;
+    @FXML private MenuItem exportPresentationItem;
+    @FXML private MenuItem exitItem;
+    
+    // View menu items
+    @FXML private CheckMenuItem showGridItem;
+    @FXML private CheckMenuItem showBoundsItem;
+    @FXML private CheckMenuItem showSpidsItem;
+    @FXML private CheckMenuItem debugModeItem;
+    
+    // Tools menu items
+    @FXML private MenuItem validatePresentationItem;
+    @FXML private MenuItem regenerateSpidsItem;
+    @FXML private MenuItem technicalConsoleItem;
+    @FXML private MenuItem settingsItem;
+    
+    // Tool bar buttons
+    @FXML private Button newButton;
+    @FXML private Button openButton;
+    @FXML private Button saveButton;
+    @FXML private Button zoomInButton;
+    @FXML private Button zoomOutButton;
+    @FXML private Button zoomFitButton;
+    
+    // Main content areas
+    @FXML private SplitPane mainSplitPane;
+    @FXML private VBox leftPanel;
+    @FXML private VBox centerPanel;
+    @FXML private VBox rightPanel;
+    @FXML private TabPane bottomTabPane;
+    
+    // Presentation Explorer
+    @FXML private TreeView<String> presentationTree;
+    @FXML private Label presentationInfo;
+    @FXML private Button addSlideButton;
+    @FXML private Button deleteSlideButton;
+    @FXML private Button moveUpButton;
+    @FXML private Button moveDownButton;
+    @FXML private Button refreshButton;
+    
+    // Slide Editor
+    @FXML private TextArea xmlEditor;
+    @FXML private Button applyXmlButton;
+    @FXML private Button resetXmlButton;
+    @FXML private Button validateXmlButton;
+    @FXML private ScrollPane canvasScrollPane;
+    @FXML private VBox visualPreviewContainer;
+    @FXML private Button togglePreviewButton;
+    
+    // Console
+    @FXML private Tab consoleTab;
+    @FXML private TextArea consoleOutput;
+    @FXML private TextField commandInput;
+    @FXML private Button executeButton;
+    @FXML private CheckBox llmModeCheckBox;
+    
+    // Output and Validation tabs
+    @FXML private Tab outputTab;
+    @FXML private TextArea outputTextArea;
+    @FXML private Tab validationTab;
+    @FXML private ListView validationListView;
+    
+    // Properties
+    @FXML private TableView propertiesTable;
+    @FXML private Label propertiesTitle;
+    @FXML private Button refreshPropertiesButton;
+    
+    // ========== CONTROLLERS ==========
+    
+    private ViewManager viewManager;
+    private PPTXOrchestrator orchestrator;
+    
+    // Component controllers
+    private PresentationExplorerController explorerController;
+    private SlideEditorController editorController;
+    private TechnicalConsoleController consoleController;
+    private PropertiesController propertiesController;
+    private OutputController outputController;
+    private ValidationController validationController;
+    
+    // Visual preview state
+    private boolean visualPreviewExpanded = false;
+    
+    // ========== STATE ==========
+    
+    private File currentWorkingDirectory;
+    private boolean presentationLoaded = false;
+    
+    // ========== PUBLIC ACCESSORS ==========
+    
+    /**
+     * Get the current orchestrator instance
+     */
+    public PPTXOrchestrator getCurrentOrchestrator() {
+        return orchestrator;
+    }
+    
+    /**
+     * Refresh the presentation view after modifications
+     */
+    public void refreshPresentation() {
+        Platform.runLater(() -> {
+            updatePresentationViews();
+            showStatus("Presentation refreshed");
+        });
+    }
+    
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        // Initialize will be called after FXML loading
+        setupInitialState();
+        setupEventHandlers();
+        setupComponentControllers();
+    }
+    
+    /**
+     * Initialize the controller with ViewManager (called from MainApplication)
+     */
+    public void initialize(ViewManager viewManager) {
+        this.viewManager = viewManager;
+        
+        // Initialize core components
+        
+        try {
+            // Initialize the orchestrator
+            this.orchestrator = new com.excudo.core.orchestration.PPTXOrchestratorImpl();
+            
+            // Check if orchestrator already has presentation data (demos, etc.)
+            updatePresentationViews();
+        } catch (Exception e) {
+            System.err.println("Failed to initialize orchestrator: " + e.getMessage());
+        }
+        
+        // Setup initial view state
+        updateUIState();
+    }
+    
+    // ========== INITIALIZATION ==========
+    
+    private void setupInitialState() {
+        // Set initial UI state
+        presentationLoaded = false;
+        currentWorkingDirectory = new File(System.getProperty("user.home"));
+        
+        // Configure split pane
+        if (mainSplitPane != null) {
+            mainSplitPane.setDividerPositions(0.25, 0.75); // 25% left, 50% center, 25% right
+        }
+        
+        // Configure debug menu items
+        if (showGridItem != null) showGridItem.setSelected(false);
+        if (showBoundsItem != null) showBoundsItem.setSelected(false);
+        if (showSpidsItem != null) showSpidsItem.setSelected(false);
+        if (debugModeItem != null) debugModeItem.setSelected(false);
+    }
+    
+    private void setupEventHandlers() {
+        // File menu handlers
+        if (newPresentationItem != null) {
+            newPresentationItem.setOnAction(e -> handleNewPresentation());
+        }
+        if (openPresentationItem != null) {
+            openPresentationItem.setOnAction(e -> handleOpenPresentation());
+        }
+        if (savePresentationItem != null) {
+            savePresentationItem.setOnAction(e -> handleSavePresentation());
+        }
+        if (saveAsPresentationItem != null) {
+            saveAsPresentationItem.setOnAction(e -> handleSaveAsPresentation());
+        }
+        if (exportPresentationItem != null) {
+            exportPresentationItem.setOnAction(e -> handleExportPresentation());
+        }
+        if (exitItem != null) {
+            exitItem.setOnAction(e -> handleExit());
+        }
+        
+        // View menu handlers
+        if (showGridItem != null) {
+            showGridItem.setOnAction(e -> handleToggleGrid());
+        }
+        if (showBoundsItem != null) {
+            showBoundsItem.setOnAction(e -> handleToggleBounds());
+        }
+        if (showSpidsItem != null) {
+            showSpidsItem.setOnAction(e -> handleToggleSpids());
+        }
+        if (debugModeItem != null) {
+            debugModeItem.setOnAction(e -> handleToggleDebugMode());
+        }
+        
+        // Tools menu handlers
+        if (validatePresentationItem != null) {
+            validatePresentationItem.setOnAction(e -> handleValidatePresentation());
+        }
+        if (regenerateSpidsItem != null) {
+            regenerateSpidsItem.setOnAction(e -> handleRegenerateSpids());
+        }
+        if (technicalConsoleItem != null) {
+            technicalConsoleItem.setOnAction(e -> handleShowTechnicalConsole());
+        }
+        if (settingsItem != null) {
+            settingsItem.setOnAction(e -> handleShowSettings());
+        }
+        
+        // Toolbar handlers
+        if (newButton != null) {
+            newButton.setOnAction(e -> handleNewPresentation());
+        }
+        if (openButton != null) {
+            openButton.setOnAction(e -> handleOpenPresentation());
+        }
+        if (saveButton != null) {
+            saveButton.setOnAction(e -> handleSavePresentation());
+        }
+        
+        // Zoom button handlers (delegate to SlideEditorController)
+        if (zoomInButton != null) {
+            zoomInButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleZoomIn();
+                }
+            });
+        }
+        if (zoomOutButton != null) {
+            zoomOutButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleZoomOut();
+                }
+            });
+        }
+        if (zoomFitButton != null) {
+            zoomFitButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleZoomFit();
+                }
+            });
+        }
+        
+        // XML Editor button handlers (delegate to SlideEditorController)
+        if (applyXmlButton != null) {
+            applyXmlButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleApplyXmlFromMainController();
+                }
+            });
+        }
+        if (resetXmlButton != null) {
+            resetXmlButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleResetXmlFromMainController();
+                }
+            });
+        }
+        if (validateXmlButton != null) {
+            validateXmlButton.setOnAction(e -> {
+                if (editorController != null) {
+                    editorController.handleValidateXmlFromMainController();
+                }
+            });
+        }
+        
+        // Visual Preview toggle handler
+        if (togglePreviewButton != null) {
+            togglePreviewButton.setOnAction(e -> toggleVisualPreview());
+        }
+    }
+    
+    private void setupComponentControllers() {
+        // Initialize component controllers and connect them to FXML components
+        try {
+            // Initialize presentation explorer controller and connect to tree
+            explorerController = new PresentationExplorerController();
+            explorerController.setMainController(this);
+            explorerController.setPresentationTree(presentationTree);
+            explorerController.setPresentationInfo(presentationInfo);
+            explorerController.setButtons(addSlideButton, deleteSlideButton, 
+                                         moveUpButton, moveDownButton, refreshButton);
+            
+            // Initialize slide editor controller and connect to editor components
+            editorController = new SlideEditorController();
+            editorController.setMainController(this);
+            editorController.setXmlEditor(xmlEditor);
+            editorController.setCanvasScrollPane(canvasScrollPane);
+            
+            // Initialize console controller and connect to console components
+            consoleController = new TechnicalConsoleController();
+            consoleController.setMainController(this);
+            consoleController.setConsoleComponents(consoleOutput, commandInput, executeButton, llmModeCheckBox);
+            
+            // Initialize properties controller and connect to properties table
+            propertiesController = new PropertiesController();
+            propertiesController.setMainController(this);
+            propertiesController.setPropertiesTable(propertiesTable);
+            
+            // Initialize output controller and connect to output text area
+            outputController = new OutputController();
+            outputController.setOutputTextArea(outputTextArea);
+            outputController.initialize();
+            
+            // Initialize validation controller and connect to validation list view
+            validationController = new ValidationController();
+            validationController.setValidationListView(validationListView);
+            validationController.initialize();
+            
+        } catch (Exception e) {
+            System.err.println("Failed to initialize component controllers: " + e.getMessage());
+        }
+    }
+    
+    // ========== FILE OPERATIONS ==========
+    
+    @FXML
+    private void handleNewPresentation() {
+        if (viewManager != null && !viewManager.confirmUnsavedChanges()) {
+            return; // User cancelled
+        }
+        
+        // Create new presentation
+        showStatus("Creating new presentation...");
+        
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                // Initialize new presentation
+                // orchestrator = new PPTXOrchestratorImpl(); // Would create new instance
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    presentationLoaded = true;
+                    if (viewManager != null) {
+                        viewManager.setCurrentPresentationFile(null);
+                        viewManager.markAsSaved();
+                    }
+                    updateUIState();
+                    showStatus("New presentation created");
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("Failed to create new presentation", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleOpenPresentation() {
+        handleOpenPresentationFromMenu();
+    }
+    
+    /**
+     * Public method to handle opening presentation from programmatic UI
+     */
+    public void handleOpenPresentationFromMenu() {
+        if (viewManager != null && !viewManager.confirmUnsavedChanges()) {
+            return; // User cancelled
+        }
+        
+        Optional<File> fileOpt = viewManager != null ? 
+                viewManager.showOpenPresentationDialog() : Optional.empty();
+        
+        if (fileOpt.isPresent()) {
+            File file = fileOpt.get();
+            openPresentationFile(file);
+        }
+    }
+    
+    private void openPresentationFile(File file) {
+        showStatus("Opening presentation: " + file.getName());
+        
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                // Load presentation file using orchestrator
+                if (orchestrator != null) {
+                    var result = orchestrator.loadPresentation(file);
+                    if (!result.isSuccess()) {
+                        throw new Exception(result.getMessage());
+                    }
+                }
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    presentationLoaded = true;
+                    if (viewManager != null) {
+                        viewManager.setCurrentPresentationFile(file);
+                        viewManager.markAsSaved();
+                    }
+                    
+                    // Update UI with loaded presentation
+                    updatePresentationViews();
+                    updateUIState();
+                    showStatus("Presentation loaded: " + file.getName());
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("Failed to open presentation", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleSavePresentation() {
+        if (viewManager != null) {
+            Optional<File> currentFile = viewManager.getCurrentPresentationFile();
+            if (currentFile.isPresent()) {
+                savePresentationToFile(currentFile.get());
+            } else {
+                handleSaveAsPresentation();
+            }
+        }
+    }
+    
+    @FXML
+    private void handleSaveAsPresentation() {
+        if (viewManager != null) {
+            Optional<File> fileOpt = viewManager.showSavePresentationDialog();
+            if (fileOpt.isPresent()) {
+                savePresentationToFile(fileOpt.get());
+            }
+        }
+    }
+    
+    private void savePresentationToFile(File file) {
+        showStatus("Saving presentation: " + file.getName());
+        
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                // Save presentation using orchestrator
+                if (orchestrator != null) {
+                    var result = orchestrator.savePresentation(file);
+                    if (!result.isSuccess()) {
+                        throw new Exception(result.getMessage());
+                    }
+                }
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    if (viewManager != null) {
+                        viewManager.setCurrentPresentationFile(file);
+                        viewManager.markAsSaved();
+                    }
+                    showStatus("Presentation saved: " + file.getName());
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("Failed to save presentation", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleExportPresentation() {
+        if (viewManager != null) {
+            Optional<File> fileOpt = viewManager.showExportDialog();
+            if (fileOpt.isPresent()) {
+                exportPresentationToFile(fileOpt.get());
+            }
+        }
+    }
+    
+    private void exportPresentationToFile(File file) {
+        showStatus("Exporting presentation: " + file.getName());
+        
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                // Export presentation with full validation
+                if (orchestrator != null) {
+                    var result = orchestrator.finalizePresentation();
+                    if (!result.isSuccess()) {
+                        throw new Exception(result.getMessage());
+                    }
+                    
+                    // Save to export file
+                    var saveResult = orchestrator.savePresentation(file);
+                    if (!saveResult.isSuccess()) {
+                        throw new Exception(saveResult.getMessage());
+                    }
+                }
+                return null;
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    showStatus("Presentation exported: " + file.getName());
+                    if (viewManager != null) {
+                        viewManager.showInformation("Export Complete", 
+                                "Presentation exported successfully", 
+                                "File saved to: " + file.getAbsolutePath());
+                    }
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("Failed to export presentation", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleExit() {
+        if (viewManager != null && viewManager.confirmApplicationExit()) {
+            Platform.exit();
+        }
+    }
+    
+    // ========== VIEW OPERATIONS ==========
+    
+    @FXML
+    private void handleToggleGrid() {
+        boolean showGrid = showGridItem != null && showGridItem.isSelected();
+        if (editorController != null) {
+            editorController.setShowGrid(showGrid);
+        }
+        showStatus("Grid " + (showGrid ? "enabled" : "disabled"));
+    }
+    
+    @FXML
+    private void handleToggleBounds() {
+        boolean showBounds = showBoundsItem != null && showBoundsItem.isSelected();
+        if (editorController != null) {
+            editorController.setShowBounds(showBounds);
+        }
+        showStatus("Bounds " + (showBounds ? "enabled" : "disabled"));
+    }
+    
+    @FXML
+    private void handleToggleSpids() {
+        boolean showSpids = showSpidsItem != null && showSpidsItem.isSelected();
+        if (editorController != null) {
+            editorController.setShowSpids(showSpids);
+        }
+        showStatus("SPIDs " + (showSpids ? "enabled" : "disabled"));
+    }
+    
+    @FXML
+    private void handleToggleDebugMode() {
+        boolean debugMode = debugModeItem != null && debugModeItem.isSelected();
+        if (editorController != null) {
+            editorController.setDebugMode(debugMode);
+        }
+        showStatus("Debug mode " + (debugMode ? "enabled" : "disabled"));
+    }
+    
+    
+    // ========== PRESENTATION UPDATES ==========
+    
+    /**
+     * Update views when presentation is loaded
+     */
+    public void updatePresentationViews() {
+        if (orchestrator != null) {
+            try {
+                // Get presentation metadata
+                PresentationMetadata metadata = orchestrator.getPresentationMetadata();
+                List<SlideMetadata> slides = orchestrator.getAllSlideMetadata();
+                
+                System.out.println("Presentation updated: " + 
+                    (metadata != null ? metadata.getTitle() + " (" + slides.size() + " slides)" : "No metadata"));
+                
+                
+                // Update component controllers with loaded data
+                if (explorerController != null) {
+                    explorerController.updatePresentation(metadata, slides);
+                }
+                
+                if (editorController != null && slides != null && !slides.isEmpty()) {
+                    // Load first slide in editor
+                    editorController.loadSlide(slides.get(0).getSlideNumber());
+                }
+                
+                // Notify console controller that presentation is loaded
+                if (consoleController != null) {
+                    consoleController.onPresentationLoaded();
+                }
+                
+                showStatus("Presentation loaded: " + slides.size() + " slides");
+                
+            } catch (Exception e) {
+                logger.error("Failed to update presentation views: " + e.getMessage(), e);
+                showStatus("Error loading presentation data");
+            }
+        }
+    }
+    
+    /**
+     * Handle slide selection change from presentation explorer
+     */
+    public void onSlideSelected(int slideNumber) {
+        if (editorController != null) {
+            editorController.loadSlide(slideNumber);
+        }
+        
+        // Update properties panel with slide metadata
+        if (propertiesController != null && orchestrator != null) {
+            var slideMetadata = orchestrator.getSlideMetadata(slideNumber);
+            slideMetadata.ifPresent(metadata -> propertiesController.displaySlideProperties(metadata));
+        }
+        
+        showStatus("Selected slide " + slideNumber);
+    }
+    
+    /**
+     * Handle slide content changes from editor
+     */
+    public void onSlideContentChanged() {
+        if (viewManager != null) {
+            viewManager.markAsModified();
+        }
+    }
+    
+    // ========== UI STATE MANAGEMENT ==========
+    
+    private void updateUIState() {
+        // Update menu and toolbar based on current state
+        boolean hasPresentation = presentationLoaded;
+        
+        if (savePresentationItem != null) {
+            savePresentationItem.setDisable(!hasPresentation);
+        }
+        if (saveAsPresentationItem != null) {
+            saveAsPresentationItem.setDisable(!hasPresentation);
+        }
+        if (exportPresentationItem != null) {
+            exportPresentationItem.setDisable(!hasPresentation);
+        }
+        if (saveButton != null) {
+            saveButton.setDisable(!hasPresentation);
+        }
+        
+        // Tools menu items
+        if (validatePresentationItem != null) {
+            validatePresentationItem.setDisable(!hasPresentation);
+        }
+        if (regenerateSpidsItem != null) {
+            regenerateSpidsItem.setDisable(!hasPresentation);
+        }
+    }
+    
+    // ========== TOOLS MENU OPERATIONS ==========
+    
+    @FXML
+    private void handleValidatePresentation() {
+        if (!presentationLoaded || orchestrator == null) {
+            showError("No presentation loaded", new IllegalStateException("Please load a presentation first"));
+            return;
+        }
+        
+        showStatus("Validating presentation...");
+        
+        Task<String> task = new Task<String>() {
+            @Override
+            protected String call() throws Exception {
+                // Get the current context to access managers
+                var context = orchestrator.getContext();
+                if (!context.isPresent()) {
+                    throw new Exception("No presentation context available");
+                }
+                
+                var slideCreator = context.get().getSlideCreator();
+                var validationResult = slideCreator.validatePresentation();
+                
+                StringBuilder report = new StringBuilder();
+                report.append("=== PRESENTATION VALIDATION REPORT ===\n\n");
+                
+                if (validationResult.isValid()) {
+                    report.append("[OK] VALIDATION PASSED\n");
+                    report.append("No errors found in presentation structure.\n");
+                } else {
+                    report.append("[FAIL] VALIDATION FAILED\n");
+                    report.append("Errors found: ").append(validationResult.getErrors().size()).append("\n\n");
+                    
+                    report.append("ERRORS:\n");
+                    for (String error : validationResult.getErrors()) {
+                        report.append("  • ").append(error).append("\n");
+                    }
+                }
+                
+                if (validationResult.hasWarnings()) {
+                    report.append("\nWARNINGS:\n");
+                    for (String warning : validationResult.getWarnings()) {
+                        report.append("  [WARN] ").append(warning).append("\n");
+                    }
+                }
+                
+                return report.toString();
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    String report = getValue();
+                    if (outputController != null) {
+                        outputController.appendOutput(report);
+                    }
+                    if (validationController != null) {
+                        validationController.showValidationReport(report);
+                    }
+                    showStatus("Validation completed");
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("Validation failed", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleRegenerateSpids() {
+        if (!presentationLoaded || orchestrator == null) {
+            showError("No presentation loaded", new IllegalStateException("Please load a presentation first"));
+            return;
+        }
+        
+        // Confirm action as this modifies the presentation
+        if (viewManager != null) {
+            boolean confirmed = viewManager.showConfirmation(
+                "Regenerate SPIDs", 
+                "This will regenerate all Shape IDs in the presentation",
+                "This operation will modify the presentation structure. Are you sure you want to continue?"
+            );
+            if (!confirmed) {
+                return;
+            }
+        }
+        
+        showStatus("Regenerating SPIDs...");
+        
+        Task<String> task = new Task<String>() {
+            @Override
+            protected String call() throws Exception {
+                // Get the current context to access managers
+                var context = orchestrator.getContext();
+                if (!context.isPresent()) {
+                    throw new Exception("No presentation context available");
+                }
+                
+                var spidManager = context.get().getSpidManager();
+                var relationshipManager = context.get().getRelationshipManager();
+                
+                StringBuilder report = new StringBuilder();
+                report.append("=== SPID REGENERATION REPORT ===\n\n");
+                
+                // First validate current state
+                var spidValidation = spidManager.validateSpidUniqueness();
+                report.append("Pre-regeneration validation:\n");
+                report.append("  Errors: ").append(spidValidation.getErrors().size()).append("\n");
+                report.append("  Warnings: ").append(spidValidation.getWarnings().size()).append("\n\n");
+                
+                // Perform batch SPID regeneration by iterating through all slides
+                List<SlideMetadata> slides = orchestrator.getAllSlideMetadata();
+                int totalSlidesProcessed = 0;
+                int totalShapesProcessed = 0;
+                int totalAnimationsUpdated = 0;
+                
+                com.excudo.core.model.PPTXDocument pptxDocForRegen = context.get().getDocument();
+                javax.xml.parsers.DocumentBuilder docBuilder = XMLFactoryProvider.createDocumentBuilder();
+
+                for (SlideMetadata slideMetadata : slides) {
+                    int slideNumber = slideMetadata.getSlideNumber();
+
+                    if (pptxDocForRegen != null && pptxDocForRegen.hasSlide(slideNumber)) {
+                        org.w3c.dom.Document slideDoc = pptxDocForRegen.getSlideDocument(slideNumber);
+                        var slideRegenerationResult = spidManager.regenerateSpids(slideDoc, slideNumber);
+
+                        // Mark the slide dirty so it gets serialized on next save
+                        pptxDocForRegen.markSlideDirty(slideNumber);
+
+                        totalSlidesProcessed++;
+                        totalShapesProcessed += slideRegenerationResult.getShapesProcessed();
+                        totalAnimationsUpdated += slideRegenerationResult.getAnimationsUpdated();
+                    }
+                }
+                
+                report.append("SPID Regeneration Results:\n");
+                report.append("  Slides processed: ").append(totalSlidesProcessed).append("\n");
+                report.append("  Shapes updated: ").append(totalShapesProcessed).append("\n");
+                report.append("  Animations updated: ").append(totalAnimationsUpdated).append("\n\n");
+                
+                // Validate relationships after SPID changes
+                var relationshipValidation = relationshipManager.validateAllRelationships();
+                report.append("Post-regeneration relationship validation:\n");
+                report.append("  Errors: ").append(relationshipValidation.getErrors().size()).append("\n");
+                report.append("  Warnings: ").append(relationshipValidation.getWarnings().size()).append("\n");
+                
+                if (relationshipValidation.hasErrors()) {
+                    report.append("\nRelationship Errors:\n");
+                    for (String error : relationshipValidation.getErrors()) {
+                        report.append("  • ").append(error).append("\n");
+                    }
+                }
+                
+                report.append("\n[OK] SPID regeneration completed successfully!");
+                
+                return report.toString();
+            }
+            
+            @Override
+            protected void succeeded() {
+                Platform.runLater(() -> {
+                    String report = getValue();
+                    if (outputController != null) {
+                        outputController.appendOutput(report);
+                    }
+                    
+                    // Mark presentation as modified
+                    if (viewManager != null) {
+                        viewManager.markAsModified();
+                    }
+                    
+                    // Refresh views to show updated data
+                    updatePresentationViews();
+                    
+                    showStatus("SPID regeneration completed");
+                });
+            }
+            
+            @Override
+            protected void failed() {
+                Platform.runLater(() -> {
+                    showError("SPID regeneration failed", getException());
+                });
+            }
+        };
+        
+        runBackgroundTask(task);
+    }
+    
+    @FXML
+    private void handleShowTechnicalConsole() {
+        // Switch to console tab if it exists
+        if (bottomTabPane != null && consoleTab != null) {
+            bottomTabPane.getSelectionModel().select(consoleTab);
+            showStatus("Technical console activated");
+        }
+    }
+    
+    @FXML
+    private void handleShowSettings() {
+        // Placeholder for settings dialog
+        if (viewManager != null) {
+            viewManager.showInformation("Settings", "Settings Dialog", 
+                "Settings functionality will be implemented in a future version.");
+        }
+    }
+    
+    // ========== UTILITY METHODS ==========
+    
+    private void runBackgroundTask(Task<?> task) {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        thread.start();
+    }
+    
+    private void showStatus(String message) {
+        if (viewManager != null) {
+            viewManager.showStatus(message);
+        } else {
+            System.out.println("Status: " + message);
+        }
+    }
+    
+    private void showError(String message, Throwable exception) {
+        String errorMsg = exception != null ? exception.getMessage() : "Unknown error";
+        if (viewManager != null) {
+            viewManager.showError("Error", message, errorMsg);
+        } else {
+            System.err.println("Error: " + message + " - " + errorMsg);
+        }
+    }
+    
+    // ========== GETTERS ==========
+    
+    public PPTXOrchestrator getOrchestrator() {
+        return orchestrator;
+    }
+    
+    
+    public ViewManager getViewManager() {
+        return viewManager;
+    }
+    
+    public OutputController getOutputController() {
+        return outputController;
+    }
+    
+    public ValidationController getValidationController() {
+        return validationController;
+    }
+    
+    /**
+     * Update the state of XML editor buttons (called from SlideEditorController)
+     */
+    public void updateXmlButtonStates(boolean disabled) {
+        if (applyXmlButton != null) {
+            applyXmlButton.setDisable(disabled);
+        }
+        if (resetXmlButton != null) {
+            resetXmlButton.setDisable(disabled);
+        }
+        if (validateXmlButton != null) {
+            validateXmlButton.setDisable(disabled);
+        }
+    }
+    
+    /**
+     * Toggle visual preview visibility
+     */
+    private void toggleVisualPreview() {
+        visualPreviewExpanded = !visualPreviewExpanded;
+        
+        if (canvasScrollPane != null) {
+            canvasScrollPane.setVisible(visualPreviewExpanded);
+            canvasScrollPane.setManaged(visualPreviewExpanded);
+        }
+        
+        if (togglePreviewButton != null) {
+            // Update button text: > for collapsed, v for expanded
+            togglePreviewButton.setText(visualPreviewExpanded ? "v" : ">");
+        }
+        
+        // Canvas content is already loaded, just showing/hiding
+    }
+}

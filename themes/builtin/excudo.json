@@ -1,0 +1,67 @@
+{
+  "id": "excudo",
+  "displayName": "Excudo",
+  "colorScheme": {
+    "dk1": "0D1117",
+    "lt1": "E6EDF3",
+    "dk2": "161B22",
+    "lt2": "8B949E",
+    "accent1": "58A6FF",
+    "accent2": "F0883E",
+    "accent3": "3FB950",
+    "accent4": "BC8CFF",
+    "accent5": "79C0FF",
+    "accent6": "D2A8FF",
+    "hlink": "58A6FF",
+    "folHlink": "BC8CFF"
+  },
+  "majorFont": "Segoe UI",
+  "minorFont": "Consolas",
+  "backgroundFillIndex": 1,
+  "darkBackground": true,
+  "titleStyle": [
+    { "level": 0, "fontSizePt": 44, "colorRef": "tx1" },
+    { "level": 1, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 2, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 3, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 4, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 5, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 6, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 7, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 8, "fontSizePt": 18, "colorRef": "tx1" }
+  ],
+  "bodyStyle": [
+    { "level": 0, "fontSizePt": 24, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 228600, "indent": -228600, "spaceBefore": 500 },
+    { "level": 1, "fontSizePt": 22, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 457200, "indent": -228600, "spaceBefore": 500 },
+    { "level": 2, "fontSizePt": 20, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 685800, "indent": -228600, "spaceBefore": 500 },
+    { "level": 3, "fontSizePt": 18, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 914400, "indent": -228600, "spaceBefore": 500 },
+    { "level": 4, "fontSizePt": 18, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 1143000, "indent": -228600, "spaceBefore": 500 },
+    { "level": 5, "fontSizePt": 16, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 1371600, "indent": -228600, "spaceBefore": 500 },
+    { "level": 6, "fontSizePt": 16, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 1600200, "indent": -228600, "spaceBefore": 500 },
+    { "level": 7, "fontSizePt": 14, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 1828800, "indent": -228600, "spaceBefore": 500 },
+    { "level": 8, "fontSizePt": 14, "colorRef": "tx2", "bulletChar": "\u2022", "bulletFont": "Arial", "marginLeft": 2057400, "indent": -228600, "spaceBefore": 500 }
+  ],
+  "otherStyle": [
+    { "level": 0, "fontSizePt": 18, "colorRef": "tx1" },
+    { "level": 1, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 228600 },
+    { "level": 2, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 457200 },
+    { "level": 3, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 685800 },
+    { "level": 4, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 914400 },
+    { "level": 5, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 1143000 },
+    { "level": 6, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 1371600 },
+    { "level": 7, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 1600200 },
+    { "level": 8, "fontSizePt": 18, "colorRef": "tx1", "marginLeft": 1828800 }
+  ],
+  "layouts": [
+    { "layoutId": "slideLayout1", "matchingName": "Title Slide", "layoutType": "TITLE_SLIDE", "preserve": true, "placeholders": [{ "type": "ctrTitle", "x": 1524000, "y": 1122363, "cx": 9144000, "cy": 2387600 }, { "type": "subTitle", "x": 1524000, "y": 3602038, "cx": 9144000, "cy": 1655762 }] },
+    { "layoutId": "slideLayout2", "matchingName": "Title, Content", "layoutType": "TITLE_CONTENT", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 1825625, "cx": 10515600, "cy": 4351338 }] },
+    { "layoutId": "slideLayout3", "matchingName": "Section Header", "layoutType": "SECTION_HEADER", "preserve": true, "placeholders": [{ "type": "title", "x": 831850, "y": 1709738, "cx": 10515600, "cy": 2852737 }, { "type": "obj", "idx": 1, "x": 831850, "y": 4589463, "cx": 10515600, "cy": 1500187 }] },
+    { "layoutId": "slideLayout4", "matchingName": "Two Content", "layoutType": "TWO_CONTENT", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 1825625, "cx": 4838700, "cy": 4351338 }, { "type": "obj", "idx": 2, "x": 6515100, "y": 1825625, "cx": 4838700, "cy": 4351338 }] },
+    { "layoutId": "slideLayout5", "matchingName": "Comparison", "layoutType": "COMPARISON", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 2174875, "cx": 4838700, "cy": 1143000 }, { "type": "obj", "idx": 2, "x": 838200, "y": 3317875, "cx": 4838700, "cy": 2858763 }, { "type": "obj", "idx": 3, "x": 6515100, "y": 2174875, "cx": 4838700, "cy": 1143000 }, { "type": "obj", "idx": 4, "x": 6515100, "y": 3317875, "cx": 4838700, "cy": 2858763 }] },
+    { "layoutId": "slideLayout6", "matchingName": "Title Only", "layoutType": "TITLE_ONLY", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }] },
+    { "layoutId": "slideLayout7", "matchingName": "Blank", "layoutType": "BLANK", "preserve": true, "placeholders": [] },
+    { "layoutId": "slideLayout8", "matchingName": "Content with Caption", "layoutType": "CONTENT_CAPTION", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 1825625, "cx": 3886200, "cy": 4351338 }, { "type": "obj", "idx": 2, "x": 4800600, "y": 1825625, "cx": 6553200, "cy": 4351338 }] },
+    { "layoutId": "slideLayout9", "matchingName": "Picture with Caption", "layoutType": "PICTURE_CAPTION", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 1825625, "cx": 10515600, "cy": 4351338 }] },
+    { "layoutId": "slideLayout10", "matchingName": "Title and Vertical Text", "layoutType": "TITLE_VERTICAL", "preserve": true, "placeholders": [{ "type": "title", "x": 838200, "y": 365125, "cx": 10515600, "cy": 1325563 }, { "type": "obj", "idx": 1, "x": 838200, "y": 1825625, "cx": 10515600, "cy": 4351338 }] }
+  ]
+}

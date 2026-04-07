@@ -1,0 +1,294 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        # Install X11 and JavaFX dependencies
+        sudo apt-get install -y xvfb libxrender1 libxtst6 libxi6 libgtk-3-0
+        # Try to install OpenGL libraries (package names vary by Ubuntu version)
+        sudo apt-get install -y libgl1-mesa-dri libglu1-mesa || sudo apt-get install -y libgl1 || true
+    
+    - name: Install JavaFX
+      run: |
+        # Download and install JavaFX SDK to match local environment
+        cd lib
+        if [ ! -d "javafx-sdk-21" ]; then
+          echo "Downloading JavaFX SDK 21 for Linux x64..."
+          wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-x64_bin-sdk.zip
+          unzip -q openjfx-21.0.1_linux-x64_bin-sdk.zip
+          mv javafx-sdk-21.0.1 javafx-sdk-21
+          rm openjfx-21.0.1_linux-x64_bin-sdk.zip
+          echo "JavaFX SDK installed to lib/javafx-sdk-21"
+        else
+          echo "JavaFX SDK already present"
+        fi
+        ls -la javafx-sdk-21/lib/
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.m2
+          lib/
+        key: ${{ runner.os }}-java-javafx-${{ hashFiles('lib/**/*.jar') }}-v2
+        restore-keys: |
+          ${{ runner.os }}-java-javafx-
+          ${{ runner.os }}-java-
+    
+    - name: Verify lib directory (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        echo "Contents of lib directory:"
+        ls -la lib/ || echo "lib directory not found"
+        echo "JAR files in lib:"
+        ls -la lib/*.jar || echo "No JAR files found"
+    
+    - name: Verify lib directory (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: |
+        echo Contents of lib directory:
+        dir lib\ || echo lib directory not found
+        echo JAR files in lib:
+        dir lib\*.jar || echo No JAR files found
+    
+    - name: Build project
+      run: python3 pc.py build
+    
+    - name: Start Xvfb
+      run: |
+        # Start Xvfb for headless JavaFX testing
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        echo "Xvfb started on display :99"
+    
+    - name: Clean test outputs
+      run: rm -rf test-output/coverage/*
+      
+    - name: Run tests
+      run: python3 pc.py test --coverage
+      env:
+        DISPLAY: :99
+        HEADLESS_ONLY: true
+        # Disable accessibility bus to prevent AT-SPI errors and container failures
+        NO_AT_BRIDGE: 1
+        QT_ACCESSIBILITY: 0
+        # JavaFX native library path and module configuration for headless environments
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true -Djava.library.path=lib/javafx-sdk-21/lib --module-path=lib/javafx-sdk-21/lib --add-modules=javafx.controls,javafx.fxml"
+    
+    # Coverage report is now generated automatically by pc.py test --coverage
+    
+    - name: Upload coverage to Codecov
+      if: success()
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: test-output/coverage/jacoco.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build-matrix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        java: ['17', '21']
+        exclude:
+          # Skip some combinations to reduce CI time
+          - os: windows-latest
+            java: '17'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK ${{ matrix.java }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'temurin'
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        # Install X11 and JavaFX dependencies
+        sudo apt-get install -y xvfb libxrender1 libxtst6 libxi6 libgtk-3-0
+        # Try to install OpenGL libraries (package names vary by Ubuntu version)
+        sudo apt-get install -y libgl1-mesa-dri libglu1-mesa || sudo apt-get install -y libgl1 || true
+    
+    - name: Install JavaFX (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        # Download and install JavaFX SDK for Unix systems
+        cd lib
+        if [ ! -d "javafx-sdk-21" ]; then
+          echo "Downloading JavaFX SDK 21..."
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # Check architecture and download appropriate JavaFX SDK
+            echo "macOS detected. Architecture: $(uname -m)"
+            if [[ $(uname -m) == "arm64" ]]; then
+              echo "Downloading ARM64 JavaFX for Apple Silicon macOS..."
+              wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-aarch64_bin-sdk.zip
+              unzip -q openjfx-21.0.1_osx-aarch64_bin-sdk.zip
+            else
+              echo "Downloading x64 JavaFX for Intel macOS..."
+              wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-x64_bin-sdk.zip
+              unzip -q openjfx-21.0.1_osx-x64_bin-sdk.zip
+            fi
+          else
+            wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-x64_bin-sdk.zip
+            unzip -q openjfx-21.0.1_linux-x64_bin-sdk.zip
+          fi
+          mv javafx-sdk-21.0.1 javafx-sdk-21
+          rm openjfx-21.0.1_*_bin-sdk.zip
+          echo "JavaFX SDK installed to lib/javafx-sdk-21"
+        else
+          echo "JavaFX SDK already present"
+        fi
+        echo "JavaFX libraries installed:"
+        ls -la javafx-sdk-21/lib/
+        echo "Checking native library architecture (macOS only):"
+        if [ "${{ runner.os }}" = "macOS" ] && [ -f "javafx-sdk-21/lib/libprism_sw.dylib" ]; then
+          file javafx-sdk-21/lib/libprism_sw.dylib
+        fi
+    
+    - name: Install JavaFX (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        # Download and install JavaFX SDK for Windows
+        cd lib
+        if [ ! -d "javafx-sdk-21" ]; then
+          echo "Downloading JavaFX SDK 21 for Windows..."
+          curl -L -o openjfx-21.0.1_windows-x64_bin-sdk.zip https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_windows-x64_bin-sdk.zip
+          unzip -q openjfx-21.0.1_windows-x64_bin-sdk.zip
+          mv javafx-sdk-21.0.1 javafx-sdk-21
+          rm openjfx-21.0.1_windows-x64_bin-sdk.zip
+          echo "JavaFX SDK installed to lib/javafx-sdk-21"
+        else
+          echo "JavaFX SDK already present"
+        fi
+        ls -la javafx-sdk-21/lib/
+    
+    - name: Verify lib directory (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        echo "Contents of lib directory:"
+        ls -la lib/ || echo "lib directory not found"
+        echo "JAR files in lib:"
+        ls -la lib/*.jar || echo "No JAR files found"
+        echo "Current directory:"
+        pwd
+        echo "All directories:"
+        ls -la
+    
+    - name: Verify lib directory (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: |
+        echo Contents of lib directory:
+        dir lib\ || echo lib directory not found
+        echo JAR files in lib:
+        dir lib\*.jar || echo No JAR files found
+        echo Current directory:
+        cd
+        echo All directories:
+        dir
+    
+    - name: Build project (Unix)
+      if: runner.os != 'Windows'
+      run: python3 pc.py build --verbose
+      env:
+        # Ensure JavaFX classes are compiled even in headless environment
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
+    
+    - name: Build project (Windows)
+      if: runner.os == 'Windows'
+      run: python pc.py build --verbose
+      env:
+        # Ensure JavaFX classes are compiled even in headless environment
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
+    
+    - name: Start Xvfb (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        # Start Xvfb for headless JavaFX testing
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        echo "Xvfb started on display :99"
+    
+    - name: Run headless tests (Unix)
+      if: runner.os != 'Windows'
+      run: python3 pc.py test
+      env:
+        DISPLAY: :99
+        HEADLESS_ONLY: true
+        # Disable accessibility bus to prevent AT-SPI errors and container failures
+        NO_AT_BRIDGE: 1
+        QT_ACCESSIBILITY: 0
+        # JavaFX headless environment variables (especially for macOS)
+        PRISM_ORDER: sw
+        PRISM_ALLOWHIDPI: false
+        PRISM_LCDTEXT: false
+        PRISM_SUBPIXELTEXT: false
+        GLASS_PLATFORM: Monocle
+        MONOCLE_PLATFORM: Headless
+        TESTFX_HEADLESS: true
+        TESTFX_ROBOT: glass
+        # Additional macOS JavaFX fixes with native library path and module path
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true -Dprism.order=sw -Dglass.platform=Monocle -Dmonocle.platform=Headless -Djava.library.path=lib/javafx-sdk-21/lib --module-path=lib/javafx-sdk-21/lib --add-modules=javafx.controls,javafx.fxml"
+    
+    - name: Run headless tests (Windows)
+      if: runner.os == 'Windows'
+      run: python pc.py test
+      env:
+        HEADLESS_ONLY: true
+        # Windows-specific JavaFX headless environment variables
+        PRISM_ORDER: sw
+        PRISM_ALLOWHIDPI: false
+        PRISM_LCDTEXT: false
+        PRISM_SUBPIXELTEXT: false
+        GLASS_PLATFORM: Monocle
+        MONOCLE_PLATFORM: Headless
+        TESTFX_HEADLESS: true
+        TESTFX_ROBOT: glass
+        # Windows JavaFX fixes with native library path and module path
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true -Dprism.order=sw -Dglass.platform=Monocle -Dmonocle.platform=Headless -Dfile.encoding=UTF-8 -Djava.library.path=lib/javafx-sdk-21/lib --module-path=lib/javafx-sdk-21/lib --add-modules=javafx.controls,javafx.fxml"

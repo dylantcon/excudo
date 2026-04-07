@@ -1,0 +1,2 @@
+# Python dependencies for Presentation Choreographer CLI
+requests>=2.25.0

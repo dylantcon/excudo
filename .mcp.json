@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ooxml": {
+      "command": "python3",
+      "args": ["/home/dev/excudo/tools/mcp-server/ooxml_mcp_server.py"],
+      "cwd": "/home/dev/excudo"
+    }
+  }
+}

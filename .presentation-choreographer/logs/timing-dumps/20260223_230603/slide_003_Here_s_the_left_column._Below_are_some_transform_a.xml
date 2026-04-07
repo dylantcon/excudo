@@ -1,0 +1,1396 @@
+=== SLIDE 3 - Here’s the left column. Below are some transform animations of a shape. Can we start to inject those? ===
+
+<p:timing xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+                  
+    
+    
+    
+  <p:tnLst>
+                            
+      
+      
+      
+    <p:par>
+                                      
+        
+        
+        
+      <p:cTn dur="indefinite" id="1" nodeType="tmRoot" restart="never">
+                                                
+          
+          
+          
+        <p:childTnLst>
+                                                          
+            
+            
+            
+          <p:seq concurrent="1" nextAc="seek">
+                                                                    
+              
+              
+              
+            <p:cTn dur="indefinite" id="2" nodeType="mainSeq">
+                                                                              
+                
+                
+                
+              <p:childTnLst>
+                                                                                        
+                  
+                  
+                  
+                <p:par>
+                                                                                                  
+                    
+                    
+                    
+                  <p:cTn fill="hold" id="3">
+                                                                                                            
+                      
+                      
+                      
+                    <p:stCondLst>
+                                                                                                                      
+                        
+                        
+                        
+                      <p:cond delay="indefinite"/>
+                                                                                                                    
+                      
+                      
+                      
+                    </p:stCondLst>
+                                                                                                            
+                      
+                      
+                      
+                    <p:childTnLst>
+                                                                                                                      
+                        
+                        
+                        
+                      <p:par>
+                                                                                                                                
+                          
+                          
+                          
+                        <p:cTn fill="hold" id="4">
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:stCondLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:cond delay="0"/>
+                                                                                                                                                  
+                            
+                            
+                            
+                          </p:stCondLst>
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:childTnLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:par>
+                                                                                                                                                              
+                                
+                                
+                                
+                              <p:cTn accel="50000" decel="50000" fill="hold" grpId="0" id="5" nodeType="clickEffect" presetClass="path" presetID="42" presetSubtype="0">
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:stCondLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:cond delay="0"/>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:stCondLst>
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:childTnLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:animMotion origin="layout" path="M 0 0 L 0 0.25 E" pathEditMode="relative" ptsTypes="">
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:cBhvr>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:cTn dur="2000" fill="hold" id="6"/>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:spTgt spid="5"/>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_x</p:attrName>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_y</p:attrName>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                                                                    
+                                      
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                                                          
+                                    
+                                    
+                                    
+                                  </p:animMotion>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:childTnLst>
+                                                                                                                                                                      
+                                
+                                
+                                
+                              </p:cTn>
+                                                                                                                                                            
+                              
+                              
+                              
+                            </p:par>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:par>
+                                                                                                                                                              
+                                
+                                
+                                
+                              <p:cTn fill="hold" grpId="2" id="7311" nodeType="clickEffect" presetClass="entr" presetID="1" presetSubtype="0">
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:stCondLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:cond delay="indefinite"/>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:stCondLst>
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:childTnLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:set>
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:cBhvr>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:cTn dur="1" fill="hold" id="2618"/>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:spTgt spid="3">
+                                                                                                                                                                                                                          
+                                            
+                                            
+                                            
+                                          <p:txEl>
+                                                                                                                                                                                                                                    
+                                              
+                                              
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                                                                                                                  
+                                            
+                                            
+                                            
+                                          </p:txEl>
+                                                                                                                                                                                                                        
+                                          
+                                          
+                                          
+                                        </p:spTgt>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>style.visibility</p:attrName>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                                                                    
+                                      
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:to>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:strVal val="visible"/>
+                                                                                                                                                                                                    
+                                      
+                                      
+                                      
+                                    </p:to>
+                                                                                                                                                                                          
+                                    
+                                    
+                                    
+                                  </p:set>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:childTnLst>
+                                                                                                                                                                      
+                                
+                                
+                                
+                              </p:cTn>
+                                                                                                                                                            
+                              
+                              
+                              
+                            </p:par>
+                                                                                                                                                  
+                              
+                              
+                              
+                            <p:par>
+                                                                                                                              
+                                
+                                
+                              <p:cTn fill="hold" grpId="3" id="5353" nodeType="clickEffect" presetClass="entr" presetID="2" presetSubtype="2">
+                                                                                                                                      
+                                  
+                                  
+                                <p:stCondLst>
+                                                                                                                                              
+                                    
+                                    
+                                  <p:cond delay="indefinite"/>
+                                                                                                                                            
+                                  
+                                  
+                                </p:stCondLst>
+                                                                                                                                      
+                                  
+                                  
+                                <p:childTnLst>
+                                                                                                                                              
+                                    
+                                    
+                                  <p:set>
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:cBhvr>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:cTn dur="1" fill="hold" id="5286"/>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:spTgt spid="2">
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:txEl>
+                                                                                                                                                                                      
+                                              
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                                                                    
+                                            
+                                            
+                                          </p:txEl>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:spTgt>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:attrName>style.visibility</p:attrName>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:to>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:strVal val="visible"/>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:to>
+                                                                                                                                                    
+                                    
+                                    
+                                  </p:set>
+                                                                                                                                              
+                                    
+                                    
+                                  <p:anim calcmode="lin" valueType="num">
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:cBhvr additive="base">
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:cTn dur="500" fill="hold" id="2811"/>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:spTgt spid="2">
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:txEl>
+                                                                                                                                                                                      
+                                              
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                                                                    
+                                            
+                                            
+                                          </p:txEl>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:spTgt>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:attrName>ppt_x</p:attrName>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:tavLst>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tav tm="0">
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:val>
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:strVal val="1+#ppt_w/2"/>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:val>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tav>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tav tm="100000">
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:val>
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:strVal val="#ppt_x"/>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:val>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tav>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:tavLst>
+                                                                                                                                                    
+                                    
+                                    
+                                  </p:anim>
+                                                                                                                                              
+                                    
+                                    
+                                  <p:anim calcmode="lin" valueType="num">
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:cBhvr additive="base">
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:cTn dur="500" fill="hold" id="2855"/>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:spTgt spid="2">
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:txEl>
+                                                                                                                                                                                      
+                                              
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                                                                    
+                                            
+                                            
+                                          </p:txEl>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:spTgt>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:attrName>ppt_y</p:attrName>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                      
+                                      
+                                      
+                                    <p:tavLst>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tav tm="0">
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:val>
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:strVal val="#ppt_y"/>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:val>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tav>
+                                                                                                                                                              
+                                        
+                                        
+                                      <p:tav tm="100000">
+                                                                                                                                                                      
+                                          
+                                          
+                                        <p:val>
+                                                                                                                                                                              
+                                            
+                                            
+                                          <p:strVal val="#ppt_y"/>
+                                                                                                                                                                            
+                                          
+                                          
+                                        </p:val>
+                                                                                                                                                                    
+                                        
+                                        
+                                      </p:tav>
+                                                                                                                                                            
+                                      
+                                      
+                                    </p:tavLst>
+                                                                                                                                                    
+                                    
+                                    
+                                  </p:anim>
+                                                                                                                                            
+                                  
+                                  
+                                </p:childTnLst>
+                                                                                                                                    
+                                
+                                
+                              </p:cTn>
+                                                                                                                            
+                              
+                              
+                            </p:par>
+                                                                                                                    
+                              
+                              
+                            <p:par>
+                                                                                              
+                                
+                              <p:cTn fill="hold" grpId="3" id="10804" nodeType="afterEffect" presetClass="exit" presetID="10" presetSubtype="0">
+                                                                                                    
+                                  
+                                <p:stCondLst>
+                                                                                                          
+                                    
+                                  <p:cond delay="0"/>
+                                                                                                        
+                                  
+                                </p:stCondLst>
+                                                                                                    
+                                  
+                                <p:childTnLst>
+                                                                                                          
+                                    
+                                  <p:animEffect filter="fade" transition="out">
+                                                                                                                
+                                      
+                                    <p:cBhvr>
+                                                                                                                      
+                                        
+                                      <p:cTn dur="500" fill="hold" id="2664"/>
+                                                                                                                      
+                                        
+                                      <p:tgtEl>
+                                                                                                                            
+                                          
+                                        <p:spTgt spid="4">
+                                                                                                                                  
+                                            
+                                          <p:txEl>
+                                                                                                                                        
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                      
+                                            
+                                          </p:txEl>
+                                                                                                                                
+                                          
+                                        </p:spTgt>
+                                                                                                                          
+                                        
+                                      </p:tgtEl>
+                                                                                                                    
+                                      
+                                    </p:cBhvr>
+                                                                                                              
+                                    
+                                  </p:animEffect>
+                                                                                                          
+                                    
+                                  <p:set>
+                                                                                                                
+                                      
+                                    <p:cBhvr>
+                                                                                                                      
+                                        
+                                      <p:cTn dur="1" fill="hold" id="9305"/>
+                                                                                                                      
+                                        
+                                      <p:tgtEl>
+                                                                                                                            
+                                          
+                                        <p:spTgt spid="4">
+                                                                                                                                  
+                                            
+                                          <p:txEl>
+                                                                                                                                        
+                                              
+                                            <p:pRg end="0" st="0"/>
+                                                                                                                                      
+                                            
+                                          </p:txEl>
+                                                                                                                                
+                                          
+                                        </p:spTgt>
+                                                                                                                          
+                                        
+                                      </p:tgtEl>
+                                                                                                                      
+                                        
+                                      <p:attrNameLst>
+                                                                                                                            
+                                          
+                                        <p:attrName>style.visibility</p:attrName>
+                                                                                                                          
+                                        
+                                      </p:attrNameLst>
+                                                                                                                    
+                                      
+                                    </p:cBhvr>
+                                                                                                                
+                                      
+                                    <p:to>
+                                                                                                                      
+                                        
+                                      <p:strVal val="hidden"/>
+                                                                                                                    
+                                      
+                                    </p:to>
+                                                                                                              
+                                    
+                                  </p:set>
+                                                                                                        
+                                  
+                                </p:childTnLst>
+                                                                                                  
+                                
+                              </p:cTn>
+                                                                                            
+                              
+                            </p:par>
+                                                                                      
+                              
+                            <p:par>
+                                                              
+                              <p:cTn fill="hold" id="7777" nodeType="clickEffect" presetClass="entr" presetID="8" presetSubtype="0">
+                                                                  
+                                <p:stCondLst>
+                                                                      
+                                  <p:cond delay="indefinite"/>
+                                                                    
+                                </p:stCondLst>
+                                                                  
+                                <p:childTnLst>
+                                                                      
+                                  <p:set>
+                                                                          
+                                    <p:cBhvr>
+                                                                              
+                                      <p:cTn dur="1" fill="hold" id="1124"/>
+                                                                              
+                                      <p:tgtEl>
+                                                                                  
+                                        <p:spTgt spid="5">
+                                                                                      
+                                          <p:txEl>
+                                                                                          
+                                            <p:pRg end="0" st="0"/>
+                                                                                        
+                                          </p:txEl>
+                                                                                    
+                                        </p:spTgt>
+                                                                                
+                                      </p:tgtEl>
+                                                                              
+                                      <p:attrNameLst>
+                                                                                  
+                                        <p:attrName>style.visibility</p:attrName>
+                                                                                
+                                      </p:attrNameLst>
+                                                                            
+                                    </p:cBhvr>
+                                                                          
+                                    <p:to>
+                                                                              
+                                      <p:strVal val="visible"/>
+                                                                            
+                                    </p:to>
+                                                                        
+                                  </p:set>
+                                                                      
+                                  <p:animRot by="21600000">
+                                                                          
+                                    <p:cBhvr additive="base">
+                                                                              
+                                      <p:cTn dur="500" fill="hold" id="3731"/>
+                                                                              
+                                      <p:tgtEl>
+                                                                                  
+                                        <p:spTgt spid="5">
+                                                                                      
+                                          <p:txEl>
+                                                                                          
+                                            <p:pRg end="0" st="0"/>
+                                                                                        
+                                          </p:txEl>
+                                                                                    
+                                        </p:spTgt>
+                                                                                
+                                      </p:tgtEl>
+                                                                              
+                                      <p:attrNameLst>
+                                                                                  
+                                        <p:attrName>r</p:attrName>
+                                                                                
+                                      </p:attrNameLst>
+                                                                            
+                                    </p:cBhvr>
+                                                                        
+                                  </p:animRot>
+                                                                    
+                                </p:childTnLst>
+                                                                
+                              </p:cTn>
+                                                            
+                            </p:par>
+                                                        
+                          </p:childTnLst>
+                                                                                                                                        
+                          
+                          
+                          
+                        </p:cTn>
+                                                                                                                              
+                        
+                        
+                        
+                      </p:par>
+                                                                                                                    
+                      
+                      
+                      
+                    </p:childTnLst>
+                                                                                                          
+                    
+                    
+                    
+                  </p:cTn>
+                                                                                                
+                  
+                  
+                  
+                </p:par>
+                                                                                        
+                  
+                  
+                  
+                <p:par>
+                                                                                                  
+                    
+                    
+                    
+                  <p:cTn fill="hold" id="7">
+                                                                                                            
+                      
+                      
+                      
+                    <p:stCondLst>
+                                                                                                                      
+                        
+                        
+                        
+                      <p:cond delay="indefinite"/>
+                                                                                                                    
+                      
+                      
+                      
+                    </p:stCondLst>
+                                                                                                            
+                      
+                      
+                      
+                    <p:childTnLst>
+                                                                                                                      
+                        
+                        
+                        
+                      <p:par>
+                                                                                                                                
+                          
+                          
+                          
+                        <p:cTn fill="hold" id="8">
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:stCondLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:cond delay="0"/>
+                                                                                                                                                  
+                            
+                            
+                            
+                          </p:stCondLst>
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:childTnLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:par>
+                                                                                                                                                              
+                                
+                                
+                                
+                              <p:cTn accel="50000" decel="50000" fill="hold" grpId="1" id="9" nodeType="clickEffect" presetClass="path" presetID="37" presetSubtype="0">
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:stCondLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:cond delay="0"/>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:stCondLst>
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:childTnLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:animMotion origin="layout" path="M 1.25E-6 0.25 L 0.06706 0.29005 C 0.08099 0.29908 0.10195 0.30394 0.12396 0.30394 C 0.14896 0.30394 0.16901 0.29908 0.18294 0.29005 L 0.25 0.25 " pathEditMode="relative" ptsTypes="AAAAA" rAng="0">
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:cBhvr>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:cTn dur="2000" fill="hold" id="10"/>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:spTgt spid="5"/>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_x</p:attrName>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_y</p:attrName>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                                                                    
+                                      
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:rCtr x="12500" y="2685"/>
+                                                                                                                                                                                          
+                                    
+                                    
+                                    
+                                  </p:animMotion>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:childTnLst>
+                                                                                                                                                                      
+                                
+                                
+                                
+                              </p:cTn>
+                                                                                                                                                            
+                              
+                              
+                              
+                            </p:par>
+                                                                                                                                                  
+                            
+                            
+                            
+                          </p:childTnLst>
+                                                                                                                                        
+                          
+                          
+                          
+                        </p:cTn>
+                                                                                                                              
+                        
+                        
+                        
+                      </p:par>
+                                                                                                                      
+                        
+                        
+                        
+                      <p:par>
+                                                                                                                                
+                          
+                          
+                          
+                        <p:cTn fill="hold" id="11">
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:stCondLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:cond delay="2000"/>
+                                                                                                                                                  
+                            
+                            
+                            
+                          </p:stCondLst>
+                                                                                                                                          
+                            
+                            
+                            
+                          <p:childTnLst>
+                                                                                                                                                    
+                              
+                              
+                              
+                            <p:par>
+                                                                                                                                                              
+                                
+                                
+                                
+                              <p:cTn accel="50000" decel="50000" fill="hold" grpId="2" id="12" nodeType="afterEffect" presetClass="path" presetID="50" presetSubtype="0">
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:stCondLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:cond delay="0"/>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:stCondLst>
+                                                                                                                                                                        
+                                  
+                                  
+                                  
+                                <p:childTnLst>
+                                                                                                                                                                                  
+                                    
+                                    
+                                    
+                                  <p:animMotion origin="layout" path="M 0.25 0.25 L 0.375 0.25 C 0.43099 0.25 0.5 0.15139 0.5 0.07153 L 0.5 -0.10694 " pathEditMode="relative" ptsTypes="AAAA" rAng="0">
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:cBhvr>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:cTn dur="2000" fill="hold" id="13"/>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:tgtEl>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:spTgt spid="5"/>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:tgtEl>
+                                                                                                                                                                                                      
+                                        
+                                        
+                                        
+                                      <p:attrNameLst>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_x</p:attrName>
+                                                                                                                                                                                                                
+                                          
+                                          
+                                          
+                                        <p:attrName>ppt_y</p:attrName>
+                                                                                                                                                                                                              
+                                        
+                                        
+                                        
+                                      </p:attrNameLst>
+                                                                                                                                                                                                    
+                                      
+                                      
+                                      
+                                    </p:cBhvr>
+                                                                                                                                                                                            
+                                      
+                                      
+                                      
+                                    <p:rCtr x="12500" y="-17847"/>
+                                                                                                                                                                                          
+                                    
+                                    
+                                    
+                                  </p:animMotion>
+                                                                                                                                                                                
+                                  
+                                  
+                                  
+                                </p:childTnLst>
+                                                                                                                                                                      
+                                
+                                
+                                
+                              </p:cTn>
+                                                                                                                                                            
+                              
+                              
+                              
+                            </p:par>
+                                                                                                                                                  
+                            
+                            
+                            
+                          </p:childTnLst>
+                                                                                                                                        
+                          
+                          
+                          
+                        </p:cTn>
+                                                                                                                              
+                        
+                        
+                        
+                      </p:par>
+                                                                                                                    
+                      
+                      
+                      
+                    </p:childTnLst>
+                                                                                                          
+                    
+                    
+                    
+                  </p:cTn>
+                                                                                                
+                  
+                  
+                  
+                </p:par>
+                                                                                      
+                
+                
+                
+              </p:childTnLst>
+                                                                            
+              
+              
+              
+            </p:cTn>
+                                                                    
+              
+              
+              
+            <p:prevCondLst>
+                                                                              
+                
+                
+                
+              <p:cond delay="0" evt="onPrev">
+                                                                                        
+                  
+                  
+                  
+                <p:tgtEl>
+                                                                                                  
+                    
+                    
+                    
+                  <p:sldTgt/>
+                                                                                                
+                  
+                  
+                  
+                </p:tgtEl>
+                                                                                      
+                
+                
+                
+              </p:cond>
+                                                                            
+              
+              
+              
+            </p:prevCondLst>
+                                                                    
+              
+              
+              
+            <p:nextCondLst>
+                                                                              
+                
+                
+                
+              <p:cond delay="0" evt="onNext">
+                                                                                        
+                  
+                  
+                  
+                <p:tgtEl>
+                                                                                                  
+                    
+                    
+                    
+                  <p:sldTgt/>
+                                                                                                
+                  
+                  
+                  
+                </p:tgtEl>
+                                                                                      
+                
+                
+                
+              </p:cond>
+                                                                            
+              
+              
+              
+            </p:nextCondLst>
+                                                                  
+            
+            
+            
+          </p:seq>
+                                                        
+          
+          
+          
+        </p:childTnLst>
+                                              
+        
+        
+        
+      </p:cTn>
+                                    
+      
+      
+      
+    </p:par>
+                          
+    
+    
+    
+  </p:tnLst>
+                  
+    
+    
+    
+  <p:bldLst>
+                            
+      
+      
+      
+    <p:bldP animBg="1" grpId="0" spid="5"/>
+                            
+      
+      
+      
+    <p:bldP animBg="1" grpId="1" spid="5"/>
+                            
+      
+      
+      
+    <p:bldP animBg="1" grpId="2" spid="5"/>
+                            
+      
+      
+      
+    <p:bldP build="p" grpId="2" spid="3"/>
+                          
+      
+      
+      
+    <p:bldP build="p" grpId="3" spid="2"/>
+                    
+      
+      
+    <p:bldP build="p" grpId="3" spid="4"/>
+              
+    
+  </p:bldLst>
+                
+  
+  
+  
+</p:timing>
+

@@ -1,0 +1,374 @@
+package com.excudo.core.commands;
+
+import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.ParsedCommand;
+import java.util.Set;
+import java.util.HashSet;
+
+/**
+ * Factory for creating utility/query commands.
+ * 
+ * This factory handles read-only inspection and query commands that work with
+ * UtilityOrchestrationManager as the receiver. These commands are console-only
+ * as the LLM doesn't need query operations.
+ * 
+ * Handled commands:
+ * - list: List all slides
+ * - show: Show slide details
+ * - list-layouts: List available layouts
+ * - list-spids: List SPIDs on a slide
+ * - list-animations: List animations on a slide
+ * - list-animation-types: List available animation types
+ * - list-notes: List notes for a slide
+ * - dump-shape: Dump shape data
+ * - dump-timing: Dump timing tree
+ * - show-shape: Show shape details
+ */
+public class UtilityCommandFactory extends AbstractCommandFactory {
+
+    private static RenderSlideCommand.SlideRenderFunction slideRenderFunction;
+
+    /**
+     * Register the slide render function from the view layer.
+     * Must be called before any render commands are executed.
+     */
+    public static void setSlideRenderFunction(RenderSlideCommand.SlideRenderFunction fn) {
+        slideRenderFunction = fn;
+    }
+
+    public static RenderSlideCommand.SlideRenderFunction getSlideRenderFunction() {
+        return slideRenderFunction;
+    }
+
+    private static final Set<String> HANDLED_COMMANDS = new HashSet<>();
+    
+    static {
+        // Query commands
+        HANDLED_COMMANDS.add("list");
+        HANDLED_COMMANDS.add("show");
+        HANDLED_COMMANDS.add("list-layouts");
+        HANDLED_COMMANDS.add("list-spids");
+        HANDLED_COMMANDS.add("list-animations");
+        HANDLED_COMMANDS.add("list-animation-types");
+        HANDLED_COMMANDS.add("list-notes");
+        
+        // Dump/debug commands
+        HANDLED_COMMANDS.add("dump-shape");
+        HANDLED_COMMANDS.add("dump-timing");
+        HANDLED_COMMANDS.add("show-shape");
+
+        // Shape type listing
+        HANDLED_COMMANDS.add("list-shape-types");
+
+        // Transition type listing
+        HANDLED_COMMANDS.add("list-transition-types");
+
+        // Arrange operations listing
+        HANDLED_COMMANDS.add("list-arrange-ops");
+
+        // Render command
+        HANDLED_COMMANDS.add("render");
+
+        // Theme commands
+        HANDLED_COMMANDS.add("list-themes");
+        HANDLED_COMMANDS.add("apply-theme");
+        HANDLED_COMMANDS.add("show-theme");
+        HANDLED_COMMANDS.add("create-theme");
+        HANDLED_COMMANDS.add("edit-theme");
+        HANDLED_COMMANDS.add("delete-theme");
+    }
+    
+    /**
+     * Create a UtilityCommandFactory.
+     * 
+     * @param orchestrator the PPTX orchestrator
+     */
+    public UtilityCommandFactory(PPTXOrchestrator orchestrator) {
+        super(orchestrator);
+    }
+    
+    @Override
+    public boolean handlesCommand(String commandName) {
+        return HANDLED_COMMANDS.contains(commandName);
+    }
+    
+    @Override
+    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
+        String commandName = parsedCommand.getCommandName();
+        CommandDisplay display = (CommandDisplay) displayAdapter;
+        
+        switch (commandName) {
+            case "list":
+                return createListSlides(parsedCommand, display);
+                
+            case "show":
+                return createShowSlide(parsedCommand, display);
+                
+            case "list-layouts":
+                String layoutThemeId = parsedCommand.getString("themeId");
+                return new ListLayoutsCommand(orchestrator, display, layoutThemeId);
+                
+            case "list-spids":
+                return createListSpids(parsedCommand, display);
+                
+            case "list-animations":
+                return createListAnimations(parsedCommand, display);
+                
+            case "list-animation-types":
+                return createListAnimationTypesInternal(display);
+
+            case "list-shape-types":
+                return new ListShapeTypesCommand(display);
+
+            case "list-transition-types":
+                return new ListTransitionTypesCommand(display);
+                
+            case "list-notes":
+                return createListNotes(parsedCommand, displayAdapter);
+                
+            case "dump-shape":
+                return createDumpShape(parsedCommand, display);
+                
+            case "dump-timing":
+                return createDumpTiming(parsedCommand, display);
+                
+            case "show-shape":
+                return createShowShape(parsedCommand, displayAdapter);
+
+            case "list-arrange-ops":
+                return new ListArrangeOpsCommand(display);
+
+            case "list-themes":
+                return new ListThemesCommand((CommandDisplay) displayAdapter);
+
+            case "apply-theme":
+                String themeId = parsedCommand.getString("themeId");
+                return new ApplyThemeCommand(themeId, orchestrator, (CommandDisplay) displayAdapter);
+
+            case "render":
+                int renderSlide = parsedCommand.getInteger("slide") != null ? parsedCommand.getInteger("slide") : 1;
+                String renderOutput = parsedCommand.getString("output");
+                int renderWidth = parsedCommand.getInteger("width") != null ? parsedCommand.getInteger("width") : 1280;
+                int renderHeight = parsedCommand.getInteger("height") != null ? parsedCommand.getInteger("height") : 720;
+                if (slideRenderFunction == null) {
+                    throw new IllegalStateException("Render function not registered. Call setSlideRenderFunction() first.");
+                }
+                return new RenderSlideCommand(orchestrator, renderSlide, renderOutput,
+                    renderWidth, renderHeight, slideRenderFunction);
+
+            case "show-theme":
+                return new ShowThemeCommand(parsedCommand.getString("themeId"), display);
+
+            case "create-theme":
+                return new CreateThemeCommand(
+                    parsedCommand.getString("id"),
+                    parsedCommand.getString("baseTheme"),
+                    parsedCommand.getString("displayName"),
+                    display);
+
+            case "edit-theme":
+                return new EditThemeCommand(
+                    parsedCommand.getString("themeId"),
+                    parsedCommand.getString("property"),
+                    parsedCommand.getString("value"),
+                    display);
+
+            case "delete-theme":
+                return new DeleteThemeCommand(parsedCommand.getString("themeId"), display);
+
+            default:
+                return null;
+        }
+    }
+    
+    // ========== LIST COMMANDS ==========
+    
+    /**
+     * Create a list slides command.
+     */
+    private Command createListSlides(ParsedCommand parsedCommand, CommandDisplay display) {
+        Boolean verbose = parsedCommand.getBoolean("verbose");
+        return new ListSlidesCommand(orchestrator, display, 
+                                    verbose != null ? verbose : false);
+    }
+    
+    /**
+     * Create a show slide command.
+     */
+    private Command createShowSlide(ParsedCommand parsedCommand, CommandDisplay display) {
+        Integer slideNumber = parsedCommand.getInteger("slide");
+        return new ShowSlideCommand(orchestrator, display, 
+                                   slideNumber != null ? slideNumber : 1);
+    }
+    
+    /**
+     * Create a list SPIDs command.
+     */
+    private Command createListSpids(ParsedCommand parsedCommand, CommandDisplay display) {
+        Integer slideNumber = parsedCommand.getInteger("slide");
+        return new ListSpidsCommand(orchestrator, display, 
+                                   slideNumber != null ? slideNumber : 1);
+    }
+    
+    /**
+     * Create a list animations command.
+     */
+    private Command createListAnimations(ParsedCommand parsedCommand, CommandDisplay display) {
+        Integer slideNumber = parsedCommand.getInteger("slide");
+        return new ListAnimationsCommand(orchestrator, display, 
+                                        slideNumber != null ? slideNumber : 1);
+    }
+    
+    /**
+     * Create a list animation types command (internal).
+     */
+    private Command createListAnimationTypesInternal(CommandDisplay display) {
+        return new ListAnimationTypesCommand(display);
+    }
+    
+    /**
+     * Create a list notes command.
+     */
+    private Command createListNotes(ParsedCommand parsedCommand, Object displayAdapter) {
+        Integer slideNumber = parsedCommand.getInteger("slide");
+        return new ListNotesCommand(
+            (CommandSessionContext) displayAdapter,
+            (CommandDisplay) displayAdapter,
+            slideNumber);
+    }
+    
+    // ========== DUMP/DEBUG COMMANDS ==========
+    
+    /**
+     * Create a dump shape command.
+     */
+    private Command createDumpShape(ParsedCommand parsedCommand, CommandDisplay display) {
+        // Support original slide range format: "1", "1-5", "all"
+        String slideRange = parsedCommand.getString("range");
+        if (slideRange == null || slideRange.trim().isEmpty()) {
+            // Fallback: try legacy slide parameter for backward compatibility
+            Integer slideNumber = parsedCommand.getInteger("slide");
+            slideRange = slideNumber != null ? String.valueOf(slideNumber) : "1";
+        }
+        // Original behavior always wrote to file - preserve this
+        return new DumpShapeCommand(display, orchestrator, slideRange, true);
+    }
+    
+    /**
+     * Create a dump timing command.
+     */
+    private Command createDumpTiming(ParsedCommand parsedCommand, CommandDisplay display) {
+        // Support original slide range format: "1", "1-5", "all"
+        String timingRange = parsedCommand.getString("range");
+        if (timingRange == null || timingRange.trim().isEmpty()) {
+            // Fallback: try legacy slide parameter for backward compatibility
+            Integer slideNumber = parsedCommand.getInteger("slide");
+            timingRange = slideNumber != null ? String.valueOf(slideNumber) : "1";
+        }
+        // Original behavior always wrote to file - preserve this
+        return new DumpTimingCommand(display, orchestrator, timingRange, true);
+    }
+    
+    /**
+     * Create a show shape command.
+     */
+    private Command createShowShape(ParsedCommand parsedCommand, Object displayAdapter) {
+        Integer slideNumber = parsedCommand.getInteger("slide");
+        String spid = parsedCommand.getString("spid");
+        return new ShowShapeCommand(
+            (CommandSessionContext) displayAdapter,
+            (CommandDisplay) displayAdapter,
+            slideNumber != null ? slideNumber : 1,
+            spid != null ? spid : "0");
+    }
+    
+    // ========== PUBLIC FACTORY METHODS (for direct use) ==========
+    
+    /**
+     * Create a list slides command directly.
+     * 
+     * @param display the console display interface
+     * @param verbose whether to show detailed information
+     * @return ListSlidesCommand
+     */
+    public ListSlidesCommand createListSlides(CommandDisplay display, boolean verbose) {
+        return new ListSlidesCommand(orchestrator, display, verbose);
+    }
+    
+    /**
+     * Create a show slide command directly.
+     * 
+     * @param display the console display interface
+     * @param slideNumber the slide number to show (1-based)
+     * @return ShowSlideCommand
+     */
+    public ShowSlideCommand createShowSlide(CommandDisplay display, int slideNumber) {
+        return new ShowSlideCommand(orchestrator, display, slideNumber);
+    }
+    
+    /**
+     * Create a list SPIDs command directly.
+     * 
+     * @param display the console display interface
+     * @param slideNumber the slide number (1-based)
+     * @return ListSpidsCommand
+     */
+    public ListSpidsCommand createListSpids(CommandDisplay display, int slideNumber) {
+        return new ListSpidsCommand(orchestrator, display, slideNumber);
+    }
+    
+    /**
+     * Create a list animations command directly.
+     * 
+     * @param display the console display interface
+     * @param slideNumber the slide number (1-based)
+     * @return ListAnimationsCommand
+     */
+    public ListAnimationsCommand createListAnimations(CommandDisplay display, int slideNumber) {
+        return new ListAnimationsCommand(orchestrator, display, slideNumber);
+    }
+    
+    /**
+     * Create a list layouts command directly.
+     * 
+     * @param display the console display interface
+     * @return ListLayoutsCommand
+     */
+    public ListLayoutsCommand createListLayouts(CommandDisplay display) {
+        return new ListLayoutsCommand(orchestrator, display);
+    }
+    
+    /**
+     * Create a list animation types command directly.
+     * 
+     * @param display the console display interface
+     * @return ListAnimationTypesCommand
+     */
+    public ListAnimationTypesCommand createListAnimationTypes(CommandDisplay display) {
+        return new ListAnimationTypesCommand(display);
+    }
+    
+    /**
+     * Create a dump shape command directly.
+     * 
+     * @param display the console display interface
+     * @param slideRange slide specification: "1", "1-5", "all"
+     * @param writeToFile whether to write to timestamped log files
+     * @return DumpShapeCommand
+     */
+    public DumpShapeCommand createDumpShape(CommandDisplay display, String slideRange, boolean writeToFile) {
+        return new DumpShapeCommand(display, orchestrator, slideRange, writeToFile);
+    }
+    
+    /**
+     * Create a dump timing command directly.
+     * 
+     * @param display the console display interface
+     * @param slideRange slide specification: "1", "1-5", "all"
+     * @param writeToFile whether to write to timestamped log files
+     * @return DumpTimingCommand
+     */
+    public DumpTimingCommand createDumpTiming(CommandDisplay display, String slideRange, boolean writeToFile) {
+        return new DumpTimingCommand(display, orchestrator, slideRange, writeToFile);
+    }
+}

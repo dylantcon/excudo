@@ -1,0 +1,12 @@
+{
+  "java_home": "/usr/lib/jvm/default-java",
+  "log_level": "INFO",
+  "log_console": true,
+  "build_parallel": true,
+  "test_parallel": true,
+  "javafx_headless": true,
+  "python_requirements": [],
+  "classpath_extra": [],
+  "headless_only": false,
+  "ANTHROPIC_EXTENDED_THINKING": true
+}

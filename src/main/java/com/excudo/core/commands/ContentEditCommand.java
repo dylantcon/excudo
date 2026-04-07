@@ -1,0 +1,319 @@
+package com.excudo.core.commands;
+
+import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.results.ExecutionResult;
+import com.excudo.core.model.SlideShape;
+import com.excudo.core.model.ShapeGeometry;
+import com.excudo.core.model.ParsedSlideData;
+import java.util.logging.Logger;
+
+/**
+ * GoF Command for editing text content of shapes.
+ * 
+ * This command allows editing the text content of a specific shape (SPID)
+ * on a slide with undo capability. Includes geometry validation and layout
+ * context awareness for debugging placeholder inheritance issues.
+ */
+public class ContentEditCommand implements Command {
+    
+    private final int slideNumber;
+    private final int spid;
+    private final String newText;
+    private final PPTXOrchestrator orchestrator;
+    private boolean executed = false;
+    private String originalText = null;
+    private static final Logger logger = Logger.getLogger(ContentEditCommand.class.getName());
+    
+    // Debug information captured during execution
+    private SlideShape targetShape = null;
+    private boolean isPlaceholder = false;
+    private ShapeGeometry originalGeometry = null;
+    
+    /**
+     * Create a ContentEditCommand.
+     * 
+     * @param slideNumber the slide number containing the shape
+     * @param spid the SPID of the shape to edit
+     * @param newText the new text content
+     * @param orchestrator the PPTX orchestrator for execution
+     */
+    public ContentEditCommand(int slideNumber, int spid, String newText, PPTXOrchestrator orchestrator) {
+        if (orchestrator == null) {
+            throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
+        }
+        if (newText == null) {
+            throw new IllegalArgumentException("New text cannot be null");
+        }
+        
+        this.slideNumber = slideNumber;
+        this.spid = spid;
+        this.newText = newText;
+        this.orchestrator = orchestrator;
+    }
+    
+    /**
+     * Execute the content edit command with enhanced debugging and validation.
+     * 
+     * @throws CommandExecutionException if the operation fails
+     */
+    @Override
+    public void execute() {
+        if (executed) {
+            throw new CommandExecutionException(getDescription(), "execute", "Command has already been executed");
+        }
+        
+        try {
+            // Phase 3 Enhancement: Pre-execution validation and debugging
+            validateAndCaptureShapeContext();
+            
+            // Get current text content for undo
+            originalText = orchestrator.getShapeText(slideNumber, spid);
+            
+            // Phase 3 Enhancement: Log operation context for debugging
+            logContentEditOperation();
+            
+            // Update the text content - this automatically handles bullet points
+            ExecutionResult<Void> result = orchestrator.editShapeText(slideNumber, spid, newText);
+            
+            if (result.isSuccess()) {
+                executed = true;
+                logger.fine(String.format("Successfully edited content for SPID %d on slide %d (shape type: %s)",
+                    spid, slideNumber, targetShape != null ? targetShape.getType() : "unknown"));
+            } else {
+                throw new CommandExecutionException(
+                    getDescription(), 
+                    "execute", 
+                    "Failed to edit content: " + result.getMessage()
+                );
+            }
+            
+        } catch (CommandExecutionException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CommandExecutionException(
+                getDescription(), 
+                "execute", 
+                "Failed to edit content: " + e.getMessage(),
+                e
+            );
+        }
+    }
+    
+    /**
+     * Undo the content edit by restoring original text.
+     * 
+     * @throws CommandExecutionException if the undo operation fails
+     */
+    @Override
+    public void undo() {
+        if (!executed) {
+            throw new CommandExecutionException(getDescription(), "undo", "Command has not been executed");
+        }
+        
+        if (!canUndo()) {
+            throw new CommandExecutionException(getDescription(), "undo", "Command cannot be undone");
+        }
+        
+        try {
+            // Restore original text
+            ExecutionResult<Void> result = orchestrator.editShapeText(slideNumber, spid, originalText);
+            
+            if (result.isSuccess()) {
+                executed = false;
+            } else {
+                throw new CommandExecutionException(
+                    getDescription(), 
+                    "undo", 
+                    "Failed to undo content edit: " + result.getMessage()
+                );
+            }
+            
+        } catch (Exception e) {
+            throw new CommandExecutionException(
+                getDescription(), 
+                "undo", 
+                "Failed to undo content edit: " + e.getMessage(),
+                e
+            );
+        }
+    }
+    
+    /**
+     * Check if this command can be undone.
+     * Content editing can be undone by restoring the original text.
+     * 
+     * @return true if the command can be undone
+     */
+    @Override
+    public boolean canUndo() {
+        // Content editing will be undoable once implemented
+        return executed && originalText != null;
+    }
+    
+    /**
+     * Get the description of this command.
+     * 
+     * @return description of the content edit operation
+     */
+    @Override
+    public String getDescription() {
+        return String.format("Edit content of SPID %d on slide %d to: '%s'", spid, slideNumber, newText);
+    }
+    
+    /**
+     * Check if this command has been executed.
+     * 
+     * @return true if execute() has been called successfully
+     */
+    @Override
+    public boolean isExecuted() {
+        return executed;
+    }
+    
+    /**
+     * Get the slide number.
+     * 
+     * @return the slide number
+     */
+    public int getSlideNumber() {
+        return slideNumber;
+    }
+    
+    /**
+     * Get the SPID.
+     * 
+     * @return the shape SPID
+     */
+    public int getSpid() {
+        return spid;
+    }
+    
+    /**
+     * Get the new text content.
+     * 
+     * @return the new text
+     */
+    public String getNewText() {
+        return newText;
+    }
+    
+    /**
+     * Get the original text (available after execution).
+     * 
+     * @return the original text, or null if not executed
+     */
+    public String getOriginalText() {
+        return originalText;
+    }
+    
+    // ========== PHASE 3 ENHANCEMENTS ==========
+    
+    /**
+     * Validate shape exists and capture context for debugging.
+     * This helps identify geometry inheritance issues with placeholders.
+     */
+    private void validateAndCaptureShapeContext() {
+        try {
+            // Use orchestrator's interface method to get parsed slide data
+            com.excudo.core.results.ExecutionResult<ParsedSlideData> slideResult =
+                orchestrator.getSlideData(slideNumber);
+
+            if (!slideResult.isSuccess() || slideResult.getData().isEmpty()) {
+                throw new CommandExecutionException(getDescription(), "validate",
+                    String.format("Slide %d not found", slideNumber));
+            }
+
+            ParsedSlideData slideData = slideResult.getData().get();
+            if (slideData != null) {
+                targetShape = slideData.getShapeRegistry().getShape(spid);
+                
+                if (targetShape == null) {
+                    throw new CommandExecutionException(getDescription(), "validate", 
+                        String.format("Shape with SPID %d not found on slide %d. Available SPIDs: %s",
+                            spid, slideNumber, slideData.getShapeRegistry().getAllSpids()));
+                }
+                
+                // Capture geometry for validation
+                originalGeometry = targetShape.getGeometry();
+                
+                // Detect if this is a placeholder based on shape type and name
+                isPlaceholder = targetShape.getType() == SlideShape.ShapeType.PLACEHOLDER ||
+                               targetShape.getName().toLowerCase().contains("placeholder") ||
+                               targetShape.getName().toLowerCase().contains("content");
+                
+                // Validate geometry exists (critical for placeholder inheritance)
+                if (originalGeometry == null) {
+                    logger.warning(String.format("Shape SPID %d on slide %d has null geometry - this may indicate layout inheritance issues",
+                        spid, slideNumber));
+                } else if (originalGeometry.getWidth() <= 0 || originalGeometry.getHeight() <= 0) {
+                    logger.warning(String.format("Shape SPID %d on slide %d has invalid geometry (%s) - this may cause rendering issues",
+                        spid, slideNumber, originalGeometry));
+                }
+                
+                logger.fine(String.format("Shape validation completed: SPID %d, type %s, isPlaceholder %s, geometry %s",
+                    spid, targetShape.getType(), isPlaceholder, originalGeometry));
+            }
+        } catch (CommandExecutionException e) {
+            throw e;
+        } catch (Exception e) {
+            // Don't fail the operation for validation issues, but log them
+            logger.warning("Failed to validate shape context: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Log detailed information about the content edit operation for debugging.
+     */
+    private void logContentEditOperation() {
+        StringBuilder logMessage = new StringBuilder();
+        logMessage.append(String.format("Content edit operation on slide %d, SPID %d:", slideNumber, spid));
+        
+        if (targetShape != null) {
+            logMessage.append(String.format("\n  Shape: %s (type: %s)", targetShape.getName(), targetShape.getType()));
+            logMessage.append(String.format("\n  Is placeholder: %s", isPlaceholder));
+            logMessage.append(String.format("\n  Has text: %s", targetShape.hasText()));
+            
+            if (originalGeometry != null) {
+                logMessage.append(String.format("\n  Geometry: Position: (%d, %d), Size: %d x %d", 
+                    originalGeometry.getX(), originalGeometry.getY(),
+                    originalGeometry.getWidth(), originalGeometry.getHeight()));
+            } else {
+                logMessage.append("\n  Geometry: NULL (potential layout inheritance issue)");
+            }
+            
+            if (originalText != null) {
+                logMessage.append(String.format("\n  Original text length: %d characters", originalText.length()));
+            }
+            
+            logMessage.append(String.format("\n  New text length: %d characters", newText.length()));
+        } else {
+            logMessage.append("\n  WARNING: Could not retrieve shape information");
+        }
+        
+        logger.fine(logMessage.toString());
+    }
+    
+    /**
+     * Get debug information about the target shape (available after execution).
+     * 
+     * @return debug information string
+     */
+    public String getShapeDebugInfo() {
+        if (targetShape == null) {
+            return "No shape debug information available";
+        }
+        
+        return String.format("Shape: %s, Type: %s, IsPlaceholder: %s, Geometry: %s",
+            targetShape.getName(), targetShape.getType(), isPlaceholder, 
+            originalGeometry != null ? originalGeometry.toString() : "null");
+    }
+    
+    /**
+     * Check if the target shape is a placeholder (available after execution).
+     * 
+     * @return true if the shape appears to be a placeholder
+     */
+    public boolean isTargetPlaceholder() {
+        return isPlaceholder;
+    }
+}

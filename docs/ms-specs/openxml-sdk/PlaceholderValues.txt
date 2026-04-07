@@ -1,0 +1,308 @@
+Skip to main content  Skip to in-page navigation  Skip to Ask Learn chat experience
+
+This browser is no longer supported.
+
+Upgrade to Microsoft Edge to take advantage of the latest features, security updates, and technical support.
+
+[ Download Microsoft Edge ](https://go.microsoft.com/fwlink/p/?LinkID=2092881 ) [ More info about Internet Explorer and
+Microsoft Edge ](https://learn.microsoft.com/en-us/lifecycle/faq/internet-explorer-microsoft-edge)
+
+Table of contents  Exit editor mode
+
+Ask Learn Ask Learn Focus mode
+
+Language
+
+  * csharp 
+  * vb 
+  * fsharp 
+
+Table of contents Read in English Add Add to plan [ Edit ]()
+
+* * *
+
+#### Share via
+
+Facebook x.com LinkedIn Email
+
+* * *
+
+Copy Markdown Print
+
+* * *
+
+Note
+
+Access to this page requires authorization. You can try signing in or changing directories.
+
+Access to this page requires authorization. You can try changing directories.
+
+Summarize this article for me
+
+# PlaceholderValues Enum
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Presentation](documentformat.openxml.presentation?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially modified before it’s released. Microsoft makes
+no warranties, express or implied, with respect to the information provided here.
+
+Placeholder IDs
+
+    
+    
+    public enum PlaceholderValues
+    
+    
+    public readonly struct PlaceholderValues : DocumentFormat.OpenXml.IEnumValue, DocumentFormat.OpenXml.IEnumValueFactory<DocumentFormat.OpenXml.Presentation.PlaceholderValues>, IEquatable<DocumentFormat.OpenXml.Presentation.PlaceholderValues>
+    
+    
+    type PlaceholderValues = 
+    
+    
+    type PlaceholderValues = struct
+        interface IEnumValue
+        interface IEnumValueFactory<PlaceholderValues>
+    
+    
+    Public Enum PlaceholderValues
+    
+    
+    Public Structure PlaceholderValues
+    Implements IEnumValue, IEnumValueFactory(Of PlaceholderValues), IEquatable(Of PlaceholderValues)
+
+Inheritance
+
+    
+
+[Enum](/en-us/dotnet/api/system.enum)
+
+PlaceholderValues
+
+Inheritance
+
+    
+
+[ValueType](/en-us/dotnet/api/system.valuetype)
+
+PlaceholderValues
+
+## Fields
+
+Name | Value | Description  
+---|---|---  
+Title  | 0 | Title. When the item is serialized out as xml, its value is "title".  
+Body  | 1 | Body. When the item is serialized out as xml, its value is "body".  
+CenteredTitle  | 2 | Centered Title. When the item is serialized out as xml, its value is "ctrTitle".  
+SubTitle  | 3 | Subtitle. When the item is serialized out as xml, its value is "subTitle".  
+DateAndTime  | 4 | Date and Time. When the item is serialized out as xml, its value is "dt".  
+SlideNumber  | 5 | Slide Number. When the item is serialized out as xml, its value is "sldNum".  
+Footer  | 6 | Footer. When the item is serialized out as xml, its value is "ftr".  
+Header  | 7 | Header. When the item is serialized out as xml, its value is "hdr".  
+Object  | 8 | Object. When the item is serialized out as xml, its value is "obj".  
+Chart  | 9 | Chart. When the item is serialized out as xml, its value is "chart".  
+Table  | 10 | Table. When the item is serialized out as xml, its value is "tbl".  
+ClipArt  | 11 | Clip Art. When the item is serialized out as xml, its value is "clipArt".  
+Diagram  | 12 | Diagram. When the item is serialized out as xml, its value is "dgm".  
+Media  | 13 | Media. When the item is serialized out as xml, its value is "media".  
+SlideImage  | 14 | Slide Image. When the item is serialized out as xml, its value is "sldImg".  
+Picture  | 15 | Picture. When the item is serialized out as xml, its value is "pic".  
+Body  |  | Body. When the item is serialized out as xml, its value is "body".  
+CenteredTitle  |  | Centered Title. When the item is serialized out as xml, its value is "ctrTitle".  
+Chart  |  | Chart. When the item is serialized out as xml, its value is "chart".  
+ClipArt  |  | Clip Art. When the item is serialized out as xml, its value is "clipArt".  
+DateAndTime  |  | Date and Time. When the item is serialized out as xml, its value is "dt".  
+Diagram  |  | Diagram. When the item is serialized out as xml, its value is "dgm".  
+Equality(PlaceholderValues, PlaceholderValues)  |  |   
+Equals(Object)  |  |   
+Equals(PlaceholderValues)  |  |   
+Footer  |  | Footer. When the item is serialized out as xml, its value is "ftr".  
+GetHashCode()  |  |   
+Header  |  | Header. When the item is serialized out as xml, its value is "hdr".  
+IEnumValue.IsValid  |  |   
+IEnumValue.Value  |  |   
+IEnumValue.Version  |  |   
+IEnumValueFactory<PlaceholderValues>.Create(String)  |  |   
+Inequality(PlaceholderValues, PlaceholderValues)  |  |   
+Media  |  | Media. When the item is serialized out as xml, its value is "media".  
+Object  |  | Object. When the item is serialized out as xml, its value is "obj".  
+Picture  |  | Picture. When the item is serialized out as xml, its value is "pic".  
+PlaceholderValues(String)  |  | Creates a new PlaceholderValues enum instance  
+SlideImage  |  | Slide Image. When the item is serialized out as xml, its value is "sldImg".  
+SlideNumber  |  | Slide Number. When the item is serialized out as xml, its value is "sldNum".  
+SubTitle  |  | Subtitle. When the item is serialized out as xml, its value is "subTitle".  
+Table  |  | Table. When the item is serialized out as xml, its value is "tbl".  
+Title  |  | Title. When the item is serialized out as xml, its value is "title".  
+ToString()  |  |   
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+

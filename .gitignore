@@ -1,0 +1,141 @@
+# Compiled class files
+*.class
+build/
+target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+TestPresentationXml.class
+
+# Build scripts
+build-test.sh
+build-test-headless.sh
+build.sh
+
+# JavaFX runtime
+lib/javafx-sdk-*/
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# But include required library JARs
+!lib/jsoup-*.jar
+!lib/junit-platform-console-standalone-*.jar
+!lib/jacoco*.jar
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Unit test reports
+TEST-*.xml
+
+# JaCoCo coverage reports
+jacoco.exec
+coverage-debug.xml
+coverage-debug/
+coverage-report/
+test-output/
+test-output/coverage/
+
+# Temporary extraction directories
+temp_extract/
+*_extract/
+*_extracted/
+
+# Test output files
+temp*.pptx
+test_*.pptx
+manual_test_*.pptx
+output/*.pptx
+
+# Generated media files in test samples
+test-pptx-samples/*/ppt/media/smartcontent_icon_*
+test-pptx-samples/*_extract/
+test-pptx-samples/*_extracted/
+
+# CRUD test pipeline outputs (raw = generated, repaired = PowerPoint repair output)
+test-pptx-samples/*/raw/
+test-pptx-samples/*/repaired/
+test-pptx-samples/oracle-reproduction-raw/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Application logs and timing dumps
+.excudo/logs/
+.excudo/logs/timing-dumps/
+.excudo/logs/shape-dumps/
+
+# OOXML validator temporary files
+tools/OOXML-Validator
+
+# Microsoft Office spec documents (downloaded for reference, not for distribution)
+docs/ms-specs/*.pdf
+docs/ms-specs/*.txt
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Gradle
+.gradle
+/build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# User-defined themes (builtin themes are tracked)
+themes/custom/
+
+# In-memory working directory (leaked from SmartContentEnhancer)
+in-memory/
+
+# Debug log files in repo root
+command_factory_debug.log
+disk_access_summary.txt
+
+# Monocle JAR (downloaded, not tracked)
+lib/openjfx-monocle-*.jar
+
+# Training data (generated locally)
+.excudo/training-data/
+
+# Crash recovery dumps
+.excudo/crash-recovery/
+
+# LLM stuff
+CLAUDE.md
+.claude/

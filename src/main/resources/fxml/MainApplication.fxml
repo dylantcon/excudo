@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane fx:id="rootPane" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.excudo.view.MainController">
+   <top>
+      <VBox>
+         <MenuBar fx:id="menuBar">
+            <Menu text="File">
+               <MenuItem fx:id="newPresentationItem" text="New Presentation" />
+               <MenuItem fx:id="openPresentationItem" text="Open Presentation..." />
+               <SeparatorMenuItem />
+               <MenuItem fx:id="savePresentationItem" text="Save Presentation" />
+               <MenuItem fx:id="saveAsPresentationItem" text="Save As..." />
+               <MenuItem fx:id="exportPresentationItem" text="Export..." />
+               <SeparatorMenuItem />
+               <MenuItem fx:id="exitItem" text="Exit" />
+            </Menu>
+            <Menu text="Edit">
+               <MenuItem text="Undo" />
+               <MenuItem text="Redo" />
+               <SeparatorMenuItem />
+               <MenuItem text="Cut" />
+               <MenuItem text="Copy" />
+               <MenuItem text="Paste" />
+            </Menu>
+            <Menu text="View">
+               <CheckMenuItem fx:id="showGridItem" text="Show Grid" />
+               <CheckMenuItem fx:id="showBoundsItem" text="Show Bounds" />
+               <CheckMenuItem fx:id="showSpidsItem" text="Show SPIDs" />
+               <SeparatorMenuItem />
+               <CheckMenuItem fx:id="debugModeItem" text="Debug Mode" />
+            </Menu>
+            <Menu text="Tools">
+               <MenuItem fx:id="validatePresentationItem" text="Validate Presentation" />
+               <MenuItem fx:id="regenerateSpidsItem" text="Regenerate SPIDs" />
+               <MenuItem fx:id="technicalConsoleItem" text="Technical Console" />
+               <SeparatorMenuItem />
+               <MenuItem fx:id="settingsItem" text="Settings..." />
+            </Menu>
+            <Menu text="Help">
+               <MenuItem text="User Guide" />
+               <MenuItem text="API Documentation" />
+               <SeparatorMenuItem />
+               <MenuItem text="About..." />
+            </Menu>
+         </MenuBar>
+         <ToolBar fx:id="toolBar">
+            <Button fx:id="newButton" text="New" />
+            <Button fx:id="openButton" text="Open" />
+            <Button fx:id="saveButton" text="Save" />
+            <Separator />
+            <Button fx:id="zoomInButton" text="Zoom In" />
+            <Button fx:id="zoomOutButton" text="Zoom Out" />
+            <Button fx:id="zoomFitButton" text="Zoom Fit" />
+         </ToolBar>
+      </VBox>
+   </top>
+   <center>
+      <SplitPane fx:id="mainSplitPane" dividerPositions="0.2, 0.8">
+         <!-- Left Panel: Presentation Explorer -->
+         <VBox fx:id="leftPanel" spacing="5.0">
+            <Label text="Presentation Explorer" />
+            <TreeView fx:id="presentationTree" VBox.vgrow="ALWAYS" />
+            <Label fx:id="presentationInfo" text="No presentation loaded" wrapText="true" />
+            <FlowPane hgap="5.0" vgap="5.0">
+               <Button fx:id="addSlideButton" text="Add" />
+               <Button fx:id="deleteSlideButton" text="Delete" />
+               <Button fx:id="moveUpButton" text="Up" />
+               <Button fx:id="moveDownButton" text="Down" />
+               <Button fx:id="refreshButton" text="Refresh" />
+            </FlowPane>
+         </VBox>
+         
+         <!-- Center Panel: Main Content with Bottom Panel -->
+         <SplitPane fx:id="centerRightSplit" dividerPositions="0.7" orientation="VERTICAL">
+            <!-- Center: Slide Editor -->
+            <VBox fx:id="centerPanel" spacing="5.0">
+               <SplitPane dividerPositions="0.4" VBox.vgrow="ALWAYS">
+                  <!-- XML Editor -->
+                  <VBox spacing="5.0">
+                     <Label text="XML Editor" />
+                     <TextArea fx:id="xmlEditor" VBox.vgrow="ALWAYS" />
+                     <HBox spacing="5.0">
+                        <Button fx:id="applyXmlButton" text="Apply" />
+                        <Button fx:id="resetXmlButton" text="Reset" />
+                        <Button fx:id="validateXmlButton" text="Validate" />
+                     </HBox>
+                  </VBox>
+                  <!-- Visual Preview -->
+                  <VBox fx:id="visualPreviewContainer" spacing="5.0">
+                     <HBox spacing="5.0" alignment="CENTER_LEFT">
+                        <Label text="Visual Preview" />
+                        <Button fx:id="togglePreviewButton" text=">" style="-fx-font-size: 10px; -fx-padding: 2px 6px;" />
+                     </HBox>
+                     <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS" managed="false" visible="false">
+                        <!-- Canvas will be added programmatically -->
+                     </ScrollPane>
+                  </VBox>
+               </SplitPane>
+            </VBox>
+            
+            <!-- Bottom Panel: Tabs -->
+            <TabPane fx:id="bottomTabPane" minHeight="200.0">
+               <Tab fx:id="consoleTab" closable="false" text="Console">
+                  <VBox spacing="5.0">
+                     <TextArea fx:id="consoleOutput" editable="false" VBox.vgrow="ALWAYS" />
+                     <HBox spacing="5.0">
+                        <TextField fx:id="commandInput" HBox.hgrow="ALWAYS" />
+                        <Button fx:id="executeButton" text="Execute" />
+                        <CheckBox fx:id="llmModeCheckBox" text="LLM Mode" />
+                     </HBox>
+                  </VBox>
+               </Tab>
+               <Tab fx:id="outputTab" closable="false" text="Output">
+                  <TextArea fx:id="outputTextArea" editable="false" />
+               </Tab>
+               <Tab fx:id="validationTab" closable="false" text="Validation">
+                  <ListView fx:id="validationListView" />
+               </Tab>
+            </TabPane>
+         </SplitPane>
+         
+         <!-- Right Panel: Properties -->
+         <VBox fx:id="rightPanel" minWidth="200.0" spacing="5.0">
+            <Label fx:id="propertiesTitle" text="Properties" style="-fx-font-weight: bold;" />
+            <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS" />
+            <HBox spacing="5.0">
+               <Button fx:id="refreshPropertiesButton" text="Refresh" />
+            </HBox>
+         </VBox>
+      </SplitPane>
+   </center>
+   <bottom>
+      <Label fx:id="statusBar" style="-fx-background-color: #f0f0f0; -fx-padding: 5px;" text="Ready" />
+   </bottom>
+</BorderPane>
