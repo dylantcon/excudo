@@ -6,10 +6,13 @@ Idempotent: skips JARs that already exist with correct SHA256.
 """
 
 import hashlib
+import io
 import json
 import sys
+import tempfile
 import urllib.request
 import urllib.error
+import zipfile
 from pathlib import Path
 
 
@@ -41,7 +44,9 @@ class DependencyResolver:
         return f"{self.repo_url}/{group_path}/{artifact}/{version}/{filename}"
 
     def _download_url(self, dep: dict) -> str:
-        return dep.get("url", self._maven_url(dep))
+        if "url" in dep:
+            return dep["url"]
+        return self._maven_url(dep)
 
     def _sha256(self, path: Path) -> str:
         h = hashlib.sha256()
@@ -60,27 +65,38 @@ class DependencyResolver:
             return "ok"
         return "mismatch"
 
-    def _download(self, url: str, dest: Path) -> bool:
+    def _download(self, url: str, dest: Path, zip_entry: str = None) -> bool:
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Excudo-DepResolver/1.0"})
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                dest.parent.mkdir(parents=True, exist_ok=True)
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = resp.read()
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+
+            if zip_entry:
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    with zf.open(zip_entry) as entry, open(dest, "wb") as f:
+                        f.write(entry.read())
+            else:
                 with open(dest, "wb") as f:
-                    while True:
-                        chunk = resp.read(8192)
-                        if not chunk:
-                            break
-                        f.write(chunk)
+                    f.write(data)
             return True
         except urllib.error.HTTPError as e:
             print(f"  HTTP {e.code}: {url}")
+            return False
+        except KeyError:
+            print(f"  Entry '{zip_entry}' not found in archive")
             return False
         except Exception as e:
             print(f"  Download failed: {e}")
             return False
 
+    def _all_entries(self) -> list:
+        """Merge dependencies and fonts into a single list."""
+        return self.manifest.get("dependencies", []) + self.manifest.get("fonts", [])
+
     def resolve(self, verbose: bool = False, dry_run: bool = False, force: bool = False) -> bool:
-        deps = self.manifest.get("dependencies", [])
+        deps = self._all_entries()
         if not deps:
             print("No dependencies defined in manifest.")
             return True
@@ -114,7 +130,7 @@ class DependencyResolver:
                 continue
 
             print(f"  Fetching {dep['file']}...", end="", flush=True)
-            if not self._download(url, jar_path):
+            if not self._download(url, jar_path, dep.get("zip_entry")):
                 fail_count += 1
                 print("")
                 continue
@@ -140,8 +156,8 @@ class DependencyResolver:
         return fail_count == 0
 
     def verify(self) -> bool:
-        """Verify all JARs exist with correct hashes, without downloading."""
-        deps = self.manifest.get("dependencies", [])
+        """Verify all entries exist with correct hashes, without downloading."""
+        deps = self._all_entries()
         all_ok = True
 
         for dep in deps:
@@ -163,21 +179,26 @@ class DependencyResolver:
 
     def list_deps(self) -> None:
         """Print a table of all dependencies."""
-        deps = self.manifest.get("dependencies", [])
+        deps = self._all_entries()
         max_file = max(len(d["file"]) for d in deps)
-        max_coord = max(len(f"{d['group']}:{d['artifact']}:{d['version']}") for d in deps)
 
-        print(f"{'JAR File':<{max_file}}  {'Maven Coordinate':<{max_coord}}  Status")
+        def _coord(d):
+            if "group" in d:
+                c = f"{d['group']}:{d['artifact']}:{d['version']}"
+                if d.get('classifier'):
+                    c += f":{d['classifier']}"
+                return c
+            return d.get("url", "(direct)")
+
+        max_coord = max(len(_coord(d)) for d in deps)
+
+        print(f"{'File':<{max_file}}  {'Source':<{max_coord}}  Status")
         print(f"{'-' * max_file}  {'-' * max_coord}  ------")
 
         for dep in deps:
-            coord = f"{dep['group']}:{dep['artifact']}:{dep['version']}"
-            classifier = dep.get('classifier', '')
-            if classifier:
-                coord += f":{classifier}"
             status = self._check_existing(dep)
             tag = {"ok": "OK", "missing": "MISSING", "mismatch": "CORRUPT"}[status]
-            print(f"{dep['file']:<{max_file}}  {coord:<{max_coord}}  {tag}")
+            print(f"{dep['file']:<{max_file}}  {_coord(dep):<{max_coord}}  {tag}")
 
 
 def handle_deps_command(args, env) -> int:

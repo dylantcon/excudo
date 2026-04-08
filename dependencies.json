@@ -1,7 +1,15 @@
 {
-  "_comment": "Excudo dependency manifest. Run 'python3 pc.py deps' to fetch all JARs.",
+  "_comment": "Excudo dependency manifest. Run 'python3 pc.py deps' to fetch all dependencies.",
   "repository": "https://repo1.maven.org/maven2",
   "lib_dir": "lib",
+  "fonts": [
+    {
+      "file": "fonts/DejaVuSans.ttf",
+      "url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip",
+      "zip_entry": "dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf",
+      "sha256": "7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954"
+    }
+  ],
   "dependencies": [
     {
       "file": "batik-anim-1.17.jar",

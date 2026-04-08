@@ -17,6 +17,7 @@ public final class FontResolver {
     private static final Map<String, Path> cache = new ConcurrentHashMap<>();
 
     private static final Path[] FALLBACK_SEARCH_DIRS = {
+        Path.of("lib", "fonts"),
         Path.of("/usr/share/fonts"),
         Path.of("/usr/local/share/fonts"),
         Path.of(System.getProperty("user.home"), ".fonts")
@@ -40,6 +41,9 @@ public final class FontResolver {
         Path resolved = resolveViaFcMatch(family, bold, italic);
         if (resolved == null) {
             resolved = resolveViaFcMatch(family, false, false);
+        }
+        if (resolved == null) {
+            resolved = resolveViaFileSearch(family);
         }
         if (resolved != null) {
             cache.put(key, resolved);
@@ -79,6 +83,29 @@ public final class FontResolver {
             }
         } catch (Exception ignored) {
             // fc-match not available, fall through
+        }
+        return null;
+    }
+
+    /**
+     * Search fallback directories for a font file matching the family name.
+     * Handles platforms without fc-match (macOS, Windows).
+     */
+    private static Path resolveViaFileSearch(String family) {
+        String normalized = family.replaceAll("\\s+", "");
+        for (Path dir : FALLBACK_SEARCH_DIRS) {
+            if (!Files.isDirectory(dir)) continue;
+            try (var stream = Files.walk(dir, 4)) {
+                return stream
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return (name.contains(normalized) || name.contains(family))
+                            && (name.endsWith(".ttf") || name.endsWith(".otf"));
+                    })
+                    .findFirst()
+                    .orElse(null);
+            } catch (Exception ignored) {
+            }
         }
         return null;
     }

@@ -40,8 +40,8 @@ lib/javafx-sdk-*/
 *.war
 *.ear
 
-# lib/ JARs are fetched via 'python3 pc.py deps' from dependencies.json
-# No lib/*.jar files should be tracked in git
+# lib/ contents fetched via 'python3 pc.py deps' from dependencies.json
+lib/fonts/
 
 # Environment variables
 .env

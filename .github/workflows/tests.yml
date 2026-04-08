@@ -64,6 +64,19 @@ jobs:
     - name: Fetch dependencies
       run: python3 pc.py deps
 
+    - name: Extract test PPTX files
+      run: |
+        cd test-pptx-samples
+        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
+          base="${pptx%.pptx}"
+          dir="${base}_extracted"
+          if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            unzip -q -o "$pptx" -d "$dir"
+            echo "Extracted $pptx -> $dir"
+          fi
+        done
+
     - name: Build project
       run: python3 pc.py build
     
@@ -201,6 +214,35 @@ jobs:
     - name: Fetch dependencies (Windows)
       if: runner.os == 'Windows'
       run: python pc.py deps
+
+    - name: Extract test PPTX files (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cd test-pptx-samples
+        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
+          base="${pptx%.pptx}"
+          dir="${base}_extracted"
+          if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            unzip -q -o "$pptx" -d "$dir"
+            echo "Extracted $pptx -> $dir"
+          fi
+        done
+
+    - name: Extract test PPTX files (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        cd test-pptx-samples
+        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
+          base="${pptx%.pptx}"
+          dir="${base}_extracted"
+          if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            unzip -q -o "$pptx" -d "$dir"
+            echo "Extracted $pptx -> $dir"
+          fi
+        done
 
     - name: Build project (Unix)
       if: runner.os != 'Windows'

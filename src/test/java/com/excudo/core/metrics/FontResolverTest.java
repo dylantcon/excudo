@@ -6,7 +6,9 @@ import static org.junit.Assert.*;
 import java.nio.file.Path;
 
 /**
- * Tests FontResolver font family name resolution via fc-match.
+ * Tests FontResolver font family name resolution.
+ * Uses fc-match on Linux, file search fallback on other platforms.
+ * Requires DejaVu Sans in lib/fonts/ (fetched by pc.py deps) or system install.
  */
 public class FontResolverTest {
 
