@@ -40,6 +40,7 @@ from pc_cli.analyzers.coverage import CoverageAnalyzer
 from pc_cli.commands.session import handle_session_command
 from pc_cli.commands.smart_content import handle_smart_command
 from pc_cli.commands.timing import handle_timing_command
+from pc_cli.commands.deps import handle_deps_command
 from pc_cli.config.api_manager import APIConfigManager
 
 # Version and metadata
@@ -233,6 +234,21 @@ def configure_coverage_parser(subparsers):
     priorities_parser.add_argument("--max", type=int, default=10, help="Maximum classes to suggest (default: 10)")
     return coverage_parser
 
+def configure_deps_parser(subparsers):
+    """Configure deps command parser"""
+    deps_parser = subparsers.add_parser("deps", help="Fetch and verify JAR dependencies")
+    deps_parser.add_argument("--verify", dest="deps_verify", action="store_true",
+                            help="Verify all JARs without downloading")
+    deps_parser.add_argument("--list", "-l", dest="deps_list", action="store_true",
+                            help="List all dependencies and their status")
+    deps_parser.add_argument("--dry-run", dest="deps_dry_run", action="store_true",
+                            help="Show what would be downloaded without fetching")
+    deps_parser.add_argument("--force", dest="deps_force", action="store_true",
+                            help="Re-download all JARs regardless of cache")
+    deps_parser.add_argument("--verbose", "-v", action="store_true",
+                            help="Show status of up-to-date JARs")
+    return deps_parser
+
 def configure_build_parser(subparsers):
     """Configure build command parser"""
     build_parser = subparsers.add_parser("build", help="Build the Java application")
@@ -293,6 +309,9 @@ def main():
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # Deps command
+    deps_parser = configure_deps_parser(subparsers)
+
     # Build command
     build_parser = configure_build_parser(subparsers)
 
@@ -340,7 +359,10 @@ def main():
         
     # Handle commands
     try:
-        if args.command == "build":
+        if args.command == "deps":
+            return handle_deps_command(args, env)
+
+        elif args.command == "build":
             # Set headless mode in environment config temporarily
             original_headless = env.config.get("headless_only", False)
             if args.headless:

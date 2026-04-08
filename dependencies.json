@@ -1,0 +1,198 @@
+{
+  "_comment": "Excudo dependency manifest. Run 'python3 pc.py deps' to fetch all JARs.",
+  "repository": "https://repo1.maven.org/maven2",
+  "lib_dir": "lib",
+  "dependencies": [
+    {
+      "file": "batik-anim-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-anim",
+      "version": "1.17",
+      "sha256": "67d9d691ecec857ac3628fbd2167c201940d3c4b65ab7386484ac730cb8cf9ea"
+    },
+    {
+      "file": "batik-awt-util-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-awt-util",
+      "version": "1.17",
+      "sha256": "7fe38f9451eb94575214323261c8192b63f1dfd2610659255fbbbbfde94a2a66"
+    },
+    {
+      "file": "batik-bridge-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-bridge",
+      "version": "1.17",
+      "sha256": "3bd027e19a0be2496c2c3950152525c91461a7d081edbd828bb3d2d269ec5870"
+    },
+    {
+      "file": "batik-codec-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-codec",
+      "version": "1.17",
+      "sha256": "6434a48717b69f05986866653e75d52840f812cd2bc27a5bf5d88aee95e4121f"
+    },
+    {
+      "file": "batik-constants-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-constants",
+      "version": "1.17",
+      "sha256": "75db00180bde4ef5caee3916d6f65e5045051d59cf51d57e673c03969d7bbbcd"
+    },
+    {
+      "file": "batik-css-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-css",
+      "version": "1.17",
+      "sha256": "dcf9a902bd0c4b1a84ac0561d7b66052bc93381c4923a5bc5602290c1c82b779"
+    },
+    {
+      "file": "batik-dom-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-dom",
+      "version": "1.17",
+      "sha256": "f242ddb05b268b15ff055d1d1aaf2dc9c3418e842ba806731408a984d4e3240c"
+    },
+    {
+      "file": "batik-ext-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-ext",
+      "version": "1.17",
+      "sha256": "8267fc60b4a5b0f2afa7dcfdad40beb0e723d6a19b66b8e24bc37c2ec6dc5450"
+    },
+    {
+      "file": "batik-gvt-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-gvt",
+      "version": "1.17",
+      "sha256": "93f4e4a844cafc5b3d5731a299bc00cf14404026ddcb1d749d29ca79486b4b90"
+    },
+    {
+      "file": "batik-i18n-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-i18n",
+      "version": "1.17",
+      "sha256": "d5a64680363e7b36b3f28c34a3a536d76e847f77cec0740aab7c799a67b52d8b"
+    },
+    {
+      "file": "batik-parser-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-parser",
+      "version": "1.17",
+      "sha256": "5e448bbfaf6127567f41f698ee25ad79b844363071c12d1175896c78891717d7"
+    },
+    {
+      "file": "batik-script-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-script",
+      "version": "1.17",
+      "sha256": "2ccbb4bd6d5a630fb7d26f0dd3118d4742f7bae0e972ee672130e803f672950c"
+    },
+    {
+      "file": "batik-shared-resources-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-shared-resources",
+      "version": "1.17",
+      "sha256": "5d74182b9ca19ecd8d4814f2ff4b42a4aeea6e18977e905cc84e8a6f81940c9f"
+    },
+    {
+      "file": "batik-svg-dom-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-svg-dom",
+      "version": "1.17",
+      "sha256": "19347218a490670c4b9d2cd15a45155c1af9f41e77f7eada99eb94dbb90be8e3"
+    },
+    {
+      "file": "batik-svggen-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-svggen",
+      "version": "1.17",
+      "sha256": "108f725ffe135dca566d925f3ace26a5f80399f288ca190561805dec28005d63"
+    },
+    {
+      "file": "batik-transcoder-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-transcoder",
+      "version": "1.17",
+      "sha256": "1f69e986b46e91f707cf13143f4e2e930b9f60a697858dbabdbab5cb86cd5a0f"
+    },
+    {
+      "file": "batik-util-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-util",
+      "version": "1.17",
+      "sha256": "a1e4f743c8b80ac682edd4b397faa4ac42de591343036324c80ee8f22973c976"
+    },
+    {
+      "file": "batik-xml-1.17.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "batik-xml",
+      "version": "1.17",
+      "sha256": "fbcc2300066ac4042876c52c327acdf0b515962f1690400ed7a78ed2c0d4c1b4"
+    },
+    {
+      "file": "gson-2.11.0.jar",
+      "group": "com.google.code.gson",
+      "artifact": "gson",
+      "version": "2.11.0",
+      "sha256": "57928d6e5a6edeb2abd3770a8f95ba44dce45f3b23b7a9dc2b309c581552a78b"
+    },
+    {
+      "file": "jacocoagent.jar",
+      "group": "org.jacoco",
+      "artifact": "org.jacoco.agent",
+      "version": "0.8.12",
+      "classifier": "runtime",
+      "sha256": "115e8e6e6593ca3a9892dfef695df4d487c706e59e71e64dc0ab95716ee02622"
+    },
+    {
+      "file": "jacococli.jar",
+      "group": "org.jacoco",
+      "artifact": "org.jacoco.cli",
+      "version": "0.8.12",
+      "classifier": "nodeps",
+      "sha256": "594c01125b84864a7fc5a9efab19b71b7de36b27346863f6d7cd0cd45400ceb0"
+    },
+    {
+      "file": "jsoup-1.17.1.jar",
+      "group": "org.jsoup",
+      "artifact": "jsoup",
+      "version": "1.17.1",
+      "sha256": "9da350a86ec44adbe152a7258dbebad0030cb98aff74384b8b83f126223e51a5"
+    },
+    {
+      "file": "junit-platform-console-standalone-1.9.3.jar",
+      "group": "org.junit.platform",
+      "artifact": "junit-platform-console-standalone",
+      "version": "1.9.3",
+      "sha256": "45e90d893561d813a64559554647eea5e74acaa9c8cb1fed1340d192f34689e2"
+    },
+    {
+      "file": "openjfx-monocle-21.0.2.jar",
+      "group": "org.testfx",
+      "artifact": "openjfx-monocle",
+      "version": "21.0.2",
+      "sha256": "3d0b0c186a9f495aa4e3d058c612b2a9cf44a97ffbcecd75d441aed8263fac50"
+    },
+    {
+      "file": "prism4j-2.0.0.jar",
+      "group": "io.noties",
+      "artifact": "prism4j",
+      "version": "2.0.0",
+      "sha256": "21cf31dcb2acf231e9b6a8e361e6b852ef30de9673f0e316cf84adb88d275304"
+    },
+    {
+      "file": "xml-apis-ext-1.3.04.jar",
+      "group": "xml-apis",
+      "artifact": "xml-apis-ext",
+      "version": "1.3.04",
+      "sha256": "d0b4887dc34d57de49074a58affad439a013d0baffa1a8034f8ef2a5ea191646"
+    },
+    {
+      "file": "xmlgraphics-commons-2.9.jar",
+      "group": "org.apache.xmlgraphics",
+      "artifact": "xmlgraphics-commons",
+      "version": "2.9",
+      "sha256": "2ebd333ab2a624514793c336e3af086608673286fe37ba1e639e0ac3e1b58be2"
+    }
+  ]
+}
