@@ -37,9 +37,16 @@ jobs:
         # Try to install OpenGL libraries (package names vary by Ubuntu version)
         sudo apt-get install -y libgl1-mesa-dri libglu1-mesa || sudo apt-get install -y libgl1 || true
     
+    - name: Cache lib/ directory
+      uses: actions/cache@v3
+      with:
+        path: lib/
+        key: ${{ runner.os }}-deps-${{ hashFiles('dependencies.json') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+
     - name: Install JavaFX
       run: |
-        # Download and install JavaFX SDK to match local environment
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21 for Linux x64..."
@@ -52,35 +59,10 @@ jobs:
           echo "JavaFX SDK already present"
         fi
         ls -la javafx-sdk-21/lib/
-    
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.m2
-          lib/
-        key: ${{ runner.os }}-java-javafx-${{ hashFiles('lib/**/*.jar') }}-v2
-        restore-keys: |
-          ${{ runner.os }}-java-javafx-
-          ${{ runner.os }}-java-
-    
-    - name: Verify lib directory (Unix)
-      if: runner.os != 'Windows'
-      run: |
-        echo "Contents of lib directory:"
-        ls -la lib/ || echo "lib directory not found"
-        echo "JAR files in lib:"
-        ls -la lib/*.jar || echo "No JAR files found"
-    
-    - name: Verify lib directory (Windows)
-      if: runner.os == 'Windows'
-      shell: cmd
-      run: |
-        echo Contents of lib directory:
-        dir lib\ || echo lib directory not found
-        echo JAR files in lib:
-        dir lib\*.jar || echo No JAR files found
-    
+
+    - name: Fetch dependencies
+      run: python3 pc.py deps
+
     - name: Build project
       run: python3 pc.py build
     
@@ -155,15 +137,21 @@ jobs:
         # Try to install OpenGL libraries (package names vary by Ubuntu version)
         sudo apt-get install -y libgl1-mesa-dri libglu1-mesa || sudo apt-get install -y libgl1 || true
     
+    - name: Cache lib/ directory
+      uses: actions/cache@v3
+      with:
+        path: lib/
+        key: ${{ runner.os }}-deps-${{ hashFiles('dependencies.json') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+
     - name: Install JavaFX (Unix)
       if: runner.os != 'Windows'
       run: |
-        # Download and install JavaFX SDK for Unix systems
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21..."
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # Check architecture and download appropriate JavaFX SDK
             echo "macOS detected. Architecture: $(uname -m)"
             if [[ $(uname -m) == "arm64" ]]; then
               echo "Downloading ARM64 JavaFX for Apple Silicon macOS..."
@@ -184,18 +172,12 @@ jobs:
         else
           echo "JavaFX SDK already present"
         fi
-        echo "JavaFX libraries installed:"
         ls -la javafx-sdk-21/lib/
-        echo "Checking native library architecture (macOS only):"
-        if [ "${{ runner.os }}" = "macOS" ] && [ -f "javafx-sdk-21/lib/libprism_sw.dylib" ]; then
-          file javafx-sdk-21/lib/libprism_sw.dylib
-        fi
-    
+
     - name: Install JavaFX (Windows)
       if: runner.os == 'Windows'
       shell: bash
       run: |
-        # Download and install JavaFX SDK for Windows
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21 for Windows..."
@@ -208,32 +190,15 @@ jobs:
           echo "JavaFX SDK already present"
         fi
         ls -la javafx-sdk-21/lib/
-    
-    - name: Verify lib directory (Unix)
+
+    - name: Fetch dependencies (Unix)
       if: runner.os != 'Windows'
-      run: |
-        echo "Contents of lib directory:"
-        ls -la lib/ || echo "lib directory not found"
-        echo "JAR files in lib:"
-        ls -la lib/*.jar || echo "No JAR files found"
-        echo "Current directory:"
-        pwd
-        echo "All directories:"
-        ls -la
-    
-    - name: Verify lib directory (Windows)
+      run: python3 pc.py deps
+
+    - name: Fetch dependencies (Windows)
       if: runner.os == 'Windows'
-      shell: cmd
-      run: |
-        echo Contents of lib directory:
-        dir lib\ || echo lib directory not found
-        echo JAR files in lib:
-        dir lib\*.jar || echo No JAR files found
-        echo Current directory:
-        cd
-        echo All directories:
-        dir
-    
+      run: python pc.py deps
+
     - name: Build project (Unix)
       if: runner.os != 'Windows'
       run: python3 pc.py build --verbose
