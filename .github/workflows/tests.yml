@@ -47,6 +47,7 @@ jobs:
 
     - name: Install JavaFX
       run: |
+        mkdir -p lib
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21 for Linux x64..."
@@ -148,6 +149,7 @@ jobs:
     - name: Install JavaFX (Unix)
       if: runner.os != 'Windows'
       run: |
+        mkdir -p lib
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21..."
@@ -178,6 +180,7 @@ jobs:
       if: runner.os == 'Windows'
       shell: bash
       run: |
+        mkdir -p lib
         cd lib
         if [ ! -d "javafx-sdk-21" ]; then
           echo "Downloading JavaFX SDK 21 for Windows..."
