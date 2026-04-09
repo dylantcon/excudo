@@ -20,15 +20,23 @@ public final class FontResolver {
 
     private static Path[] buildFallbackDirs() {
         Path userDir = Path.of(System.getProperty("user.dir", "."));
-        return new Path[] {
-            userDir.resolve("lib/fonts"),
-            Path.of("/usr/share/fonts"),
-            Path.of("/usr/local/share/fonts"),
-            Path.of(System.getProperty("user.home"), ".fonts"),
-            // macOS system fonts
-            Path.of("/Library/Fonts"),
-            Path.of("/System/Library/Fonts")
-        };
+        java.util.List<Path> dirs = new java.util.ArrayList<>();
+        dirs.add(userDir.resolve("lib/fonts"));
+        dirs.add(Path.of("/usr/share/fonts"));
+        dirs.add(Path.of("/usr/local/share/fonts"));
+        dirs.add(Path.of(System.getProperty("user.home"), ".fonts"));
+        // macOS system fonts
+        dirs.add(Path.of("/Library/Fonts"));
+        dirs.add(Path.of("/System/Library/Fonts"));
+        // Windows system fonts
+        String windir = System.getenv("SystemRoot");
+        if (windir == null) windir = System.getenv("windir");
+        if (windir != null) {
+            dirs.add(Path.of(windir, "Fonts"));
+        } else {
+            dirs.add(Path.of("C:\\Windows\\Fonts"));
+        }
+        return dirs.toArray(new Path[0]);
     }
 
     private FontResolver() {}
@@ -101,18 +109,20 @@ public final class FontResolver {
      * Handles platforms without fc-match (macOS, Windows).
      */
     private static Path resolveViaFileSearch(String family) {
-        String normalized = family.replaceAll("\\s+", "");
+        String normalized = family.replaceAll("\\s+", "").toLowerCase();
+        String familyLower = family.toLowerCase();
         for (Path dir : FALLBACK_SEARCH_DIRS) {
             if (!Files.isDirectory(dir)) continue;
             try (var stream = Files.walk(dir, 4)) {
-                return stream
+                Path match = stream
                     .filter(p -> {
-                        String name = p.getFileName().toString();
-                        return (name.contains(normalized) || name.contains(family))
+                        String name = p.getFileName().toString().toLowerCase();
+                        return (name.contains(normalized) || name.contains(familyLower))
                             && (name.endsWith(".ttf") || name.endsWith(".otf"));
                     })
                     .findFirst()
                     .orElse(null);
+                if (match != null) return match;
             } catch (Exception ignored) {
             }
         }
