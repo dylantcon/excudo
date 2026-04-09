@@ -110,11 +110,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        java: ['17', '21']
-        exclude:
-          # Skip some combinations to reduce CI time
-          - os: windows-latest
-            java: '17'
+        java: ['21']
     
     steps:
     - uses: actions/checkout@v4
