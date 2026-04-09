@@ -16,12 +16,20 @@ public final class FontResolver {
 
     private static final Map<String, Path> cache = new ConcurrentHashMap<>();
 
-    private static final Path[] FALLBACK_SEARCH_DIRS = {
-        Path.of("lib", "fonts"),
-        Path.of("/usr/share/fonts"),
-        Path.of("/usr/local/share/fonts"),
-        Path.of(System.getProperty("user.home"), ".fonts")
-    };
+    private static final Path[] FALLBACK_SEARCH_DIRS = buildFallbackDirs();
+
+    private static Path[] buildFallbackDirs() {
+        Path userDir = Path.of(System.getProperty("user.dir", "."));
+        return new Path[] {
+            userDir.resolve("lib/fonts"),
+            Path.of("/usr/share/fonts"),
+            Path.of("/usr/local/share/fonts"),
+            Path.of(System.getProperty("user.home"), ".fonts"),
+            // macOS system fonts
+            Path.of("/Library/Fonts"),
+            Path.of("/System/Library/Fonts")
+        };
+    }
 
     private FontResolver() {}
 

@@ -13,10 +13,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up JDK 17
+    - name: Set up JDK 21
       uses: actions/setup-java@v3
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
     
     - name: Set up Python
@@ -67,15 +67,8 @@ jobs:
     - name: Extract test PPTX files
       run: |
         cd test-pptx-samples
-        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
-          base="${pptx%.pptx}"
-          dir="${base}_extracted"
-          if [ ! -d "$dir" ]; then
-            mkdir -p "$dir"
-            unzip -q -o "$pptx" -d "$dir"
-            echo "Extracted $pptx -> $dir"
-          fi
-        done
+        [ ! -d "generalist_extracted" ] && mkdir -p generalist_extracted && unzip -q -o generalist_test_file.pptx -d generalist_extracted && echo "Extracted generalist_test_file.pptx"
+        [ ! -d "textel-and-shape-crud-oracle-file_extracted" ] && mkdir -p textel-and-shape-crud-oracle-file_extracted && unzip -q -o textel-and-shape-crud-oracle-file.pptx -d textel-and-shape-crud-oracle-file_extracted && echo "Extracted textel-and-shape-crud-oracle-file.pptx"
 
     - name: Build project
       run: python3 pc.py build
@@ -219,30 +212,16 @@ jobs:
       if: runner.os != 'Windows'
       run: |
         cd test-pptx-samples
-        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
-          base="${pptx%.pptx}"
-          dir="${base}_extracted"
-          if [ ! -d "$dir" ]; then
-            mkdir -p "$dir"
-            unzip -q -o "$pptx" -d "$dir"
-            echo "Extracted $pptx -> $dir"
-          fi
-        done
+        [ ! -d "generalist_extracted" ] && mkdir -p generalist_extracted && unzip -q -o generalist_test_file.pptx -d generalist_extracted && echo "Extracted generalist_test_file.pptx"
+        [ ! -d "textel-and-shape-crud-oracle-file_extracted" ] && mkdir -p textel-and-shape-crud-oracle-file_extracted && unzip -q -o textel-and-shape-crud-oracle-file.pptx -d textel-and-shape-crud-oracle-file_extracted && echo "Extracted textel-and-shape-crud-oracle-file.pptx"
 
     - name: Extract test PPTX files (Windows)
       if: runner.os == 'Windows'
       shell: bash
       run: |
         cd test-pptx-samples
-        for pptx in generalist_test_file.pptx textel-and-shape-crud-oracle-file.pptx; do
-          base="${pptx%.pptx}"
-          dir="${base}_extracted"
-          if [ ! -d "$dir" ]; then
-            mkdir -p "$dir"
-            unzip -q -o "$pptx" -d "$dir"
-            echo "Extracted $pptx -> $dir"
-          fi
-        done
+        [ ! -d "generalist_extracted" ] && mkdir -p generalist_extracted && unzip -q -o generalist_test_file.pptx -d generalist_extracted && echo "Extracted generalist_test_file.pptx"
+        [ ! -d "textel-and-shape-crud-oracle-file_extracted" ] && mkdir -p textel-and-shape-crud-oracle-file_extracted && unzip -q -o textel-and-shape-crud-oracle-file.pptx -d textel-and-shape-crud-oracle-file_extracted && echo "Extracted textel-and-shape-crud-oracle-file.pptx"
 
     - name: Build project (Unix)
       if: runner.os != 'Windows'
