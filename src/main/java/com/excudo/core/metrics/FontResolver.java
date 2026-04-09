@@ -46,12 +46,13 @@ public final class FontResolver {
         Path cached = cache.get(key);
         if (cached != null) return cached;
 
-        Path resolved = resolveViaFcMatch(family, bold, italic);
+        // Check bundled fonts first for consistent cross-platform behavior
+        Path resolved = resolveViaFileSearch(family);
         if (resolved == null) {
-            resolved = resolveViaFcMatch(family, false, false);
+            resolved = resolveViaFcMatch(family, bold, italic);
         }
         if (resolved == null) {
-            resolved = resolveViaFileSearch(family);
+            resolved = resolveViaFcMatch(family, false, false);
         }
         if (resolved != null) {
             cache.put(key, resolved);
