@@ -10,7 +10,9 @@ import com.excudo.xml.writers.RelationshipManager;
 import com.excudo.core.commands.CommandInvoker;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +35,10 @@ public class SessionManager {
     
     // Session storage
     private final Map<String, ManagedSession> activeSessions;
-    
+
+    // State change listeners (GUI observers, etc.)
+    private final List<OrchestrationStateListener> stateListeners;
+
     // Cleanup scheduler
     private final ScheduledExecutorService cleanupExecutor;
     private static final long SESSION_TIMEOUT_MINUTES = 30;
@@ -41,6 +46,7 @@ public class SessionManager {
     
     private SessionManager() {
         this.activeSessions = new ConcurrentHashMap<>();
+        this.stateListeners = new CopyOnWriteArrayList<>();
         this.cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "SessionManager-Cleanup");
             t.setDaemon(true);
@@ -84,29 +90,31 @@ public class SessionManager {
             // Perform expensive initialization
             ManagedSession session = new ManagedSession(sessionId, pptxFile);
             activeSessions.put(sessionId, session);
-            
-            logger.info("Session {} created successfully with {} slides", 
+
+            logger.info("Session {} created successfully with {} slides",
                        sessionId, session.getSlideCount());
+            firePresentationLoaded();
             return sessionId;
-            
+
         } catch (Exception e) {
             logger.error("Failed to create session {}: {}", sessionId, e.getMessage());
             throw new XMLParsingException("Failed to create session: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * Create a new empty presentation session
      */
     public String createNewSession() throws XMLParsingException {
         String sessionId = UUID.randomUUID().toString();
         logger.info("Creating new empty session {}", sessionId);
-        
+
         try {
             ManagedSession session = new ManagedSession(sessionId);
             activeSessions.put(sessionId, session);
-            
+
             logger.info("Empty session {} created successfully", sessionId);
+            firePresentationLoaded();
             return sessionId;
             
         } catch (Exception e) {
@@ -150,6 +158,7 @@ public class SessionManager {
         if (session != null) {
             logger.info("Closing session {}", sessionId);
             session.cleanup();
+            firePresentationClosed();
             return true;
         } else {
             logger.warn("Attempted to close non-existent session {}", sessionId);
@@ -189,6 +198,86 @@ public class SessionManager {
         });
     }
     
+    // ------------------------------------------------------------------
+    // State change listener registry
+    // ------------------------------------------------------------------
+
+    /**
+     * Subscribe to presentation state change events. Typically called by the
+     * GUI's MainController once at startup so it can refresh its views when
+     * console commands or other code paths change the loaded presentation.
+     */
+    public void addStateListener(OrchestrationStateListener listener) {
+        if (listener != null) {
+            stateListeners.add(listener);
+        }
+    }
+
+    /**
+     * Unsubscribe a previously registered state change listener.
+     */
+    public void removeStateListener(OrchestrationStateListener listener) {
+        if (listener != null) {
+            stateListeners.remove(listener);
+        }
+    }
+
+    /**
+     * Notify listeners that a presentation was loaded or replaced.
+     * Each listener is invoked independently; a misbehaving listener cannot
+     * break command execution.
+     */
+    public void firePresentationLoaded() {
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onPresentationLoaded();
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onPresentationLoaded: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notify listeners that the active session was closed.
+     */
+    public void firePresentationClosed() {
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onPresentationClosed();
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onPresentationClosed: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notify listeners that the slide list changed (add/delete/reorder).
+     */
+    public void firePresentationStructureChanged() {
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onPresentationStructureChanged();
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onPresentationStructureChanged: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notify listeners that a single slide's contents changed.
+     *
+     * @param slideNumber the 1-based slide number that was modified
+     */
+    public void fireSlideModified(int slideNumber) {
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onSlideModified(slideNumber);
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onSlideModified: {}", e.getMessage());
+            }
+        }
+    }
+
     /**
      * Shutdown session manager and cleanup all sessions
      */

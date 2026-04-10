@@ -2,6 +2,7 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.text.TextFlow?>
 
 <BorderPane fx:id="rootPane" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.excudo.view.MainController">
    <top>
@@ -18,12 +19,8 @@
                <MenuItem fx:id="exitItem" text="Exit" />
             </Menu>
             <Menu text="Edit">
-               <MenuItem text="Undo" />
-               <MenuItem text="Redo" />
-               <SeparatorMenuItem />
-               <MenuItem text="Cut" />
-               <MenuItem text="Copy" />
-               <MenuItem text="Paste" />
+               <MenuItem fx:id="undoMenuItem" text="Undo" accelerator="Shortcut+Z" />
+               <MenuItem fx:id="redoMenuItem" text="Redo" accelerator="Shortcut+Shift+Z" />
             </Menu>
             <Menu text="View">
                <CheckMenuItem fx:id="showGridItem" text="Show Grid" />
@@ -35,7 +32,6 @@
             <Menu text="Tools">
                <MenuItem fx:id="validatePresentationItem" text="Validate Presentation" />
                <MenuItem fx:id="regenerateSpidsItem" text="Regenerate SPIDs" />
-               <MenuItem fx:id="technicalConsoleItem" text="Technical Console" />
                <SeparatorMenuItem />
                <MenuItem fx:id="settingsItem" text="Settings..." />
             </Menu>
@@ -75,46 +71,31 @@
          
          <!-- Center Panel: Main Content with Bottom Panel -->
          <SplitPane fx:id="centerRightSplit" dividerPositions="0.7" orientation="VERTICAL">
-            <!-- Center: Slide Editor -->
+            <!-- Center: Slide Preview -->
             <VBox fx:id="centerPanel" spacing="5.0">
-               <SplitPane dividerPositions="0.4" VBox.vgrow="ALWAYS">
-                  <!-- XML Editor -->
-                  <VBox spacing="5.0">
-                     <Label text="XML Editor" />
-                     <TextArea fx:id="xmlEditor" VBox.vgrow="ALWAYS" />
-                     <HBox spacing="5.0">
-                        <Button fx:id="applyXmlButton" text="Apply" />
-                        <Button fx:id="resetXmlButton" text="Reset" />
-                        <Button fx:id="validateXmlButton" text="Validate" />
-                     </HBox>
-                  </VBox>
-                  <!-- Visual Preview -->
-                  <VBox fx:id="visualPreviewContainer" spacing="5.0">
-                     <HBox spacing="5.0" alignment="CENTER_LEFT">
-                        <Label text="Visual Preview" />
-                        <Button fx:id="togglePreviewButton" text=">" style="-fx-font-size: 10px; -fx-padding: 2px 6px;" />
-                     </HBox>
-                     <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS" managed="false" visible="false">
-                        <!-- Canvas will be added programmatically -->
-                     </ScrollPane>
-                  </VBox>
-               </SplitPane>
+               <VBox fx:id="visualPreviewContainer" spacing="5.0" VBox.vgrow="ALWAYS">
+                  <HBox spacing="5.0" alignment="CENTER_LEFT">
+                     <Label text="Visual Preview" />
+                     <Button fx:id="togglePreviewButton" text=">" style="-fx-font-size: 10px; -fx-padding: 2px 6px;" />
+                  </HBox>
+                  <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS" managed="false" visible="false">
+                     <!-- Canvas will be added programmatically -->
+                  </ScrollPane>
+               </VBox>
             </VBox>
-            
+
             <!-- Bottom Panel: Tabs -->
             <TabPane fx:id="bottomTabPane" minHeight="200.0">
                <Tab fx:id="consoleTab" closable="false" text="Console">
                   <VBox spacing="5.0">
-                     <TextArea fx:id="consoleOutput" editable="false" VBox.vgrow="ALWAYS" />
+                     <ScrollPane fx:id="consoleScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" style="-fx-background-color: #1e1e1e;">
+                        <TextFlow fx:id="consoleOutput" styleClass="console-output" />
+                     </ScrollPane>
                      <HBox spacing="5.0">
                         <TextField fx:id="commandInput" HBox.hgrow="ALWAYS" />
                         <Button fx:id="executeButton" text="Execute" />
-                        <CheckBox fx:id="llmModeCheckBox" text="LLM Mode" />
                      </HBox>
                   </VBox>
-               </Tab>
-               <Tab fx:id="outputTab" closable="false" text="Output">
-                  <TextArea fx:id="outputTextArea" editable="false" />
                </Tab>
                <Tab fx:id="validationTab" closable="false" text="Validation">
                   <ListView fx:id="validationListView" />

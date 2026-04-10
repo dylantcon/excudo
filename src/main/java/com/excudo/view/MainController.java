@@ -3,11 +3,12 @@ package com.excudo.view;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
 import com.excudo.core.orchestration.SlideMetadata;
+import com.excudo.core.orchestration.OrchestrationStateListener;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.view.components.PresentationExplorerController;
 import com.excudo.view.components.SlideEditorController;
 import com.excudo.view.components.TechnicalConsoleController;
 import com.excudo.view.components.PropertiesController;
-import com.excudo.view.components.OutputController;
 import com.excudo.view.components.ValidationController;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -30,7 +31,7 @@ import com.excudo.core.utils.ComponentLogger;
  * Main controller for the Excudo application.
  * Coordinates between different view components and manages application state.
  */
-public class MainController implements Initializable {
+public class MainController implements Initializable, OrchestrationStateListener {
 
     private static final ComponentLogger logger = Logger.rendering();
 
@@ -48,6 +49,10 @@ public class MainController implements Initializable {
     @FXML private MenuItem saveAsPresentationItem;
     @FXML private MenuItem exportPresentationItem;
     @FXML private MenuItem exitItem;
+
+    // Edit menu items
+    @FXML private MenuItem undoMenuItem;
+    @FXML private MenuItem redoMenuItem;
     
     // View menu items
     @FXML private CheckMenuItem showGridItem;
@@ -58,7 +63,6 @@ public class MainController implements Initializable {
     // Tools menu items
     @FXML private MenuItem validatePresentationItem;
     @FXML private MenuItem regenerateSpidsItem;
-    @FXML private MenuItem technicalConsoleItem;
     @FXML private MenuItem settingsItem;
     
     // Tool bar buttons
@@ -86,24 +90,18 @@ public class MainController implements Initializable {
     @FXML private Button refreshButton;
     
     // Slide Editor
-    @FXML private TextArea xmlEditor;
-    @FXML private Button applyXmlButton;
-    @FXML private Button resetXmlButton;
-    @FXML private Button validateXmlButton;
     @FXML private ScrollPane canvasScrollPane;
     @FXML private VBox visualPreviewContainer;
     @FXML private Button togglePreviewButton;
-    
+
     // Console
     @FXML private Tab consoleTab;
-    @FXML private TextArea consoleOutput;
+    @FXML private ScrollPane consoleScrollPane;
+    @FXML private javafx.scene.text.TextFlow consoleOutput;
     @FXML private TextField commandInput;
     @FXML private Button executeButton;
-    @FXML private CheckBox llmModeCheckBox;
-    
-    // Output and Validation tabs
-    @FXML private Tab outputTab;
-    @FXML private TextArea outputTextArea;
+
+    // Validation tab
     @FXML private Tab validationTab;
     @FXML private ListView validationListView;
     
@@ -122,7 +120,6 @@ public class MainController implements Initializable {
     private SlideEditorController editorController;
     private TechnicalConsoleController consoleController;
     private PropertiesController propertiesController;
-    private OutputController outputController;
     private ValidationController validationController;
     
     // Visual preview state
@@ -165,21 +162,52 @@ public class MainController implements Initializable {
      */
     public void initialize(ViewManager viewManager) {
         this.viewManager = viewManager;
-        
+
         // Initialize core components
-        
+
         try {
             // Initialize the orchestrator
             this.orchestrator = new com.excudo.core.orchestration.PPTXOrchestratorImpl();
-            
+
             // Check if orchestrator already has presentation data (demos, etc.)
             updatePresentationViews();
         } catch (Exception e) {
             System.err.println("Failed to initialize orchestrator: " + e.getMessage());
         }
-        
+
+        // Subscribe to state changes from any code path that loads/modifies a presentation
+        // (console commands, menu actions, programmatic flows). Callbacks hop onto the FX
+        // thread since commands may run on background threads.
+        SessionManager.getInstance().addStateListener(this);
+
         // Setup initial view state
         updateUIState();
+    }
+
+    // ========== OrchestrationStateListener ==========
+
+    @Override
+    public void onPresentationLoaded() {
+        Platform.runLater(this::updatePresentationViews);
+    }
+
+    @Override
+    public void onPresentationClosed() {
+        Platform.runLater(this::updatePresentationViews);
+    }
+
+    @Override
+    public void onPresentationStructureChanged() {
+        Platform.runLater(this::updatePresentationViews);
+    }
+
+    @Override
+    public void onSlideModified(int slideNumber) {
+        Platform.runLater(() -> {
+            if (editorController != null) {
+                editorController.loadSlide(slideNumber);
+            }
+        });
     }
     
     // ========== INITIALIZATION ==========
@@ -221,7 +249,15 @@ public class MainController implements Initializable {
         if (exitItem != null) {
             exitItem.setOnAction(e -> handleExit());
         }
-        
+
+        // Edit menu handlers (Undo/Redo)
+        if (undoMenuItem != null) {
+            undoMenuItem.setOnAction(e -> handleUndo());
+        }
+        if (redoMenuItem != null) {
+            redoMenuItem.setOnAction(e -> handleRedo());
+        }
+
         // View menu handlers
         if (showGridItem != null) {
             showGridItem.setOnAction(e -> handleToggleGrid());
@@ -242,9 +278,6 @@ public class MainController implements Initializable {
         }
         if (regenerateSpidsItem != null) {
             regenerateSpidsItem.setOnAction(e -> handleRegenerateSpids());
-        }
-        if (technicalConsoleItem != null) {
-            technicalConsoleItem.setOnAction(e -> handleShowTechnicalConsole());
         }
         if (settingsItem != null) {
             settingsItem.setOnAction(e -> handleShowSettings());
@@ -284,29 +317,6 @@ public class MainController implements Initializable {
             });
         }
         
-        // XML Editor button handlers (delegate to SlideEditorController)
-        if (applyXmlButton != null) {
-            applyXmlButton.setOnAction(e -> {
-                if (editorController != null) {
-                    editorController.handleApplyXmlFromMainController();
-                }
-            });
-        }
-        if (resetXmlButton != null) {
-            resetXmlButton.setOnAction(e -> {
-                if (editorController != null) {
-                    editorController.handleResetXmlFromMainController();
-                }
-            });
-        }
-        if (validateXmlButton != null) {
-            validateXmlButton.setOnAction(e -> {
-                if (editorController != null) {
-                    editorController.handleValidateXmlFromMainController();
-                }
-            });
-        }
-        
         // Visual Preview toggle handler
         if (togglePreviewButton != null) {
             togglePreviewButton.setOnAction(e -> toggleVisualPreview());
@@ -324,27 +334,21 @@ public class MainController implements Initializable {
             explorerController.setButtons(addSlideButton, deleteSlideButton, 
                                          moveUpButton, moveDownButton, refreshButton);
             
-            // Initialize slide editor controller and connect to editor components
+            // Initialize slide editor controller and connect to preview components
             editorController = new SlideEditorController();
             editorController.setMainController(this);
-            editorController.setXmlEditor(xmlEditor);
             editorController.setCanvasScrollPane(canvasScrollPane);
-            
+
             // Initialize console controller and connect to console components
             consoleController = new TechnicalConsoleController();
             consoleController.setMainController(this);
-            consoleController.setConsoleComponents(consoleOutput, commandInput, executeButton, llmModeCheckBox);
-            
+            consoleController.setConsoleComponents(consoleOutput, consoleScrollPane, commandInput, executeButton);
+
             // Initialize properties controller and connect to properties table
             propertiesController = new PropertiesController();
             propertiesController.setMainController(this);
             propertiesController.setPropertiesTable(propertiesTable);
-            
-            // Initialize output controller and connect to output text area
-            outputController = new OutputController();
-            outputController.setOutputTextArea(outputTextArea);
-            outputController.initialize();
-            
+
             // Initialize validation controller and connect to validation list view
             validationController = new ValidationController();
             validationController.setValidationListView(validationListView);
@@ -654,7 +658,10 @@ public class MainController implements Initializable {
                 if (consoleController != null) {
                     consoleController.onPresentationLoaded();
                 }
-                
+
+                // Keep Edit menu in sync with the session's command history
+                updateUndoRedoState();
+
                 showStatus("Presentation loaded: " + slides.size() + " slides");
                 
             } catch (Exception e) {
@@ -771,16 +778,13 @@ public class MainController implements Initializable {
             protected void succeeded() {
                 Platform.runLater(() -> {
                     String report = getValue();
-                    if (outputController != null) {
-                        outputController.appendOutput(report);
-                    }
                     if (validationController != null) {
                         validationController.showValidationReport(report);
                     }
                     showStatus("Validation completed");
                 });
             }
-            
+
             @Override
             protected void failed() {
                 Platform.runLater(() -> {
@@ -788,10 +792,10 @@ public class MainController implements Initializable {
                 });
             }
         };
-        
+
         runBackgroundTask(task);
     }
-    
+
     @FXML
     private void handleRegenerateSpids() {
         if (!presentationLoaded || orchestrator == null) {
@@ -886,18 +890,18 @@ public class MainController implements Initializable {
             protected void succeeded() {
                 Platform.runLater(() -> {
                     String report = getValue();
-                    if (outputController != null) {
-                        outputController.appendOutput(report);
+                    if (validationController != null) {
+                        validationController.showValidationReport(report);
                     }
-                    
+
                     // Mark presentation as modified
                     if (viewManager != null) {
                         viewManager.markAsModified();
                     }
-                    
+
                     // Refresh views to show updated data
                     updatePresentationViews();
-                    
+
                     showStatus("SPID regeneration completed");
                 });
             }
@@ -913,15 +917,90 @@ public class MainController implements Initializable {
         runBackgroundTask(task);
     }
     
+    // ========== EDIT OPERATIONS (Undo/Redo) ==========
+
+    /**
+     * Undo the last command via the active session's CommandInvoker.
+     * The Command interface already tracks undoability per-command; this
+     * menu handler is just a thin bridge to that infrastructure.
+     */
     @FXML
-    private void handleShowTechnicalConsole() {
-        // Switch to console tab if it exists
-        if (bottomTabPane != null && consoleTab != null) {
-            bottomTabPane.getSelectionModel().select(consoleTab);
-            showStatus("Technical console activated");
+    private void handleUndo() {
+        com.excudo.core.commands.CommandInvoker invoker = getCurrentCommandInvoker();
+        if (invoker == null) {
+            showStatus("No active session");
+            return;
+        }
+        if (!invoker.canUndo()) {
+            showStatus("Nothing to undo");
+            return;
+        }
+        try {
+            invoker.undo();
+            SessionManager.getInstance().firePresentationStructureChanged();
+            showStatus("Undone: " + invoker.getRedoDescription());
+        } catch (Exception e) {
+            logger.error("Undo failed: " + e.getMessage(), e);
+            showError("Undo failed", e);
+        }
+        updateUndoRedoState();
+    }
+
+    /**
+     * Redo the last undone command.
+     */
+    @FXML
+    private void handleRedo() {
+        com.excudo.core.commands.CommandInvoker invoker = getCurrentCommandInvoker();
+        if (invoker == null) {
+            showStatus("No active session");
+            return;
+        }
+        if (!invoker.canRedo()) {
+            showStatus("Nothing to redo");
+            return;
+        }
+        try {
+            String description = invoker.getRedoDescription();
+            invoker.redo();
+            SessionManager.getInstance().firePresentationStructureChanged();
+            showStatus("Redone: " + description);
+        } catch (Exception e) {
+            logger.error("Redo failed: " + e.getMessage(), e);
+            showError("Redo failed", e);
+        }
+        updateUndoRedoState();
+    }
+
+    /**
+     * Retrieve the CommandInvoker for the current session.
+     * Returns null if no session is active.
+     */
+    private com.excudo.core.commands.CommandInvoker getCurrentCommandInvoker() {
+        if (consoleController == null) {
+            return null;
+        }
+        com.excudo.view.console.UIConsoleEngine engine = consoleController.getConsoleEngine();
+        return engine != null ? engine.getCurrentCommandInvoker() : null;
+    }
+
+    /**
+     * Refresh Undo/Redo menu item enabled state based on the current session's
+     * CommandInvoker. Called from updatePresentationViews() so every state
+     * change (via the OrchestrationStateListener) keeps the menu in sync.
+     */
+    private void updateUndoRedoState() {
+        com.excudo.core.commands.CommandInvoker invoker = getCurrentCommandInvoker();
+        boolean canUndo = invoker != null && invoker.canUndo();
+        boolean canRedo = invoker != null && invoker.canRedo();
+        if (undoMenuItem != null) {
+            undoMenuItem.setDisable(!canUndo);
+        }
+        if (redoMenuItem != null) {
+            redoMenuItem.setDisable(!canRedo);
         }
     }
-    
+
     @FXML
     private void handleShowSettings() {
         // Placeholder for settings dialog
@@ -967,27 +1046,8 @@ public class MainController implements Initializable {
         return viewManager;
     }
     
-    public OutputController getOutputController() {
-        return outputController;
-    }
-    
     public ValidationController getValidationController() {
         return validationController;
-    }
-    
-    /**
-     * Update the state of XML editor buttons (called from SlideEditorController)
-     */
-    public void updateXmlButtonStates(boolean disabled) {
-        if (applyXmlButton != null) {
-            applyXmlButton.setDisable(disabled);
-        }
-        if (resetXmlButton != null) {
-            resetXmlButton.setDisable(disabled);
-        }
-        if (validateXmlButton != null) {
-            validateXmlButton.setDisable(disabled);
-        }
     }
     
     /**

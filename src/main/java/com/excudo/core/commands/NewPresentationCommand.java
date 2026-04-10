@@ -3,6 +3,7 @@ package com.excudo.core.commands;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
 import com.excudo.core.orchestration.PresentationScaffolder;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.results.ExecutionResult;
 
 import java.io.File;
@@ -80,6 +81,9 @@ public class NewPresentationCommand implements Command {
             }
 
             display.displaySuccess("Created new presentation (theme: " + themeId + ")");
+
+            // Notify state listeners that a new presentation is loaded.
+            SessionManager.getInstance().firePresentationLoaded();
 
             // Evaluate theme color scheme for visibility issues using WCAG contrast ratios
             try {

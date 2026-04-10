@@ -1,6 +1,7 @@
 package com.excudo.core.commands;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;
@@ -70,12 +71,15 @@ public class AddShapeCommand implements Command {
                 createdSpid = result.getData().orElse(null);
                 if (createdSpid == null) {
                     throw new CommandExecutionException(
-                        getDescription(), 
-                        "execute", 
+                        getDescription(),
+                        "execute",
                         "Shape creation succeeded but no SPID was returned"
                     );
                 }
                 executed = true;
+
+                // Notify state listeners that the slide's contents changed.
+                SessionManager.getInstance().fireSlideModified(slideNumber);
             } else {
                 throw new CommandExecutionException(
                     getDescription(), 

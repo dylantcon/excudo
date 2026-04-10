@@ -3,6 +3,7 @@ package com.excudo.core.commands;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.model.ParsedSlideData;
 import com.excudo.core.model.SlideShape;
 import com.excudo.xml.writers.SlideCreator;
@@ -171,6 +172,9 @@ public class CreateSlideCommand implements Command {
             logger.debug("CREATE SLIDE EXECUTE: Setting executed=true, createdSlideNumber=" + createdSlideNumber);
             executed = true;
             logger.debug("CREATE SLIDE EXECUTE SUCCESS: executed=" + executed);
+
+            // Notify state listeners that the slide list changed.
+            SessionManager.getInstance().firePresentationStructureChanged();
             
         } catch (CommandExecutionException e) {
             logger.error("CREATE SLIDE EXECUTE COMMAND EXCEPTION: " + e.getMessage());

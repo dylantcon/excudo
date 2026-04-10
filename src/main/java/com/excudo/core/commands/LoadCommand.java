@@ -2,6 +2,7 @@ package com.excudo.core.commands;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.results.ExecutionResult;
 import java.io.File;
 
@@ -117,6 +118,11 @@ public class LoadCommand implements Command {
                         null, // LLM handler preserved by console layer
                         file
                     );
+
+                    // Notify state listeners (GUI explorer/preview refresh).
+                    // The createSession path already fires via SessionManager;
+                    // this in-place reload must fire explicitly.
+                    SessionManager.getInstance().firePresentationLoaded();
                 } else {
                     display.displayError("Failed to load: " + result.getMessage());
                 }

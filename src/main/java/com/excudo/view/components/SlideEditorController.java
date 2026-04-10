@@ -1,7 +1,6 @@
 package com.excudo.view.components;
 
 import com.excudo.view.MainController;
-import com.excudo.view.components.ValidationController;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.SlideRenderer;
 import com.excudo.view.rendering.CoordinateMapper;
@@ -17,39 +16,30 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.paint.Color;
 import javafx.concurrent.Task;
 import javafx.application.Platform;
 import com.excudo.core.utils.XMLFactoryProvider;
 import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import java.io.StringReader;
 import java.io.File;
 import java.net.URL;
 import java.util.ResourceBundle;
-import org.xml.sax.InputSource;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 
 /**
- * Controller for the slide editor with XML editing and visual preview.
- * Provides split-pane view with XML editor on left and canvas preview on right.
+ * Controller for the slide preview pane.
+ * Shows the currently-selected slide as a rendered canvas with zoom and
+ * animation playback controls. Raw XML editing has been removed.
  */
 public class SlideEditorController implements Initializable {
 
     private static final ComponentLogger logger = Logger.rendering();
 
     // ========== FXML COMPONENTS ==========
-    
-    @FXML private SplitPane editorSplitPane;
-    @FXML private VBox xmlEditorPane;
+
     @FXML private VBox canvasPane;
-    
-    // XML Editor components
-    @FXML private TextArea xmlEditor;
-    @FXML private Label xmlStatusLabel;
-    
+
     // Canvas components
     @FXML private Canvas slideCanvas;
     @FXML private ScrollPane canvasScrollPane;
@@ -119,44 +109,6 @@ public class SlideEditorController implements Initializable {
     }
     
     /**
-     * Public methods to handle XML operations from MainController
-     */
-    public void handleApplyXmlFromMainController() {
-        handleApplyXml();
-    }
-    
-    public void handleResetXmlFromMainController() {
-        handleResetXml();
-    }
-    
-    public void handleValidateXmlFromMainController() {
-        handleValidateXml();
-    }
-    
-    /**
-     * Set the XML editor component from FXML
-     */
-    public void setXmlEditor(TextArea xmlEditor) {
-        this.xmlEditor = xmlEditor;
-        if (xmlEditor != null) {
-            xmlEditor.setWrapText(false);
-            xmlEditor.setStyle("-fx-font-family: 'Courier New', monospace; -fx-font-size: 12px;");
-            
-            // Re-setup event handlers now that we have the component
-            xmlEditor.textProperty().addListener((observable, oldValue, newValue) -> {
-                if (mainController != null) {
-                    mainController.onSlideContentChanged();
-                }
-                updateXmlStatus("Modified");
-            });
-            
-            System.out.println("XML Editor successfully configured");
-        } else {
-            System.err.println("ERROR: XML Editor not injected via FXML - XML editing will not be available");
-        }
-    }
-    
-    /**
      * Set the canvas scroll pane component from FXML
      */
     public void setCanvasScrollPane(ScrollPane canvasScrollPane) {
@@ -178,17 +130,6 @@ public class SlideEditorController implements Initializable {
     }
     
     private void setupComponents() {
-        // Configure split pane
-        if (editorSplitPane != null) {
-            editorSplitPane.setDividerPositions(0.4); // 40% XML editor, 60% canvas
-        }
-        
-        // Configure XML editor
-        if (xmlEditor != null) {
-            xmlEditor.setWrapText(false);
-            xmlEditor.setStyle("-fx-font-family: 'Courier New', monospace; -fx-font-size: 12px;");
-        }
-        
         // Configure canvas scroll pane
         if (canvasScrollPane != null) {
             canvasScrollPane.setPannable(true);
@@ -230,16 +171,6 @@ public class SlideEditorController implements Initializable {
         }
         if (autoAdvanceCheckBox != null) {
             autoAdvanceCheckBox.setOnAction(e -> handleAutoAdvanceToggle());
-        }
-        
-        // XML editor change listener
-        if (xmlEditor != null) {
-            xmlEditor.textProperty().addListener((observable, oldValue, newValue) -> {
-                if (mainController != null) {
-                    mainController.onSlideContentChanged();
-                }
-                updateXmlStatus("Modified");
-            });
         }
         
         // Canvas mouse events for shape selection
@@ -288,14 +219,9 @@ public class SlideEditorController implements Initializable {
             
             // Initialize live preview manager
             livePreviewManager = new LivePreviewManager(slideCanvas);
-            
+
             // Configure slideLayout directory for live preview manager as well
             configureSlideLayoutDirectoryForLivePreview();
-            
-            // Set up live preview status binding
-            livePreviewManager.statusMessageProperty().addListener((obs, oldVal, newVal) -> {
-                updateXmlStatus(newVal);
-            });
             
             // Set up animation listener
             animationController.addListener(new AnimationControllerListener() {
@@ -361,9 +287,8 @@ public class SlideEditorController implements Initializable {
     
     private void setupInitialState() {
         updateButtonStates();
-        updateXmlStatus("No slide loaded");
         updateZoomLabel();
-        
+
         // Clear canvas
         clearCanvas();
     }
@@ -446,12 +371,11 @@ public class SlideEditorController implements Initializable {
                 
                 @Override
                 protected void failed() {
-                    Platform.runLater(() -> {
-                        updateXmlStatus("Failed to load slide " + slideNumber);
-                    });
+                    logger.warn("Failed to load slide {}: {}", slideNumber,
+                        getException() != null ? getException().getMessage() : "unknown");
                 }
             };
-            
+
             runBackgroundTask(loadTask);
         } else {
             // Load placeholder slide
@@ -479,46 +403,17 @@ public class SlideEditorController implements Initializable {
                 animationController.loadSlideAnimations(currentSlideData, mockSceneGraph);
             }
         } catch (Exception e) {
-            System.err.println("Error parsing slide data: " + e.getMessage());
+            logger.warn("Error parsing slide data: {}", e.getMessage());
             updateAnimationStatus("Error loading animations: " + e.getMessage());
         }
-        
-        // Update XML editor
-        updateXmlEditor();
-        
+
         // Render slide on canvas
         renderSlide();
-        
+
         // Update UI state
         updateButtonStates();
-        updateXmlStatus("Slide " + currentSlideNumber + " loaded");
     }
-    
-    /**
-     * Update XML editor with current slide content
-     */
-    private void updateXmlEditor() {
-        if (xmlEditor != null && currentSlideDocument != null) {
-            try {
-                // Serialize document to XML string
-                javax.xml.transform.TransformerFactory tf = javax.xml.transform.TransformerFactory.newInstance();
-                javax.xml.transform.Transformer transformer = tf.newTransformer();
-                transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes");
-                transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-                
-                java.io.StringWriter writer = new java.io.StringWriter();
-                javax.xml.transform.dom.DOMSource source = new javax.xml.transform.dom.DOMSource(currentSlideDocument);
-                javax.xml.transform.stream.StreamResult result = new javax.xml.transform.stream.StreamResult(writer);
-                
-                transformer.transform(source, result);
-                xmlEditor.setText(writer.toString());
-                
-            } catch (Exception e) {
-                xmlEditor.setText("Error loading XML: " + e.getMessage());
-            }
-        }
-    }
-    
+
     /**
      * Render current slide on canvas
      */
@@ -547,155 +442,7 @@ public class SlideEditorController implements Initializable {
     }
     
     // ========== EVENT HANDLERS ==========
-    
-    @FXML
-    private void handleApplyXml() {
-        if (xmlEditor != null && livePreviewManager != null) {
-            String xmlContent = xmlEditor.getText();
-            
-            // Use LivePreviewManager for real-time update
-            livePreviewManager.updatePreviewFromXML(xmlContent);
-            
-            // Also parse for validation and store the document
-            Task<Document> parseTask = new Task<Document>() {
-                @Override
-                protected Document call() throws Exception {
-                    // Parse XML content
-                    return XMLFactoryProvider.parseDocument(xmlContent);
-                }
-                
-                @Override
-                protected void succeeded() {
-                    Platform.runLater(() -> {
-                        currentSlideDocument = getValue();
-                        updateXmlStatus("XML applied successfully");
-                        
-                        if (mainController != null) {
-                            mainController.onSlideContentChanged();
-                        }
-                    });
-                }
-                
-                @Override
-                protected void failed() {
-                    Platform.runLater(() -> {
-                        Throwable exception = getException();
-                        updateXmlStatus("XML Error: " + exception.getMessage());
-                    });
-                }
-            };
-            
-            runBackgroundTask(parseTask);
-        }
-    }
-    
-    @FXML
-    private void handleResetXml() {
-        if (currentSlideDocument != null) {
-            updateXmlEditor();
-            updateXmlStatus("XML reset");
-        }
-    }
-    
-    @FXML
-    private void handleValidateXml() {
-        if (xmlEditor != null && mainController != null) {
-            String xmlContent = xmlEditor.getText();
-            
-            // Clear previous validation results
-            if (mainController.getValidationController() != null) {
-                mainController.getValidationController().clearValidation();
-            }
-            
-            // Log validation start
-            if (mainController.getOutputController() != null) {
-                mainController.getOutputController().showOperationStart("XML Validation");
-            }
-            
-            Task<ValidationResult> validateTask = new Task<ValidationResult>() {
-                @Override
-                protected ValidationResult call() throws Exception {
-                    try {
-                        // Basic XML well-formedness validation
-                        javax.xml.parsers.DocumentBuilder builder = XMLFactoryProvider.createDocumentBuilder();
 
-                        // Custom error handler to capture line/column info
-                        final StringBuilder errors = new StringBuilder();
-                        final java.util.List<ValidationError> validationErrors = new java.util.ArrayList<>();
-                        
-                        builder.setErrorHandler(new org.xml.sax.ErrorHandler() {
-                            @Override
-                            public void warning(org.xml.sax.SAXParseException exception) {
-                                validationErrors.add(new ValidationError("WARNING", exception.getMessage(), 
-                                    exception.getLineNumber(), exception.getColumnNumber()));
-                            }
-                            
-                            @Override
-                            public void error(org.xml.sax.SAXParseException exception) {
-                                validationErrors.add(new ValidationError("ERROR", exception.getMessage(), 
-                                    exception.getLineNumber(), exception.getColumnNumber()));
-                            }
-                            
-                            @Override
-                            public void fatalError(org.xml.sax.SAXParseException exception) throws org.xml.sax.SAXException {
-                                validationErrors.add(new ValidationError("FATAL", exception.getMessage(), 
-                                    exception.getLineNumber(), exception.getColumnNumber()));
-                                throw exception;
-                            }
-                        });
-                        
-                        builder.parse(new InputSource(new StringReader(xmlContent)));
-
-                        return new ValidationResult(true, "XML is well-formed", validationErrors);
-                        
-                    } catch (Exception e) {
-                        java.util.List<ValidationError> errors = new java.util.ArrayList<>();
-                        if (e instanceof org.xml.sax.SAXParseException) {
-                            org.xml.sax.SAXParseException spe = (org.xml.sax.SAXParseException) e;
-                            errors.add(new ValidationError("FATAL", spe.getMessage(), 
-                                spe.getLineNumber(), spe.getColumnNumber()));
-                        } else {
-                            errors.add(new ValidationError("ERROR", e.getMessage(), -1, -1));
-                        }
-                        return new ValidationResult(false, "XML validation failed: " + e.getMessage(), errors);
-                    }
-                }
-                
-                @Override
-                protected void succeeded() {
-                    Platform.runLater(() -> {
-                        ValidationResult result = getValue();
-                        handleValidationResult(result);
-                    });
-                }
-                
-                @Override
-                protected void failed() {
-                    Platform.runLater(() -> {
-                        Throwable exception = getException();
-                        String errorMsg = "Validation Error: " + exception.getMessage();
-                        updateXmlStatus(errorMsg);
-                        
-                        // Log error to output and validation tabs
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showOperationComplete("XML Validation", false);
-                            mainController.getOutputController().showError("XML Validation", (Exception) exception);
-                        }
-                        
-                        if (mainController.getValidationController() != null) {
-                            mainController.getValidationController().addValidationItem(
-                                ValidationController.ValidationLevel.ERROR, 
-                                exception.getMessage(), 
-                                "Current Slide XML");
-                        }
-                    });
-                }
-            };
-            
-            runBackgroundTask(validateTask);
-        }
-    }
-    
     @FXML
     public void handleZoomIn() {
         zoomLevel = Math.min(zoomLevel * 1.25, 5.0);
@@ -934,8 +681,7 @@ public class SlideEditorController implements Initializable {
      */
     public void constructCurrentSlide() {
         if (currentSlideDocument != null) {
-            // This would integrate with SlideCreator
-            updateXmlStatus("Slide construction not yet implemented");
+            logger.info("Slide construction not yet implemented");
         }
     }
     
@@ -1069,33 +815,20 @@ public class SlideEditorController implements Initializable {
     
     private void updateButtonStates() {
         boolean hasSlide = currentSlideDocument != null;
-        
-        // Notify main controller to update XML button states
-        if (mainController != null) {
-            mainController.updateXmlButtonStates(!hasSlide);
-        }
         if (constructButton != null) {
             constructButton.setDisable(!hasSlide);
         }
     }
-    
-    private void updateXmlStatus(String status) {
-        if (xmlStatusLabel != null) {
-            xmlStatusLabel.setText(status);
-        }
-    }
-    
+
     private void runBackgroundTask(Task<?> task) {
         Thread thread = new Thread(task);
         thread.setDaemon(true);
         thread.setName("SlideEditor-" + task.getClass().getSimpleName() + "-" + System.currentTimeMillis());
-        
-        // Add error handling for unhandled exceptions
+
         thread.setUncaughtExceptionHandler((t, e) -> {
             logger.error("Failed to run background task: " + e.getMessage(), e);
-            Platform.runLater(() -> updateXmlStatus("Background task failed: " + e.getMessage()));
         });
-        
+
         thread.start();
     }
     
@@ -1161,98 +894,6 @@ public class SlideEditorController implements Initializable {
             System.err.println("Failed to create sample slide: " + e.getMessage());
             return null;
         }
-    }
-    
-    /**
-     * Handle validation results and display them in appropriate tabs
-     */
-    private void handleValidationResult(ValidationResult result) {
-        // Update XML status
-        updateXmlStatus(result.getMessage());
-        
-        // Log to output tab
-        if (mainController.getOutputController() != null) {
-            mainController.getOutputController().showValidationResult(
-                "Current Slide XML", result.isValid(), result.getMessage());
-            mainController.getOutputController().showOperationComplete("XML Validation", result.isValid());
-        }
-        
-        // Display detailed results in validation tab
-        if (mainController.getValidationController() != null) {
-            // Add overall result
-            ValidationController.ValidationLevel level = result.isValid() ? 
-                ValidationController.ValidationLevel.SUCCESS : ValidationController.ValidationLevel.ERROR;
-            
-            mainController.getValidationController().addValidationItem(
-                level, result.getMessage(), "Current Slide XML");
-            
-            // Add specific validation errors
-            for (ValidationError error : result.getErrors()) {
-                ValidationController.ValidationLevel errorLevel;
-                switch (error.getLevel()) {
-                    case "WARNING":
-                        errorLevel = ValidationController.ValidationLevel.WARNING;
-                        break;
-                    case "ERROR":
-                    case "FATAL":
-                        errorLevel = ValidationController.ValidationLevel.ERROR;
-                        break;
-                    default:
-                        errorLevel = ValidationController.ValidationLevel.INFO;
-                        break;
-                }
-                
-                mainController.getValidationController().addValidationItem(
-                    errorLevel, error.getMessage(), "Current Slide XML", 
-                    error.getLineNumber(), error.getColumnNumber());
-            }
-            
-            // Show validation summary
-            mainController.getValidationController().showValidationSummary("Current Slide XML");
-        }
-    }
-    
-    // ========== VALIDATION SUPPORT CLASSES ==========
-    
-    /**
-     * Simple validation result container
-     */
-    private static class ValidationResult {
-        private final boolean valid;
-        private final String message;
-        private final java.util.List<ValidationError> errors;
-        
-        public ValidationResult(boolean valid, String message, java.util.List<ValidationError> errors) {
-            this.valid = valid;
-            this.message = message;
-            this.errors = errors != null ? errors : new java.util.ArrayList<>();
-        }
-        
-        public boolean isValid() { return valid; }
-        public String getMessage() { return message; }
-        public java.util.List<ValidationError> getErrors() { return errors; }
-    }
-    
-    /**
-     * Validation error with line/column information
-     */
-    private static class ValidationError {
-        private final String level;
-        private final String message;
-        private final int lineNumber;
-        private final int columnNumber;
-        
-        public ValidationError(String level, String message, int lineNumber, int columnNumber) {
-            this.level = level;
-            this.message = message;
-            this.lineNumber = lineNumber;
-            this.columnNumber = columnNumber;
-        }
-        
-        public String getLevel() { return level; }
-        public String getMessage() { return message; }
-        public int getLineNumber() { return lineNumber; }
-        public int getColumnNumber() { return columnNumber; }
     }
     
     // ========== GETTERS ==========

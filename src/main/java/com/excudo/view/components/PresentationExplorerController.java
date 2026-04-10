@@ -292,29 +292,12 @@ public class PresentationExplorerController implements Initializable {
 
                     if (slideResult.isSuccess()) {
                         showStatus("Slide created successfully: " + title);
-                        
-                        // Log to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "created", insertIndex + 1, true);
-                        }
-                        
-                        // Refresh the presentation view
                         refreshPresentation();
                     } else {
                         showStatus("Failed to create slide: " + slideResult.getMessage());
-                        
-                        // Log error to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "creation failed", insertIndex + 1, false);
-                        }
                     }
                 } catch (Exception e) {
                     showStatus("Error creating slide: " + e.getMessage());
-                    if (mainController.getOutputController() != null) {
-                        mainController.getOutputController().showError("Add Slide", e);
-                    }
                 }
             }
         }
@@ -346,29 +329,12 @@ public class PresentationExplorerController implements Initializable {
                             
                             if (slideResult.isSuccess()) {
                                 showStatus("Slide " + (slideIndex + 1) + " deleted successfully");
-                                
-                                // Log to output tab
-                                if (mainController.getOutputController() != null) {
-                                    mainController.getOutputController().showSlideAction(
-                                        "deleted", slideIndex + 1, true);
-                                }
-                                
-                                // Refresh the presentation view
                                 refreshPresentation();
                             } else {
                                 showStatus("Failed to delete slide: " + slideResult.getMessage());
-                                
-                                // Log error to output tab
-                                if (mainController.getOutputController() != null) {
-                                    mainController.getOutputController().showSlideAction(
-                                        "deletion failed", slideIndex + 1, false);
-                                }
                             }
                         } catch (Exception e) {
                             showStatus("Error deleting slide: " + e.getMessage());
-                            if (mainController.getOutputController() != null) {
-                                mainController.getOutputController().showError("Delete Slide", e);
-                            }
                         }
                     }
                 });
@@ -394,30 +360,13 @@ public class PresentationExplorerController implements Initializable {
                     
                     if (slideResult.isSuccess()) {
                         showStatus("Slide " + (slideIndex + 1) + " moved up successfully");
-                        
-                        // Log to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "moved up", slideIndex + 1, true);
-                        }
-                        
-                        // Refresh the presentation view and maintain selection
                         refreshPresentation();
                         selectSlideByIndex(slideIndex - 1);
                     } else {
                         showStatus("Failed to move slide up: " + slideResult.getMessage());
-                        
-                        // Log error to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "move up failed", slideIndex + 1, false);
-                        }
                     }
                 } catch (Exception e) {
                     showStatus("Error moving slide up: " + e.getMessage());
-                    if (mainController.getOutputController() != null) {
-                        mainController.getOutputController().showError("Move Slide Up", e);
-                    }
                 }
             }
         }
@@ -441,30 +390,13 @@ public class PresentationExplorerController implements Initializable {
                     
                     if (slideResult.isSuccess()) {
                         showStatus("Slide " + (slideIndex + 1) + " moved down successfully");
-                        
-                        // Log to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "moved down", slideIndex + 1, true);
-                        }
-                        
-                        // Refresh the presentation view and maintain selection
                         refreshPresentation();
                         selectSlideByIndex(slideIndex + 1);
                     } else {
                         showStatus("Failed to move slide down: " + slideResult.getMessage());
-                        
-                        // Log error to output tab
-                        if (mainController.getOutputController() != null) {
-                            mainController.getOutputController().showSlideAction(
-                                "move down failed", slideIndex + 1, false);
-                        }
                     }
                 } catch (Exception e) {
                     showStatus("Error moving slide down: " + e.getMessage());
-                    if (mainController.getOutputController() != null) {
-                        mainController.getOutputController().showError("Move Slide Down", e);
-                    }
                 }
             }
         }

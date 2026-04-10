@@ -1,341 +1,479 @@
-/* Excudo Application Styles */
+/* =====================================================================
+   Excudo — Application stylesheet
+   =====================================================================
+   Single consolidated stylesheet for the JavaFX GUI. Uses the dark
+   "Excudo" palette referenced by the bundled dark theme. All colors live
+   in the .root scope as -fx-* CSS variables so downstream selectors can
+   reference them consistently.
+   ===================================================================== */
 
-/* Root styling */
+
+/* =====================================================================
+   Palette + root tokens
+   ===================================================================== */
+
 .root {
-    -fx-base: #2b2b2b;
-    -fx-background: #2b2b2b;
-    -fx-control-inner-background: #3c3c3c;
-    -fx-control-inner-background-alt: #4a4a4a;
-    -fx-accent: #0078d4;
-    -fx-default-button: #0078d4;
-    -fx-focus-color: #0078d4;
-    -fx-faint-focus-color: #0078d422;
-    -fx-text-fill: #ffffff;
+    /* Surface tones (background -> foreground depth) */
+    -fx-excudo-bg:          #1e1e1e;   /* deepest surface (console, canvas) */
+    -fx-excudo-surface:     #252526;   /* default panel surface */
+    -fx-excudo-surface-alt: #2d2d30;   /* menubar, toolbar, tab header */
+    -fx-excudo-border:      #3e3e42;   /* dividers, borders */
+    -fx-excudo-border-hi:   #565659;   /* hover borders */
+
+    /* Foreground text */
+    -fx-excudo-text:        #d4d4d4;   /* primary text */
+    -fx-excudo-text-dim:    #858585;   /* secondary / disabled text */
+
+    /* Semantic accents (match ConsoleStyle / ConsoleColors palette) */
+    -fx-excudo-accent:      #569cd6;   /* primary accent (selection, focus) */
+    -fx-excudo-success:     #4ec9b0;
+    -fx-excudo-error:       #f44747;
+    -fx-excudo-warning:     #dcdcaa;
+    -fx-excudo-info:        #569cd6;
+
+    /* JavaFX built-in variables mapped to the palette */
+    -fx-base:                       -fx-excudo-surface;
+    -fx-background:                 -fx-excudo-bg;
+    -fx-control-inner-background:   -fx-excudo-surface;
+    -fx-control-inner-background-alt: -fx-excudo-surface-alt;
+    -fx-accent:                     -fx-excudo-accent;
+    -fx-default-button:             -fx-excudo-accent;
+    -fx-focus-color:                -fx-excudo-accent;
+    -fx-faint-focus-color:          #569cd622;
+    -fx-text-fill:                  -fx-excudo-text;
+    -fx-selection-bar:              -fx-excudo-accent;
+    -fx-selection-bar-non-focused:  derive(-fx-excudo-accent, -40%);
+
+    /* Typography */
+    -fx-font-family: "Segoe UI", "Helvetica", "Arial", sans-serif;
+    -fx-font-size:   13px;
 }
 
-/* Menu bar styling */
+
+/* =====================================================================
+   Menu bar
+   ===================================================================== */
+
 .menu-bar {
-    -fx-background-color: #2d2d30;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 0 0 1 0;
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     0 0 1 0;
+    -fx-padding:          2 4 2 4;
 }
 
 .menu-bar .menu-button {
     -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-padding:          4 10 4 10;
 }
 
-.menu-bar .menu-button:hover {
-    -fx-background-color: #3e3e42;
+.menu-bar .menu-button:hover,
+.menu-bar .menu-button:showing {
+    -fx-background-color: -fx-excudo-border;
 }
 
-.menu-bar .menu-button:pressed {
-    -fx-background-color: #007acc;
-}
-
-/* Context menu styling */
 .context-menu {
-    -fx-background-color: #2d2d30;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 1;
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1;
+    -fx-padding:          2 0 2 0;
 }
 
 .menu-item {
     -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-padding:          4 12 4 12;
 }
 
 .menu-item:focused {
-    -fx-background-color: #094771;
+    -fx-background-color: -fx-excudo-accent;
 }
 
-/* Toolbar styling */
+.menu-item:disabled .label {
+    -fx-text-fill: -fx-excudo-text-dim;
+}
+
+.separator-menu-item .line {
+    -fx-border-color: -fx-excudo-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+
+/* =====================================================================
+   Tool bar
+   ===================================================================== */
+
 .tool-bar {
-    -fx-background-color: #2d2d30;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 0 0 1 0;
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     0 0 1 0;
+    -fx-padding:          4 8 4 8;
+    -fx-spacing:          4;
 }
 
 .tool-bar .button {
     -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
-    -fx-padding: 5 10 5 10;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-padding:          5 12 5 12;
+    -fx-background-radius: 3;
 }
 
 .tool-bar .button:hover {
-    -fx-background-color: #3e3e42;
+    -fx-background-color: -fx-excudo-border;
 }
 
 .tool-bar .button:pressed {
-    -fx-background-color: #007acc;
+    -fx-background-color: -fx-excudo-accent;
 }
 
-/* Split pane styling */
-.split-pane {
-    -fx-background-color: #2b2b2b;
-}
-
-.split-pane-divider {
-    -fx-background-color: #3e3e42;
-    -fx-padding: 0 1 0 1;
-}
-
-/* Tab pane styling */
-.tab-pane {
-    -fx-background-color: #2b2b2b;
-}
-
-.tab-pane .tab-header-area {
-    -fx-background-color: #2d2d30;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 0 0 1 0;
-}
-
-.tab-pane .tab {
-    -fx-background-color: #2d2d30;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #3e3e42;
+.tool-bar .separator .line {
+    -fx-border-color: -fx-excudo-border;
     -fx-border-width: 0 1 0 0;
 }
 
-.tab-pane .tab:selected {
-    -fx-background-color: #007acc;
+
+/* =====================================================================
+   Split pane
+   ===================================================================== */
+
+.split-pane {
+    -fx-background-color: -fx-excudo-bg;
+    -fx-padding: 0;
 }
 
-.tab-pane .tab:hover {
-    -fx-background-color: #3e3e42;
+.split-pane > .split-pane-divider {
+    -fx-background-color: -fx-excudo-border;
+    -fx-padding: 0 1 0 1;
 }
 
-/* Text area styling */
-.text-area {
-    -fx-background-color: #1e1e1e;
-    -fx-text-fill: #d4d4d4;
-    -fx-border-color: #3e3e42;
+
+/* =====================================================================
+   Tab pane (bottom Console / Validation tabs)
+   ===================================================================== */
+
+.tab-pane {
+    -fx-background-color: -fx-excudo-bg;
+    -fx-tab-min-height:   28;
+    -fx-tab-max-height:   28;
 }
 
-.text-area .content {
-    -fx-background-color: #1e1e1e;
+.tab-pane > .tab-header-area {
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1 0 1 0;
+    -fx-padding:          0;
 }
 
-.text-area .scroll-pane {
-    -fx-background-color: #1e1e1e;
-}
-
-/* Text field styling */
-.text-field {
-    -fx-background-color: #2d2d30;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 1;
-}
-
-.text-field:focused {
-    -fx-border-color: #007acc;
-    -fx-border-width: 2;
-}
-
-/* Button styling */
-.button {
-    -fx-background-color: #0e639c;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #0e639c;
-    -fx-border-width: 1;
-    -fx-padding: 8 16 8 16;
-}
-
-.button:hover {
-    -fx-background-color: #1177bb;
-}
-
-.button:pressed {
-    -fx-background-color: #005a9e;
-}
-
-.button:disabled {
-    -fx-background-color: #4a4a4a;
-    -fx-text-fill: #808080;
-    -fx-border-color: #4a4a4a;
-}
-
-/* List view styling */
-.list-view {
-    -fx-background-color: #2b2b2b;
-    -fx-border-color: #3e3e42;
-}
-
-.list-view .list-cell {
+.tab-pane > .tab-header-area > .headers-region > .tab {
     -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
+    -fx-background-insets: 0;
+    -fx-padding:          4 16 4 16;
 }
 
-.list-view .list-cell:selected {
-    -fx-background-color: #094771;
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -fx-excudo-bg;
+    -fx-border-color:     -fx-excudo-accent transparent transparent transparent;
+    -fx-border-width:     2 0 0 0;
 }
 
-.list-view .list-cell:hover {
-    -fx-background-color: #3e3e42;
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill:  -fx-excudo-text-dim;
+    -fx-font-size:  12px;
 }
 
-/* Tree view styling */
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: -fx-excudo-text;
+}
+
+
+/* =====================================================================
+   Tree view (Presentation Explorer)
+   ===================================================================== */
+
 .tree-view {
-    -fx-background-color: #2b2b2b;
-    -fx-border-color: #3e3e42;
+    -fx-background-color: -fx-excudo-surface;
+    -fx-padding: 2;
 }
 
 .tree-view .tree-cell {
     -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
-}
-
-.tree-view .tree-cell:selected {
-    -fx-background-color: #094771;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-padding:          2 4 2 4;
 }
 
 .tree-view .tree-cell:hover {
-    -fx-background-color: #3e3e42;
+    -fx-background-color: -fx-excudo-surface-alt;
 }
 
-/* Table view styling */
+.tree-view .tree-cell:selected {
+    -fx-background-color: -fx-excudo-accent;
+    -fx-text-fill:        white;
+}
+
+.tree-view .tree-cell:filled:empty {
+    -fx-background-color: transparent;
+}
+
+
+/* =====================================================================
+   Table view (Properties panel)
+   ===================================================================== */
+
 .table-view {
-    -fx-background-color: #2b2b2b;
-    -fx-border-color: #3e3e42;
+    -fx-background-color: -fx-excudo-surface;
+    -fx-table-cell-border-color: -fx-excudo-border;
 }
 
-.table-view .column-header {
-    -fx-background-color: #2d2d30;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #3e3e42;
+.table-view .column-header-background {
+    -fx-background-color: -fx-excudo-surface-alt;
+}
+
+.table-view .column-header,
+.table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     0 1 1 0;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: -fx-excudo-text;
+    -fx-font-weight: bold;
 }
 
 .table-view .table-cell {
-    -fx-background-color: transparent;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #3e3e42;
+    -fx-text-fill: -fx-excudo-text;
+    -fx-border-color: transparent;
+}
+
+.table-view .table-row-cell {
+    -fx-background-color: -fx-excudo-surface;
+}
+
+.table-view .table-row-cell:odd {
+    -fx-background-color: -fx-excudo-surface-alt;
 }
 
 .table-view .table-row-cell:selected {
-    -fx-background-color: #094771;
+    -fx-background-color: -fx-excudo-accent;
 }
 
-.table-view .table-row-cell:hover {
-    -fx-background-color: #3e3e42;
+
+/* =====================================================================
+   List view (Validation tab)
+   ===================================================================== */
+
+.list-view {
+    -fx-background-color: -fx-excudo-surface;
+    -fx-padding: 0;
 }
 
-/* Scroll pane styling */
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-padding:          4 8 4 8;
+}
+
+.list-cell:hover {
+    -fx-background-color: -fx-excudo-surface-alt;
+}
+
+.list-cell:selected {
+    -fx-background-color: -fx-excudo-accent;
+}
+
+
+/* =====================================================================
+   Button (default)
+   ===================================================================== */
+
+.button {
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1;
+    -fx-border-radius:    3;
+    -fx-background-radius: 3;
+    -fx-padding:          5 14 5 14;
+}
+
+.button:hover {
+    -fx-background-color: -fx-excudo-border;
+    -fx-border-color:     -fx-excudo-border-hi;
+}
+
+.button:pressed {
+    -fx-background-color: -fx-excudo-accent;
+}
+
+.button:default {
+    -fx-background-color: -fx-excudo-accent;
+    -fx-text-fill:        white;
+    -fx-border-color:     -fx-excudo-accent;
+}
+
+
+/* =====================================================================
+   Text input
+   ===================================================================== */
+
+.text-field,
+.text-area {
+    -fx-background-color: -fx-excudo-bg;
+    -fx-text-fill:        -fx-excudo-text;
+    -fx-prompt-text-fill: -fx-excudo-text-dim;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1;
+    -fx-border-radius:    3;
+    -fx-background-radius: 3;
+    -fx-padding:          4 8 4 8;
+}
+
+.text-field:focused,
+.text-area:focused {
+    -fx-border-color: -fx-excudo-accent;
+}
+
+.text-area .content {
+    -fx-background-color: -fx-excudo-bg;
+}
+
+
+/* =====================================================================
+   Scroll bars
+   ===================================================================== */
+
+.scroll-bar:horizontal,
+.scroll-bar:vertical {
+    -fx-background-color: -fx-excudo-surface;
+    -fx-padding: 0;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: -fx-excudo-border;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover,
+.scroll-bar .thumb:pressed {
+    -fx-background-color: -fx-excudo-border-hi;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button,
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
 .scroll-pane {
-    -fx-background-color: #2b2b2b;
-    -fx-border-color: #3e3e42;
+    -fx-background-color: -fx-excudo-bg;
+    -fx-background: -fx-excudo-bg;
+    -fx-border-color: transparent;
 }
 
-.scroll-pane .viewport {
-    -fx-background-color: #2b2b2b;
+.scroll-pane > .viewport {
+    -fx-background-color: -fx-excudo-bg;
 }
 
-.scroll-pane .scroll-bar {
-    -fx-background-color: #2d2d30;
+
+/* =====================================================================
+   Status bar
+   ===================================================================== */
+
+#statusBar {
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1 0 0 0;
+    -fx-padding:          6 12 6 12;
+    -fx-text-fill:        -fx-excudo-text-dim;
+    -fx-font-size:        12px;
 }
 
-.scroll-pane .scroll-bar .thumb {
-    -fx-background-color: #686868;
-}
 
-.scroll-pane .scroll-bar .thumb:hover {
-    -fx-background-color: #9e9e9e;
-}
+/* =====================================================================
+   Console output (TextFlow + ScrollPane)
+   ---------------------------------------------------------------------
+   Colors for each ConsoleStyle are applied programmatically to Text
+   nodes by StyledConsoleView, not via class selectors here. The rules
+   below only style the container.
+   ===================================================================== */
 
-/* Label styling */
-.label {
-    -fx-text-fill: #ffffff;
-}
-
-/* Status bar styling */
-.status-bar {
-    -fx-background-color: #007acc;
-    -fx-text-fill: #ffffff;
-    -fx-padding: 5 10 5 10;
-    -fx-border-color: #005a9e;
-    -fx-border-width: 1 0 0 0;
-}
-
-/* Console specific styling */
 .console-output {
-    -fx-font-family: 'Courier New', 'Consolas', monospace;
-    -fx-font-size: 12px;
-    -fx-background-color: #1e1e1e;
-    -fx-text-fill: #d4d4d4;
-    -fx-border-color: #3e3e42;
+    -fx-background-color: -fx-excudo-bg;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", "Menlo", monospace;
+    -fx-font-size:   12px;
+    -fx-padding:     8 12 8 12;
+    -fx-line-spacing: 2;
 }
 
-.console-input {
-    -fx-font-family: 'Courier New', 'Consolas', monospace;
-    -fx-font-size: 12px;
-    -fx-background-color: #2d2d30;
-    -fx-text-fill: #d4d4d4;
-    -fx-border-color: #3e3e42;
-    -fx-prompt-text-fill: #6a6a6a;
+.console-output .text {
+    -fx-fill: -fx-excudo-text;
 }
 
-/* Canvas styling */
-.canvas {
-    -fx-background-color: #ffffff;
-    -fx-border-color: #3e3e42;
+/* The ScrollPane wrapping the console TextFlow */
+#consoleScrollPane {
+    -fx-background-color: -fx-excudo-bg;
+    -fx-background: -fx-excudo-bg;
+}
+
+#consoleScrollPane > .viewport {
+    -fx-background-color: -fx-excudo-bg;
+}
+
+/* Command input bar below the console output */
+#commandInput {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Consolas", "Menlo", monospace;
+    -fx-font-size:   12px;
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-text-fill: -fx-excudo-text;
+    -fx-border-color: -fx-excudo-border;
+    -fx-padding: 6 10 6 10;
+}
+
+#commandInput:focused {
+    -fx-border-color: -fx-excudo-accent;
     -fx-border-width: 1;
 }
 
-/* Check box styling */
-.check-box {
-    -fx-text-fill: #ffffff;
+/* Arrange-mode indicator on the command input (Phase 6) */
+#commandInput.arrange-mode {
+    -fx-border-color: -fx-excudo-success;
+    -fx-border-width: 2;
 }
 
+
+/* =====================================================================
+   Labels
+   ===================================================================== */
+
+.label {
+    -fx-text-fill: -fx-excudo-text;
+}
+
+
+/* =====================================================================
+   Check box
+   ===================================================================== */
+
 .check-box .box {
-    -fx-background-color: #2d2d30;
-    -fx-border-color: #3e3e42;
+    -fx-background-color: -fx-excudo-surface-alt;
+    -fx-border-color:     -fx-excudo-border;
+    -fx-border-width:     1;
+    -fx-border-radius:    2;
+    -fx-background-radius: 2;
 }
 
 .check-box:selected .mark {
-    -fx-background-color: #007acc;
+    -fx-background-color: white;
 }
 
-/* Slider styling */
-.slider {
-    -fx-background-color: #2d2d30;
+.check-box:selected .box {
+    -fx-background-color: -fx-excudo-accent;
+    -fx-border-color:     -fx-excudo-accent;
 }
 
-.slider .track {
-    -fx-background-color: #3e3e42;
-}
-
-.slider .thumb {
-    -fx-background-color: #007acc;
-}
-
-/* Progress bar styling */
-.progress-bar {
-    -fx-background-color: #2d2d30;
-}
-
-.progress-bar .bar {
-    -fx-background-color: #007acc;
-}
-
-/* Separator styling */
-.separator {
-    -fx-background-color: #3e3e42;
-}
-
-/* Tooltip styling */
-.tooltip {
-    -fx-background-color: #2d2d30;
-    -fx-text-fill: #ffffff;
-    -fx-border-color: #3e3e42;
-    -fx-border-width: 1;
-}
-
-/* Selection styling */
-.text-area .selection {
-    -fx-fill: #264f78;
-}
-
-.text-field .selection {
-    -fx-fill: #264f78;
+.check-box .text {
+    -fx-fill: -fx-excudo-text;
 }

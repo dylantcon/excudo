@@ -278,18 +278,21 @@ public class MCPConsoleEngine extends AbstractConsoleEngine {
     // ========== ABSTRACT METHOD OVERRIDES ==========
 
     @Override
-    public void displayMessage(String message) {
-        System.err.println(message);
-    }
-
-    @Override
-    public void displayError(String message) {
-        System.err.println("[ERROR] " + message);
-    }
-
-    @Override
-    public void displaySuccess(String message) {
-        System.err.println("[OK] " + message);
+    public void displayStyled(String message, ConsoleStyle style) {
+        // MCP mode routes all console output to stderr as plain text so the
+        // MCP client's JSON-RPC stream on stdout stays clean. Style is advisory
+        // only: we still prefix ERROR and SUCCESS markers for log readability.
+        switch (style) {
+            case ERROR:
+                System.err.println("[ERROR] " + message);
+                break;
+            case SUCCESS:
+                System.err.println("[OK] " + message);
+                break;
+            default:
+                System.err.println(message);
+                break;
+        }
     }
 
     @Override

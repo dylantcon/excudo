@@ -55,15 +55,15 @@ public class MainApplication extends Application {
     }
     
     private void showMainWindow() throws IOException {
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainApplication.fxml"));
         Scene scene = new Scene(loader.load());
-        
+
         // Apply CSS styling
-        scene.getStylesheets().add(getClass().getResource("/css/application.css").toExternalForm());
-        
+        scene.getStylesheets().add(getClass().getResource("/styles/application.css").toExternalForm());
+
         primaryStage.setScene(scene);
         primaryStage.show();
-        
+
         // Initialize the main controller after scene is set
         MainController controller = loader.getController();
         controller.initialize(viewManager);

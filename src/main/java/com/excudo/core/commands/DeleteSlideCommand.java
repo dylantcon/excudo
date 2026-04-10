@@ -2,6 +2,7 @@ package com.excudo.core.commands;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.OrchestrationContext;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import java.util.UUID;
@@ -73,18 +74,21 @@ public class DeleteSlideCommand implements Command {
             
             if (!result.isSuccess()) {
                 throw new CommandExecutionException(
-                    getDescription(), 
-                    "execute", 
+                    getDescription(),
+                    "execute",
                     result.getMessage()
                 );
             }
-            
+
             executed = true;
-            
+
+            // Notify state listeners that the slide list changed.
+            SessionManager.getInstance().firePresentationStructureChanged();
+
         } catch (Exception e) {
             throw new CommandExecutionException(
-                getDescription(), 
-                "execute", 
+                getDescription(),
+                "execute",
                 "Failed to delete slide: " + e.getMessage(),
                 e
             );

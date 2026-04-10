@@ -196,8 +196,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                         if (detail != null && !detail.isEmpty()) {
                             label += ": " + detail;
                         }
-                        displayMessage(com.excudo.console.utils.ConsoleColors.dim(
-                            "  " + label + "..."));
+                        displayStyled("  " + label + "...", ConsoleStyle.DIM);
                     }
                 };
 
@@ -209,7 +208,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                 if (result.cost() > 0) {
                     tokenInfo += String.format(" ($%.4f)", result.cost());
                 }
-                displayMessage(com.excudo.console.utils.ConsoleColors.dim(tokenInfo));
+                displayStyled(tokenInfo, ConsoleStyle.DIM);
             }
 
         } catch (Exception e) {
@@ -419,10 +418,30 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     
     
     
-    // Abstract display methods - different implementations for TTY vs UI
-    public abstract void displayMessage(String message);
-    public abstract void displayError(String message);
-    public abstract void displaySuccess(String message);
+    // ------------------------------------------------------------------
+    // Display methods
+    //
+    // displayStyled is the single rendering hook each subclass must
+    // implement; displayMessage/displayError/displaySuccess are concrete
+    // forwarders that attach a semantic ConsoleStyle. Callers that need
+    // finer control (DIM progress lines, ACCENT prompts, etc.) call
+    // displayStyled directly rather than embedding ANSI escapes in the
+    // message text.
+    // ------------------------------------------------------------------
+
+    public abstract void displayStyled(String message, ConsoleStyle style);
+
+    public void displayMessage(String message) {
+        displayStyled(message, ConsoleStyle.NONE);
+    }
+
+    public void displayError(String message) {
+        displayStyled(message, ConsoleStyle.ERROR);
+    }
+
+    public void displaySuccess(String message) {
+        displayStyled(message, ConsoleStyle.SUCCESS);
+    }
     
     // CommandSessionManager interface implementation
     @Override

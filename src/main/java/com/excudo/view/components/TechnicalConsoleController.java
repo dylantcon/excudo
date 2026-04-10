@@ -3,9 +3,14 @@ package com.excudo.view.components;
 import com.excudo.view.MainController;
 import com.excudo.core.llm.*;
 import com.excudo.core.orchestration.*;
+import com.excudo.core.parsing.CommandRegistry;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
+import com.excudo.console.ConsoleStyle;
 import com.excudo.console.LLMConsoleHandler;
 import com.excudo.console.InteractiveConsole;
+import com.excudo.view.console.StyledConsoleView;
 import com.excudo.view.console.UIConsoleEngine;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -28,6 +33,7 @@ import javafx.scene.control.ListView;
 import javafx.stage.Popup;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.scene.text.Font;
 import javafx.scene.control.Label;
 import javafx.scene.paint.Color;
@@ -44,24 +50,22 @@ public class TechnicalConsoleController implements Initializable {
     // ========== FXML COMPONENTS ==========
     
     @FXML private VBox consoleContainer;
-    @FXML private TextArea consoleOutput;
+    @FXML private TextFlow consoleOutput;
+    @FXML private ScrollPane consoleScrollPane;
     @FXML private TextField commandInput;
     @FXML private Button executeButton;
     @FXML private Button clearButton;
     @FXML private Button helpButton;
-    @FXML private CheckBox llmModeCheckBox;
     @FXML private Label statusLabel;
-    
+
     // ========== STATE ==========
-    
+
     private MainController mainController;
     private LLMConsoleHandler llmConsoleHandler;
     private UIConsoleEngine consoleEngine;
+    private StyledConsoleView styledView;
     private List<String> commandHistory;
     private int historyIndex;
-    private boolean llmMode = false;
-    
-    // Note: LLM transaction state is now managed by UIConsoleEngine
     
     // Autocomplete state
     private Popup autocompletePopup;
@@ -113,13 +117,13 @@ public class TechnicalConsoleController implements Initializable {
     /**
      * Set console components from FXML
      */
-    public void setConsoleComponents(TextArea consoleOutput, TextField commandInput, 
-                                   Button executeButton, CheckBox llmModeCheckBox) {
+    public void setConsoleComponents(TextFlow consoleOutput, ScrollPane consoleScrollPane,
+                                     TextField commandInput, Button executeButton) {
         this.consoleOutput = consoleOutput;
+        this.consoleScrollPane = consoleScrollPane;
         this.commandInput = commandInput;
         this.executeButton = executeButton;
-        this.llmModeCheckBox = llmModeCheckBox;
-        
+
         // Re-setup components now that we have them
         setupComponents();
         setupEventHandlers();
@@ -142,27 +146,29 @@ public class TechnicalConsoleController implements Initializable {
         // Style console components
         if (consoleOutput != null) {
             consoleOutput.setStyle(CONSOLE_STYLE);
-            consoleOutput.setEditable(false);
-            consoleOutput.setWrapText(true);
         }
-        
+        if (consoleScrollPane != null) {
+            consoleScrollPane.setStyle("-fx-background-color: #1e1e1e;");
+        }
+
         if (commandInput != null) {
             commandInput.setStyle(INPUT_STYLE);
-            commandInput.setPromptText("Enter command or natural language (LLM mode)");
+            commandInput.setPromptText("Enter command");
         }
-        
+
         // Initialize command history
         commandHistory = new ArrayList<>();
         historyIndex = -1;
-        
-        // Initialize UIConsoleEngine
+
+        // Initialize styled view and UIConsoleEngine
         if (consoleOutput != null) {
-            consoleEngine = new UIConsoleEngine(consoleOutput);
-            consoleEngine.setOutputHandler(this::printInfo);
-            consoleEngine.setErrorHandler(this::printError);
+            styledView = new StyledConsoleView(consoleOutput, consoleScrollPane);
+            consoleEngine = new UIConsoleEngine(null);
+            consoleEngine.setStyledHandler(styledView::appendLine);
             consoleEngine.setStatusHandler(this::updateStatus);
+            consoleEngine.setModeChangeHandler(this::onArrangeModeChanged);
         }
-        
+
         // Initialize autocomplete
         initializeAutocomplete();
     }
@@ -184,11 +190,6 @@ public class TechnicalConsoleController implements Initializable {
         if (helpButton != null) {
             helpButton.setOnAction(e -> showHelp());
         }
-        
-        // LLM mode toggle
-        if (llmModeCheckBox != null) {
-            llmModeCheckBox.setOnAction(e -> toggleLlmMode());
-        }
     }
     
     private void setupInitialState() {
@@ -206,8 +207,9 @@ public class TechnicalConsoleController implements Initializable {
             // Initialize console engine with the orchestrator
             if (consoleEngine != null) {
                 consoleEngine.initialize(mainController.getCurrentOrchestrator());
-                consoleEngine.setOutputHandler(this::printInfo);
-                consoleEngine.setErrorHandler(this::printError);
+                if (styledView != null) {
+                    consoleEngine.setStyledHandler(styledView::appendLine);
+                }
                 consoleEngine.setStatusHandler(this::updateStatus);
             }
             
@@ -297,8 +299,8 @@ public class TechnicalConsoleController implements Initializable {
     
     @FXML
     private void clearConsole() {
-        if (consoleOutput != null) {
-            consoleOutput.clear();
+        if (styledView != null) {
+            styledView.clear();
             printWelcomeMessage();
         }
     }
@@ -311,33 +313,13 @@ public class TechnicalConsoleController implements Initializable {
         }
     }
     
-    @FXML
-    private void toggleLlmMode() {
-        llmMode = llmModeCheckBox != null && llmModeCheckBox.isSelected();
-        
-        // Sync with console engine
-        if (consoleEngine != null) {
-            consoleEngine.setLlmMode(llmMode);
-        }
-        
-        if (commandInput != null) {
-            String promptText = llmMode ? 
-                "Enter natural language command (LLM mode)" : 
-                "Enter technical command";
-            commandInput.setPromptText(promptText);
-        }
-        
-        updateStatus(llmMode ? "LLM mode enabled" : "Direct command mode");
-        printInfo("Switched to " + (llmMode ? "LLM" : "direct command") + " mode");
-    }
-    
     // ========== OUTPUT METHODS ==========
-    
+
     private void printWelcomeMessage() {
         // Delegate to console package for standardized welcome message
         String welcomeMsg = InteractiveConsole.getWelcomeMessage();
         String[] lines = welcomeMsg.split("\\n");
-        
+
         for (String line : lines) {
             if (!line.trim().isEmpty()) {
                 printInfo(line);
@@ -345,33 +327,37 @@ public class TechnicalConsoleController implements Initializable {
                 printInfo(""); // Preserve empty lines for formatting
             }
         }
-        
-        // Add GUI-specific instruction
-        printInfo("Toggle LLM mode for natural language processing");
     }
-    
-    private void printCommand(String command) {
-        appendToConsole(String.format("[%s] > %s", getCurrentTime(), command), "#569cd6");
+
+    /**
+     * Callback from UIConsoleEngine when the console enters/exits arrange mode.
+     * Updates the command input's prompt and style class so the user gets a
+     * visible indicator that they're typing into a multi-turn agentic session.
+     */
+    private void onArrangeModeChanged(boolean arrangeMode) {
+        if (commandInput == null) return;
+        if (arrangeMode) {
+            commandInput.setPromptText("arrange > type or paste, blank line to send");
+            if (!commandInput.getStyleClass().contains("arrange-mode")) {
+                commandInput.getStyleClass().add("arrange-mode");
+            }
+            updateStatus("Arrange mode");
+        } else {
+            commandInput.setPromptText("Enter command");
+            commandInput.getStyleClass().remove("arrange-mode");
+            updateStatus("Console ready");
+        }
     }
-    
+
     private void printError(String error) {
-        appendToConsole("ERROR: " + error, "#f44747");
+        if (styledView != null) {
+            styledView.appendLine("ERROR: " + error, ConsoleStyle.ERROR);
+        }
     }
-    
+
     private void printInfo(String info) {
-        appendToConsole(info, "#4ec9b0");
-    }
-    
-    private void printSuccess(String success) {
-        appendToConsole("[OK] " + success, "#4ec9b0");
-    }
-    
-    private void appendToConsole(String text, String color) {
-        if (consoleOutput != null) {
-            Platform.runLater(() -> {
-                consoleOutput.appendText(text + "\n");
-                consoleOutput.setScrollTop(Double.MAX_VALUE);
-            });
+        if (styledView != null) {
+            styledView.appendLine(info, ConsoleStyle.NONE);
         }
     }
     
@@ -406,54 +392,89 @@ public class TechnicalConsoleController implements Initializable {
     }
     
     // ========== GETTERS ==========
-    
-    public boolean isLlmMode() {
-        return llmMode;
-    }
-    
+
     public List<String> getCommandHistory() {
         return new ArrayList<>(commandHistory);
+    }
+
+    /**
+     * Expose the UIConsoleEngine so MainController can reach the active
+     * session's CommandInvoker for Undo/Redo menu actions.
+     */
+    public UIConsoleEngine getConsoleEngine() {
+        return consoleEngine;
     }
     
     // ========== AUTOCOMPLETE IMPLEMENTATION ==========
     
     /**
-     * Initialize autocomplete functionality
+     * Initialize autocomplete functionality.
+     *
+     * Command names, descriptions, and parameter hints come from the central
+     * CommandRegistry (single source of truth) rather than a hardcoded map.
+     * The registry is static and immutable after startup, so we cache its
+     * contents once here.
      */
     private void initializeAutocomplete() {
-        
-        // Initialize command descriptions
+
         commandDescriptions = new HashMap<>();
-        commandDescriptions.put("help", "Show available commands and usage");
-        commandDescriptions.put("status", "Display system status information");
-        commandDescriptions.put("list", "List methods in a class");
-        commandDescriptions.put("invoke", "Invoke a method on a class");
-        commandDescriptions.put("inspect", "Inspect class details");
-        commandDescriptions.put("clear", "Clear console output");
-        commandDescriptions.put("approve", "Execute pending LLM operations");
-        commandDescriptions.put("deny", "Cancel pending LLM operations");
-        commandDescriptions.put("details", "Show full LLM response details");
-        
-        // Initialize command parameters
         commandParameters = new HashMap<>();
-        commandParameters.put("list", List.of("<class_name>"));
-        commandParameters.put("invoke", List.of("<class_name>", "<method_name>", "[args...]"));
-        commandParameters.put("inspect", List.of("<class_name>"));
-        
-        // Command registration is now handled by UIConsoleEngine
+
+        // Pull every schema from CommandRegistry. This replaces a stale 9-command
+        // hardcoded list that referenced removed commands (approve/deny/details,
+        // invoke/inspect) and was missing 60+ real commands.
+        for (CommandSchema schema : CommandRegistry.getAllSchemas().values()) {
+            commandDescriptions.put(schema.getName(), schema.getDescription());
+
+            List<String> paramHints = new ArrayList<>();
+            for (Parameter p : schema.getParameters()) {
+                paramHints.add(formatParamHint(p));
+            }
+            commandParameters.put(schema.getName(), paramHints);
+        }
+
+        // A few console-only helpers that aren't in CommandRegistry:
+        commandDescriptions.putIfAbsent("clear", "Clear console output");
+        commandDescriptions.putIfAbsent("status", "Display system status information");
         
         // Setup autocomplete UI
         autocompletePopup = new Popup();
         autocompletePopup.setAutoHide(true);
         
         autocompleteSuggestions = new ListView<>();
-        autocompleteSuggestions.setPrefHeight(150);
-        autocompleteSuggestions.setPrefWidth(400);
+        autocompleteSuggestions.setPrefHeight(200);
+        autocompleteSuggestions.setPrefWidth(480);
         autocompleteSuggestions.setStyle(
             "-fx-background-color: #2d2d30; " +
-            "-fx-border-color: #007acc; " +
+            "-fx-border-color: #569cd6; " +
             "-fx-border-width: 1px;"
         );
+
+        // Cell factory: show "name  -  description" with description truncated.
+        // Items stored in the list are bare command names; display text is
+        // formatted here so acceptAutocompleteSuggestion can still extract
+        // the command cleanly.
+        autocompleteSuggestions.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(String cmd, boolean empty) {
+                super.updateItem(cmd, empty);
+                if (empty || cmd == null) {
+                    setText(null);
+                    return;
+                }
+                String desc = commandDescriptions.get(cmd);
+                if (desc == null || desc.isEmpty()) {
+                    setText(cmd);
+                } else {
+                    // Truncate long descriptions to keep the popup readable
+                    String truncated = desc.length() > 70
+                        ? desc.substring(0, 67) + "..."
+                        : desc;
+                    setText(String.format("%-22s  %s", cmd, truncated));
+                }
+                setStyle("-fx-text-fill: #d4d4d4; -fx-background-color: transparent;");
+            }
+        });
         
         // Handle selection
         autocompleteSuggestions.setOnMouseClicked(e -> {
@@ -496,6 +517,14 @@ public class TechnicalConsoleController implements Initializable {
     
     
     /**
+     * Format a Parameter as a short hint token: <required> or [optional].
+     */
+    private String formatParamHint(Parameter p) {
+        String wrap = p.isRequired() ? "<%s>" : "[%s]";
+        return String.format(wrap, p.getName());
+    }
+
+    /**
      * Show autocomplete suggestions
      */
     private void showAutocomplete() {
@@ -515,35 +544,39 @@ public class TechnicalConsoleController implements Initializable {
     }
     
     /**
-     * Update autocomplete suggestions based on current text
+     * Update autocomplete suggestions based on current text.
+     *
+     * Command names come from CommandRegistry directly so the list always
+     * matches what the console actually understands. Parameter hints come
+     * from each command's CommandSchema.
      */
     private void updateAutocompleteSuggestions(String text) {
-        if (consoleEngine == null) {
-            currentSuggestions = new ArrayList<>();
-            return;
-        }
-        
         if (text == null || text.trim().isEmpty()) {
-            // Show all commands from console engine
-            currentSuggestions = new ArrayList<>(consoleEngine.getAvailableCommands());
+            // Show all commands from the registry
+            currentSuggestions = new ArrayList<>(CommandRegistry.getCommandNames());
+            java.util.Collections.sort(currentSuggestions);
         } else {
             String[] parts = text.trim().split("\\s+");
-            
-            if (parts.length == 1) {
+
+            if (parts.length == 1 && !text.endsWith(" ")) {
                 // Autocomplete command names
                 String prefix = parts[0].toLowerCase();
-                currentSuggestions = consoleEngine.getAvailableCommands().stream()
+                currentSuggestions = CommandRegistry.getCommandNames().stream()
                     .filter(cmd -> cmd.toLowerCase().startsWith(prefix))
+                    .sorted()
                     .collect(Collectors.toList());
             } else {
                 // Show parameter hints for the command
                 String command = parts[0].toLowerCase();
-                if (commandParameters.containsKey(command)) {
-                    List<String> params = commandParameters.get(command);
-                    if (parts.length - 1 < params.size()) {
-                        // Show next parameter
-                        String nextParam = params.get(parts.length - 1);
-                        currentSuggestions = List.of(text + " " + nextParam);
+                List<String> params = commandParameters.get(command);
+                if (params != null && !params.isEmpty()) {
+                    int paramIndex = Math.max(0, parts.length - 1);
+                    if (text.endsWith(" ")) {
+                        paramIndex = parts.length;
+                    }
+                    if (paramIndex < params.size()) {
+                        String nextParam = params.get(paramIndex);
+                        currentSuggestions = List.of(text.stripTrailing() + " " + nextParam);
                     } else {
                         currentSuggestions = new ArrayList<>();
                     }
@@ -552,19 +585,11 @@ public class TechnicalConsoleController implements Initializable {
                 }
             }
         }
-        
-        // Update ListView
+
+        // Update ListView with raw command names; the cell factory formats display text
         if (autocompleteSuggestions != null) {
-            autocompleteSuggestions.getItems().clear();
-            
-            for (String suggestion : currentSuggestions) {
-                String display = suggestion;
-                if (commandDescriptions.containsKey(suggestion)) {
-                    display = suggestion + " - " + commandDescriptions.get(suggestion);
-                }
-                autocompleteSuggestions.getItems().add(display);
-            }
-            
+            autocompleteSuggestions.getItems().setAll(currentSuggestions);
+
             if (currentSuggestions.isEmpty()) {
                 hideAutocomplete();
             }
@@ -572,24 +597,24 @@ public class TechnicalConsoleController implements Initializable {
     }
     
     /**
-     * Accept selected autocomplete suggestion
+     * Accept selected autocomplete suggestion.
+     *
+     * Items in the ListView are now stored as raw command names (the cell
+     * factory formats the display text), so no parsing is needed.
      */
     private void acceptAutocompleteSuggestion() {
         if (autocompleteSuggestions == null) return;
-        
-        String selected = autocompleteSuggestions.getSelectionModel().getSelectedItem();
-        if (selected != null) {
-            // Extract command from display string
-            String command = selected.split(" - ")[0];
-            
-            // Check if this is a parameter hint
+
+        String command = autocompleteSuggestions.getSelectionModel().getSelectedItem();
+        if (command != null) {
+            // If the entry is a parameter-hint line (starts with the current input),
+            // use it as-is. Otherwise it's a bare command name; append a trailing space.
             if (command.contains(" ")) {
                 commandInput.setText(command);
             } else {
-                // Just the command - add space for parameters
                 commandInput.setText(command + " ");
             }
-            
+
             commandInput.positionCaret(commandInput.getText().length());
             hideAutocomplete();
             commandInput.requestFocus();
@@ -704,15 +729,8 @@ public class TechnicalConsoleController implements Initializable {
         String[] parts = input.trim().split("\\s+");
         String lastPart = parts[parts.length - 1];
         
-        // Determine available commands based on mode
-        List<String> availableCommands = new ArrayList<>();
-        if (llmMode && consoleEngine != null && consoleEngine.hasPendingTransaction()) {
-            // In LLM mode with pending command, show transaction commands
-            availableCommands.addAll(List.of("approve", "deny", "details"));
-        } else if (!llmMode) {
-            // In normal mode, show all commands
-            availableCommands.addAll(commandDescriptions.keySet());
-        }
+        // Available commands for silhouette suggestions
+        List<String> availableCommands = new ArrayList<>(commandDescriptions.keySet());
         
         if (parts.length == 1 && !input.endsWith(" ")) {
             // Autocomplete command name
