@@ -2,6 +2,43 @@
   "_comment": "Excudo dependency manifest. Run 'python3 pc.py deps' to fetch all dependencies.",
   "repository": "https://repo1.maven.org/maven2",
   "lib_dir": "lib",
+  "javafx": {
+    "version": "21.0.1",
+    "target_dir": "javafx-sdk-21",
+    "archive_root": "javafx-sdk-21.0.1",
+    "platforms": [
+      {
+        "os": "linux",
+        "arch": "x64",
+        "url": "https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-x64_bin-sdk.zip",
+        "sha256": "5bf7de2b9fa77c795c5b558b27f4aebf6294340fe5d8ee1a1c84e02e0da6fb89"
+      },
+      {
+        "os": "linux",
+        "arch": "aarch64",
+        "url": "https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-aarch64_bin-sdk.zip",
+        "sha256": "0055b6d0c9ce7d6588f8bc287a91bd994df6a0b260b06bdf12765ff86f5d9392"
+      },
+      {
+        "os": "macos",
+        "arch": "x64",
+        "url": "https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-x64_bin-sdk.zip",
+        "sha256": "87669aadfc0e1c729b66eeb5b7af6e99bb1a3c5a80b520cf9193910c08e04a7f"
+      },
+      {
+        "os": "macos",
+        "arch": "aarch64",
+        "url": "https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-aarch64_bin-sdk.zip",
+        "sha256": "775de2860847b6c7b322d12e2b7500f8da57bcba6476d52a2a59b608cf244a19"
+      },
+      {
+        "os": "windows",
+        "arch": "x64",
+        "url": "https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_windows-x64_bin-sdk.zip",
+        "sha256": "01d111605367bef6025928e8cf66afb9c949036799b7b3d3d51cde63fc4c2e29"
+      }
+    ]
+  },
   "fonts": [
     {
       "file": "fonts/DejaVuSans.ttf",

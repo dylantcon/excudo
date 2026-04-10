@@ -45,23 +45,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-deps-
 
-    - name: Install JavaFX
-      run: |
-        mkdir -p lib
-        cd lib
-        if [ ! -d "javafx-sdk-21" ]; then
-          echo "Downloading JavaFX SDK 21 for Linux x64..."
-          wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-x64_bin-sdk.zip
-          unzip -q openjfx-21.0.1_linux-x64_bin-sdk.zip
-          mv javafx-sdk-21.0.1 javafx-sdk-21
-          rm openjfx-21.0.1_linux-x64_bin-sdk.zip
-          echo "JavaFX SDK installed to lib/javafx-sdk-21"
-        else
-          echo "JavaFX SDK already present"
-        fi
-        ls -la javafx-sdk-21/lib/
-
-    - name: Fetch dependencies
+    - name: Fetch dependencies (JARs, fonts, JavaFX SDK)
       run: python3 pc.py deps
 
     - name: Extract test PPTX files
@@ -147,54 +131,6 @@ jobs:
         key: ${{ runner.os }}-deps-${{ hashFiles('dependencies.json') }}
         restore-keys: |
           ${{ runner.os }}-deps-
-
-    - name: Install JavaFX (Unix)
-      if: runner.os != 'Windows'
-      run: |
-        mkdir -p lib
-        cd lib
-        if [ ! -d "javafx-sdk-21" ]; then
-          echo "Downloading JavaFX SDK 21..."
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            echo "macOS detected. Architecture: $(uname -m)"
-            if [[ $(uname -m) == "arm64" ]]; then
-              echo "Downloading ARM64 JavaFX for Apple Silicon macOS..."
-              wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-aarch64_bin-sdk.zip
-              unzip -q openjfx-21.0.1_osx-aarch64_bin-sdk.zip
-            else
-              echo "Downloading x64 JavaFX for Intel macOS..."
-              wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_osx-x64_bin-sdk.zip
-              unzip -q openjfx-21.0.1_osx-x64_bin-sdk.zip
-            fi
-          else
-            wget -q https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_linux-x64_bin-sdk.zip
-            unzip -q openjfx-21.0.1_linux-x64_bin-sdk.zip
-          fi
-          mv javafx-sdk-21.0.1 javafx-sdk-21
-          rm openjfx-21.0.1_*_bin-sdk.zip
-          echo "JavaFX SDK installed to lib/javafx-sdk-21"
-        else
-          echo "JavaFX SDK already present"
-        fi
-        ls -la javafx-sdk-21/lib/
-
-    - name: Install JavaFX (Windows)
-      if: runner.os == 'Windows'
-      shell: bash
-      run: |
-        mkdir -p lib
-        cd lib
-        if [ ! -d "javafx-sdk-21" ]; then
-          echo "Downloading JavaFX SDK 21 for Windows..."
-          curl -L -o openjfx-21.0.1_windows-x64_bin-sdk.zip https://download2.gluonhq.com/openjfx/21.0.1/openjfx-21.0.1_windows-x64_bin-sdk.zip
-          unzip -q openjfx-21.0.1_windows-x64_bin-sdk.zip
-          mv javafx-sdk-21.0.1 javafx-sdk-21
-          rm openjfx-21.0.1_windows-x64_bin-sdk.zip
-          echo "JavaFX SDK installed to lib/javafx-sdk-21"
-        else
-          echo "JavaFX SDK already present"
-        fi
-        ls -la javafx-sdk-21/lib/
 
     - name: Fetch dependencies (Unix)
       if: runner.os != 'Windows'
