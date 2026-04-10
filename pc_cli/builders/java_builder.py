@@ -459,12 +459,16 @@ public class JavaFXTest extends Application {
             return False
             
     def _copy_resources(self) -> bool:
-        """Copy resource files"""
+        """
+        Copy src/main/resources/* directly into build/ so resources sit at the
+        classpath root. This matches Maven's layout (target/classes/) and is
+        what getClass().getResource("/fxml/foo.fxml") expects.
+        """
         resources_dir = self.project_root / "src/main/resources"
         if resources_dir.exists():
             print("Copying resources...")
             try:
-                shutil.copytree(resources_dir, self.build_dir / "resources", dirs_exist_ok=True)
+                shutil.copytree(resources_dir, self.build_dir, dirs_exist_ok=True)
                 print("+ Resources copied successfully")
                 return True
             except Exception as e:
