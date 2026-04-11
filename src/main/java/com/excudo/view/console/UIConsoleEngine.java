@@ -96,6 +96,8 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
     @Override
     public void enterArrangeMode() {
         super.enterArrangeMode();
+        // Only update UI if arrange mode actually activated (super may reject it)
+        if (!isArrangeMode()) return;
         if (Platform.isFxApplicationThread()) {
             modeChangeHandler.accept(true);
         } else {
