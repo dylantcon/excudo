@@ -32,6 +32,7 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
     private BiConsumer<String, ConsoleStyle> styledHandler;
     private Consumer<String> statusHandler;
     private Consumer<Boolean> modeChangeHandler;
+    private Consumer<PPTXOrchestrator> orchestratorChangeHandler;
 
     public UIConsoleEngine(TextArea outputArea) {
         this.legacyOutputArea = outputArea;
@@ -41,11 +42,47 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
         this.styledHandler = (text, style) -> appendFallback(text);
         this.statusHandler = text -> {};
         this.modeChangeHandler = isArrange -> {};
+        this.orchestratorChangeHandler = orch -> {};
     }
 
     @Override
     public void initialize(PPTXOrchestrator orchestrator) {
         super.initialize(orchestrator);
+        fireOrchestratorChanged(orchestrator);
+    }
+
+    @Override
+    public void setCurrentSession(String sessionId, PPTXOrchestrator orchestrator,
+                                  Object llmHandler, java.io.File currentFile) {
+        super.setCurrentSession(sessionId, orchestrator, llmHandler, currentFile);
+        fireOrchestratorChanged(orchestrator);
+    }
+
+    @Override
+    protected void createSessionDirect(String filename) {
+        super.createSessionDirect(filename);
+        fireOrchestratorChanged(getCurrentSessionOrchestrator());
+    }
+
+    @Override
+    protected void createEmptySessionDirect() {
+        super.createEmptySessionDirect();
+        fireOrchestratorChanged(getCurrentSessionOrchestrator());
+    }
+
+    @Override
+    protected void switchSession(String sessionId) {
+        super.switchSession(sessionId);
+        fireOrchestratorChanged(getCurrentSessionOrchestrator());
+    }
+
+    private void fireOrchestratorChanged(PPTXOrchestrator orch) {
+        if (orch == null) return;
+        if (Platform.isFxApplicationThread()) {
+            orchestratorChangeHandler.accept(orch);
+        } else {
+            Platform.runLater(() -> orchestratorChangeHandler.accept(orch));
+        }
     }
 
     // ========== Arrange mode hook ==========
@@ -180,5 +217,14 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
      */
     public void setModeChangeHandler(Consumer<Boolean> modeChangeHandler) {
         this.modeChangeHandler = modeChangeHandler != null ? modeChangeHandler : (b -> {});
+    }
+
+    /**
+     * Register a callback invoked when the console's active orchestrator changes
+     * (after load, new, or session switch). The hosting controller uses this to
+     * keep the GUI's orchestrator reference in sync with the console session.
+     */
+    public void setOrchestratorChangeHandler(Consumer<PPTXOrchestrator> handler) {
+        this.orchestratorChangeHandler = handler != null ? handler : (o -> {});
     }
 }

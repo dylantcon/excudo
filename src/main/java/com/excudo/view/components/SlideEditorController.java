@@ -483,32 +483,18 @@ public class SlideEditorController implements Initializable {
      * Render current slide on canvas
      */
     private void renderSlide() {
-        System.err.println("[PREVIEW-DIAG] renderSlide() called: renderer=" + (slideRenderer != null)
-            + " ctx=" + (renderingContext != null) + " doc=" + (currentSlideDocument != null)
-            + " canvas=" + (slideCanvas != null));
         if (slideRenderer != null && renderingContext != null && currentSlideDocument != null) {
             try {
-                // Clear canvas
                 clearCanvas();
 
-                // Update rendering context with current settings
                 renderingContext.setShowGrid(showGrid);
                 renderingContext.setShowBounds(showBounds);
                 renderingContext.setShowSpids(showSpids);
                 renderingContext.setDebugMode(debugMode);
 
-                // Render slide
                 slideRenderer.renderSlide(currentSlideDocument);
 
-                System.err.println("[PREVIEW-DIAG] renderSlide() complete: "
-                    + slideRenderer.getShapesRendered() + " shapes rendered, "
-                    + slideRenderer.getTotalShapes() + " total, "
-                    + slideRenderer.getCulledShapes() + " culled"
-                    + " canvas=" + slideCanvas.getWidth() + "x" + slideCanvas.getHeight());
-
             } catch (Exception e) {
-                System.err.println("[PREVIEW-DIAG] renderSlide() ERROR: " + e.getMessage());
-                e.printStackTrace(System.err);
                 GraphicsContext gc = slideCanvas.getGraphicsContext2D();
                 gc.setFill(Color.RED);
                 gc.fillText("Rendering Error: " + e.getMessage(), 10, 30);

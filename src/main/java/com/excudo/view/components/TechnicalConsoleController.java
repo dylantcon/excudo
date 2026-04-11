@@ -167,6 +167,7 @@ public class TechnicalConsoleController implements Initializable {
             consoleEngine.setStyledHandler(styledView::appendLine);
             consoleEngine.setStatusHandler(this::updateStatus);
             consoleEngine.setModeChangeHandler(this::onArrangeModeChanged);
+            consoleEngine.setOrchestratorChangeHandler(this::onOrchestratorChanged);
         }
 
         // Initialize autocomplete
@@ -346,6 +347,17 @@ public class TechnicalConsoleController implements Initializable {
             commandInput.setPromptText("Enter command");
             commandInput.getStyleClass().remove("arrange-mode");
             updateStatus("Console ready");
+        }
+    }
+
+    /**
+     * Callback from UIConsoleEngine when the active orchestrator changes
+     * (after load, new, or session switch). Pushes the console's orchestrator
+     * to MainController so the GUI preview and explorer stay in sync.
+     */
+    private void onOrchestratorChanged(com.excudo.core.orchestration.PPTXOrchestrator orchestrator) {
+        if (mainController != null && orchestrator != null) {
+            mainController.setOrchestrator(orchestrator);
         }
     }
 

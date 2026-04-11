@@ -1040,6 +1040,19 @@ public class MainController implements Initializable, OrchestrationStateListener
     public PPTXOrchestrator getOrchestrator() {
         return orchestrator;
     }
+
+    /**
+     * Adopt an orchestrator from another source (e.g., the console session).
+     * Keeps the GUI in sync when the console creates or switches sessions.
+     */
+    public void setOrchestrator(PPTXOrchestrator orchestrator) {
+        this.orchestrator = orchestrator;
+        presentationLoaded = (orchestrator != null && orchestrator.getContext().isPresent());
+        Platform.runLater(() -> {
+            updatePresentationViews();
+            updateUIState();
+        });
+    }
     
     
     public ViewManager getViewManager() {
@@ -1059,11 +1072,6 @@ public class MainController implements Initializable, OrchestrationStateListener
         if (canvasScrollPane != null) {
             canvasScrollPane.setVisible(visualPreviewExpanded);
             canvasScrollPane.setManaged(visualPreviewExpanded);
-            System.err.println("[PREVIEW-DIAG] toggled preview=" + visualPreviewExpanded
-                + " scrollPane.content=" + canvasScrollPane.getContent()
-                + " scrollPane.size=" + canvasScrollPane.getWidth() + "x" + canvasScrollPane.getHeight());
-        } else {
-            System.err.println("[PREVIEW-DIAG] toggleVisualPreview: canvasScrollPane is NULL");
         }
 
         if (togglePreviewButton != null) {
