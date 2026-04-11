@@ -526,6 +526,12 @@ public interface PPTXOrchestrator {
     java.util.Map<String, String> getClrMap();
 
     /**
+     * Resolve the background color hex for a slide (walks slide > master hierarchy).
+     * @return hex string like "#103C3F", or null if no background defined
+     */
+    String getBackgroundColorHex(int slideNumber);
+
+    /**
      * Set the slide master background.
      * @param fillIndex bgRef idx value
      * @param schemeColor scheme color ref

@@ -4,7 +4,6 @@ import com.excudo.view.MainController;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.SlideRenderer;
 import com.excudo.view.rendering.SlideRenderContext;
-import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.LivePreviewManager;
 import com.excudo.view.animation.AnimationController;
 import com.excudo.view.animation.AnimationControllerListener;
@@ -70,7 +69,7 @@ public class SlideEditorController implements Initializable {
     
     private MainController mainController;
     private SlideRenderer slideRenderer;
-    private RenderingContext renderingContext;
+    private SlideRenderContext currentSlideContext;
     private AnimationController animationController;
     private LivePreviewManager livePreviewManager;
     private Document currentSlideDocument;
@@ -100,18 +99,8 @@ public class SlideEditorController implements Initializable {
     public void setMainController(MainController mainController) {
         this.mainController = mainController;
         
-        // Try to configure slideLayout directory now that we have the main controller
-        configureSlideLayoutDirectory();
-        configureSlideLayoutDirectoryForLivePreview();
     }
     
-    /**
-     * Public method to reconfigure slideLayout directory when PPTX context becomes available
-     */
-    public void updateSlideLayoutConfiguration() {
-        configureSlideLayoutDirectory();
-        configureSlideLayoutDirectoryForLivePreview();
-    }
     
     /**
      * Set the canvas scroll pane component from FXML
@@ -193,40 +182,25 @@ public class SlideEditorController implements Initializable {
         
         // Create canvas if not already created
         if (slideCanvas == null) {
-            // Set initial canvas size (PowerPoint slide dimensions)
-            double slideWidth = 720; // 10 inches at 72 DPI
-            double slideHeight = 540; // 7.5 inches at 72 DPI
-            
-            slideCanvas = new Canvas(slideWidth, slideHeight);
-            
-            // Add canvas to scroll pane
+            slideCanvas = new Canvas(720, 540);
             canvasScrollPane.setContent(slideCanvas);
-            
-            // Set up mouse events
             slideCanvas.setOnMouseClicked(e -> handleCanvasClick(e.getX(), e.getY()));
-            
-            System.out.println("Canvas successfully created and added to ScrollPane");
+
+            // Resize canvas to fill available space when the viewport changes
+            canvasScrollPane.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
+                if (newBounds.getWidth() > 0 && newBounds.getHeight() > 0) {
+                    resizeCanvasToViewport(newBounds.getWidth(), newBounds.getHeight());
+                }
+            });
         }
         
         if (slideCanvas != null) {
-            // Initialize rendering components
             slideRenderer = new SlideRenderer(slideCanvas);
-            renderingContext = new RenderingContext(
-                slideCanvas.getGraphicsContext2D(),
-                new CoordinateMapper(slideCanvas.getWidth(), slideCanvas.getHeight())
-            );
-            
-            // Configure slideLayout directory for bullet inheritance if available
-            configureSlideLayoutDirectory();
-            
-            // Initialize animation controller with shared coordinate mapper
-            animationController = new AnimationController(renderingContext.getCoordinateMapper());
-            
-            // Initialize live preview manager
-            livePreviewManager = new LivePreviewManager(slideCanvas);
 
-            // Configure slideLayout directory for live preview manager as well
-            configureSlideLayoutDirectoryForLivePreview();
+            animationController = new AnimationController(
+                slideRenderer.getRenderingContext().getCoordinateMapper());
+
+            livePreviewManager = new LivePreviewManager(slideCanvas);
             
             // Set up animation listener
             animationController.addListener(new AnimationControllerListener() {
@@ -340,36 +314,16 @@ public class SlideEditorController implements Initializable {
                 }
             }
 
-            return new SlideRenderContext(theme, layoutInfo, pptxDoc, slideNumber);
+            java.util.Map<String, String> clrMap = orchestrator.getClrMap();
+            String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
+
+            return new SlideRenderContext(theme, layoutInfo, pptxDoc, slideNumber, clrMap, bgHex);
         } catch (Exception e) {
             logger.warn("Failed to build slide render context: {}", e.getMessage());
             return null;
         }
     }
 
-    /**
-     * Configure slideLayout directory for slideRenderer bullet inheritance
-     */
-    private void configureSlideLayoutDirectory() {
-        if (slideRenderer != null && mainController != null && mainController.getOrchestrator() != null) {
-            try {
-                var context = mainController.getOrchestrator().getContext();
-                
-                if (context.isPresent()) {
-                    // Layout data now comes through SlideRenderContext, no directory needed
-                }
-            } catch (Exception e) {
-                logger.debug("Slide renderer context setup: " + e.getMessage());
-            }
-        }
-    }
-    
-    /**
-     * Configure slideLayout directory for livePreviewManager bullet inheritance
-     */
-    private void configureSlideLayoutDirectoryForLivePreview() {
-        // Layout data now comes through SlideRenderContext -- no directory config needed
-    }
     
     // ========== SLIDE MANAGEMENT ==========
     
@@ -378,9 +332,6 @@ public class SlideEditorController implements Initializable {
      */
     public void loadSlide(int slideNumber) {
         this.currentSlideNumber = slideNumber;
-
-        // Configure slideLayout directory now that orchestrator context is available
-        updateSlideLayoutConfiguration();
 
         // Load slide XML through orchestrator
         if (mainController != null && mainController.getOrchestrator() != null) {
@@ -395,25 +346,16 @@ public class SlideEditorController implements Initializable {
 
                     if (context.isPresent()) {
                         pptxDoc = context.get().getDocument();
-                        slideDoc = (pptxDoc != null && pptxDoc.hasSlide(slideNumber))
-                            ? pptxDoc.getSlideDocument(slideNumber) : null;
-
-                        if (slideDoc != null) {
-                            return null;
-                        }
-                        // Legacy disk fallback
-                        File extractedDirSE = (pptxDoc != null) ? pptxDoc.getExtractedDir() : null;
-                        File slideFile = (extractedDirSE != null)
-                            ? new File(extractedDirSE, "ppt/slides/slide" + slideNumber + ".xml") : null;
-
-                        if (slideFile != null && slideFile.exists()) {
-                            slideDoc = XMLFactoryProvider.parseDocument(slideFile);
+                        if (pptxDoc != null && pptxDoc.hasSlide(slideNumber)) {
+                            slideDoc = pptxDoc.getSlideDocument(slideNumber);
                             return null;
                         }
                     }
 
-                    // Fall back to sample if no real slide available
-                    slideDoc = createSampleSlideDocument();
+                    // No slide available — fail visibly
+                    System.err.println("[SlideEditorController] No slide " + slideNumber
+                        + " in PPTXDocument. context.isPresent()=" + context.isPresent());
+                    slideDoc = null;
                     pptxDoc = null;
                     return null;
                 }
@@ -452,9 +394,9 @@ public class SlideEditorController implements Initializable {
         this.currentSlideDocument = slideDocument;
 
         // Build SlideRenderContext so the renderer has theme, layout, and color info
-        SlideRenderContext slideCtx = buildSlideRenderContext(pptxDoc, slideNumber);
+        currentSlideContext = buildSlideRenderContext(pptxDoc, slideNumber);
         if (slideRenderer != null) {
-            slideRenderer.setSlideContext(slideCtx);
+            slideRenderer.setSlideContext(currentSlideContext);
         }
 
         // Parse slide data for animations
@@ -483,22 +425,22 @@ public class SlideEditorController implements Initializable {
      * Render current slide on canvas
      */
     private void renderSlide() {
-        if (slideRenderer != null && renderingContext != null && currentSlideDocument != null) {
-            try {
-                clearCanvas();
+        if (slideRenderer == null || currentSlideDocument == null) return;
+        try {
+            clearCanvas();
 
-                renderingContext.setShowGrid(showGrid);
-                renderingContext.setShowBounds(showBounds);
-                renderingContext.setShowSpids(showSpids);
-                renderingContext.setDebugMode(debugMode);
+            RenderingContext ctx = slideRenderer.getRenderingContext();
+            ctx.setShowGrid(showGrid);
+            ctx.setShowBounds(showBounds);
+            ctx.setShowSpids(showSpids);
+            ctx.setDebugMode(debugMode);
 
-                slideRenderer.renderSlide(currentSlideDocument);
+            slideRenderer.renderSlide(currentSlideDocument);
 
-            } catch (Exception e) {
-                GraphicsContext gc = slideCanvas.getGraphicsContext2D();
-                gc.setFill(Color.RED);
-                gc.fillText("Rendering Error: " + e.getMessage(), 10, 30);
-            }
+        } catch (Exception e) {
+            GraphicsContext gc = slideCanvas.getGraphicsContext2D();
+            gc.setFill(Color.RED);
+            gc.fillText("Rendering Error: " + e.getMessage(), 10, 30);
         }
     }
     
@@ -560,7 +502,7 @@ public class SlideEditorController implements Initializable {
      * Zoom to a specific coordinate with the given zoom level
      */
     public void zoomToCoordinate(double x, double y, double targetZoomLevel) {
-        if (slideCanvas != null && canvasScrollPane != null && renderingContext != null) {
+        if (slideCanvas != null && canvasScrollPane != null && slideRenderer != null) {
             // Set the zoom level
             zoomLevel = Math.max(0.1, Math.min(targetZoomLevel, 5.0));
             updateZoom();
@@ -679,51 +621,25 @@ public class SlideEditorController implements Initializable {
     
     public void setShowGrid(boolean showGrid) {
         this.showGrid = showGrid;
-        if (livePreviewManager != null) {
-            livePreviewManager.setRenderingOptions(
-                new LivePreviewManager.RenderingOptions()
-                    .withShowGrid(showGrid)
-                    .withShowBounds(showBounds)
-                    .withShowSpids(showSpids)
-                    .withDebugMode(debugMode)
-                    .withZoom(zoomLevel)
-            );
-            livePreviewManager.forceRender();
-        }
+        applyRenderingOptions();
     }
-    
+
     public void setShowBounds(boolean showBounds) {
         this.showBounds = showBounds;
-        if (livePreviewManager != null) {
-            livePreviewManager.setRenderingOptions(
-                new LivePreviewManager.RenderingOptions()
-                    .withShowGrid(showGrid)
-                    .withShowBounds(showBounds)
-                    .withShowSpids(showSpids)
-                    .withDebugMode(debugMode)
-                    .withZoom(zoomLevel)
-            );
-            livePreviewManager.forceRender();
-        }
+        applyRenderingOptions();
     }
-    
+
     public void setShowSpids(boolean showSpids) {
         this.showSpids = showSpids;
-        if (livePreviewManager != null) {
-            livePreviewManager.setRenderingOptions(
-                new LivePreviewManager.RenderingOptions()
-                    .withShowGrid(showGrid)
-                    .withShowBounds(showBounds)
-                    .withShowSpids(showSpids)
-                    .withDebugMode(debugMode)
-                    .withZoom(zoomLevel)
-            );
-            livePreviewManager.forceRender();
-        }
+        applyRenderingOptions();
     }
-    
+
     public void setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
+        applyRenderingOptions();
+    }
+
+    private void applyRenderingOptions() {
         if (livePreviewManager != null) {
             livePreviewManager.setRenderingOptions(
                 new LivePreviewManager.RenderingOptions()
@@ -831,21 +747,10 @@ public class SlideEditorController implements Initializable {
     // ========== UTILITY METHODS ==========
     
     private void updateZoom() {
-        if (slideCanvas != null && renderingContext != null) {
-            // Update coordinate mapper zoom
-            renderingContext.getCoordinateMapper().setZoomLevel(zoomLevel);
-            
-            // Update live preview with new zoom
+        if (slideCanvas != null && slideRenderer != null) {
+            slideRenderer.getRenderingContext().getCoordinateMapper().setZoomLevel(zoomLevel);
             if (livePreviewManager != null) {
-                livePreviewManager.setRenderingOptions(
-                    new LivePreviewManager.RenderingOptions()
-                        .withShowGrid(showGrid)
-                        .withShowBounds(showBounds)
-                        .withShowSpids(showSpids)
-                        .withDebugMode(debugMode)
-                        .withZoom(zoomLevel)
-                );
-                livePreviewManager.forceRender();
+                applyRenderingOptions();
             } else {
                 renderSlide();
             }
@@ -859,6 +764,40 @@ public class SlideEditorController implements Initializable {
         }
     }
     
+    /**
+     * Resize the canvas to fill the viewport, maintaining 16:9 aspect ratio,
+     * and rebuild the renderer with the new dimensions.
+     */
+    private void resizeCanvasToViewport(double vpWidth, double vpHeight) {
+        if (slideCanvas == null) return;
+
+        double aspect = 12192000.0 / 6858000.0;
+        double w, h;
+        if (vpWidth / vpHeight > aspect) {
+            h = vpHeight;
+            w = h * aspect;
+        } else {
+            w = vpWidth;
+            h = w / aspect;
+        }
+
+        if (Math.abs(slideCanvas.getWidth() - w) < 2 && Math.abs(slideCanvas.getHeight() - h) < 2) {
+            return;
+        }
+
+        slideCanvas.setWidth(w);
+        slideCanvas.setHeight(h);
+
+        slideRenderer = new SlideRenderer(slideCanvas);
+        if (currentSlideContext != null) {
+            slideRenderer.setSlideContext(currentSlideContext);
+        }
+
+        if (currentSlideDocument != null) {
+            renderSlide();
+        }
+    }
+
     private void clearCanvas() {
         if (slideCanvas != null) {
             GraphicsContext gc = slideCanvas.getGraphicsContext2D();
@@ -1000,7 +939,7 @@ public class SlideEditorController implements Initializable {
         currentSlideDocument = null;
         currentSlideData = null;
         slideRenderer = null;
-        renderingContext = null;
+        currentSlideContext = null;
         
         // Clear canvas event handlers
         if (slideCanvas != null) {

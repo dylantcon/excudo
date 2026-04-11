@@ -49,9 +49,7 @@ public class LivePreviewManager {
         try {
             this.slideParser = new SlideXMLParser();
         } catch (Exception e) {
-            System.err.println("Error initializing SlideXMLParser: " + e.getMessage());
-            // Create a fallback parser that will handle errors gracefully
-            this.slideParser = null;
+            throw new RuntimeException("SlideXMLParser initialization failed — cannot render previews", e);
         }
         this.renderingExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r);

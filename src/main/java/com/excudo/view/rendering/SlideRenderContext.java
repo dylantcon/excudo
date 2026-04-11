@@ -4,10 +4,8 @@ import com.excudo.core.model.LayoutInfo;
 import com.excudo.core.model.PlaceholderGeometry;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.themes.ThemeDefinition;
+import com.excudo.core.themes.ThemeManager;
 import com.excudo.core.themes.TextLevelStyle;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 /**
  * Carries presentation-level context needed by the rendering pipeline.
@@ -26,93 +24,55 @@ public class SlideRenderContext {
         this(theme, layoutInfo, document, 0);
     }
 
-    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo, PPTXDocument document, int slideNumber) {
+    private final java.util.Map<String, String> clrMap;
+    private final String backgroundColorHex;
+
+    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo,
+                              PPTXDocument document, int slideNumber,
+                              java.util.Map<String, String> clrMap,
+                              String backgroundColorHex) {
         this.theme = theme;
         this.layoutInfo = layoutInfo;
         this.document = document;
         this.slideNumber = slideNumber;
+        this.clrMap = clrMap != null ? clrMap : java.util.Map.of();
+        this.backgroundColorHex = backgroundColorHex;
+    }
+
+    /** Legacy constructor for callers that don't have clrMap yet. */
+    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo, PPTXDocument document, int slideNumber) {
+        this(theme, layoutInfo, document, slideNumber, null, null);
     }
 
     // ========== BACKGROUND ==========
 
     /**
-     * Get the background color hex string for this slide.
-     * Checks OOXML hierarchy: slide p:bg > layout p:bg > master p:bg > theme fallback.
+     * Get the pre-resolved background color hex string for this slide.
      */
     public String getBackgroundColorHex() {
-        // Check slide XML for explicit background
-        if (document != null && slideNumber > 0 && document.hasSlide(slideNumber)) {
-            String bg = extractBackgroundFromDom(document.getSlideDocument(slideNumber));
-            if (bg != null) return bg;
+        if (backgroundColorHex == null) {
+            throw new IllegalStateException("No background color provided for slide " + slideNumber);
         }
-
-        // Check slide master (ppt/slideMasters/slideMaster1.xml)
-        if (document != null) {
-            Document master = document.getXmlPart("ppt/slideMasters/slideMaster1.xml");
-            if (master != null) {
-                String bg = extractBackgroundFromDom(master);
-                if (bg != null) return bg;
-            }
-        }
-
-        // Fallback to theme
-        if (theme == null) return "#FFFFFF";
-        boolean dark = theme.isDarkBackground();
-        String colorKey = dark ? "dk1" : "lt1";
-        String hex = theme.getColor(colorKey);
-        return hex.startsWith("#") ? hex : "#" + hex;
-    }
-
-    /**
-     * Extract background color from a slide/layout/master DOM.
-     * Looks for p:bg/p:bgPr/a:solidFill/a:srgbClr or a:schemeClr.
-     */
-    private String extractBackgroundFromDom(Document dom) {
-        NodeList bgList = dom.getElementsByTagName("p:bg");
-        if (bgList.getLength() == 0) return null;
-        Element bg = (Element) bgList.item(0);
-
-        // Check solidFill
-        NodeList srgbList = bg.getElementsByTagName("a:srgbClr");
-        if (srgbList.getLength() > 0) {
-            String val = ((Element) srgbList.item(0)).getAttribute("val");
-            if (val != null && !val.isEmpty()) return "#" + val;
-        }
-
-        // Check schemeClr
-        NodeList schemeList = bg.getElementsByTagName("a:schemeClr");
-        if (schemeList.getLength() > 0) {
-            String val = ((Element) schemeList.item(0)).getAttribute("val");
-            if (val != null && !val.isEmpty()) return resolveSchemeColor(val);
-        }
-
-        return null;
+        return backgroundColorHex;
     }
 
     /**
      * Get the default text color hex string for titles.
-     * Respects dark theme inversion (light text on dark bg).
+     * Resolves tx1 through the clrMap (dark theme: lt1, light theme: dk1).
      */
     public String getTitleTextColorHex() {
-        if (theme == null) return "#000000";
-        boolean dark = theme.isDarkBackground();
-        String colorKey = dark ? "lt1" : "dk1";
-        String hex = theme.getColor(colorKey);
-        return hex.startsWith("#") ? hex : "#" + hex;
+        return resolveSchemeColor("tx1");
     }
 
     /**
      * Get the default text color hex for body text.
-     * Resolves from body style level 0's colorRef, falling back to tx1 for readability.
+     * Resolves from body style level 0's colorRef, falling back to tx1.
      */
     public String getBodyTextColorHex() {
-        if (theme == null) return "#333333";
-        // Use the body style's colorRef if available
         TextLevelStyle bodyStyle = getBodyStyle(0);
         if (bodyStyle != null && bodyStyle.getColorRef() != null) {
             return resolveSchemeColor(bodyStyle.getColorRef());
         }
-        // Fallback: same as title text (tx1 maps through clrMap)
         return getTitleTextColorHex();
     }
 
@@ -183,21 +143,21 @@ public class SlideRenderContext {
      * Handles dk1, lt1, accent1-6, hlink, folHlink, tx1, bg1, etc.
      */
     public String resolveSchemeColor(String colorName) {
-        if (theme == null) return "#000000";
+        // Resolve through the slide master's clrMap (e.g. tx1->lt1, bg1->dk1)
+        String resolved = clrMap.getOrDefault(colorName, colorName);
 
-        // Resolve clrMap aliases: tx1/tx2/bg1/bg2 depend on dark/light theme
-        boolean dark = theme.isDarkBackground();
-        String resolved = switch (colorName) {
-            case "tx1" -> dark ? "lt1" : "dk1";   // text 1 = light on dark, dark on light
-            case "tx2" -> dark ? "lt2" : "dk2";   // text 2
-            case "bg1" -> dark ? "dk1" : "lt1";   // background 1
-            case "bg2" -> dark ? "dk2" : "lt2";   // background 2
-            default -> colorName;
-        };
+        if (ThemeManager.isThemeLoaded()) {
+            String hex = ThemeManager.getThemeColor(resolved);
+            if (hex != null && !hex.isEmpty()) {
+                return hex.startsWith("#") ? hex : "#" + hex;
+            }
+        }
 
-        String hex = theme.getColor(resolved);
-        return hex.startsWith("#") ? hex : "#" + hex;
+        throw new IllegalStateException("No theme color for '" + colorName
+            + "' (resolved='" + resolved + "'). ThemeManager.isThemeLoaded()="
+            + ThemeManager.isThemeLoaded());
     }
+
 
     // ========== RAW ACCESSORS ==========
 

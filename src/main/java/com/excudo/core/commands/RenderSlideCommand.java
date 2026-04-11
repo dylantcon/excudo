@@ -19,7 +19,9 @@ public class RenderSlideCommand implements Command {
     @FunctionalInterface
     public interface SlideRenderFunction {
         void render(PPTXDocument doc, int slideNumber, File outputFile,
-                    int width, int height, ThemeDefinition theme) throws Exception;
+                    int width, int height, ThemeDefinition theme,
+                    java.util.Map<String, String> clrMap,
+                    String backgroundColorHex) throws Exception;
     }
 
     private final PPTXOrchestrator orchestrator;
@@ -59,8 +61,10 @@ public class RenderSlideCommand implements Command {
                 try { theme = ThemeLoader.get(themeId); } catch (Exception ignored) {}
             }
 
+            java.util.Map<String, String> clrMap = orchestrator.getClrMap();
+            String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
             File output = new File(outputPath);
-            renderFunction.render(doc, slideNumber, output, width, height, theme);
+            renderFunction.render(doc, slideNumber, output, width, height, theme, clrMap, bgHex);
             executed = true;
         } catch (Exception e) {
             Throwable cause = e;

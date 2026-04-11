@@ -256,12 +256,12 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         try {
             Class<?> rendererClass = Class.forName("com.excudo.view.rendering.HeadlessSlideRenderer");
             com.excudo.core.commands.UtilityCommandFactory.setSlideRenderFunction(
-                (doc, slideNum, outFile, w, h, theme) -> {
+                (doc, slideNum, outFile, w, h, theme, clrMap, bgHex) -> {
                     Object renderer = rendererClass.getConstructor(int.class, int.class).newInstance(w, h);
                     rendererClass.getMethod("renderToFile",
                         com.excudo.core.model.PPTXDocument.class, int.class, java.io.File.class,
-                        com.excudo.core.themes.ThemeDefinition.class)
-                        .invoke(renderer, doc, slideNum, outFile, theme);
+                        com.excudo.core.themes.ThemeDefinition.class, java.util.Map.class, String.class)
+                        .invoke(renderer, doc, slideNum, outFile, theme, clrMap, bgHex);
                 });
         } catch (ClassNotFoundException | NoClassDefFoundError e) {
             // View layer not available (headless build without JavaFX)

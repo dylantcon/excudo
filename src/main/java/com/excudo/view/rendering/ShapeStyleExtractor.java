@@ -76,11 +76,8 @@ public final class ShapeStyleExtractor {
             }
         }
 
-        // Fallback: theme accent1
-        if (slideCtx != null) {
-            return colorFromHex(slideCtx.resolveSchemeColor("accent1"));
-        }
-        return Color.LIGHTGRAY;
+        throw new IllegalStateException("No fill resolved for shape '"
+            + shape.getName() + "' (type=" + shape.getType() + "): no spPr fill, no p:style fillRef");
     }
 
     /**
@@ -114,11 +111,19 @@ public final class ShapeStyleExtractor {
 
         // Line color
         Element solidFill = getChild(ln, "a:solidFill");
-        Color lineColor = Color.BLACK;
+        Color lineColor;
         if (solidFill != null) {
             lineColor = parseColorElement(solidFill, slideCtx);
-        } else if (slideCtx != null) {
-            lineColor = colorFromHex(slideCtx.resolveSchemeColor("accent1"));
+        } else {
+            // Check p:style lnRef for scheme color
+            Element pStyle = getChild(shape.getXmlElement(), "p:style");
+            Element lnRef = pStyle != null ? getChild(pStyle, "a:lnRef") : null;
+            Element schemeClr = lnRef != null ? getChild(lnRef, "a:schemeClr") : null;
+            if (schemeClr != null && schemeClr.hasAttribute("val") && slideCtx != null) {
+                lineColor = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+            } else {
+                lineColor = Color.BLACK;
+            }
         }
 
         // Dash pattern
@@ -167,14 +172,14 @@ public final class ShapeStyleExtractor {
             }
         }
 
-        // Default: title text color or body text color based on placeholder type
+        // Default: resolve from theme via SlideRenderContext
         if (slideCtx != null) {
             if ("title".equals(placeholderType) || "ctrTitle".equals(placeholderType)) {
                 return colorFromHex(slideCtx.getTitleTextColorHex());
             }
             return colorFromHex(slideCtx.getBodyTextColorHex());
         }
-        return Color.BLACK;
+        throw new IllegalStateException("No text color: slideCtx is null, placeholder='" + placeholderType + "'");
     }
 
     // ========== INTERNAL ==========
@@ -243,7 +248,7 @@ public final class ShapeStyleExtractor {
             return applyAlpha(base, scheme);
         }
 
-        return Color.LIGHTGRAY;
+        throw new IllegalStateException("Color element has no a:srgbClr or a:schemeClr child");
     }
 
     /**
@@ -273,9 +278,10 @@ public final class ShapeStyleExtractor {
     }
 
     private static Element getChild(Element parent, String tagName) {
-        NodeList children = parent.getElementsByTagName(tagName);
-        if (children.getLength() > 0) {
-            return (Element) children.item(0);
+        for (org.w3c.dom.Node n = parent.getFirstChild(); n != null; n = n.getNextSibling()) {
+            if (n instanceof Element el && tagName.equals(el.getTagName())) {
+                return el;
+            }
         }
         return null;
     }

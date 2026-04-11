@@ -1064,6 +1064,12 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     }
 
     @Override
+    public String getBackgroundColorHex(int slideNumber) {
+        if (slideMasterOrchestrationManager == null) return null;
+        return slideMasterOrchestrationManager.getBackgroundColorHex(slideNumber);
+    }
+
+    @Override
     public ExecutionResult<Void> setMasterBackground(int fillIndex, String schemeColor) {
         if (currentContext == null) {
             return ExecutionResult.failure("SetMasterBg", "No orchestration context available");

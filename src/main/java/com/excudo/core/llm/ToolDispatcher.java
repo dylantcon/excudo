@@ -798,7 +798,8 @@ public class ToolDispatcher {
             if (renderFn == null) {
                 return "Error: Render function not registered. Start from console to enable rendering.";
             }
-            renderFn.render(doc, slideNumber, outputFile, width, height, theme);
+            java.util.Map<String, String> clrMap = orchestrator.getClrMap();
+            renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap);
 
             return "Rendered slide " + slideNumber + " to " + outputFile.getAbsolutePath()
                 + " (" + width + "x" + height + ", " + outputFile.length() + " bytes)";

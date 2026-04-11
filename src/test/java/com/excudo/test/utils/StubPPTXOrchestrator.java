@@ -284,6 +284,11 @@ public class StubPPTXOrchestrator implements PPTXOrchestrator {
     }
 
     @Override
+    public String getBackgroundColorHex(int slideNumber) {
+        return null;
+    }
+
+    @Override
     public ExecutionResult<Void> setMasterBackground(int fillIndex, String schemeColor) {
         return null;
     }

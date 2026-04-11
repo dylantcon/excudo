@@ -54,13 +54,29 @@ public class HeadlessSlideRenderer {
     }
 
     public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile,
+                             com.excudo.core.themes.ThemeDefinition theme,
+                             java.util.Map<String, String> clrMap,
+                             String backgroundColorHex) throws IOException {
+        Document slideDom = doc.getSlideDocument(slideNumber);
+        if (slideDom == null) {
+            throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
+        }
+
+        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, clrMap, backgroundColorHex);
+        BufferedImage image = renderToBufferedImage(slideDom, slideContext);
+        outputFile.getParentFile().mkdirs();
+        ImageIO.write(image, "png", outputFile);
+        logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
+    }
+
+    public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile,
                              com.excudo.core.themes.ThemeDefinition theme) throws IOException {
         Document slideDom = doc.getSlideDocument(slideNumber);
         if (slideDom == null) {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
         }
 
-        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme);
+        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, null, null);
         BufferedImage image = renderToBufferedImage(slideDom, slideContext);
         outputFile.getParentFile().mkdirs();
         ImageIO.write(image, "png", outputFile);
@@ -149,32 +165,20 @@ public class HeadlessSlideRenderer {
      * Build a SlideRenderContext by resolving the theme and layout for a specific slide.
      */
     private SlideRenderContext buildSlideContext(PPTXDocument doc, int slideNumber) {
-        return buildSlideContext(doc, slideNumber, null);
+        return buildSlideContext(doc, slideNumber, null, null, null);
     }
 
     private SlideRenderContext buildSlideContext(PPTXDocument doc, int slideNumber,
-                                                 com.excudo.core.themes.ThemeDefinition explicitTheme) {
+                                                 com.excudo.core.themes.ThemeDefinition explicitTheme,
+                                                 java.util.Map<String, String> clrMap,
+                                                 String backgroundColorHex) {
         try {
-            // Use explicit theme if provided, otherwise try to resolve
+            // ThemeDefinition provides text-level styles (bullet chars, font sizes, margins).
+            // Color resolution goes through ThemeManager + clrMap instead.
             com.excudo.core.themes.ThemeDefinition theme = explicitTheme;
             if (theme == null) {
-                // Try ThemeManager (initialized by orchestrator)
-                String themeName = com.excudo.core.themes.ThemeManager.getCurrentThemeName();
-                if (themeName != null && !themeName.contains("No Theme")) {
-                    for (com.excudo.core.themes.ThemeDefinition t :
-                         com.excudo.core.themes.ThemeManager.getAvailableThemes()) {
-                        if (t.getDisplayName().equalsIgnoreCase(themeName)
-                            || t.getId().equalsIgnoreCase(themeName)) {
-                            theme = t;
-                            break;
-                        }
-                    }
-                    // If no name match, use first available
-                    if (theme == null) {
-                        var all = com.excudo.core.themes.ThemeManager.getAvailableThemes();
-                        if (!all.isEmpty()) theme = all.get(0);
-                    }
-                }
+                var all = com.excudo.core.themes.ThemeManager.getAvailableThemes();
+                if (!all.isEmpty()) theme = all.get(0);
             }
 
             // Resolve layout for this slide from parsed state
@@ -190,7 +194,7 @@ public class HeadlessSlideRenderer {
                 logger.debug("Could not resolve layout for slide {}: {}", slideNumber, e.getMessage());
             }
 
-            return new SlideRenderContext(theme, layoutInfo, doc, slideNumber);
+            return new SlideRenderContext(theme, layoutInfo, doc, slideNumber, clrMap, backgroundColorHex);
         } catch (Exception e) {
             logger.warn("Failed to build slide context: {}", e.getMessage());
             return null;

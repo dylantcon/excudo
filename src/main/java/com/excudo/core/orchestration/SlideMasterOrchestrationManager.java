@@ -240,6 +240,66 @@ public class SlideMasterOrchestrationManager {
         }
     }
 
+    /**
+     * Resolve the background color hex for a slide, walking the OOXML hierarchy:
+     * slide p:bg > master p:bg. Returns null if no background is defined.
+     */
+    public String getBackgroundColorHex(int slideNumber) {
+        // Check slide-level background
+        Document slideDom = context.getSlideDocument(slideNumber);
+        if (slideDom != null) {
+            String bg = extractBgSolidFillHex(slideDom);
+            if (bg != null) return bg;
+        }
+
+        // Check slide master background
+        Document masterDom = context.getXmlPart(MASTER_PART);
+        if (masterDom != null) {
+            String bg = extractBgSolidFillHex(masterDom);
+            if (bg != null) return bg;
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract a solid fill hex color from a p:bg element in the given DOM.
+     * Handles both bgPr/solidFill/srgbClr and bgPr/solidFill/schemeClr patterns.
+     */
+    private String extractBgSolidFillHex(Document dom) {
+        Element bg = findFirstElement(dom.getDocumentElement(), PNS, "bg");
+        if (bg == null) return null;
+
+        // Check bgPr > solidFill > srgbClr
+        Element bgPr = findFirstElement(bg, PNS, "bgPr");
+        if (bgPr != null) {
+            Element solidFill = findFirstElement(bgPr, ANS, "solidFill");
+            if (solidFill != null) {
+                Element srgb = findFirstElement(solidFill, ANS, "srgbClr");
+                if (srgb != null && srgb.hasAttribute("val")) {
+                    return "#" + srgb.getAttribute("val");
+                }
+                Element scheme = findFirstElement(solidFill, ANS, "schemeClr");
+                if (scheme != null && scheme.hasAttribute("val")) {
+                    String colorName = scheme.getAttribute("val");
+                    return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(colorName);
+                }
+            }
+        }
+
+        // Check bgRef > schemeClr (theme fill reference)
+        Element bgRef = findFirstElement(bg, PNS, "bgRef");
+        if (bgRef != null) {
+            Element scheme = findFirstElement(bgRef, ANS, "schemeClr");
+            if (scheme != null && scheme.hasAttribute("val")) {
+                String colorName = scheme.getAttribute("val");
+                return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(colorName);
+            }
+        }
+
+        return null;
+    }
+
     // ========== OBJECT DEFAULTS (THEME-LEVEL) ==========
 
     /**

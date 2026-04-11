@@ -7,6 +7,7 @@ import com.excudo.core.metrics.TrueTypeFontParser;
 import com.excudo.core.model.*;
 import com.excudo.core.model.BulletType;
 import com.excudo.core.themes.TextLevelStyle;
+import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.ShapeStyleExtractor;
 import com.excudo.view.rendering.SlideRenderContext;
@@ -33,7 +34,6 @@ import java.util.List;
 public final class TextPainter {
 
     private static final double EMU_PER_POINT = 12700.0;
-    private static final double EMU_PER_PIXEL_96DPI = 914400.0 / 96.0; // 9525
 
     private TextPainter() {}
 
@@ -197,7 +197,7 @@ public final class TextPainter {
                 bulletChar = themeStyle.getBulletChar();
                 bulletFontFamily = themeStyle.getBulletFont();
             }
-            // Fall back to theme style bullet if paragraph doesn't specify
+            // Theme-level bullet inheritance (paragraph doesn't specify its own)
             if (bulletChar == null && themeStyle != null && themeStyle.hasBullet()) {
                 bulletChar = themeStyle.getBulletChar();
                 if (bulletFontFamily == null && themeStyle.getBulletFont() != null) {
@@ -357,7 +357,7 @@ public final class TextPainter {
             if (run.getItalic() != null) italic = run.getItalic();
         }
 
-        // Theme fallback for missing properties
+        // Theme-level defaults (OOXML inheritance: run > paragraph > theme)
         if (slideCtx != null) {
             TextLevelStyle style = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
             if (style != null) {
@@ -373,7 +373,11 @@ public final class TextPainter {
             }
         }
 
-        if (family == null) family = "DejaVu Sans";
+        if (family == null) {
+            throw new IllegalStateException("No font family resolved: run.fontFamily="
+                + (run != null ? run.getFontFamily() : "null") + ", slideCtx="
+                + (slideCtx != null) + ", isTitle=" + isTitle);
+        }
 
         double scaledSize = sizePt * zoom;
         if (scaledSize < 1) scaledSize = 1;
@@ -400,10 +404,10 @@ public final class TextPainter {
     }
 
     private static double emuToPixels(long emu) {
-        return emu / EMU_PER_PIXEL_96DPI;
+        return CoordinateMapper.emuToPixels(emu);
     }
 
     private static double emuToPixels(int emu) {
-        return emu / EMU_PER_PIXEL_96DPI;
+        return CoordinateMapper.emuToPixels((long) emu);
     }
 }

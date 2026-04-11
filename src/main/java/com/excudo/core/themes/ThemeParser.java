@@ -40,10 +40,7 @@ public class ThemeParser {
         FALLBACK_COLORS.put("lt1", "#FFFFFF");
         FALLBACK_COLORS.put("dk2", "#44546A");
         FALLBACK_COLORS.put("lt2", "#E7E6E6");
-        FALLBACK_COLORS.put("bg1", "#FFFFFF");
-        FALLBACK_COLORS.put("tx1", "#000000");
-        FALLBACK_COLORS.put("bg2", "#E7E6E6");
-        FALLBACK_COLORS.put("tx2", "#44546A");
+        // tx1/tx2/bg1/bg2 omitted — these are clrMap-dependent, not theme-level constants
         FALLBACK_COLORS.put("hlink", "#0563C1");
         FALLBACK_COLORS.put("folHlink", "#954F72");
     }
@@ -116,15 +113,9 @@ public class ThemeParser {
         parseColorDefinition(document, "hlink");
         parseColorDefinition(document, "folHlink");
         
-        // Also map common aliases
-        if (this.colorScheme.containsKey("dk1")) {
-            this.colorScheme.put("tx1", this.colorScheme.get("dk1"));  // Text 1 = Dark 1
-            this.colorScheme.put("bg1", this.colorScheme.get("lt1"));  // Background 1 = Light 1  
-        }
-        if (this.colorScheme.containsKey("dk2")) {
-            this.colorScheme.put("tx2", this.colorScheme.get("dk2"));  // Text 2 = Dark 2
-            this.colorScheme.put("bg2", this.colorScheme.get("lt2"));  // Background 2 = Light 2
-        }
+        // tx1/tx2/bg1/bg2 are NOT aliased here — their mapping depends on the
+        // slide master's p:clrMap (e.g. dark theme: tx1->lt1, light theme: tx1->dk1).
+        // Callers must resolve through the clrMap, not through the theme directly.
     }
     
     /**
