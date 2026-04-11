@@ -3,11 +3,16 @@ package com.excudo.view.components;
 import com.excudo.view.MainController;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.SlideRenderer;
+import com.excudo.view.rendering.SlideRenderContext;
 import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.LivePreviewManager;
 import com.excudo.view.animation.AnimationController;
 import com.excudo.view.animation.AnimationControllerListener;
+import com.excudo.core.model.LayoutInfo;
+import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.model.ParsedSlideData;
+import com.excudo.core.themes.ThemeDefinition;
+import com.excudo.core.themes.ThemeManager;
 import com.excudo.xml.parsers.SlideXMLParser;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -294,6 +299,55 @@ public class SlideEditorController implements Initializable {
     }
     
     /**
+     * Build a SlideRenderContext for the current slide using the already-parsed
+     * state from OrchestrationContext. No redundant parsing -- the orchestrator
+     * already holds the layout map and slide-to-layout mapping.
+     */
+    private SlideRenderContext buildSlideRenderContext(PPTXDocument pptxDoc, int slideNumber) {
+        if (pptxDoc == null || mainController == null) return null;
+
+        try {
+            var orchestrator = mainController.getOrchestrator();
+            if (orchestrator == null) return null;
+            var ctxOpt = orchestrator.getContext();
+            if (ctxOpt.isEmpty()) return null;
+            var ctx = ctxOpt.get();
+
+            // Resolve theme from ThemeManager (already initialized by orchestrator)
+            ThemeDefinition theme = null;
+            String themeName = ThemeManager.getCurrentThemeName();
+            if (themeName != null && !themeName.contains("No Theme")) {
+                for (ThemeDefinition t : ThemeManager.getAvailableThemes()) {
+                    if (t.getDisplayName().equalsIgnoreCase(themeName)
+                        || t.getId().equalsIgnoreCase(themeName)) {
+                        theme = t;
+                        break;
+                    }
+                }
+                if (theme == null) {
+                    var all = ThemeManager.getAvailableThemes();
+                    if (!all.isEmpty()) theme = all.get(0);
+                }
+            }
+
+            // Resolve layout from the already-parsed presentation state
+            LayoutInfo layoutInfo = null;
+            var parsedState = ctx.getParsedState();
+            if (parsedState != null) {
+                String layoutId = parsedState.getSlideToLayoutId().get(slideNumber);
+                if (layoutId != null) {
+                    layoutInfo = parsedState.getLayouts().get(layoutId);
+                }
+            }
+
+            return new SlideRenderContext(theme, layoutInfo, pptxDoc, slideNumber);
+        } catch (Exception e) {
+            logger.warn("Failed to build slide render context: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Configure slideLayout directory for slideRenderer bullet inheritance
      */
     private void configureSlideLayoutDirectory() {
@@ -324,51 +378,55 @@ public class SlideEditorController implements Initializable {
      */
     public void loadSlide(int slideNumber) {
         this.currentSlideNumber = slideNumber;
-        
+
         // Configure slideLayout directory now that orchestrator context is available
         updateSlideLayoutConfiguration();
-        
+
         // Load slide XML through orchestrator
         if (mainController != null && mainController.getOrchestrator() != null) {
-            Task<Document> loadTask = new Task<Document>() {
+            Task<Void> loadTask = new Task<Void>() {
+                private Document slideDoc;
+                private PPTXDocument pptxDoc;
+
                 @Override
-                protected Document call() throws Exception {
-                    // Load actual slide XML from the extracted PPTX directory
+                protected Void call() throws Exception {
                     var orchestrator = mainController.getOrchestrator();
                     var context = orchestrator.getContext();
-                    
+
                     if (context.isPresent()) {
-                        com.excudo.core.model.PPTXDocument pptxDocSE = context.get().getDocument();
-                        org.w3c.dom.Document slideDoc = (pptxDocSE != null && pptxDocSE.hasSlide(slideNumber))
-                            ? pptxDocSE.getSlideDocument(slideNumber) : null;
+                        pptxDoc = context.get().getDocument();
+                        slideDoc = (pptxDoc != null && pptxDoc.hasSlide(slideNumber))
+                            ? pptxDoc.getSlideDocument(slideNumber) : null;
 
                         if (slideDoc != null) {
-                            return slideDoc;
+                            return null;
                         }
                         // Legacy disk fallback
-                        File extractedDirSE = (pptxDocSE != null) ? pptxDocSE.getExtractedDir() : null;
+                        File extractedDirSE = (pptxDoc != null) ? pptxDoc.getExtractedDir() : null;
                         File slideFile = (extractedDirSE != null)
                             ? new File(extractedDirSE, "ppt/slides/slide" + slideNumber + ".xml") : null;
 
                         if (slideFile != null && slideFile.exists()) {
-                            return XMLFactoryProvider.parseDocument(slideFile);
+                            slideDoc = XMLFactoryProvider.parseDocument(slideFile);
+                            return null;
                         }
                     }
-                    
+
                     // Fall back to sample if no real slide available
-                    return createSampleSlideDocument();
+                    slideDoc = createSampleSlideDocument();
+                    pptxDoc = null;
+                    return null;
                 }
-                
+
                 @Override
                 protected void succeeded() {
                     Platform.runLater(() -> {
-                        Document slideDoc = getValue();
                         if (slideDoc != null) {
-                            loadSlideDocument(slideDoc);
+                            loadSlideDocument(slideDoc, pptxDoc, slideNumber);
                         }
                     });
                 }
-                
+
                 @Override
                 protected void failed() {
                     logger.warn("Failed to load slide {}: {}", slideNumber,
@@ -387,18 +445,25 @@ public class SlideEditorController implements Initializable {
      * Load slide document into editor
      */
     private void loadSlideDocument(Document slideDocument) {
+        loadSlideDocument(slideDocument, null, -1);
+    }
+
+    private void loadSlideDocument(Document slideDocument, PPTXDocument pptxDoc, int slideNumber) {
         this.currentSlideDocument = slideDocument;
-        
+
+        // Build SlideRenderContext so the renderer has theme, layout, and color info
+        SlideRenderContext slideCtx = buildSlideRenderContext(pptxDoc, slideNumber);
+        if (slideRenderer != null) {
+            slideRenderer.setSlideContext(slideCtx);
+        }
+
         // Parse slide data for animations
-        // TODO: Pass extracted PPTX directory and slide number for layout parsing when available
         try {
             SlideXMLParser parser = new SlideXMLParser();
-            currentSlideData = parser.parseSlide(slideDocument);
-            
+            currentSlideData = parser.parseSlide(slideDocument, slideNumber);
+
             // Load animations into controller
             if (animationController != null && currentSlideData != null) {
-                // For now, we'll create a mock scene graph
-                // In a full implementation, this would be the actual rendered shapes
                 javafx.scene.Group mockSceneGraph = new javafx.scene.Group();
                 animationController.loadSlideAnimations(currentSlideData, mockSceneGraph);
             }
