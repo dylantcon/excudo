@@ -91,8 +91,6 @@ public class MainController implements Initializable, OrchestrationStateListener
     
     // Slide Editor
     @FXML private ScrollPane canvasScrollPane;
-    @FXML private VBox visualPreviewContainer;
-    @FXML private Button togglePreviewButton;
 
     // Console
     @FXML private Tab consoleTab;
@@ -122,8 +120,6 @@ public class MainController implements Initializable, OrchestrationStateListener
     private PropertiesController propertiesController;
     private ValidationController validationController;
     
-    // Visual preview state
-    private boolean visualPreviewExpanded = false;
     
     // ========== STATE ==========
     
@@ -317,10 +313,6 @@ public class MainController implements Initializable, OrchestrationStateListener
             });
         }
         
-        // Visual Preview toggle handler
-        if (togglePreviewButton != null) {
-            togglePreviewButton.setOnAction(e -> toggleVisualPreview());
-        }
     }
     
     private void setupComponentControllers() {
@@ -1064,24 +1056,4 @@ public class MainController implements Initializable, OrchestrationStateListener
         return validationController;
     }
     
-    /**
-     * Toggle visual preview visibility
-     */
-    private void toggleVisualPreview() {
-        visualPreviewExpanded = !visualPreviewExpanded;
-
-        if (canvasScrollPane != null) {
-            canvasScrollPane.setVisible(visualPreviewExpanded);
-            canvasScrollPane.setManaged(visualPreviewExpanded);
-        }
-
-        if (togglePreviewButton != null) {
-            togglePreviewButton.setText(visualPreviewExpanded ? "v" : ">");
-        }
-
-        // If we have a loaded slide, re-render now that the canvas is visible
-        if (visualPreviewExpanded && editorController != null && editorController.getCurrentSlideNumber() > 0) {
-            editorController.loadSlide(editorController.getCurrentSlideNumber());
-        }
-    }
 }

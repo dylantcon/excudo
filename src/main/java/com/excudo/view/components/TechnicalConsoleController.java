@@ -9,7 +9,6 @@ import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.console.ConsoleStyle;
 import com.excudo.console.LLMConsoleHandler;
-import com.excudo.console.InteractiveConsole;
 import com.excudo.view.console.StyledConsoleView;
 import com.excudo.view.console.UIConsoleEngine;
 import javafx.fxml.FXML;
@@ -317,17 +316,16 @@ public class TechnicalConsoleController implements Initializable {
     // ========== OUTPUT METHODS ==========
 
     private void printWelcomeMessage() {
-        // Delegate to console package for standardized welcome message
-        String welcomeMsg = InteractiveConsole.getWelcomeMessage();
-        String[] lines = welcomeMsg.split("\\n");
-
-        for (String line : lines) {
-            if (!line.trim().isEmpty()) {
-                printInfo(line);
-            } else {
-                printInfo(""); // Preserve empty lines for formatting
-            }
-        }
+        if (styledView == null) return;
+        String banner = """
+            +====================================================+
+            |                 Excudo Console                      |
+            |          Comprehensive .pptx Toolchain              |
+            +====================================================+""";
+        styledView.appendLine(banner, ConsoleStyle.HEADER);
+        styledView.appendLine("", ConsoleStyle.NONE);
+        styledView.appendLine("  Type 'help' for commands, 'help <topic>' for details, or 'load <file>' to start",
+            ConsoleStyle.DIM);
     }
 
     /**

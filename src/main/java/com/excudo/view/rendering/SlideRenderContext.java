@@ -5,6 +5,9 @@ import com.excudo.core.model.PlaceholderGeometry;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.themes.ThemeDefinition;
 import com.excudo.core.themes.TextLevelStyle;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 /**
  * Carries presentation-level context needed by the rendering pipeline.
@@ -34,15 +37,56 @@ public class SlideRenderContext {
 
     /**
      * Get the background color hex string for this slide.
-     * Respects dark theme inversion.
+     * Checks OOXML hierarchy: slide p:bg > layout p:bg > master p:bg > theme fallback.
      */
     public String getBackgroundColorHex() {
+        // Check slide XML for explicit background
+        if (document != null && slideNumber > 0 && document.hasSlide(slideNumber)) {
+            String bg = extractBackgroundFromDom(document.getSlideDocument(slideNumber));
+            if (bg != null) return bg;
+        }
+
+        // Check slide master (ppt/slideMasters/slideMaster1.xml)
+        if (document != null) {
+            Document master = document.getXmlPart("ppt/slideMasters/slideMaster1.xml");
+            if (master != null) {
+                String bg = extractBackgroundFromDom(master);
+                if (bg != null) return bg;
+            }
+        }
+
+        // Fallback to theme
         if (theme == null) return "#FFFFFF";
         boolean dark = theme.isDarkBackground();
-        // bg1 maps to dk1 for dark themes, lt1 for light themes
         String colorKey = dark ? "dk1" : "lt1";
         String hex = theme.getColor(colorKey);
         return hex.startsWith("#") ? hex : "#" + hex;
+    }
+
+    /**
+     * Extract background color from a slide/layout/master DOM.
+     * Looks for p:bg/p:bgPr/a:solidFill/a:srgbClr or a:schemeClr.
+     */
+    private String extractBackgroundFromDom(Document dom) {
+        NodeList bgList = dom.getElementsByTagName("p:bg");
+        if (bgList.getLength() == 0) return null;
+        Element bg = (Element) bgList.item(0);
+
+        // Check solidFill
+        NodeList srgbList = bg.getElementsByTagName("a:srgbClr");
+        if (srgbList.getLength() > 0) {
+            String val = ((Element) srgbList.item(0)).getAttribute("val");
+            if (val != null && !val.isEmpty()) return "#" + val;
+        }
+
+        // Check schemeClr
+        NodeList schemeList = bg.getElementsByTagName("a:schemeClr");
+        if (schemeList.getLength() > 0) {
+            String val = ((Element) schemeList.item(0)).getAttribute("val");
+            if (val != null && !val.isEmpty()) return resolveSchemeColor(val);
+        }
+
+        return null;
     }
 
     /**

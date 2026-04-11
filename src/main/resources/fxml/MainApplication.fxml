@@ -70,22 +70,21 @@
          </VBox>
          
          <!-- Center Panel: Main Content with Bottom Panel -->
-         <SplitPane fx:id="centerRightSplit" dividerPositions="0.7" orientation="VERTICAL">
+         <SplitPane fx:id="centerRightSplit" dividerPositions="0.6" orientation="VERTICAL">
             <!-- Center: Slide Preview -->
-            <VBox fx:id="centerPanel" spacing="5.0">
-               <VBox fx:id="visualPreviewContainer" spacing="5.0" VBox.vgrow="ALWAYS">
-                  <HBox spacing="5.0" alignment="CENTER_LEFT">
-                     <Label text="Visual Preview" />
-                     <Button fx:id="togglePreviewButton" text=">" style="-fx-font-size: 10px; -fx-padding: 2px 6px;" />
-                  </HBox>
-                  <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS" managed="false" visible="false">
-                     <!-- Canvas will be added programmatically -->
-                  </ScrollPane>
-               </VBox>
+            <VBox fx:id="centerPanel" spacing="0.0">
+               <HBox spacing="8.0" alignment="CENTER_LEFT" style="-fx-padding: 4 8; -fx-background-color: #2d2d2d;">
+                  <Label text="Slide Preview" style="-fx-text-fill: #cccccc; -fx-font-size: 11px;" />
+               </HBox>
+               <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS"
+                           fitToWidth="true" fitToHeight="true"
+                           style="-fx-background-color: #3c3c3c;">
+                  <!-- Canvas will be added programmatically -->
+               </ScrollPane>
             </VBox>
 
             <!-- Bottom Panel: Tabs -->
-            <TabPane fx:id="bottomTabPane" minHeight="200.0">
+            <TabPane fx:id="bottomTabPane" minHeight="150.0">
                <Tab fx:id="consoleTab" closable="false" text="Console">
                   <VBox spacing="5.0">
                      <ScrollPane fx:id="consoleScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" style="-fx-background-color: #1e1e1e;">

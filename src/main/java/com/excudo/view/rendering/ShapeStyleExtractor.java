@@ -63,6 +63,19 @@ public final class ShapeStyleExtractor {
             return Color.TRANSPARENT;
         }
 
+        // Check p:style fillRef for scheme color
+        Element pStyle = getChild(spEl, "p:style");
+        if (pStyle != null) {
+            Element fillRef = getChild(pStyle, "a:fillRef");
+            if (fillRef != null) {
+                Element schemeClr = getChild(fillRef, "a:schemeClr");
+                if (schemeClr != null && schemeClr.hasAttribute("val") && slideCtx != null) {
+                    Color base = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+                    return applyAlpha(base, schemeClr);
+                }
+            }
+        }
+
         // Fallback: theme accent1
         if (slideCtx != null) {
             return colorFromHex(slideCtx.resolveSchemeColor("accent1"));
