@@ -1055,17 +1055,24 @@ public class MainController implements Initializable, OrchestrationStateListener
      */
     private void toggleVisualPreview() {
         visualPreviewExpanded = !visualPreviewExpanded;
-        
+
         if (canvasScrollPane != null) {
             canvasScrollPane.setVisible(visualPreviewExpanded);
             canvasScrollPane.setManaged(visualPreviewExpanded);
+            System.err.println("[PREVIEW-DIAG] toggled preview=" + visualPreviewExpanded
+                + " scrollPane.content=" + canvasScrollPane.getContent()
+                + " scrollPane.size=" + canvasScrollPane.getWidth() + "x" + canvasScrollPane.getHeight());
+        } else {
+            System.err.println("[PREVIEW-DIAG] toggleVisualPreview: canvasScrollPane is NULL");
         }
-        
+
         if (togglePreviewButton != null) {
-            // Update button text: > for collapsed, v for expanded
             togglePreviewButton.setText(visualPreviewExpanded ? "v" : ">");
         }
-        
-        // Canvas content is already loaded, just showing/hiding
+
+        // If we have a loaded slide, re-render now that the canvas is visible
+        if (visualPreviewExpanded && editorController != null && editorController.getCurrentSlideNumber() > 0) {
+            editorController.loadSlide(editorController.getCurrentSlideNumber());
+        }
     }
 }
