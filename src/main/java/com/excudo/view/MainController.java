@@ -1046,6 +1046,7 @@ public class MainController implements Initializable, OrchestrationStateListener
      * Keeps the GUI in sync when the console creates or switches sessions.
      */
     public void setOrchestrator(PPTXOrchestrator orchestrator) {
+        if (orchestrator == this.orchestrator) return; // prevent re-entrant loop
         this.orchestrator = orchestrator;
         presentationLoaded = (orchestrator != null && orchestrator.getContext().isPresent());
         Platform.runLater(() -> {
