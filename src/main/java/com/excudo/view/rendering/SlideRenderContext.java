@@ -20,10 +20,6 @@ public class SlideRenderContext {
     private final PPTXDocument document;
     private final int slideNumber;
 
-    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo, PPTXDocument document) {
-        this(theme, layoutInfo, document, 0);
-    }
-
     private final java.util.Map<String, String> clrMap;
     private final String backgroundColorHex;
 
@@ -37,11 +33,6 @@ public class SlideRenderContext {
         this.slideNumber = slideNumber;
         this.clrMap = clrMap != null ? clrMap : java.util.Map.of();
         this.backgroundColorHex = backgroundColorHex;
-    }
-
-    /** Legacy constructor for callers that don't have clrMap yet. */
-    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo, PPTXDocument document, int slideNumber) {
-        this(theme, layoutInfo, document, slideNumber, null, null);
     }
 
     // ========== BACKGROUND ==========

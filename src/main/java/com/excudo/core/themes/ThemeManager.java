@@ -83,25 +83,20 @@ public class ThemeManager {
      * Get theme color by name (returns hex string)
      */
     public static String getThemeColor(String colorName) {
-        if (defaultTheme != null) {
-            return defaultTheme.getThemeColor(colorName);
+        if (defaultTheme == null) {
+            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
         }
-        
-        // Fallback when no theme is loaded
-        ThemeParser fallback = new ThemeParser();
-        return fallback.getThemeColor(colorName);
+        return defaultTheme.getThemeColor(colorName);
     }
-    
+
     /**
      * Get theme font by name or alias
      */
     public static String getThemeFont(String fontReference) {
-        if (defaultTheme != null) {
-            return defaultTheme.getThemeFont(fontReference);
+        if (defaultTheme == null) {
+            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
         }
-        
-        // Fallback when no theme is loaded
-        return "Arial";
+        return defaultTheme.getThemeFont(fontReference);
     }
     
     /**

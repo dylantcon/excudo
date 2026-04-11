@@ -27,23 +27,6 @@ public class ThemeParser {
     private Map<String, String> fontScheme;
     private String themeName;
     
-    // Fallback colors for when theme parsing fails
-    private static final Map<String, String> FALLBACK_COLORS = new HashMap<>();
-    static {
-        FALLBACK_COLORS.put("accent1", "#4472C4");
-        FALLBACK_COLORS.put("accent2", "#E7E6E6");
-        FALLBACK_COLORS.put("accent3", "#A5A5A5");
-        FALLBACK_COLORS.put("accent4", "#FFC000");
-        FALLBACK_COLORS.put("accent5", "#5B9BD5");
-        FALLBACK_COLORS.put("accent6", "#70AD47");
-        FALLBACK_COLORS.put("dk1", "#000000");
-        FALLBACK_COLORS.put("lt1", "#FFFFFF");
-        FALLBACK_COLORS.put("dk2", "#44546A");
-        FALLBACK_COLORS.put("lt2", "#E7E6E6");
-        // tx1/tx2/bg1/bg2 omitted — these are clrMap-dependent, not theme-level constants
-        FALLBACK_COLORS.put("hlink", "#0563C1");
-        FALLBACK_COLORS.put("folHlink", "#954F72");
-    }
     
     public ThemeParser() {
         this.xpath = XMLFactoryProvider.createXPath();
@@ -182,14 +165,8 @@ public class ThemeParser {
         if (themeColor != null) {
             return themeColor;
         }
-        
-        // Fall back to hardcoded values
-        String fallbackColor = FALLBACK_COLORS.get(colorName);
-        if (fallbackColor != null) {
-            return fallbackColor;
-        }
-
-        return "#000000";
+        throw new IllegalStateException("Theme color '" + colorName
+            + "' not found in parsed theme. Available: " + colorScheme.keySet());
     }
     
     /**
@@ -200,9 +177,8 @@ public class ThemeParser {
         if (themeFont != null) {
             return themeFont;
         }
-        
-        // Default fallback
-        return "Arial";
+        throw new IllegalStateException("Theme font '" + fontReference
+            + "' not found in parsed theme. Available: " + fontScheme.keySet());
     }
     
     /**
