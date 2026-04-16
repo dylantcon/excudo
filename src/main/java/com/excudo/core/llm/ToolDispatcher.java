@@ -800,7 +800,8 @@ public class ToolDispatcher {
             }
             java.util.Map<String, String> clrMap = orchestrator.getClrMap();
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
-            renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex);
+            var masterStyles = orchestrator.getMasterStyles();
+            renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex, masterStyles);
 
             return "Rendered slide " + slideNumber + " to " + outputFile.getAbsolutePath()
                 + " (" + width + "x" + height + ", " + outputFile.length() + " bytes)";

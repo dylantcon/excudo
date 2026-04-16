@@ -22,17 +22,30 @@ public class SlideRenderContext {
 
     private final java.util.Map<String, String> clrMap;
     private final String backgroundColorHex;
+    private final TextLevelStyle[] masterTitleStyles;
+    private final TextLevelStyle[] masterBodyStyles;
 
     public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo,
                               PPTXDocument document, int slideNumber,
                               java.util.Map<String, String> clrMap,
-                              String backgroundColorHex) {
+                              String backgroundColorHex,
+                              java.util.Map<String, TextLevelStyle[]> masterStyles) {
         this.theme = theme;
         this.layoutInfo = layoutInfo;
         this.document = document;
         this.slideNumber = slideNumber;
         this.clrMap = clrMap != null ? clrMap : java.util.Map.of();
         this.backgroundColorHex = backgroundColorHex;
+        this.masterTitleStyles = masterStyles != null ? masterStyles.get("titleStyle") : null;
+        this.masterBodyStyles = masterStyles != null ? masterStyles.get("bodyStyle") : null;
+    }
+
+    /** Convenience constructor when master styles aren't available. */
+    public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo,
+                              PPTXDocument document, int slideNumber,
+                              java.util.Map<String, String> clrMap,
+                              String backgroundColorHex) {
+        this(theme, layoutInfo, document, slideNumber, clrMap, backgroundColorHex, null);
     }
 
     // ========== BACKGROUND ==========
@@ -71,8 +84,13 @@ public class SlideRenderContext {
 
     /**
      * Get the TextLevelStyle for a title at the given indentation level.
+     * Prefers PPTX master styles over bundled ThemeDefinition styles.
      */
     public TextLevelStyle getTitleStyle(int level) {
+        if (masterTitleStyles != null && level >= 0 && level < masterTitleStyles.length
+                && masterTitleStyles[level] != null) {
+            return masterTitleStyles[level];
+        }
         if (theme == null) return null;
         TextLevelStyle[] styles = theme.getTitleStyle();
         if (styles != null && level >= 0 && level < styles.length) {
@@ -83,8 +101,13 @@ public class SlideRenderContext {
 
     /**
      * Get the TextLevelStyle for body text at the given indentation level.
+     * Prefers PPTX master styles over bundled ThemeDefinition styles.
      */
     public TextLevelStyle getBodyStyle(int level) {
+        if (masterBodyStyles != null && level >= 0 && level < masterBodyStyles.length
+                && masterBodyStyles[level] != null) {
+            return masterBodyStyles[level];
+        }
         if (theme == null) return null;
         TextLevelStyle[] styles = theme.getBodyStyle();
         if (styles != null && level >= 0 && level < styles.length) {

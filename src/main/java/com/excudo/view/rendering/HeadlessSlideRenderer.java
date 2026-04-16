@@ -15,8 +15,6 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -47,61 +45,25 @@ public class HeadlessSlideRenderer {
     }
 
     /**
-     * Render a slide to a PNG file.
+     * Render a slide to a PNG file with full theme/layout/color context.
      */
-    public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile) throws IOException {
-        renderToFile(doc, slideNumber, outputFile, null);
-    }
-
     public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile,
                              com.excudo.core.themes.ThemeDefinition theme,
                              java.util.Map<String, String> clrMap,
-                             String backgroundColorHex) throws IOException {
+                             String backgroundColorHex,
+                             java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
+            throws IOException {
         Document slideDom = doc.getSlideDocument(slideNumber);
         if (slideDom == null) {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
         }
 
-        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, clrMap, backgroundColorHex);
+        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, clrMap,
+            backgroundColorHex, masterStyles);
         BufferedImage image = renderToBufferedImage(slideDom, slideContext);
         outputFile.getParentFile().mkdirs();
         ImageIO.write(image, "png", outputFile);
         logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
-    }
-
-    public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile,
-                             com.excudo.core.themes.ThemeDefinition theme) throws IOException {
-        Document slideDom = doc.getSlideDocument(slideNumber);
-        if (slideDom == null) {
-            throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
-        }
-
-        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, null, null);
-        BufferedImage image = renderToBufferedImage(slideDom, slideContext);
-        outputFile.getParentFile().mkdirs();
-        ImageIO.write(image, "png", outputFile);
-        logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
-    }
-
-    /**
-     * Render a slide to an OutputStream (PNG format).
-     */
-    public void renderToStream(PPTXDocument doc, int slideNumber, OutputStream out) throws IOException {
-        Document slideDom = doc.getSlideDocument(slideNumber);
-        if (slideDom == null) {
-            throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
-        }
-
-        SlideRenderContext slideContext = buildSlideContext(doc, slideNumber);
-        BufferedImage image = renderToBufferedImage(slideDom, slideContext);
-        ImageIO.write(image, "png", out);
-    }
-
-    /**
-     * Render a slide DOM to a BufferedImage (legacy, no theme context).
-     */
-    public BufferedImage renderToBufferedImage(Document slideDom) throws IOException {
-        return renderToBufferedImage(slideDom, null);
     }
 
     /**
@@ -150,28 +112,11 @@ public class HeadlessSlideRenderer {
         return result.get();
     }
 
-    /**
-     * Render all slides to a directory.
-     */
-    public void renderAllSlides(PPTXDocument doc, File outputDir) throws IOException {
-        outputDir.mkdirs();
-        for (int slideNum : doc.getSlideNumbers()) {
-            File outFile = new File(outputDir, String.format("slide%d.png", slideNum));
-            renderToFile(doc, slideNum, outFile);
-        }
-    }
-
-    /**
-     * Build a SlideRenderContext by resolving the theme and layout for a specific slide.
-     */
-    private SlideRenderContext buildSlideContext(PPTXDocument doc, int slideNumber) {
-        return buildSlideContext(doc, slideNumber, null, null, null);
-    }
-
     private SlideRenderContext buildSlideContext(PPTXDocument doc, int slideNumber,
                                                  com.excudo.core.themes.ThemeDefinition explicitTheme,
                                                  java.util.Map<String, String> clrMap,
-                                                 String backgroundColorHex) {
+                                                 String backgroundColorHex,
+                                                 java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles) {
         try {
             // ThemeDefinition provides text-level styles (bullet chars, font sizes, margins).
             // Color resolution goes through ThemeManager + clrMap instead.
@@ -194,7 +139,8 @@ public class HeadlessSlideRenderer {
                 logger.debug("Could not resolve layout for slide {}: {}", slideNumber, e.getMessage());
             }
 
-            return new SlideRenderContext(theme, layoutInfo, doc, slideNumber, clrMap, backgroundColorHex);
+            return new SlideRenderContext(theme, layoutInfo, doc, slideNumber, clrMap,
+                backgroundColorHex, masterStyles);
         } catch (Exception e) {
             logger.warn("Failed to build slide context: {}", e.getMessage());
             return null;

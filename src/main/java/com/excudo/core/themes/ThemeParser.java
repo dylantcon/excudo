@@ -26,12 +26,14 @@ public class ThemeParser {
     private Map<String, String> colorScheme;
     private Map<String, String> fontScheme;
     private String themeName;
+    private FmtSchemeResolver fmtSchemeResolver;
     
     
     public ThemeParser() {
         this.xpath = XMLFactoryProvider.createXPath();
         this.colorScheme = new HashMap<>();
         this.fontScheme = new HashMap<>();
+        this.fmtSchemeResolver = new FmtSchemeResolver();
     }
     
     /**
@@ -64,6 +66,9 @@ public class ThemeParser {
 
             // Parse font scheme
             parseFontScheme(document);
+
+            // Parse format scheme (fill/line/effect/bg style lists)
+            fmtSchemeResolver.parseFmtScheme(document);
 
             return true;
 
@@ -207,5 +212,9 @@ public class ThemeParser {
      */
     public Map<String, String> getFontScheme() {
         return new HashMap<>(fontScheme);
+    }
+
+    public FmtSchemeResolver getFmtSchemeResolver() {
+        return fmtSchemeResolver;
     }
 }

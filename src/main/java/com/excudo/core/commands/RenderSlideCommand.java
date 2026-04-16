@@ -21,7 +21,8 @@ public class RenderSlideCommand implements Command {
         void render(PPTXDocument doc, int slideNumber, File outputFile,
                     int width, int height, ThemeDefinition theme,
                     java.util.Map<String, String> clrMap,
-                    String backgroundColorHex) throws Exception;
+                    String backgroundColorHex,
+                    java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles) throws Exception;
     }
 
     private final PPTXOrchestrator orchestrator;
@@ -63,8 +64,9 @@ public class RenderSlideCommand implements Command {
 
             java.util.Map<String, String> clrMap = orchestrator.getClrMap();
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
+            var masterStyles = orchestrator.getMasterStyles();
             File output = new File(outputPath);
-            renderFunction.render(doc, slideNumber, output, width, height, theme, clrMap, bgHex);
+            renderFunction.render(doc, slideNumber, output, width, height, theme, clrMap, bgHex, masterStyles);
             executed = true;
         } catch (Exception e) {
             Throwable cause = e;

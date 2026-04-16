@@ -316,8 +316,10 @@ public class SlideEditorController implements Initializable {
 
             java.util.Map<String, String> clrMap = orchestrator.getClrMap();
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
+            var masterStyles = orchestrator.getMasterStyles();
 
-            return new SlideRenderContext(theme, layoutInfo, pptxDoc, slideNumber, clrMap, bgHex);
+            return new SlideRenderContext(theme, layoutInfo, pptxDoc, slideNumber,
+                clrMap, bgHex, masterStyles);
         } catch (Exception e) {
             logger.warn("Failed to build slide render context: {}", e.getMessage());
             return null;

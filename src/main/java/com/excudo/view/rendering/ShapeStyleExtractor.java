@@ -3,6 +3,9 @@ package com.excudo.view.rendering;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.TextRun;
 import com.excudo.core.model.TextColor;
+import com.excudo.core.themes.FmtSchemeResolver;
+import com.excudo.core.themes.ResolvedFill;
+import com.excudo.core.themes.ThemeManager;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
@@ -63,14 +66,27 @@ public final class ShapeStyleExtractor {
             return Color.TRANSPARENT;
         }
 
-        // Check p:style fillRef for scheme color
+        // Check p:style fillRef — resolve through fmtScheme for full gradient/modifier support
         Element pStyle = getChild(spEl, "p:style");
         if (pStyle != null) {
             Element fillRef = getChild(pStyle, "a:fillRef");
-            if (fillRef != null) {
+            if (fillRef != null && slideCtx != null) {
+                int idx = 0;
+                try { idx = Integer.parseInt(fillRef.getAttribute("idx")); }
+                catch (NumberFormatException ignored) {}
+
                 Element schemeClr = getChild(fillRef, "a:schemeClr");
-                if (schemeClr != null && schemeClr.hasAttribute("val") && slideCtx != null) {
-                    Color base = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+                if (schemeClr != null && schemeClr.hasAttribute("val")) {
+                    String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
+
+                    // Use fmtScheme resolver for full fill style lookup
+                    if (idx > 0 && ThemeManager.isThemeLoaded()) {
+                        ResolvedFill resolved = ThemeManager.resolveFillStyle(idx, phColorHex);
+                        return convertToJavaFX(resolved);
+                    }
+
+                    // No fmtScheme — flat scheme color
+                    Color base = colorFromHex(phColorHex);
                     return applyAlpha(base, schemeClr);
                 }
             }
@@ -115,12 +131,29 @@ public final class ShapeStyleExtractor {
         if (solidFill != null) {
             lineColor = parseColorElement(solidFill, slideCtx);
         } else {
-            // Check p:style lnRef for scheme color
+            // Check p:style lnRef — resolve color through fmtScheme
             Element pStyle = getChild(shape.getXmlElement(), "p:style");
             Element lnRef = pStyle != null ? getChild(pStyle, "a:lnRef") : null;
-            Element schemeClr = lnRef != null ? getChild(lnRef, "a:schemeClr") : null;
-            if (schemeClr != null && schemeClr.hasAttribute("val") && slideCtx != null) {
-                lineColor = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+            if (lnRef != null && slideCtx != null) {
+                int idx = 0;
+                try { idx = Integer.parseInt(lnRef.getAttribute("idx")); }
+                catch (NumberFormatException ignored) {}
+
+                Element schemeClr = getChild(lnRef, "a:schemeClr");
+                if (schemeClr != null && schemeClr.hasAttribute("val") && idx > 0
+                        && ThemeManager.isThemeLoaded()) {
+                    String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
+                    FmtSchemeResolver.ResolvedLineStyle resolved =
+                        ThemeManager.resolveLineStyle(idx, phColorHex);
+                    lineColor = colorFromHex(resolved.colorHex());
+                    if (resolved.alpha() < 1.0) {
+                        lineColor = lineColor.deriveColor(0, 1, 1, resolved.alpha());
+                    }
+                } else if (schemeClr != null && schemeClr.hasAttribute("val")) {
+                    lineColor = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+                } else {
+                    lineColor = Color.BLACK;
+                }
             } else {
                 lineColor = Color.BLACK;
             }
@@ -265,6 +298,39 @@ public final class ShapeStyleExtractor {
             } catch (NumberFormatException ignored) {}
         }
         return color;
+    }
+
+    /**
+     * Convert a core ResolvedFill to a JavaFX Paint.
+     */
+    private static Paint convertToJavaFX(ResolvedFill fill) {
+        return switch (fill) {
+            case ResolvedFill.SolidFill solid -> {
+                Color c = colorFromHex(solid.hex());
+                yield solid.alpha() < 1.0 ? c.deriveColor(0, 1, 1, solid.alpha()) : c;
+            }
+            case ResolvedFill.GradientFill grad -> {
+                List<Stop> stops = new ArrayList<>();
+                for (var gs : grad.stops()) {
+                    Color c = colorFromHex(gs.hex());
+                    if (gs.alpha() < 1.0) c = c.deriveColor(0, 1, 1, gs.alpha());
+                    stops.add(new Stop(gs.position(), c));
+                }
+                if (stops.isEmpty()) yield Color.TRANSPARENT;
+                if (stops.size() == 1) yield stops.get(0).getColor();
+                stops.sort(Comparator.comparingDouble(Stop::getOffset));
+
+                double angleRad = Math.toRadians(grad.angleDegrees());
+                double startX = 0.5 - 0.5 * Math.sin(angleRad);
+                double startY = 0.5 - 0.5 * Math.cos(angleRad);
+                double endX = 0.5 + 0.5 * Math.sin(angleRad);
+                double endY = 0.5 + 0.5 * Math.cos(angleRad);
+
+                yield new LinearGradient(startX, startY, endX, endY, true,
+                    CycleMethod.NO_CYCLE, stops);
+            }
+            case ResolvedFill.NoFill ignored -> Color.TRANSPARENT;
+        };
     }
 
     private static Color colorFromHex(String hex) {

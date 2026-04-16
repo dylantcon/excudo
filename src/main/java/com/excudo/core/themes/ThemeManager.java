@@ -98,6 +98,38 @@ public class ThemeManager {
         }
         return defaultTheme.getThemeFont(fontReference);
     }
+
+    /**
+     * Resolve a fill style from the theme's fmtScheme.
+     * @param idx fill reference index (1-3 for fills, 1001-1003 for bg fills)
+     * @param phColorHex resolved scheme color to substitute for phClr
+     */
+    public static ResolvedFill resolveFillStyle(int idx, String phColorHex) {
+        if (defaultTheme == null) {
+            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
+        }
+        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
+        if (!resolver.isParsed()) {
+            throw new IllegalStateException("fmtScheme not parsed from theme.");
+        }
+        return resolver.resolveFillByIndex(idx, phColorHex);
+    }
+
+    /**
+     * Resolve a line style from the theme's fmtScheme.
+     * @param idx line reference index (1-3)
+     * @param phColorHex resolved scheme color to substitute for phClr
+     */
+    public static FmtSchemeResolver.ResolvedLineStyle resolveLineStyle(int idx, String phColorHex) {
+        if (defaultTheme == null) {
+            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
+        }
+        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
+        if (!resolver.isParsed()) {
+            throw new IllegalStateException("fmtScheme not parsed from theme.");
+        }
+        return resolver.resolveLineByIndex(idx, phColorHex);
+    }
     
     /**
      * Get current theme name

@@ -282,18 +282,42 @@ public class SlideMasterOrchestrationManager {
                 Element scheme = findFirstElement(solidFill, ANS, "schemeClr");
                 if (scheme != null && scheme.hasAttribute("val")) {
                     String colorName = scheme.getAttribute("val");
-                    return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(colorName);
+                    Map<String, String> clrMap = getClrMap();
+                    String resolved = clrMap.getOrDefault(colorName, colorName);
+                    return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
                 }
             }
         }
 
-        // Check bgRef > schemeClr (theme fill reference)
+        // Check bgRef (theme fill reference via fmtScheme index)
         Element bgRef = findFirstElement(bg, PNS, "bgRef");
         if (bgRef != null) {
+            int idx = 0;
+            try { idx = Integer.parseInt(bgRef.getAttribute("idx")); }
+            catch (NumberFormatException ignored) {}
+
             Element scheme = findFirstElement(bgRef, ANS, "schemeClr");
             if (scheme != null && scheme.hasAttribute("val")) {
+                // Resolve through clrMap first (bg1->lt1, tx1->dk1, etc.)
                 String colorName = scheme.getAttribute("val");
-                return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(colorName);
+                Map<String, String> clrMap = getClrMap();
+                String resolved = clrMap.getOrDefault(colorName, colorName);
+                String phColorHex = com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
+
+                if (idx > 0 && com.excudo.core.themes.ThemeManager.isThemeLoaded()) {
+                    com.excudo.core.themes.ResolvedFill fill =
+                        com.excudo.core.themes.ThemeManager.resolveFillStyle(idx, phColorHex);
+
+                    if (fill instanceof com.excudo.core.themes.ResolvedFill.SolidFill solid) {
+                        return solid.hex();
+                    }
+                    if (fill instanceof com.excudo.core.themes.ResolvedFill.GradientFill grad
+                            && !grad.stops().isEmpty()) {
+                        return grad.stops().get(0).hex();
+                    }
+                }
+
+                return "#" + phColorHex;
             }
         }
 

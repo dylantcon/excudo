@@ -42,7 +42,10 @@ public class HeadlessSlideRendererTest {
 
         com.excudo.core.themes.ThemeDefinition theme =
             com.excudo.core.themes.ThemeLoader.get("excudo");
-        renderer.renderToFile(doc, 1, output, theme);
+        var clrMap = orchestrator.getClrMap();
+        String bgHex = orchestrator.getBackgroundColorHex(1);
+        var masterStyles = orchestrator.getMasterStyles();
+        renderer.renderToFile(doc, 1, output, theme, clrMap, bgHex, masterStyles);
 
         assertTrue("PNG file should exist", output.exists());
         assertTrue("PNG file should be non-empty", output.length() > 100);
