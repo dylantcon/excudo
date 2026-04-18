@@ -324,8 +324,12 @@ public class SessionManager {
         private final File originalFile;
         private final Path tempDirectory;
 
-        // MCP session exclusivity -- prevents concurrent modification
-        private boolean mcpExclusive = false;
+        // MCP session exclusivity. Holds a reference to the engine that
+        // started the MCP server, or null when no server is live. Identity
+        // comparison lets the owning engine keep mutating while every other
+        // attached console is blocked -- the previous boolean flag blocked
+        // even the owner because it couldn't distinguish them.
+        private Object mcpOwner = null;
         
         /**
          * Create session from existing PPTX file
@@ -409,8 +413,24 @@ public class SessionManager {
         public File getOriginalFile() { return originalFile; }
         public boolean hasOriginalFile() { return originalFile != null; }
 
-        public boolean isMcpExclusive() { return mcpExclusive; }
-        public void setMcpExclusive(boolean exclusive) { this.mcpExclusive = exclusive; }
+        /** True while an MCP server is claiming exclusivity on this session. */
+        public boolean isMcpExclusive() { return mcpOwner != null; }
+
+        /** Claim exclusivity for the given owner (typically a console engine). */
+        public void setMcpOwner(Object owner) { this.mcpOwner = owner; }
+
+        /** Release exclusivity. Safe to call when no owner is set. */
+        public void clearMcpOwner() { this.mcpOwner = null; }
+
+        /**
+         * True iff the candidate is the exact owner (identity comparison).
+         * An unowned session is owned by nobody -- {@code isOwnedBy(null)}
+         * on an unowned session returns false, not true from a
+         * {@code null == null} accident.
+         */
+        public boolean isOwnedBy(Object candidate) {
+            return mcpOwner != null && mcpOwner == candidate;
+        }
         
         /**
          * Get presentation metadata without expensive operations

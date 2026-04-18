@@ -399,6 +399,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                 new com.excudo.mcp.MCPProtocolHandler(dispatcher);
 
             activeMcpTransport = transport;
+            claimSessionOwnership();
 
             Thread serverThread = new Thread(() -> {
                 try {
@@ -424,8 +425,28 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         if (activeMcpTransport == null) return;
         com.excudo.mcp.MCPHttpSseTransport t = activeMcpTransport;
         activeMcpTransport = null;
+        releaseSessionOwnership();
         t.stop();
         displaySuccess("MCP server stopped.");
+    }
+
+    /**
+     * Claim MCP exclusivity on the current session. Called from
+     * {@link #startMCPHttpServer} so other consoles attached to the same
+     * file can see the session is owned and refuse to mutate it. No-op
+     * when there is no active session.
+     */
+    protected void claimSessionOwnership() {
+        if (currentSessionId == null || sessionManager == null) return;
+        sessionManager.getSession(currentSessionId)
+            .ifPresent(s -> s.setMcpOwner(this));
+    }
+
+    /** Release MCP exclusivity on the current session. No-op when unowned. */
+    protected void releaseSessionOwnership() {
+        if (currentSessionId == null || sessionManager == null) return;
+        sessionManager.getSession(currentSessionId)
+            .ifPresent(SessionManager.ManagedSession::clearMcpOwner);
     }
 
     /**
@@ -478,11 +499,13 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                     return;
                 }
 
-                // MCP exclusivity: non-MCP consoles cannot modify MCP-owned sessions
+                // MCP exclusivity: only the engine that started the MCP
+                // server can mutate its session. Other consoles attached
+                // to the same file get a read-only error.
                 Optional<SessionManager.ManagedSession> sessionOpt =
                     sessionManager.getSession(currentSessionId);
                 if (sessionOpt.isPresent() && sessionOpt.get().isMcpExclusive()
-                        && !(this instanceof MCPConsoleEngine)) {
+                        && !sessionOpt.get().isOwnedBy(this)) {
                     displayError("Session is owned by MCP client (read-only). Cannot execute commands.");
                     return;
                 }
