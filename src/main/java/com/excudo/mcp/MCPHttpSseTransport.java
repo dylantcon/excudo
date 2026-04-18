@@ -60,6 +60,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
 
     private HttpServer server;
     private Function<JsonObject, JsonObject> handler;
+    private MCPFrameListener frameListener = MCPFrameListener.NO_OP;
 
     public MCPHttpSseTransport() {
         this("127.0.0.1", 0);
@@ -96,6 +97,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
         this.handler = handler;
         server.start();
         logger.info("MCP HTTP/SSE transport listening on {}", getUrl());
+        frameListener.onLifecycle("MCP HTTP server listening on " + getUrl());
         try {
             stopLatch.await();
         } catch (InterruptedException e) {
@@ -105,7 +107,17 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
             for (SseSubscriber sub : sseSubscribers) sub.close();
             sseSubscribers.clear();
             logger.info("MCP HTTP/SSE transport stopped");
+            frameListener.onLifecycle("MCP HTTP server stopped");
         }
+    }
+
+    /**
+     * Attach a listener to observe inbound/outbound frames, errors, and
+     * lifecycle events. Passing null restores the no-op listener. Safe to
+     * call before or after {@link #serve}.
+     */
+    public void setFrameListener(MCPFrameListener listener) {
+        this.frameListener = (listener == null) ? MCPFrameListener.NO_OP : listener;
     }
 
     @Override
@@ -170,10 +182,13 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
                 try {
                     request = JsonParser.parseString(body).getAsJsonObject();
                 } catch (JsonSyntaxException e) {
+                    frameListener.onError("Parse error: " + e.getMessage());
                     sendJson(ex, 400, JsonRpcFrames.error(null,
                         JsonRpcFrames.PARSE_ERROR, "Parse error: " + e.getMessage()));
                     return;
                 }
+
+                frameListener.onInbound(request);
 
                 JsonObject response;
                 synchronized (handlerLock) {
@@ -185,10 +200,12 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
                     ex.sendResponseHeaders(204, -1);
                     ex.close();
                 } else {
+                    frameListener.onOutbound(response);
                     sendJson(ex, 200, response);
                 }
             } catch (Exception e) {
                 logger.error("HTTP handler error: {}", e.getMessage());
+                frameListener.onError("Internal error: " + e.getMessage());
                 try {
                     sendJson(ex, 500, JsonRpcFrames.error(null,
                         JsonRpcFrames.INTERNAL_ERROR, "Internal error: " + e.getMessage()));
@@ -213,6 +230,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
 
             SseSubscriber sub = new SseSubscriber(ex.getResponseBody());
             sseSubscribers.add(sub);
+            frameListener.onLifecycle("SSE client connected");
             // Push an initial comment so the client sees the stream has opened.
             sub.push(": connected\n\n".getBytes(StandardCharsets.UTF_8));
 
@@ -222,6 +240,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
                 Thread.currentThread().interrupt();
             } finally {
                 sseSubscribers.remove(sub);
+                frameListener.onLifecycle("SSE client disconnected");
                 try { ex.close(); } catch (Exception ignored) {}
             }
         }
