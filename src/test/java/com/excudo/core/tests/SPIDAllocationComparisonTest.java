@@ -12,9 +12,11 @@ import org.junit.BeforeClass;
 import static org.junit.Assert.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
 
 /**
  * Test to verify the fix for SPID allocation:
@@ -22,24 +24,25 @@ import java.nio.file.StandardCopyOption;
  * - After fix: Slide 5 (no title) should get SPID 3-10 from universal content pattern
  */
 public class SPIDAllocationComparisonTest {
-    
+
     private PPTXOrchestratorImpl orchestrator;
     private File testFile;
-    
+    private Path tempDir;
+
     @BeforeClass
     public static void setupClass() {
         System.setProperty("junit.test.mode", "true");
         System.setProperty("javafx.headless", "true");
     }
-    
+
     @Before
     public void setup() throws Exception {
         orchestrator = new PPTXOrchestratorImpl();
-        
+
         // Create a minimal test presentation
-        Path tempDir = Files.createTempDirectory("spid_comparison_test");
+        tempDir = Files.createTempDirectory("spid_comparison_test");
         testFile = new File(tempDir.toFile(), "test.pptx");
-        
+
         // Copy from existing file
         File sourceFile = new File("test-pptx-samples/generalist_test_file.pptx");
         if (!sourceFile.exists()) {
@@ -47,15 +50,23 @@ public class SPIDAllocationComparisonTest {
         }
         Files.copy(sourceFile.toPath(), testFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
     }
-    
+
     @After
     public void tearDown() {
         if (orchestrator != null) {
             orchestrator.close();
         }
-        if (testFile != null && testFile.exists()) {
-            testFile.delete();
-        }
+        deleteRecursive(tempDir);
+    }
+
+    private static void deleteRecursive(Path root) {
+        if (root == null) return;
+        try {
+            if (!Files.exists(root)) return;
+            Files.walk(root)
+                .sorted(Comparator.reverseOrder())
+                .forEach(p -> { try { Files.delete(p); } catch (IOException ignored) {} });
+        } catch (IOException ignored) {}
     }
     
     @Test

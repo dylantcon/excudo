@@ -42,11 +42,30 @@ public class PresentationScaffolderTest {
     @Test
     public void scaffoldToDirectoryCreatesValidStructure() throws Exception {
         File result = PresentationScaffolder.scaffold("minimal");
-        assertNotNull(result);
-        assertTrue("Directory should exist", result.exists());
-        assertTrue("Should be a directory", result.isDirectory());
-        assertTrue("Should contain presentation.xml",
-            new File(result, "ppt/presentation.xml").exists());
+        // scaffold() creates pptx_scaffold_<n>/extracted/ and returns the
+        // inner dir; clean up the whole temp root when we're done.
+        File tempRoot = result.getParentFile();
+        try {
+            assertNotNull(result);
+            assertTrue("Directory should exist", result.exists());
+            assertTrue("Should be a directory", result.isDirectory());
+            assertTrue("Should contain presentation.xml",
+                new File(result, "ppt/presentation.xml").exists());
+        } finally {
+            deleteRecursive(tempRoot);
+        }
+    }
+
+    private static void deleteRecursive(File root) {
+        if (root == null || !root.exists()) return;
+        try {
+            java.nio.file.Files.walk(root.toPath())
+                .sorted(java.util.Comparator.reverseOrder())
+                .forEach(p -> {
+                    try { java.nio.file.Files.delete(p); }
+                    catch (java.io.IOException ignored) {}
+                });
+        } catch (java.io.IOException ignored) {}
     }
 
     @Test

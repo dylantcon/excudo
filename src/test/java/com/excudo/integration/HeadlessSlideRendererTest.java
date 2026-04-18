@@ -26,31 +26,36 @@ public class HeadlessSlideRendererTest {
 
         // Render slide 1
         HeadlessSlideRenderer renderer = new HeadlessSlideRenderer(1280, 720);
-        File output = new File("/tmp/excudo-render-test.png");
+        File output = File.createTempFile("excudo-render-test", ".png");
+        output.deleteOnExit();
 
-        // Edit content with nested bullets to test level differentiation
-        orchestrator.editShapeText(1, 3,
-            "- First bullet point with enough text to test word wrapping behavior across the placeholder width\n"
-            + "- Second bullet point\n"
-            + "  - Nested level 1 bullet\n"
-            + "  - Another nested bullet\n"
-            + "    - Deep nested level 2\n"
-            + "- Third bullet point");
+        try {
+            // Edit content with nested bullets to test level differentiation
+            orchestrator.editShapeText(1, 3,
+                "- First bullet point with enough text to test word wrapping behavior across the placeholder width\n"
+                + "- Second bullet point\n"
+                + "  - Nested level 1 bullet\n"
+                + "  - Another nested bullet\n"
+                + "    - Deep nested level 2\n"
+                + "- Third bullet point");
 
-        // Re-get doc after edits
-        doc = orchestrator.getContext().get().getDocument();
+            // Re-get doc after edits
+            doc = orchestrator.getContext().get().getDocument();
 
-        com.excudo.core.themes.ThemeDefinition theme =
-            com.excudo.core.themes.ThemeLoader.get("excudo");
-        var clrMap = orchestrator.getClrMap();
-        String bgHex = orchestrator.getBackgroundColorHex(1);
-        var masterStyles = orchestrator.getMasterStyles();
-        renderer.renderToFile(doc, 1, output, theme, clrMap, bgHex, masterStyles);
+            com.excudo.core.themes.ThemeDefinition theme =
+                com.excudo.core.themes.ThemeLoader.get("excudo");
+            var clrMap = orchestrator.getClrMap();
+            String bgHex = orchestrator.getBackgroundColorHex(1);
+            var masterStyles = orchestrator.getMasterStyles();
+            renderer.renderToFile(doc, 1, output, theme, clrMap, bgHex, masterStyles);
 
-        assertTrue("PNG file should exist", output.exists());
-        assertTrue("PNG file should be non-empty", output.length() > 100);
+            assertTrue("PNG file should exist", output.exists());
+            assertTrue("PNG file should be non-empty", output.length() > 100);
 
-        System.out.println("Rendered slide to: " + output.getAbsolutePath()
-            + " (" + output.length() + " bytes)");
+            System.out.println("Rendered slide to: " + output.getAbsolutePath()
+                + " (" + output.length() + " bytes)");
+        } finally {
+            output.delete();
+        }
     }
 }
