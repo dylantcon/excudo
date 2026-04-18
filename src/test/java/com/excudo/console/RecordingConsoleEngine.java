@@ -20,6 +20,8 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
     public final List<String> arrangeInputs = new ArrayList<>();
     public int enterArrangeCalls = 0;
     public int exitArrangeCalls = 0;
+    public int startMcpCalls = 0;
+    public int stopMcpCalls = 0;
 
     public record Entry(String message, ConsoleStyle style) {}
 
@@ -53,6 +55,31 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         this.arrangeMode = false;
     }
 
+    @Override
+    public void startMCPHttpServer() {
+        startMcpCalls++;
+        // Bind (allocates an ephemeral port, registers contexts) but do NOT
+        // call serve() -- no accept loop starts. getUrl()/getPort()/getToken()
+        // become valid so dispatcher tests that exercise /status don't hit
+        // the unbound-transport guard. stopMCPHttpServer() releases the port.
+        try {
+            com.excudo.mcp.MCPHttpSseTransport t = new com.excudo.mcp.MCPHttpSseTransport();
+            t.bind();
+            this.activeMcpTransport = t;
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to bind stub MCP transport in test", e);
+        }
+    }
+
+    @Override
+    public void stopMCPHttpServer() {
+        stopMcpCalls++;
+        if (activeMcpTransport != null) {
+            activeMcpTransport.stop(); // releases the bound port
+            activeMcpTransport = null;
+        }
+    }
+
     // ========== Inspection helpers ==========
 
     public void clearRecordings() {
@@ -60,6 +87,8 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         arrangeInputs.clear();
         enterArrangeCalls = 0;
         exitArrangeCalls = 0;
+        startMcpCalls = 0;
+        stopMcpCalls = 0;
     }
 
     public Entry last() {

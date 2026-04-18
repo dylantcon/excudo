@@ -61,6 +61,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
     private HttpServer server;
     private Function<JsonObject, JsonObject> handler;
     private MCPFrameListener frameListener = MCPFrameListener.NO_OP;
+    private volatile boolean started = false;
 
     public MCPHttpSseTransport() {
         this("127.0.0.1", 0);
@@ -95,6 +96,7 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
     public void serve(Function<JsonObject, JsonObject> handler) throws IOException {
         if (server == null) bind();
         this.handler = handler;
+        started = true;
         server.start();
         logger.info("MCP HTTP/SSE transport listening on {}", getUrl());
         frameListener.onLifecycle("MCP HTTP server listening on " + getUrl());
@@ -123,6 +125,15 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
     @Override
     public void stop() {
         stopLatch.countDown();
+        // If serve() is blocking on the latch, it will unblock and call
+        // server.stop(0) itself. But if stop() is called without serve()
+        // ever running (e.g., from a test that bound but never served),
+        // the socket is still held; release it here.
+        HttpServer s = this.server;
+        if (s != null && !started) {
+            try { s.stop(0); } catch (Exception ignored) {}
+            this.server = null;
+        }
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.excudo.console;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,6 +24,13 @@ public class AbstractConsoleEngineTest {
     @Before
     public void setUp() {
         engine = new RecordingConsoleEngine();
+    }
+
+    @After
+    public void tearDown() {
+        // Release the bound stub port in case the test didn't go through
+        // a /exit path. Safe to call when no server is running.
+        if (engine != null) engine.stopMCPHttpServer();
     }
 
     // ========== "arrange" command ==========
@@ -132,5 +140,130 @@ public class AbstractConsoleEngineTest {
         assertEquals("first request", engine.arrangeInputs.get(0));
         assertEquals("second request", engine.arrangeInputs.get(1));
         assertEquals("third request", engine.arrangeInputs.get(2));
+    }
+
+    // ========== "arrange mcp" subcommand ==========
+
+    @Test
+    public void arrangeMcpSubcommandStartsMcpServer() {
+        engine.executeCommand("arrange mcp");
+        assertEquals(1, engine.startMcpCalls);
+        assertTrue("should be in MCP mode", engine.isMcpMode());
+    }
+
+    @Test
+    public void arrangeMcpIsCaseInsensitive() {
+        engine.executeCommand("ARRANGE MCP");
+        assertEquals(1, engine.startMcpCalls);
+    }
+
+    @Test
+    public void arrangeMcpToleratesSurroundingWhitespace() {
+        engine.executeCommand("   arrange mcp   ");
+        assertEquals(1, engine.startMcpCalls);
+    }
+
+    @Test
+    public void arrangeMcpDoesNotEnterArrangeMode() {
+        engine.executeCommand("arrange mcp");
+        assertFalse("arrange mcp is a separate mode from arrange",
+            engine.isArrangeMode());
+        assertEquals(0, engine.enterArrangeCalls);
+    }
+
+    @Test
+    public void bareArrangeDoesNotStartMcpServer() {
+        engine.executeCommand("arrange");
+        assertEquals(0, engine.startMcpCalls);
+        assertEquals(1, engine.enterArrangeCalls);
+    }
+
+    // ========== MCP mode input dispatch ==========
+
+    @Test
+    public void slashExitInMcpModeStopsServer() {
+        engine.startMCPHttpServer();
+        assertTrue(engine.isMcpMode());
+
+        engine.executeCommand("/exit");
+
+        assertFalse("should have exited MCP mode", engine.isMcpMode());
+        assertEquals(1, engine.stopMcpCalls);
+    }
+
+    @Test
+    public void slashStopInMcpModeIsAliasForExit() {
+        engine.startMCPHttpServer();
+        engine.executeCommand("/stop");
+        assertFalse(engine.isMcpMode());
+        assertEquals(1, engine.stopMcpCalls);
+    }
+
+    @Test
+    public void slashStatusInMcpModeEmitsHeader() {
+        engine.startMCPHttpServer();
+        engine.clearRecordings();
+
+        engine.executeCommand("/status");
+
+        assertTrue("status should emit at least one HEADER-styled line",
+            engine.entries.stream().anyMatch(e -> e.style() == ConsoleStyle.HEADER));
+        assertTrue("should still be in MCP mode after /status",
+            engine.isMcpMode());
+    }
+
+    @Test
+    public void unknownCommandInMcpModeProducesErrorAndKeepsServerRunning() {
+        engine.startMCPHttpServer();
+        engine.clearRecordings();
+
+        engine.executeCommand("load something.pptx");
+
+        assertTrue("unknown input during MCP mode should produce an error",
+            engine.entries.stream().anyMatch(e -> e.style() == ConsoleStyle.ERROR));
+        assertTrue("server must keep running", engine.isMcpMode());
+        assertEquals("stop must not be triggered by unknown input",
+            0, engine.stopMcpCalls);
+    }
+
+    @Test
+    public void rawTextInMcpModeIsRejectedAndDoesNotReachArrangeHandler() {
+        engine.startMCPHttpServer();
+        engine.clearRecordings();
+
+        engine.executeCommand("make slide 1 blue");
+
+        assertEquals("arrange handler must not see input while MCP server is live",
+            0, engine.arrangeInputs.size());
+        assertTrue(engine.entries.stream().anyMatch(e -> e.style() == ConsoleStyle.ERROR));
+    }
+
+    @Test
+    public void mcpModeOutranksArrangeMode() {
+        // If both happened to be true (shouldn't in practice, but the dispatcher
+        // check order determines the priority), MCP mode must win because the
+        // server is actively serving and leaving it silently would strand clients.
+        engine.enterArrangeMode();
+        engine.startMCPHttpServer();
+        engine.clearRecordings();
+
+        engine.executeCommand("random input");
+
+        // Should be routed through MCP handler (produces ERROR), not arrange handler
+        assertEquals(0, engine.arrangeInputs.size());
+        assertTrue(engine.entries.stream().anyMatch(e -> e.style() == ConsoleStyle.ERROR));
+    }
+
+    @Test
+    public void afterStopServerNormalDispatchResumes() {
+        engine.startMCPHttpServer();
+        engine.executeCommand("/exit");
+        engine.clearRecordings();
+        assertFalse(engine.isMcpMode());
+
+        // Bare arrange should now work again
+        engine.executeCommand("arrange");
+        assertTrue(engine.isArrangeMode());
+        assertEquals(1, engine.enterArrangeCalls);
     }
 }

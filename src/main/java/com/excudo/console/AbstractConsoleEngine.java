@@ -95,6 +95,11 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
 
     // Arrange mode state
     protected boolean arrangeMode = false;
+
+    // MCP server mode state. Null when not serving; holds the live
+    // transport reference while a server is running so /exit can stop it
+    // and isMcpMode() reports truthfully.
+    protected com.excudo.mcp.MCPHttpSseTransport activeMcpTransport;
     
     /**
      * Get the CommandInvoker for the current session.
@@ -309,6 +314,13 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     
     @Override
     public void executeCommand(String commandString) {
+        // MCP server mode: the HTTP server is driving tool calls; the TTY
+        // only accepts server control commands until /exit stops it.
+        if (isMcpMode()) {
+            handleMcpModeInput(commandString);
+            return;
+        }
+
         // Arrange mode intercept: raw text goes to LLM, /commands go to normal pipeline
         if (arrangeMode) {
             if (commandString.equals("/exit")) {
@@ -326,13 +338,123 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             return;
         }
 
-        // Handle "arrange" command to enter arrange mode
-        if (commandString.trim().equalsIgnoreCase("arrange")) {
+        String trimmed = commandString.trim();
+
+        // Handle "arrange mcp" subcommand to start an in-process MCP HTTP server.
+        // Check BEFORE bare "arrange" so the longer match wins.
+        if (trimmed.equalsIgnoreCase("arrange mcp")) {
+            startMCPHttpServer();
+            return;
+        }
+
+        // Handle bare "arrange" command to enter arrange mode
+        if (trimmed.equalsIgnoreCase("arrange")) {
             enterArrangeMode();
             return;
         }
 
         executeCommandNormal(commandString);
+    }
+
+    // ========== MCP server mode ==========
+
+    /** True while an in-process MCP HTTP server is running. */
+    public boolean isMcpMode() {
+        return activeMcpTransport != null;
+    }
+
+    /**
+     * Start an in-process MCP HTTP/SSE server on 127.0.0.1:ephemeral
+     * wired to the current session's orchestrator. Returns immediately
+     * after the server is listening; the transport runs on a daemon
+     * thread so the console stays responsive. Use /exit, /stop, or
+     * {@link #stopMCPHttpServer()} to stop it.
+     */
+    public void startMCPHttpServer() {
+        if (activeMcpTransport != null) {
+            displayError("MCP server already running at " + activeMcpTransport.getUrl()
+                + ". Use /exit to stop it first.");
+            return;
+        }
+
+        com.excudo.core.orchestration.PPTXOrchestrator orch = getCurrentSessionOrchestrator();
+        if (orch == null) orch = this.orchestrator;
+        if (orch == null) {
+            displayError("MCP server needs an orchestrator. Load a file or create a session first.");
+            return;
+        }
+
+        try {
+            com.excudo.mcp.MCPHttpSseTransport transport = new com.excudo.mcp.MCPHttpSseTransport();
+            transport.bind(); // allocate port + register contexts
+            transport.setFrameListener(new com.excudo.mcp.MCPTTYEchoFormatter(this::displayStyled));
+
+            CommandInvoker invoker = getCurrentCommandInvoker();
+            if (invoker == null) invoker = new CommandInvoker();
+            com.excudo.core.llm.ToolDispatcher dispatcher =
+                new com.excudo.core.llm.ToolDispatcher(orch, new CommandFactory(orch), invoker);
+            dispatcher.setDisplayAdapter(this);
+
+            com.excudo.mcp.MCPProtocolHandler handler =
+                new com.excudo.mcp.MCPProtocolHandler(dispatcher);
+
+            activeMcpTransport = transport;
+
+            Thread serverThread = new Thread(() -> {
+                try {
+                    transport.serve(handler::handleRequest);
+                } catch (Exception e) {
+                    displayError("MCP server error: " + e.getMessage());
+                }
+            }, "mcp-server");
+            serverThread.setDaemon(true);
+            serverThread.start();
+
+            displaySuccess("MCP server listening at " + transport.getUrl());
+            displayMessage("  /exit or /stop  - stop the server and return to the console");
+            displayMessage("  /status         - show current endpoint and token");
+        } catch (Exception e) {
+            activeMcpTransport = null;
+            displayError("Failed to start MCP server: " + e.getMessage());
+        }
+    }
+
+    /** Stop the running MCP server, if any. Safe to call when no server is running. */
+    public void stopMCPHttpServer() {
+        if (activeMcpTransport == null) return;
+        com.excudo.mcp.MCPHttpSseTransport t = activeMcpTransport;
+        activeMcpTransport = null;
+        t.stop();
+        displaySuccess("MCP server stopped.");
+    }
+
+    /**
+     * Handle a line typed at the TTY while the MCP server is running.
+     * Only server-control commands are accepted; anything else is
+     * rejected so the user can't accidentally mutate the session out
+     * from under the connected MCP client.
+     */
+    private void handleMcpModeInput(String input) {
+        String trimmed = input.trim();
+        if ("/exit".equalsIgnoreCase(trimmed) || "/stop".equalsIgnoreCase(trimmed)) {
+            stopMCPHttpServer();
+            return;
+        }
+        if ("/status".equalsIgnoreCase(trimmed)) {
+            showMcpStatus();
+            return;
+        }
+        displayError("MCP server is running. Only /exit, /stop, and /status are accepted here. "
+            + "(Got: " + trimmed + ")");
+    }
+
+    private void showMcpStatus() {
+        if (activeMcpTransport == null) {
+            displayMessage("No MCP server running.");
+            return;
+        }
+        displayStyled("MCP server: " + activeMcpTransport.getUrl(), ConsoleStyle.HEADER);
+        displayMessage("Token prefix: " + activeMcpTransport.getToken().substring(0, 8) + "...");
     }
 
     private void executeCommandNormal(String commandString) {
