@@ -102,7 +102,7 @@ class PCBuilder:
             ("mermaid parser", "src/main/java/com/excudo/core/mermaid/parser/*.java src/main/java/com/excudo/core/mermaid/parser/flowchart/*.java src/main/java/com/excudo/core/mermaid/parser/sequence/*.java"),
             ("mermaid layout", "src/main/java/com/excudo/core/mermaid/layout/*.java src/main/java/com/excudo/core/mermaid/layout/flowchart/*.java src/main/java/com/excudo/core/mermaid/layout/common/*.java src/main/java/com/excudo/core/mermaid/layout/sequence/*.java"),
             ("mermaid emitter", "src/main/java/com/excudo/core/mermaid/emitter/*.java"),
-            ("application core", "src/main/java/com/excudo/core/inspection/*.java src/main/java/com/excudo/core/orchestration/*.java src/main/java/com/excudo/core/commands/*.java src/main/java/com/excudo/core/llm/*.java src/main/java/com/excudo/console/*.java src/main/java/com/excudo/console/utils/*.java src/main/java/com/excudo/cli/*.java"),
+            ("application core", "src/main/java/com/excudo/core/inspection/*.java src/main/java/com/excudo/core/orchestration/*.java src/main/java/com/excudo/core/commands/*.java src/main/java/com/excudo/core/llm/*.java src/main/java/com/excudo/mcp/*.java src/main/java/com/excudo/console/*.java src/main/java/com/excudo/console/utils/*.java src/main/java/com/excudo/cli/*.java"),
         ]
         
         classpath = self.env.get_classpath()
