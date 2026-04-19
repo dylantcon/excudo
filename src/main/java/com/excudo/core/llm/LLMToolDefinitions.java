@@ -52,8 +52,18 @@ public class LLMToolDefinitions {
         ));
 
         tools.add(new ToolDefinition(
+            "list_commands",
+            "One-line summary of every command usable via execute_commands. "
+            + "Cheap discovery -- pair with get_command_schemas for full parameter drill-down "
+            + "on the 2-3 commands you actually need.",
+            "{\"type\":\"object\",\"properties\":{},\"required\":[]}"
+        ));
+
+        tools.add(new ToolDefinition(
             "get_command_schemas",
-            "Get full parameter reference for execute_commands. Call before building commands.",
+            "Full parameter reference for one or more execute_commands command types. "
+            + "When a name doesn't exist the response includes fuzzy suggestions. "
+            + "Call list_commands first for discovery; use this for drill-down.",
             "{\"type\":\"object\",\"properties\":{\"commands\":{\"description\":\"Command name(s) to look up. String, array, or omit for all.\"}},\"required\":[]}"
         ));
 
@@ -125,8 +135,17 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "render_slide",
-            "Render a slide to PNG image for visual inspection. Returns file path.",
-            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"},\"width\":{\"type\":\"integer\"},\"height\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
+            "Render a slide to PNG. Pass 'output' to control where the file is written "
+            + "(useful when running over MCP where the server's temp dir is invisible to the "
+            + "client). If omitted, writes to a server-local temp file. Returns the absolute "
+            + "path written.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumber\":{\"type\":\"integer\"},"
+            + "\"width\":{\"type\":\"integer\"},"
+            + "\"height\":{\"type\":\"integer\"},"
+            + "\"output\":{\"type\":\"string\",\"description\":"
+            + "\"Optional absolute path for the PNG. Server falls back to a temp file if omitted.\"}"
+            + "},\"required\":[\"slideNumber\"]}"
         ));
 
         tools.add(new ToolDefinition(

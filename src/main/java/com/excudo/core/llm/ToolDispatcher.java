@@ -86,6 +86,7 @@ public class ToolDispatcher {
                 case "get_slide_shapes"          -> handleGetSlideShapes(toolInput);
                 case "get_shape_detail"          -> handleGetShapeDetail(toolInput);
                 case "get_available_layouts"     -> handleGetAvailableLayouts();
+                case "list_commands"             -> handleListCommands(toolInput);
                 case "get_command_schemas"      -> handleGetCommandSchemas(toolInput);
                 case "get_slide_animations"      -> handleGetSlideAnimations(toolInput);
                 case "execute_commands"          -> handleExecuteCommands(toolInput);
@@ -275,6 +276,39 @@ public class ToolDispatcher {
         }
     }
 
+    /**
+     * Return a one-line summary of every LLM-enabled command. Cheap
+     * alternative to get_command_schemas for discovery -- the agent can
+     * scan the list, pick the 2-3 it needs, then fetch full parameters
+     * via get_command_schemas.
+     */
+    private String handleListCommands(String toolInput) {
+        // Dedup via identity -- a single CommandSchema may be registered
+        // under multiple keys (e.g. "load" and "open" share one schema).
+        java.util.Set<com.excudo.core.parsing.CommandSchema> seen =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<com.excudo.core.parsing.CommandSchema> schemas = new ArrayList<>();
+        for (com.excudo.core.parsing.CommandSchema s
+                : com.excudo.core.parsing.CommandRegistry.getAllSchemas().values()) {
+            if (seen.add(s)) schemas.add(s);
+        }
+        schemas.sort(java.util.Comparator.comparing(com.excudo.core.parsing.CommandSchema::getName));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("AVAILABLE COMMANDS (use with execute_commands, then get_command_schemas for parameters):\n\n");
+        int count = 0;
+        for (com.excudo.core.parsing.CommandSchema schema : schemas) {
+            if (!schema.isLlmEnabled()) continue;
+            count++;
+            sb.append(schema.getName())
+              .append(" — ")
+              .append(schema.getDescription() == null ? "" : schema.getDescription())
+              .append('\n');
+        }
+        sb.append('\n').append(count).append(" commands total.\n");
+        return sb.toString();
+    }
+
     private String handleGetCommandSchemas(String toolInput) {
         try {
             // Check if specific commands were requested (string, array, or omitted)
@@ -297,13 +331,22 @@ public class ToolDispatcher {
             StringBuilder sb = new StringBuilder();
             sb.append("COMMAND REFERENCE (use with execute_commands):\n\n");
 
-            List<com.excudo.core.parsing.CommandSchema> schemas =
-                new ArrayList<>(com.excudo.core.parsing.CommandRegistry.getAllSchemas().values());
+            // Dedup same as list_commands (see there for reasoning).
+            java.util.Set<com.excudo.core.parsing.CommandSchema> seenSchemas =
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            List<com.excudo.core.parsing.CommandSchema> schemas = new ArrayList<>();
+            for (com.excudo.core.parsing.CommandSchema s
+                    : com.excudo.core.parsing.CommandRegistry.getAllSchemas().values()) {
+                if (seenSchemas.add(s)) schemas.add(s);
+            }
             schemas.sort(java.util.Comparator.comparing(com.excudo.core.parsing.CommandSchema::getName));
+
+            Set<String> matched = new java.util.LinkedHashSet<>();
 
             for (com.excudo.core.parsing.CommandSchema schema : schemas) {
                 if (!schema.isLlmEnabled()) continue;
                 if (requested != null && !requested.contains(schema.getName())) continue;
+                matched.add(schema.getName());
 
                 sb.append(schema.getName()).append(":\n");
                 for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
@@ -325,6 +368,30 @@ public class ToolDispatcher {
                     sb.append("  NOTE: ").append(llmDesc).append("\n");
                 }
                 sb.append("\n");
+            }
+
+            // If the caller asked for specific names and any didn't match,
+            // suggest fuzzy alternatives instead of returning an empty result.
+            if (requested != null) {
+                Set<String> unmatched = new java.util.LinkedHashSet<>(requested);
+                unmatched.removeAll(matched);
+                if (!unmatched.isEmpty()) {
+                    List<String> allLlmNames = schemas.stream()
+                        .filter(com.excudo.core.parsing.CommandSchema::isLlmEnabled)
+                        .map(com.excudo.core.parsing.CommandSchema::getName)
+                        .toList();
+                    sb.append("\nNo commands matched: ")
+                      .append(String.join(", ", unmatched)).append("\n");
+                    for (String name : unmatched) {
+                        List<String> suggestions =
+                            com.excudo.utils.FuzzyMatcher.findTopMatches(name, allLlmNames, 3, 4);
+                        if (!suggestions.isEmpty()) {
+                            sb.append("  Did you mean for '").append(name).append("': ")
+                              .append(String.join(", ", suggestions)).append("?\n");
+                        }
+                    }
+                    sb.append("Call list_commands to see all available commands.\n");
+                }
             }
 
             return sb.toString();
@@ -779,6 +846,7 @@ public class ToolDispatcher {
             int slideNumber = JsonHelper.getInt(input, "slideNumber", 1);
             int width = JsonHelper.getInt(input, "width", 1280);
             int height = JsonHelper.getInt(input, "height", 720);
+            String outputArg = JsonHelper.getString(input, "output");
 
             var context = orchestrator.getContext()
                 .orElseThrow(() -> new IllegalStateException("No presentation loaded"));
@@ -791,7 +859,18 @@ public class ToolDispatcher {
                 try { theme = com.excudo.core.themes.ThemeLoader.get(themeId); } catch (Exception ignored) {}
             }
 
-            java.io.File outputFile = java.io.File.createTempFile("render-slide" + slideNumber + "-", ".png");
+            // Use the caller's path if provided, otherwise fall back to a temp file.
+            // Over MCP the server's temp dir is often invisible to the client, so
+            // a caller-specified path is the usual mode.
+            java.io.File outputFile;
+            if (outputArg != null && !outputArg.isBlank()) {
+                outputFile = new java.io.File(outputArg);
+                if (outputFile.getParentFile() != null) {
+                    outputFile.getParentFile().mkdirs();
+                }
+            } else {
+                outputFile = java.io.File.createTempFile("render-slide" + slideNumber + "-", ".png");
+            }
 
             com.excudo.core.commands.RenderSlideCommand.SlideRenderFunction renderFn =
                 com.excudo.core.commands.UtilityCommandFactory.getSlideRenderFunction();

@@ -1,6 +1,9 @@
 package com.excudo.utils;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Levenshtein distance-based fuzzy string matching utility.
@@ -71,5 +74,31 @@ public final class FuzzyMatcher {
         }
 
         return closest;
+    }
+
+    /**
+     * Find the top-N closest matches from a collection. Useful for
+     * "did you mean?" suggestions where a single match is too narrow.
+     * Returns matches sorted by edit distance ascending, with at most
+     * {@code limit} entries and none above {@code maxDistance}.
+     */
+    public static List<String> findTopMatches(
+            String input, Collection<String> candidates, int limit, int maxDistance) {
+        if (input == null || candidates == null) return List.of();
+
+        record Scored(String candidate, int distance) {}
+        List<Scored> scored = new ArrayList<>();
+        for (String candidate : candidates) {
+            int d = editDistance(input, candidate);
+            if (d <= maxDistance) scored.add(new Scored(candidate, d));
+        }
+        scored.sort(Comparator.comparingInt(Scored::distance));
+
+        List<String> out = new ArrayList<>(Math.min(limit, scored.size()));
+        for (Scored s : scored) {
+            if (out.size() >= limit) break;
+            out.add(s.candidate());
+        }
+        return out;
     }
 }

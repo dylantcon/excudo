@@ -353,7 +353,11 @@ public class CommandRegistry {
      */
     private static void registerLoadCommand() {
         CommandSchema schema = CommandSchema.builder("load")
-            .description("Load a PowerPoint presentation")
+            .description("Load an existing PowerPoint presentation from disk")
+            .llmEnabled(true)
+            .llmDescription("DESTRUCTIVE: replaces the current in-memory presentation "
+                + "with the file at the given path. Any unsaved work is lost. Use when "
+                + "asked to edit an existing deck rather than create a new one.")
             .parameter(Parameter.builder("filename")
                 .description("PPTX file to load")
                 .type(ParameterType.STRING)
@@ -362,19 +366,24 @@ public class CommandRegistry {
             .example("load presentation.pptx")
             .example("open /path/to/file.pptx")
             .build();
-        
+
         schemas.put("load", schema);
         schemas.put("open", schema);
     }
-    
+
     /**
      * Register the save command with proper schema
      */
     private static void registerSaveCommand() {
         CommandSchema schema = CommandSchema.builder("save")
-            .description("Save the current presentation")
+            .description("Save the current presentation to a PPTX file")
+            .llmEnabled(true)
+            .llmDescription("OVERWRITES: writes the current presentation to the given path, "
+                + "replacing any existing file. Always pass an explicit filename -- the "
+                + "console's Ctrl+S-style save-to-last-path convenience is not reliable "
+                + "in an agent context.")
             .parameter(Parameter.builder("filename")
-                .description("Output filename (optional)")
+                .description("Output PPTX path. Always pass this explicitly.")
                 .type(ParameterType.STRING)
                 .required(false)
                 .build())
