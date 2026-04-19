@@ -132,6 +132,21 @@ public class SlideRenderContext {
         return theme != null ? theme.getMinorFont() : "Calibri";
     }
 
+    /**
+     * Fallback for the heading font when the declared family isn't installed
+     * on the render host. May be null if the theme didn't declare one.
+     */
+    public String getMajorFontFallback() {
+        return theme != null ? theme.getMajorFontFallback() : null;
+    }
+
+    /**
+     * Fallback for the body font. May be null if the theme didn't declare one.
+     */
+    public String getMinorFontFallback() {
+        return theme != null ? theme.getMinorFontFallback() : null;
+    }
+
     // ========== PLACEHOLDER GEOMETRY ==========
 
     /**

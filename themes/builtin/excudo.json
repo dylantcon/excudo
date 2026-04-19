@@ -17,6 +17,8 @@
   },
   "majorFont": "Segoe UI",
   "minorFont": "Consolas",
+  "majorFontFallback": "Arial",
+  "minorFontFallback": "Courier New",
   "backgroundFillIndex": 1,
   "darkBackground": true,
   "titleStyle": [

@@ -382,10 +382,43 @@ public final class TextPainter {
         double scaledSize = sizePt * zoom;
         if (scaledSize < 1) scaledSize = 1;
 
-        return Font.font(family,
-            bold ? FontWeight.BOLD : FontWeight.NORMAL,
-            italic ? FontPosture.ITALIC : FontPosture.REGULAR,
-            scaledSize);
+        FontWeight weight = bold ? FontWeight.BOLD : FontWeight.NORMAL;
+        FontPosture posture = italic ? FontPosture.ITALIC : FontPosture.REGULAR;
+
+        Font requested = Font.font(family, weight, posture, scaledSize);
+
+        // JavaFX silently substitutes a system default when the requested
+        // family isn't installed -- typically a serif on Linux hosts where
+        // Segoe UI / Consolas / Calibri / etc. aren't present. Detect the
+        // substitution by family-name comparison and try the theme's
+        // declared fallback. If that also doesn't match, accept whatever
+        // JavaFX gave us -- we've done what we can.
+        if (!familyMatches(requested, family) && slideCtx != null) {
+            String fallback = isTitle ? slideCtx.getMajorFontFallback()
+                                      : slideCtx.getMinorFontFallback();
+            if (fallback != null && !fallback.isBlank() && !fallback.equalsIgnoreCase(family)) {
+                Font fallbackFont = Font.font(fallback, weight, posture, scaledSize);
+                if (familyMatches(fallbackFont, fallback)) {
+                    return fallbackFont;
+                }
+            }
+        }
+
+        return requested;
+    }
+
+    /**
+     * JavaFX's returned family may include the style (e.g. "Segoe UI Bold"
+     * when we asked for "Segoe UI" with BOLD weight). Check for prefix /
+     * equality, case-insensitively.
+     */
+    private static boolean familyMatches(Font actual, String requestedFamily) {
+        if (actual == null) return false;
+        String actualFamily = actual.getFamily();
+        if (actualFamily == null) return false;
+        return actualFamily.equalsIgnoreCase(requestedFamily)
+            || actualFamily.toLowerCase().startsWith(requestedFamily.toLowerCase() + " ")
+            || actualFamily.toLowerCase().startsWith(requestedFamily.toLowerCase() + "-");
     }
 
     private static Color resolveDefaultTextColor(SlideRenderContext slideCtx, String phType) {
