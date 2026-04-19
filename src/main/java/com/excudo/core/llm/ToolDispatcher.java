@@ -28,7 +28,12 @@ import java.util.*;
 public class ToolDispatcher {
 
     private static final ComponentLogger logger = Logger.llm();
-    private static final Gson GSON = new Gson();
+    // disableHtmlEscaping so apostrophes and &/</>  characters in re-
+    // serialized user content (array/object params like `content`) don't
+    // come out as \u0027 / \u0026 / etc. The default Gson constructor
+    // escapes them "for HTML safety", which leaks into our DrawingML
+    // output where the downstream reader treats the string as literal.
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     private PPTXOrchestrator orchestrator;
     // Not final: updateOrchestrator rebuilds this with a fresh CommandFactory

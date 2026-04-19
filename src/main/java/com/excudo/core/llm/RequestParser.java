@@ -29,7 +29,10 @@ public class RequestParser {
     private final boolean strictValidation;
     private final PPTXOrchestrator orchestrator;
     private final ContextService contextService;
-    private static final Gson GSON = new Gson();
+    // disableHtmlEscaping so the array/object re-serialization at line 197
+    // below doesn't escape apostrophes to \u0027 (see ToolDispatcher for the
+    // same rationale).
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final LLMRequestBridge BRIDGE = new LLMRequestBridge();
 
     /** Schema-driven parameter registry: every parameter name any LLM-enabled command accepts, mapped to its type. */
