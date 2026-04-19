@@ -76,6 +76,15 @@ public class SlideEditorController implements Initializable {
     private ParsedSlideData currentSlideData;
     private int currentSlideNumber = -1;
     private double zoomLevel = 1.0;
+
+    // Resize debouncing. JavaFX's viewportBoundsProperty fires continuously
+    // during a window drag (dozens to hundreds of events per second). Without
+    // coalescing, each one triggers a full SlideRenderer rebuild + re-render,
+    // stacking 15-20 seconds of latency onto a single resize gesture.
+    private javafx.animation.Timeline resizeDebouncer;
+    private double pendingViewportWidth = 0;
+    private double pendingViewportHeight = 0;
+    private static final javafx.util.Duration RESIZE_DEBOUNCE = javafx.util.Duration.millis(120);
     
     // View options
     private boolean showGrid = false;
@@ -186,10 +195,22 @@ public class SlideEditorController implements Initializable {
             canvasScrollPane.setContent(slideCanvas);
             slideCanvas.setOnMouseClicked(e -> handleCanvasClick(e.getX(), e.getY()));
 
-            // Resize canvas to fill available space when the viewport changes
+            // Resize canvas to fill available space when the viewport changes.
+            // Coalesce the burst of events JavaFX fires during a drag so we
+            // only rebuild + re-render once the user stops resizing.
+            resizeDebouncer = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(RESIZE_DEBOUNCE, ev -> {
+                    if (pendingViewportWidth > 0 && pendingViewportHeight > 0) {
+                        resizeCanvasToViewport(pendingViewportWidth, pendingViewportHeight);
+                    }
+                })
+            );
             canvasScrollPane.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
                 if (newBounds.getWidth() > 0 && newBounds.getHeight() > 0) {
-                    resizeCanvasToViewport(newBounds.getWidth(), newBounds.getHeight());
+                    pendingViewportWidth = newBounds.getWidth();
+                    pendingViewportHeight = newBounds.getHeight();
+                    resizeDebouncer.stop();
+                    resizeDebouncer.playFromStart();
                 }
             });
         }

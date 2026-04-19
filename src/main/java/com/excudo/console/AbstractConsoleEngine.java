@@ -398,7 +398,10 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
      */
     public void startMCPHttpServer() {
         if (activeMcpTransport != null) {
-            displayError("MCP server already running at " + activeMcpTransport.getUrl()
+            String where = activeMcpTransport.isBound()
+                ? " at " + activeMcpTransport.getUrl()
+                : " (still starting)";
+            displayError("MCP server already running" + where
                 + ". Use /exit to stop it first.");
             return;
         }
@@ -410,41 +413,53 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             return;
         }
 
-        try {
-            com.excudo.mcp.MCPHttpSseTransport transport = new com.excudo.mcp.MCPHttpSseTransport();
-            transport.bind(); // allocate port + register contexts
-            transport.setFrameListener(new com.excudo.mcp.MCPTTYEchoFormatter(this::displayStyled));
+        // Create the transport shell synchronously (cheap, no I/O) and claim
+        // the session immediately so a racing second arrange-mcp call is
+        // rejected by the activeMcpTransport != null check above. Actual
+        // port binding, HttpServer setup, and the serve loop all happen on
+        // the worker thread below so the caller (FX thread in GUI mode)
+        // never stalls on network setup.
+        final com.excudo.core.orchestration.PPTXOrchestrator finalOrch = orch;
+        com.excudo.mcp.MCPHttpSseTransport transport = new com.excudo.mcp.MCPHttpSseTransport();
+        transport.setFrameListener(new com.excudo.mcp.MCPTTYEchoFormatter(this::displayStyled));
+        activeMcpTransport = transport;
+        claimSessionOwnership();
 
-            CommandInvoker invoker = getCurrentCommandInvoker();
-            if (invoker == null) invoker = new CommandInvoker();
-            com.excudo.core.llm.ToolDispatcher dispatcher =
-                new com.excudo.core.llm.ToolDispatcher(orch, new CommandFactory(orch), invoker);
-            dispatcher.setDisplayAdapter(this);
+        displayMessage("Starting MCP server...");
 
-            com.excudo.mcp.MCPProtocolHandler handler =
-                new com.excudo.mcp.MCPProtocolHandler(dispatcher);
+        Thread serverThread = new Thread(() -> {
+            try {
+                transport.bind();
 
-            activeMcpTransport = transport;
-            claimSessionOwnership();
+                CommandInvoker invoker = getCurrentCommandInvoker();
+                if (invoker == null) invoker = new CommandInvoker();
+                com.excudo.core.llm.ToolDispatcher dispatcher =
+                    new com.excudo.core.llm.ToolDispatcher(finalOrch,
+                        new CommandFactory(finalOrch), invoker);
+                dispatcher.setDisplayAdapter(this);
+                com.excudo.mcp.MCPProtocolHandler handler =
+                    new com.excudo.mcp.MCPProtocolHandler(dispatcher);
 
-            Thread serverThread = new Thread(() -> {
-                try {
-                    transport.serve(handler::handleRequest);
-                } catch (Exception e) {
-                    displayError("MCP server error: " + e.getMessage());
+                displaySuccess("MCP server listening at " + transport.getUrl());
+                registerWithClaudeDesktop(transport.getUrl());
+                displayMessage("  /exit or /stop  - stop the server and return to the console");
+                displayMessage("  /status         - show current endpoint and token");
+
+                transport.serve(handler::handleRequest);
+            } catch (Exception e) {
+                displayError("MCP server error: " + e.getMessage());
+            } finally {
+                // Whether serve returned cleanly or bind threw, the server
+                // is no longer live -- clear the active ref so the user can
+                // start another one.
+                if (activeMcpTransport == transport) {
+                    activeMcpTransport = null;
+                    releaseSessionOwnership();
                 }
-            }, "mcp-server");
-            serverThread.setDaemon(true);
-            serverThread.start();
-
-            displaySuccess("MCP server listening at " + transport.getUrl());
-            registerWithClaudeDesktop(transport.getUrl());
-            displayMessage("  /exit or /stop  - stop the server and return to the console");
-            displayMessage("  /status         - show current endpoint and token");
-        } catch (Exception e) {
-            activeMcpTransport = null;
-            displayError("Failed to start MCP server: " + e.getMessage());
-        }
+            }
+        }, "mcp-server");
+        serverThread.setDaemon(true);
+        serverThread.start();
     }
 
     /** Stop the running MCP server, if any. Safe to call when no server is running. */
@@ -524,6 +539,12 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     private void showMcpStatus() {
         if (activeMcpTransport == null) {
             displayMessage("No MCP server running.");
+            return;
+        }
+        if (!activeMcpTransport.isBound()) {
+            displayStyled("MCP server: starting... (port not yet allocated)",
+                ConsoleStyle.HEADER);
+            displayMessage("Token prefix: " + activeMcpTransport.getToken().substring(0, 8) + "...");
             return;
         }
         displayStyled("MCP server: " + activeMcpTransport.getUrl(), ConsoleStyle.HEADER);

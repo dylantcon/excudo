@@ -148,6 +148,11 @@ public class MCPHttpSseTransport implements MCPTransport, AutoCloseable {
         return server.getAddress().getPort();
     }
 
+    /** True after {@link #bind()} has allocated the listening socket. */
+    public boolean isBound() {
+        return server != null;
+    }
+
     public String getToken() {
         return token;
     }
