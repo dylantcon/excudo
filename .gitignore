@@ -135,3 +135,6 @@ disk_access_summary.txt
 # LLM stuff
 CLAUDE.md
 .claude/
+
+# Legacy timing-tree dumps (pre-rename-to-Excudo). No current code writes here.
+.presentation-choreographer/
