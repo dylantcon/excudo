@@ -957,13 +957,23 @@ public class ToolDispatcher {
             // a server-local temp file the client still sees the image.
             lastRenderFile = null;
             java.io.File outputFile;
+            String displayPath;
             if (outputArg != null && !outputArg.isBlank()) {
                 outputFile = new java.io.File(outputArg);
                 if (outputFile.getParentFile() != null) {
                     outputFile.getParentFile().mkdirs();
                 }
+                // Report the exact path the caller passed. getAbsolutePath()
+                // on Windows prepends the current drive to posix-style paths
+                // (e.g. /mnt/foo becomes C-colon-backslash mnt-backslash foo)
+                // which is confusing when the caller's environment actually
+                // has /mnt available as a real mount. NB: a literal backslash
+                // followed by 'u' would parse as a unicode escape, hence the
+                // verbose phrasing above.
+                displayPath = outputArg;
             } else {
                 outputFile = java.io.File.createTempFile("render-slide" + slideNumber + "-", ".png");
+                displayPath = outputFile.getAbsolutePath();
             }
 
             com.excudo.core.commands.RenderSlideCommand.SlideRenderFunction renderFn =
@@ -977,7 +987,7 @@ public class ToolDispatcher {
             renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex, masterStyles);
             lastRenderFile = outputFile;
 
-            return "Rendered slide " + slideNumber + " to " + outputFile.getAbsolutePath()
+            return "Rendered slide " + slideNumber + " to " + displayPath
                 + " (" + width + "x" + height + ", " + outputFile.length() + " bytes)";
         } catch (Exception e) {
             return "Error rendering slide: " + e.getMessage();
