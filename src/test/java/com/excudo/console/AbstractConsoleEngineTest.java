@@ -266,4 +266,50 @@ public class AbstractConsoleEngineTest {
         assertTrue(engine.isArrangeMode());
         assertEquals(1, engine.enterArrangeCalls);
     }
+
+    // ========== "mcp-deregister" command ==========
+
+    @Test
+    public void mcpDeregisterCommandReachesHandler() {
+        engine.executeCommand("mcp-deregister");
+        assertEquals(1, engine.deregisterCalls);
+    }
+
+    @Test
+    public void mcpDeregisterIsCaseInsensitive() {
+        engine.executeCommand("MCP-DEREGISTER");
+        assertEquals(1, engine.deregisterCalls);
+    }
+
+    @Test
+    public void mcpDeregisterToleratesWhitespace() {
+        engine.executeCommand("   mcp-deregister   ");
+        assertEquals(1, engine.deregisterCalls);
+    }
+
+    @Test
+    public void mcpDeregisterDoesNotEnterArrangeOrMcpMode() {
+        engine.executeCommand("mcp-deregister");
+        assertFalse(engine.isArrangeMode());
+        assertFalse(engine.isMcpMode());
+        assertEquals(0, engine.enterArrangeCalls);
+        assertEquals(0, engine.startMcpCalls);
+    }
+
+    @Test
+    public void mcpDeregisterInMcpModeIsRejectedLikeAnyOtherInput() {
+        // When the MCP server is running, /exit /stop /status are the only
+        // allowed commands. mcp-deregister is NOT a server-control command,
+        // so it should produce an error -- stop the server first, then run
+        // mcp-deregister from normal dispatch.
+        engine.startMCPHttpServer();
+        engine.clearRecordings();
+
+        engine.executeCommand("mcp-deregister");
+
+        assertEquals("deregister must not run while the server owns the session",
+            0, engine.deregisterCalls);
+        assertTrue("should still be in MCP mode", engine.isMcpMode());
+        assertTrue(engine.entries.stream().anyMatch(e -> e.style() == ConsoleStyle.ERROR));
+    }
 }

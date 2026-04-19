@@ -353,7 +353,33 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             return;
         }
 
+        // Remove Excudo's entry from Claude Desktop's config file.
+        if (trimmed.equalsIgnoreCase("mcp-deregister")) {
+            deregisterFromClaudeDesktop();
+            return;
+        }
+
         executeCommandNormal(commandString);
+    }
+
+    /**
+     * Remove the Excudo entry from Claude Desktop's config file. Surfaces
+     * the result on the TTY so the user knows whether anything changed.
+     * No-op without errors when the config file doesn't exist.
+     */
+    protected void deregisterFromClaudeDesktop() {
+        java.nio.file.Path path =
+            com.excudo.mcp.config.ClaudeDesktopConfigWriter.detectConfigPath();
+        com.excudo.mcp.config.ClaudeDesktopConfigWriter.Result result =
+            com.excudo.mcp.config.ClaudeDesktopConfigWriter.deregister(path);
+        if (result.written()) {
+            displaySuccess(result.message() + " (" + result.configPath() + ")");
+            displayMessage("Restart Claude Desktop for the change to take effect.");
+        } else if (!result.configFound()) {
+            displayMessage("No Claude Desktop config found at " + path + ". Nothing to do.");
+        } else {
+            displayMessage(result.message());
+        }
     }
 
     // ========== MCP server mode ==========
@@ -412,6 +438,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             serverThread.start();
 
             displaySuccess("MCP server listening at " + transport.getUrl());
+            registerWithClaudeDesktop(transport.getUrl());
             displayMessage("  /exit or /stop  - stop the server and return to the console");
             displayMessage("  /status         - show current endpoint and token");
         } catch (Exception e) {
@@ -447,6 +474,30 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         if (currentSessionId == null || sessionManager == null) return;
         sessionManager.getSession(currentSessionId)
             .ifPresent(SessionManager.ManagedSession::clearMcpOwner);
+    }
+
+    /**
+     * Best-effort registration of the live MCP server URL with Claude
+     * Desktop. Never blocks server startup -- a missing or unreadable
+     * config just gets a status line and lets the user paste the URL
+     * into their client of choice manually.
+     */
+    protected void registerWithClaudeDesktop(String serverUrl) {
+        java.nio.file.Path path =
+            com.excudo.mcp.config.ClaudeDesktopConfigWriter.detectConfigPath();
+        if (!java.nio.file.Files.exists(path)) {
+            displayMessage("  Claude Desktop config not found at " + path + ".");
+            displayMessage("  If you have a different client, paste the URL above into its MCP config.");
+            return;
+        }
+        com.excudo.mcp.config.ClaudeDesktopConfigWriter.Result result =
+            com.excudo.mcp.config.ClaudeDesktopConfigWriter.register(path, serverUrl);
+        if (result.written()) {
+            displayMessage("  Registered with Claude Desktop at " + result.configPath());
+            displayMessage("  Restart Claude Desktop for the new URL to take effect.");
+        } else {
+            displayMessage("  Claude Desktop config update skipped: " + result.message());
+        }
     }
 
     /**

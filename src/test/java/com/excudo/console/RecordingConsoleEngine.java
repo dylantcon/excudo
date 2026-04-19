@@ -22,6 +22,7 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
     public int exitArrangeCalls = 0;
     public int startMcpCalls = 0;
     public int stopMcpCalls = 0;
+    public int deregisterCalls = 0;
 
     public record Entry(String message, ConsoleStyle style) {}
 
@@ -80,6 +81,12 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         }
     }
 
+    @Override
+    protected void deregisterFromClaudeDesktop() {
+        // Don't actually touch the user's real Claude Desktop config from tests.
+        deregisterCalls++;
+    }
+
     // ========== Inspection helpers ==========
 
     public void clearRecordings() {
@@ -89,6 +96,7 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         exitArrangeCalls = 0;
         startMcpCalls = 0;
         stopMcpCalls = 0;
+        deregisterCalls = 0;
     }
 
     public Entry last() {
