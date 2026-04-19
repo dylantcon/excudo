@@ -31,7 +31,11 @@ public class ToolDispatcher {
     private static final Gson GSON = new Gson();
 
     private PPTXOrchestrator orchestrator;
-    private final CommandFactory commandFactory;
+    // Not final: updateOrchestrator rebuilds this with a fresh CommandFactory
+    // bound to the new orchestrator so commands like RenderSlideCommand (which
+    // snapshot the orchestrator in their constructor) don't see the pre-load
+    // stale reference.
+    private CommandFactory commandFactory;
     private final CommandInvoker commandInvoker;
     private CommandDisplay displayAdapter;
     private CompoundShapeTools compoundShapeTools;
@@ -67,6 +71,11 @@ public class ToolDispatcher {
 
     public void updateOrchestrator(PPTXOrchestrator newOrch) {
         this.orchestrator = newOrch;
+        // Rebuild the factory so every command built afterwards (and every
+        // sub-factory inside it) points at the new orchestrator. Without
+        // this, commands that snapshot the orchestrator in their ctors
+        // (RenderSlideCommand, many others) keep the stale pre-load ref.
+        this.commandFactory = new CommandFactory(newOrch);
         this.compoundShapeTools = new CompoundShapeTools(newOrch);
         this.mermaidDiagramTool = new MermaidDiagramTool(newOrch);
     }
@@ -286,6 +295,71 @@ public class ToolDispatcher {
     }
 
     /**
+     * Parse the {@code commands} argument of {@code get_command_schemas} into
+     * a set of command names. Accepts three shapes so we're resilient to MCP
+     * client quirks around array serialisation:
+     * <ul>
+     *   <li>JSON array: {@code ["save","load"]} — the canonical form.</li>
+     *   <li>Stringified JSON array: {@code "[\"save\",\"load\"]"} — some MCP
+     *       clients flatten arrays to strings before send.</li>
+     *   <li>Comma-separated string: {@code "save, load"} — a natural shape
+     *       an LLM might emit if confused about JSON boundaries.</li>
+     *   <li>Bare string: {@code "save"} — single command.</li>
+     * </ul>
+     * Returns null when no usable names are found so the caller can treat it
+     * as "no filter" (list everything).
+     * <p>Package-private for direct unit testing.
+     */
+    static Set<String> parseRequestedCommands(JsonElement cmds) {
+        if (cmds == null || cmds.isJsonNull()) return null;
+        Set<String> out = new java.util.LinkedHashSet<>();
+
+        if (cmds.isJsonArray()) {
+            for (JsonElement el : cmds.getAsJsonArray()) {
+                String s = el.getAsString().trim();
+                if (!s.isEmpty()) out.add(s);
+            }
+            return out.isEmpty() ? null : out;
+        }
+
+        if (cmds.isJsonPrimitive()) {
+            String s = cmds.getAsString().trim();
+            if (s.isEmpty()) return null;
+
+            // Stringified JSON array -- MCP clients sometimes flatten arrays.
+            if (s.startsWith("[") && s.endsWith("]")) {
+                try {
+                    JsonElement parsed = com.google.gson.JsonParser.parseString(s);
+                    if (parsed.isJsonArray()) {
+                        for (JsonElement el : parsed.getAsJsonArray()) {
+                            String name = el.getAsString().trim();
+                            if (!name.isEmpty()) out.add(name);
+                        }
+                        return out.isEmpty() ? null : out;
+                    }
+                } catch (Exception ignored) {
+                    // fall through; treat as literal below
+                }
+            }
+
+            // Comma-separated
+            if (s.contains(",")) {
+                for (String part : s.split(",")) {
+                    String name = part.trim();
+                    if (!name.isEmpty()) out.add(name);
+                }
+                return out.isEmpty() ? null : out;
+            }
+
+            // Single bare name
+            out.add(s);
+            return out;
+        }
+
+        return null;
+    }
+
+    /**
      * Return a one-line summary of every LLM-enabled command. Cheap
      * alternative to get_command_schemas for discovery -- the agent can
      * scan the list, pick the 2-3 it needs, then fetch full parameters
@@ -325,15 +399,7 @@ public class ToolDispatcher {
             if (toolInput != null && !toolInput.isEmpty()) {
                 JsonObject input = JsonHelper.parseObject(toolInput);
                 if (input.has("commands")) {
-                    requested = new java.util.LinkedHashSet<>();
-                    JsonElement cmds = input.get("commands");
-                    if (cmds.isJsonArray()) {
-                        for (JsonElement el : cmds.getAsJsonArray()) {
-                            requested.add(el.getAsString());
-                        }
-                    } else if (cmds.isJsonPrimitive()) {
-                        requested.add(cmds.getAsString());
-                    }
+                    requested = parseRequestedCommands(input.get("commands"));
                 }
             }
 
