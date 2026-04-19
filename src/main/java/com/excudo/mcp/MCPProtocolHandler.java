@@ -141,12 +141,51 @@ public class MCPProtocolHandler {
             logger.info("Tool result: {}", result != null && result.length() > 200
                 ? result.substring(0, 200) + "..." : result);
 
+            // render_slide's real payload is binary -- inline the PNG bytes as
+            // an MCP image content block so clients sandboxed away from the
+            // server's filesystem (Claude Desktop via mcp-remote is the
+            // canonical case) can actually see the render without having to
+            // read a path that doesn't exist on their side.
+            if ("render_slide".equals(toolName)) {
+                byte[] bytes = toolDispatcher.getLastRenderBytes();
+                if (bytes != null && bytes.length > 0) {
+                    return buildToolResultWithImage(id, result, bytes, "image/png");
+                }
+            }
+
             return buildToolResult(id, result, false);
 
         } catch (Exception e) {
             logger.error("Tool call error: {}", e.getMessage());
             return buildToolResult(id, "Error: " + e.getMessage(), true);
         }
+    }
+
+    /**
+     * Build a tool-call response whose {@code content} array contains
+     * both a text block (diagnostics from the tool) and an image block
+     * (base64-encoded bytes of the rendered PNG). MCP spec: image
+     * blocks have {@code type=image, data=&lt;base64&gt;, mimeType}.
+     * Package-private for direct testing.
+     */
+    JsonObject buildToolResultWithImage(JsonElement id, String text,
+                                        byte[] imageBytes, String mimeType) {
+        JsonObject result = new JsonObject();
+        JsonArray content = new JsonArray();
+
+        JsonObject textBlock = new JsonObject();
+        textBlock.addProperty("type", "text");
+        textBlock.addProperty("text", text != null ? text : "");
+        content.add(textBlock);
+
+        JsonObject imageBlock = new JsonObject();
+        imageBlock.addProperty("type", "image");
+        imageBlock.addProperty("data", java.util.Base64.getEncoder().encodeToString(imageBytes));
+        imageBlock.addProperty("mimeType", mimeType);
+        content.add(imageBlock);
+
+        result.add("content", content);
+        return JsonRpcFrames.result(id, result);
     }
 
     private JsonObject buildToolResult(JsonElement id, String text, boolean isError) {

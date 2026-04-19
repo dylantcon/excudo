@@ -38,6 +38,15 @@ public class ToolDispatcher {
     private MermaidDiagramTool mermaidDiagramTool;
     private boolean presentationCreated = false;
 
+    /**
+     * File written by the most recent successful {@code render_slide}
+     * invocation, or null. The MCP protocol handler reads this after
+     * a dispatch to inline the PNG bytes in the tool-call response so
+     * clients sandboxed away from the server's filesystem (e.g. Claude
+     * Desktop over mcp-remote) can still see the render.
+     */
+    private volatile java.io.File lastRenderFile;
+
     private static final Set<String> MUTATING_TOOLS = Set.of(
         "execute_commands", "create_code_box", "create_diagram",
         "create_slide_from_layout", "inject_icon"
@@ -479,6 +488,12 @@ public class ToolDispatcher {
                 try {
                     String actionType = action.getType();
                     boolean isNewCommand = "new".equals(actionType) || "new-presentation".equals(actionType);
+                    // load and open both create context -- they are valid when
+                    // no presentation exists yet (initial open) AND when one
+                    // already exists (switch to a different file). They must
+                    // not be blocked by the no-context gate.
+                    boolean isContextCreatingCommand = isNewCommand
+                        || "load".equals(actionType) || "open".equals(actionType);
 
                     // Block 'new' if already called this session -- prevents reset loops
                     if (isNewCommand && (hasContext || presentationCreated)) {
@@ -489,11 +504,12 @@ public class ToolDispatcher {
                         continue;
                     }
 
-                    // Block non-new commands when no presentation is loaded
-                    if (!hasContext && !isNewCommand) {
+                    // Block non-context-creating commands when no presentation is loaded
+                    if (!hasContext && !isContextCreatingCommand) {
                         failed++;
                         details.append("FAILED: ").append(actionType)
-                               .append(" - No presentation loaded. Call 'new' first.\n");
+                               .append(" - No presentation loaded. Call 'new' to create a fresh deck ")
+                               .append("or 'load' to open an existing .pptx file.\n");
                         continue;
                     }
 
@@ -512,14 +528,18 @@ public class ToolDispatcher {
                     succeeded++;
                     details.append("OK: ").append(actionType).append("\n");
 
-                    // After 'new', sync orchestrator reference and lock out future 'new' calls
-                    if (isNewCommand && displayAdapter instanceof CommandSessionContext ctx) {
-                        presentationCreated = true;
+                    // Any command that creates or swaps context (new, load, open)
+                    // creates a fresh session orchestrator that the dispatcher's
+                    // orchestrator reference must be resynchronised against --
+                    // otherwise subsequent tool calls (render_slide, get_*, etc.)
+                    // see the empty pre-load orchestrator and report "No
+                    // presentation loaded". Only 'new' also flips
+                    // presentationCreated to lock out the reset path.
+                    if (isContextCreatingCommand && displayAdapter instanceof CommandSessionContext ctx) {
+                        if (isNewCommand) presentationCreated = true;
                         PPTXOrchestrator sessionOrch = ctx.getCurrentOrchestrator();
                         if (sessionOrch != null && sessionOrch != this.orchestrator) {
-                            this.orchestrator = sessionOrch;
-                            this.compoundShapeTools = new CompoundShapeTools(sessionOrch);
-                            this.mermaidDiagramTool = new MermaidDiagramTool(sessionOrch);
+                            updateOrchestrator(sessionOrch);
                         }
                         hasContext = this.orchestrator.getContext().isPresent();
                     }
@@ -861,7 +881,10 @@ public class ToolDispatcher {
 
             // Use the caller's path if provided, otherwise fall back to a temp file.
             // Over MCP the server's temp dir is often invisible to the client, so
-            // a caller-specified path is the usual mode.
+            // a caller-specified path is the usual mode -- but the MCP handler
+            // also inlines the PNG bytes via getLastRenderBytes(), so even with
+            // a server-local temp file the client still sees the image.
+            lastRenderFile = null;
             java.io.File outputFile;
             if (outputArg != null && !outputArg.isBlank()) {
                 outputFile = new java.io.File(outputArg);
@@ -881,11 +904,29 @@ public class ToolDispatcher {
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
             var masterStyles = orchestrator.getMasterStyles();
             renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex, masterStyles);
+            lastRenderFile = outputFile;
 
             return "Rendered slide " + slideNumber + " to " + outputFile.getAbsolutePath()
                 + " (" + width + "x" + height + ", " + outputFile.length() + " bytes)";
         } catch (Exception e) {
             return "Error rendering slide: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Read the bytes of the most recently rendered PNG, or {@code null}
+     * if no render has succeeded since construction. Called by
+     * {@code MCPProtocolHandler} after {@code render_slide} to inline
+     * the image in the tool-call response.
+     */
+    public byte[] getLastRenderBytes() {
+        java.io.File f = this.lastRenderFile;
+        if (f == null || !f.exists()) return null;
+        try {
+            return java.nio.file.Files.readAllBytes(f.toPath());
+        } catch (java.io.IOException e) {
+            logger.warn("Failed to read last render file {}: {}", f, e.getMessage());
+            return null;
         }
     }
 

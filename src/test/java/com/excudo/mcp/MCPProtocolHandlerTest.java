@@ -121,6 +121,55 @@ public class MCPProtocolHandlerTest {
         assertEquals("abc-123", resp.get("id").getAsString());
     }
 
+    // -------- Image content block (render_slide) --------
+
+    @Test
+    public void buildToolResultWithImageEmitsTextThenImageBlock() {
+        // Two-byte fake PNG signature is enough to exercise the shape; we're
+        // testing frame structure, not actual image decoding.
+        byte[] bytes = new byte[]{(byte) 0x89, 'P', 'N', 'G'};
+        JsonObject resp = handler.buildToolResultWithImage(
+            new com.google.gson.JsonPrimitive(42), "Rendered slide 1", bytes, "image/png");
+
+        assertEquals("2.0", resp.get("jsonrpc").getAsString());
+        assertEquals(42, resp.get("id").getAsInt());
+
+        var content = resp.getAsJsonObject("result").getAsJsonArray("content");
+        assertEquals("text and image blocks", 2, content.size());
+
+        JsonObject textBlock = content.get(0).getAsJsonObject();
+        assertEquals("text", textBlock.get("type").getAsString());
+        assertEquals("Rendered slide 1", textBlock.get("text").getAsString());
+
+        JsonObject imgBlock = content.get(1).getAsJsonObject();
+        assertEquals("image", imgBlock.get("type").getAsString());
+        assertEquals("image/png", imgBlock.get("mimeType").getAsString());
+
+        // Round-trip the base64 and confirm the original bytes come back
+        byte[] decoded = java.util.Base64.getDecoder().decode(imgBlock.get("data").getAsString());
+        assertArrayEquals(bytes, decoded);
+    }
+
+    @Test
+    public void imageBlockBase64IsAsciiSafe() {
+        // PNG headers contain non-ASCII bytes (0x89 etc). Base64 must
+        // produce an ASCII string that survives JSON transport unharmed.
+        byte[] bytes = new byte[256];
+        for (int i = 0; i < 256; i++) bytes[i] = (byte) i;
+
+        JsonObject resp = handler.buildToolResultWithImage(
+            new com.google.gson.JsonPrimitive(1), "caption", bytes, "image/png");
+        String data = resp.getAsJsonObject("result")
+            .getAsJsonArray("content").get(1).getAsJsonObject()
+            .get("data").getAsString();
+
+        for (char c : data.toCharArray()) {
+            assertTrue("base64 output must be pure ASCII", c < 128);
+        }
+        byte[] decoded = java.util.Base64.getDecoder().decode(data);
+        assertArrayEquals(bytes, decoded);
+    }
+
     // -------- helper --------
 
     private JsonObject parse(String json) {
