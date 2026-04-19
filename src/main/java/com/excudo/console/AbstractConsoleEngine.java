@@ -494,6 +494,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             com.excudo.mcp.config.ClaudeDesktopConfigWriter.register(path, serverUrl);
         if (result.written()) {
             displayMessage("  Registered with Claude Desktop at " + result.configPath());
+            displayMessage("  Config uses the npx mcp-remote stdio bridge -- Node/npx must be on PATH.");
             displayMessage("  Restart Claude Desktop for the new URL to take effect.");
         } else {
             displayMessage("  Claude Desktop config update skipped: " + result.message());

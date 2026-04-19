@@ -4,6 +4,7 @@ import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -119,8 +120,19 @@ public final class ClaudeDesktopConfigWriter {
             ? root.getAsJsonObject("mcpServers")
             : new JsonObject();
 
+        // Claude Desktop's MCP config only accepts stdio transport (command +
+        // args), not direct HTTP/SSE URL entries. We hand Claude Desktop the
+        // npx mcp-remote bridge, which it launches as a stdio subprocess; the
+        // bridge then proxies JSON-RPC to our in-process HTTP server, so TTY
+        // echo in the user's arrange-mcp console is preserved.
+        // Requires Node / npx on the user's PATH.
         JsonObject entry = new JsonObject();
-        entry.addProperty("url", serverUrl);
+        entry.addProperty("command", "npx");
+        JsonArray args = new JsonArray();
+        args.add("-y");
+        args.add("mcp-remote");
+        args.add(serverUrl);
+        entry.add("args", args);
         mcpServers.add(SERVER_KEY, entry);
         root.add("mcpServers", mcpServers);
 

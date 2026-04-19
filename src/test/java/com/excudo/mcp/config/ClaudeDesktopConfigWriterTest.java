@@ -59,7 +59,15 @@ public class ClaudeDesktopConfigWriterTest {
         JsonObject root = read(configPath);
         JsonObject servers = root.getAsJsonObject("mcpServers");
         JsonObject excudo = servers.getAsJsonObject("excudo");
-        assertEquals(URL, excudo.get("url").getAsString());
+        // Claude Desktop only accepts stdio transport, so we emit the
+        // npx mcp-remote bridge wrapping our HTTP URL.
+        assertEquals("npx", excudo.get("command").getAsString());
+        assertTrue("args should be a JSON array", excudo.get("args").isJsonArray());
+        var args = excudo.getAsJsonArray("args");
+        assertEquals(3, args.size());
+        assertEquals("-y", args.get(0).getAsString());
+        assertEquals("mcp-remote", args.get(1).getAsString());
+        assertEquals(URL, args.get(2).getAsString());
     }
 
     @Test
@@ -100,6 +108,9 @@ public class ClaudeDesktopConfigWriterTest {
 
     @Test
     public void registerOverwritesPreviousExcudoEntry() throws Exception {
+        // Previous (pre-fix) entries wrote the rejected "url" shape. The new
+        // writer must fully replace them, not merge, so Claude Desktop sees a
+        // valid stdio command.
         writeJson(configPath,
             "{\"mcpServers\":{\"excudo\":{\"url\":\"http://stale:1000/mcp/old\"}}}");
 
@@ -107,7 +118,9 @@ public class ClaudeDesktopConfigWriterTest {
 
         JsonObject excudo = read(configPath)
             .getAsJsonObject("mcpServers").getAsJsonObject("excudo");
-        assertEquals(URL, excudo.get("url").getAsString());
+        assertFalse("stale 'url' key must be gone", excudo.has("url"));
+        assertEquals("npx", excudo.get("command").getAsString());
+        assertEquals(URL, excudo.getAsJsonArray("args").get(2).getAsString());
     }
 
     @Test
@@ -154,14 +167,16 @@ public class ClaudeDesktopConfigWriterTest {
         assertTrue(result.written());
         JsonObject excudo = read(configPath)
             .getAsJsonObject("mcpServers").getAsJsonObject("excudo");
-        assertEquals(URL, excudo.get("url").getAsString());
+        assertEquals("npx", excudo.get("command").getAsString());
+        assertEquals(URL, excudo.getAsJsonArray("args").get(2).getAsString());
     }
 
     // ========== deregister ==========
 
     @Test
     public void deregisterRemovesExcudoEntry() throws Exception {
-        writeJson(configPath, "{\"mcpServers\":{\"excudo\":{\"url\":\"" + URL + "\"}}}");
+        writeJson(configPath,
+            "{\"mcpServers\":{\"excudo\":{\"command\":\"npx\",\"args\":[\"-y\",\"mcp-remote\",\"" + URL + "\"]}}}");
 
         ClaudeDesktopConfigWriter.Result result =
             ClaudeDesktopConfigWriter.deregister(configPath);
@@ -173,7 +188,7 @@ public class ClaudeDesktopConfigWriterTest {
     @Test
     public void deregisterPreservesOtherServers() throws Exception {
         writeJson(configPath,
-            "{\"mcpServers\":{\"excudo\":{\"url\":\"" + URL + "\"},\"other\":{\"url\":\"http://x/1\"}}}");
+            "{\"mcpServers\":{\"excudo\":{\"command\":\"npx\",\"args\":[\"x\"]},\"other\":{\"command\":\"node\",\"args\":[\"y\"]}}}");
 
         ClaudeDesktopConfigWriter.deregister(configPath);
 
@@ -196,7 +211,7 @@ public class ClaudeDesktopConfigWriterTest {
 
     @Test
     public void deregisterIsNoOpWhenExcudoNotPresent() throws Exception {
-        writeJson(configPath, "{\"mcpServers\":{\"other\":{\"url\":\"http://x/1\"}}}");
+        writeJson(configPath, "{\"mcpServers\":{\"other\":{\"command\":\"node\",\"args\":[\"y\"]}}}");
 
         ClaudeDesktopConfigWriter.Result result =
             ClaudeDesktopConfigWriter.deregister(configPath);
