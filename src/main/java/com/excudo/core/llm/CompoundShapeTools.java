@@ -56,7 +56,9 @@ public class CompoundShapeTools {
 
     /**
      * Create a code box: line number panel (left) + code panel (right).
-     * Width is computed from font metrics to fit the content exactly.
+     * Width AND height are computed from font metrics + line count so the
+     * box fits its content exactly. Callers can still pass explicit x/y/height
+     * if they want manual placement or sizing.
      * Input JSON: {"slideNumber":N, "code":"...", "language":"python", "x":EMU, "y":EMU, "height":EMU}
      */
     public String createCodeBox(String toolInput) {
@@ -71,7 +73,6 @@ public class CompoundShapeTools {
 
             long x = extractLong(toolInput, "x", 838200);
             long y = extractLong(toolInput, "y", 1825625);
-            long height = extractLong(toolInput, "height", 3200000);
 
             String[] lines = code.split("\n");
 
@@ -95,6 +96,16 @@ public class CompoundShapeTools {
             long codeWidth = longestCodeLine + 2 * inset;
 
             long totalWidth = lineNumWidth + codeWidth;
+
+            // Auto-compute height from line count. The previous fixed default
+            // (3.2M EMU ~= 3.5 inches) made short snippets look broken by
+            // reserving a tall empty box below the code. Callers can still
+            // override 'height' explicitly if they want extra room.
+            long lineHeightEmu = monoFont != null
+                ? monoFont.calculateLineHeightEmu(FONT_SIZE_CODE)
+                : 182880L; // fallback: 12pt * 1.2 spacing
+            long autoHeight = (long) lines.length * lineHeightEmu + 2L * inset;
+            long height = extractLong(toolInput, "height", autoHeight);
 
             // Dark fill style, no theme p:style
             ShapeStyle darkStyle = ShapeStyle.of(

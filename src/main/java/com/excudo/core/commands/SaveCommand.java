@@ -72,7 +72,20 @@ public class SaveCommand implements Command {
             ExecutionResult<File> result = orchestrator.savePresentation(targetFile);
 
             if (result.isSuccess()) {
-                display.displaySuccess("Saved to " + targetFile.getPath());
+                // Agents driving us over MCP are stateless w.r.t. the server's
+                // filesystem and need three things to verify the write landed:
+                // where the file is, how big it is, and whether the path they
+                // passed matches where it actually resolved. Echo all three.
+                long bytes = targetFile.length();
+                String abs = targetFile.getAbsolutePath();
+                String msg;
+                if (filename != null && !filename.isEmpty() && !filename.equals(abs)) {
+                    msg = "Saved to " + filename
+                        + " (" + bytes + " bytes, resolved to " + abs + ")";
+                } else {
+                    msg = "Saved to " + abs + " (" + bytes + " bytes)";
+                }
+                display.displaySuccess(msg);
                 sessionContext.setCurrentFile(targetFile);
                 CommandInvoker invoker = sessionContext.getCurrentCommandInvoker();
                 if (invoker != null) {

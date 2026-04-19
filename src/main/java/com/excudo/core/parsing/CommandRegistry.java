@@ -283,13 +283,17 @@ public class CommandRegistry {
                 .required(true)
                 .build())
             .parameter(Parameter.builder("shape-type")
-                .description("Shape type (RECTANGLE, ELLIPSE, TRIANGLE, ROUNDED_RECTANGLE, etc.)")
+                .description("Shape type: TEXT_BOX for plain text with no fill/border, "
+                    + "or an autoshape preset like RECTANGLE, ELLIPSE, TRIANGLE, "
+                    + "ROUNDED_RECTANGLE, etc. See ShapeType enum for the full set.")
                 .llmName("shapeType")
                 .defaultValue("RECTANGLE")
                 .build())
             .parameter(Parameter.builder("text")
-                .description("Text content. Markdown: **bold**, *italic*, - bullets, 1. numbered, \\n for line breaks")
-                .llmName("shapeName")
+                .description("Text content placed inside the shape. Markdown supported: "
+                    + "**bold**, *italic*, - bullets, 1. numbered, \\n for line breaks. "
+                    + "Leave empty for a shape with no text.")
+                .llmName("text")
                 .defaultValue("")
                 .build())
             .parameter(Parameter.builder("x")

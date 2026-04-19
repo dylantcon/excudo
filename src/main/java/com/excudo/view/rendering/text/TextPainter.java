@@ -186,19 +186,34 @@ public final class TextPainter {
         double currentY = startY + spaceBeforePx;
         double textX = startX + marginLeftPx;
 
+        // Theme bullet inheritance is a placeholder-only behaviour in OOXML.
+        // A rectangle / ellipse / text box / etc. whose paragraph doesn't
+        // explicitly set <a:buChar> renders with NO bullet -- the inheritance
+        // chain (paragraph -> layout -> master -> theme) only resolves
+        // through a placeholder reference. Before this guard we were
+        // pulling the theme body-style bullet into every non-placeholder
+        // shape, producing phantom bullets that weren't in the PPTX and
+        // sent agents chasing nonexistent issues.
+        boolean isPlaceholder = placeholderType != null;
+
         // Render bullet character if present
         if (para.getBulletType() == BulletType.CHARACTER
-            || para.getBulletType() == BulletType.INHERITED) {
+            || (para.getBulletType() == BulletType.INHERITED && isPlaceholder)) {
             String bulletChar = para.getBulletChar();
             String bulletFontFamily = para.getBulletFont();
 
             // For INHERITED bullets, always look up from theme
-            if (para.getBulletType() == BulletType.INHERITED && themeStyle != null && themeStyle.hasBullet()) {
+            if (para.getBulletType() == BulletType.INHERITED
+                && isPlaceholder && themeStyle != null && themeStyle.hasBullet()) {
                 bulletChar = themeStyle.getBulletChar();
                 bulletFontFamily = themeStyle.getBulletFont();
             }
-            // Theme-level bullet inheritance (paragraph doesn't specify its own)
-            if (bulletChar == null && themeStyle != null && themeStyle.hasBullet()) {
+            // Theme-level bullet inheritance (paragraph doesn't specify its own).
+            // Still gated on placeholder so a non-placeholder shape that
+            // happens to have CHARACTER-type bullet override still renders it,
+            // but one without any explicit bullet doesn't leak theme bullets.
+            if (bulletChar == null && isPlaceholder
+                && themeStyle != null && themeStyle.hasBullet()) {
                 bulletChar = themeStyle.getBulletChar();
                 if (bulletFontFamily == null && themeStyle.getBulletFont() != null) {
                     bulletFontFamily = themeStyle.getBulletFont();

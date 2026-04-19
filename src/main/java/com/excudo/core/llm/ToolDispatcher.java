@@ -599,6 +599,30 @@ public class ToolDispatcher {
                     succeeded++;
                     details.append("OK: ").append(actionType).append("\n");
 
+                    // Save and render write external state that stateless
+                    // MCP callers need to verify. Pin the resulting file's
+                    // absolute path + byte count to the batch output so the
+                    // agent can confirm the write landed where they expect.
+                    if ("save".equals(actionType) || "render".equals(actionType)) {
+                        String filename = actionFileParam(action);
+                        if (filename != null) {
+                            java.io.File f = new java.io.File(filename);
+                            if (f.exists() && f.length() > 0) {
+                                details.append("  ")
+                                    .append("save".equals(actionType) ? "saved " : "rendered ")
+                                    .append(f.length())
+                                    .append(" bytes to ")
+                                    .append(f.getAbsolutePath())
+                                    .append("\n");
+                            } else {
+                                details.append("  WARNING: ").append(actionType)
+                                    .append(" reported OK but file ")
+                                    .append(filename)
+                                    .append(" does not exist or is empty\n");
+                            }
+                        }
+                    }
+
                     // Any command that creates or swaps context (new, load, open)
                     // creates a fresh session orchestrator that the dispatcher's
                     // orchestrator reference must be resynchronised against --
@@ -622,7 +646,20 @@ public class ToolDispatcher {
             }
 
             if (failed == 0) {
-                return "OK: " + succeeded + " command(s) executed.";
+                StringBuilder ok = new StringBuilder("OK: ")
+                    .append(succeeded).append(" command(s) executed.");
+                // Preserve verification lines (saved/rendered + bytes + path)
+                // even on fully-successful batches -- stateless MCP agents
+                // can't otherwise tell where writes landed.
+                for (String line : details.toString().split("\n")) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("saved ")
+                            || trimmed.startsWith("rendered ")
+                            || trimmed.startsWith("WARNING:")) {
+                        ok.append("\n  ").append(trimmed);
+                    }
+                }
+                return ok.toString();
             } else {
                 // Only include failure details -- successes don't need per-command output
                 StringBuilder failDetails = new StringBuilder();
@@ -632,11 +669,34 @@ public class ToolDispatcher {
                         failDetails.append(line.substring("FAILED: ".length())).append("\n");
                     }
                 }
+                // Also surface any successful save/render verifications in
+                // the mixed-outcome case -- the agent still needs to know
+                // whether at least one write landed even if others failed.
+                for (String line : details.toString().split("\n")) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("saved ") || trimmed.startsWith("rendered ")) {
+                        failDetails.append("  ").append(trimmed).append("\n");
+                    }
+                }
                 return failDetails.toString();
             }
         } catch (Exception e) {
             return "Command execution error: " + e.getMessage();
         }
+    }
+
+    /**
+     * Pull the file path out of an action's params. save uses "filename",
+     * render uses "output" -- both canonical and llm-name variants.
+     */
+    private static String actionFileParam(RequestSchema.ActionRequest action) {
+        java.util.Map<String, Object> p = action.getParameters();
+        Object v;
+        v = p.get("filename");
+        if (v instanceof String s && !s.isEmpty()) return s;
+        v = p.get("output");
+        if (v instanceof String s && !s.isEmpty()) return s;
+        return null;
     }
 
     /**

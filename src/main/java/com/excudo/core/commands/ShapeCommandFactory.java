@@ -95,13 +95,30 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 Double height = parsedCommand.getDouble("height");
                 String fillColor = parsedCommand.getString("fill-color");
                 String lineColor = parsedCommand.getString("line-color");
-                SlideShape.ShapeType shapeType = SlideShape.ShapeType.valueOf(shapeTypeStr != null ? shapeTypeStr.toUpperCase() : "RECTANGLE");
+
+                // TEXT_BOX isn't a drawingml preset -- OOXML models text boxes
+                // as rectangles with no fill, no line, and no p:style element.
+                // Accept it as an alias so agents don't have to remember the
+                // "rectangle + empty style" incantation when they just want
+                // plain text on a slide.
+                String normalizedTypeStr = shapeTypeStr != null ? shapeTypeStr.toUpperCase() : "RECTANGLE";
+                boolean isTextBoxAlias = "TEXT_BOX".equals(normalizedTypeStr)
+                    || "TEXTBOX".equals(normalizedTypeStr);
+
+                SlideShape.ShapeType shapeType = isTextBoxAlias
+                    ? SlideShape.ShapeType.RECTANGLE
+                    : SlideShape.ShapeType.valueOf(normalizedTypeStr);
                 ShapeGeometry geometry = new ShapeGeometry(
                     x != null ? x.longValue() : 0L, y != null ? y.longValue() : 0L,
                     width != null ? width.longValue() : 100L, height != null ? height.longValue() : 50L);
-                ShapeStyle parsedStyle = parseShapeStyle(fillColor, lineColor);
+
+                // TEXT_BOX overrides any fill/line the caller passed -- if you
+                // want a styled rectangle, ask for RECTANGLE directly.
+                ShapeStyle parsedStyle = isTextBoxAlias
+                    ? ShapeStyle.textBox()
+                    : parseShapeStyle(fillColor, lineColor);
                 return new AddShapeCommand(shapeSlide != null ? shapeSlide : 1, shapeType, geometry,
-                    shapeText, "Shape", parsedStyle, orchestrator);
+                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, orchestrator);
                 
             case "remove-shape":
                 Integer removeSlide = parsedCommand.getInteger("slide");
