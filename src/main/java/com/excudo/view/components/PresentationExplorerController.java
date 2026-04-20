@@ -100,29 +100,34 @@ public class PresentationExplorerController implements Initializable {
         }
     }
     
+    // Per-component guards so setupEventHandlers() is idempotent. FXML
+    // initialize() and the manual setPresentationTree / setButtons
+    // injections each call this method, and without guards the tree
+    // selection listener was attached 2-3x -- every click emitted as
+    // many slide-switch events as times setupEventHandlers had run.
+    private boolean treeListenerAttached = false;
+    private boolean buttonHandlersAttached = false;
+
     private void setupEventHandlers() {
-        // Tree selection handler
-        if (presentationTree != null) {
+        if (presentationTree != null && !treeListenerAttached) {
             presentationTree.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> handleSlideSelection(newValue)
             );
+            treeListenerAttached = true;
         }
-        
-        // Button handlers
-        if (refreshButton != null) {
-            refreshButton.setOnAction(e -> handleRefresh());
-        }
-        if (addSlideButton != null) {
-            addSlideButton.setOnAction(e -> handleAddSlide());
-        }
-        if (deleteSlideButton != null) {
-            deleteSlideButton.setOnAction(e -> handleDeleteSlide());
-        }
-        if (moveUpButton != null) {
-            moveUpButton.setOnAction(e -> handleMoveSlideUp());
-        }
-        if (moveDownButton != null) {
-            moveDownButton.setOnAction(e -> handleMoveSlideDown());
+
+        if (!buttonHandlersAttached) {
+            if (refreshButton != null)     refreshButton.setOnAction(e -> handleRefresh());
+            if (addSlideButton != null)    addSlideButton.setOnAction(e -> handleAddSlide());
+            if (deleteSlideButton != null) deleteSlideButton.setOnAction(e -> handleDeleteSlide());
+            if (moveUpButton != null)      moveUpButton.setOnAction(e -> handleMoveSlideUp());
+            if (moveDownButton != null)    moveDownButton.setOnAction(e -> handleMoveSlideDown());
+
+            // Only flip the flag once the buttons actually exist -- they
+            // get injected after initialize() via setButtons, so an early
+            // no-op call shouldn't poison the guard.
+            buttonHandlersAttached = refreshButton != null || addSlideButton != null
+                || deleteSlideButton != null || moveUpButton != null || moveDownButton != null;
         }
     }
     
