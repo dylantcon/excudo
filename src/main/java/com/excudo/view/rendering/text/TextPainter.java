@@ -61,7 +61,10 @@ public final class TextPainter {
         if (textBody == null || measured == null || boundsPixels == null) return;
 
         GraphicsContext gc = ctx.getGraphicsContext();
-        double zoom = ctx.getZoomedCoordinateMapper().getZoomLevel();
+        // Composite scale (canvas-fit * user-zoom). Matches what
+        // mapToCanvas applies to shape geometry, so font sizes, insets
+        // and indents track the shape rect when the viewport resizes.
+        double zoom = ctx.getZoomedCoordinateMapper().getEffectiveScale();
 
         // Body property insets (default: 91440 left/right, 45720 top/bottom EMU)
         BodyProperties bp = textBody.getBodyProperties();
@@ -131,6 +134,11 @@ public final class TextPainter {
 
         double currentY = startY;
 
+        // Auto-number bullet counter. Restarts when a non-AUTONUMBER
+        // paragraph breaks the sequence (PowerPoint behaviour: "1. 2. 3.
+        // [plain paragraph] 1. 2." rather than continuing through).
+        int autoNumCounter = 0;
+
         for (int i = 0; i < paragraphs.size() && i < measurements.size(); i++) {
             TextParagraph para = paragraphs.get(i);
             MeasuredText.ParagraphMeasurement pm = measurements.get(i);
@@ -140,9 +148,17 @@ public final class TextPainter {
                 continue;
             }
 
+            int paraNumber = 0;
+            if (para.getBulletType() == BulletType.AUTONUMBER) {
+                autoNumCounter++;
+                paraNumber = autoNumCounter;
+            } else {
+                autoNumCounter = 0;
+            }
+
             boolean isTitle = "title".equals(placeholderType) || "ctrTitle".equals(placeholderType);
             currentY = paintParagraph(para, pm, startX, currentY, maxWidth, gc, slideCtx, zoom,
-                placeholderType, isTitle);
+                placeholderType, isTitle, paraNumber);
         }
 
         if (isVertical) {
@@ -156,7 +172,8 @@ public final class TextPainter {
     private static double paintParagraph(TextParagraph para, MeasuredText.ParagraphMeasurement pm,
                                           double startX, double startY, double maxWidth,
                                           GraphicsContext gc, SlideRenderContext slideCtx,
-                                          double zoom, String placeholderType, boolean isTitle) {
+                                          double zoom, String placeholderType, boolean isTitle,
+                                          int autoNumber) {
         int level = para.getLevel();
 
         // Use title style or body style based on placeholder type
@@ -233,6 +250,17 @@ public final class TextPainter {
                 gc.setFill(textColor);
                 gc.fillText(bulletChar, textX + indentPx, currentY + bulletFont.getSize());
             }
+        } else if (para.getBulletType() == BulletType.AUTONUMBER && autoNumber > 0) {
+            // Auto-numbered list. PowerPoint renders these as "1.", "2.",
+            // "(1)", "i.", etc. depending on autonumType. Without this
+            // branch, code blocks with line numbers (auto-numbered
+            // paragraphs) rendered with no number prefix at all.
+            String numberStr = formatAutoNumber(autoNumber, para.getAutonumType());
+            Font numberFont = resolveFont(null, slideCtx, zoom, level, isTitle);
+            gc.setFont(numberFont);
+            Color textColor = resolveDefaultTextColor(slideCtx, placeholderType);
+            gc.setFill(textColor);
+            gc.fillText(numberStr, textX + indentPx, currentY + numberFont.getSize());
         }
 
         // Adjust X for text after bullet
@@ -558,5 +586,51 @@ public final class TextPainter {
 
     private static double emuToPixels(int emu) {
         return CoordinateMapper.emuToPixels((long) emu);
+    }
+
+    /**
+     * Format an auto-number bullet per the OOXML autonumType. Handles the
+     * arabic + roman + alpha variants the spec lists; falls back to
+     * "{n}." for unknown / null types.
+     */
+    private static String formatAutoNumber(int n, String autonumType) {
+        if (autonumType == null) return n + ".";
+        return switch (autonumType) {
+            case "arabicPlain"      -> Integer.toString(n);
+            case "arabicPeriod"     -> n + ".";
+            case "arabicParenR"     -> n + ")";
+            case "arabicParenBoth"  -> "(" + n + ")";
+            case "romanLcPeriod"    -> toRoman(n).toLowerCase() + ".";
+            case "romanUcPeriod"    -> toRoman(n) + ".";
+            case "romanLcParenR"    -> toRoman(n).toLowerCase() + ")";
+            case "romanUcParenR"    -> toRoman(n) + ")";
+            case "alphaLcPeriod"    -> toAlpha(n).toLowerCase() + ".";
+            case "alphaUcPeriod"    -> toAlpha(n) + ".";
+            case "alphaLcParenR"    -> toAlpha(n).toLowerCase() + ")";
+            case "alphaUcParenR"    -> toAlpha(n) + ")";
+            default                 -> n + ".";
+        };
+    }
+
+    private static String toRoman(int n) {
+        if (n <= 0 || n >= 4000) return Integer.toString(n);
+        int[] values   = { 1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1 };
+        String[] syms  = { "M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I" };
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            while (n >= values[i]) { sb.append(syms[i]); n -= values[i]; }
+        }
+        return sb.toString();
+    }
+
+    private static String toAlpha(int n) {
+        // 1=A, 26=Z, 27=AA, 28=AB ... (spreadsheet column style)
+        StringBuilder sb = new StringBuilder();
+        while (n > 0) {
+            int rem = (n - 1) % 26;
+            sb.insert(0, (char) ('A' + rem));
+            n = (n - 1) / 26;
+        }
+        return sb.toString();
     }
 }

@@ -217,6 +217,19 @@ public class CoordinateMapper {
     public double getZoomLevel() {
         return zoomLevel;
     }
+
+    /**
+     * Get the composite scale that {@link #mapToCanvas} applies to shape
+     * geometry: {@code scaleX * zoomLevel}. This is the factor callers
+     * should multiply into font-point sizes, insets, indents, and any
+     * other metric expressed in EMU/pt that must match the on-canvas
+     * visual scale. {@link #getZoomLevel()} alone omits the canvas-fit
+     * factor and produces text that doesn't shrink when the viewport is
+     * resized smaller.
+     */
+    public double getEffectiveScale() {
+        return scaleX * zoomLevel;
+    }
     
     /**
      * Set pan offset

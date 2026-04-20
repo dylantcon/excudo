@@ -44,7 +44,13 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
         String phType = getPlaceholderType(shape.getXmlElement());
         TextBody textBody = TextBodyExtractor.extractFromShape(shape.getXmlElement());
         if (textBody != null && !textBody.getParagraphs().isEmpty()) {
-            long widthEmu = pixelsToEmu(boundsPixels.getWidth() / mapper.getZoomLevel());
+            // Round-trip pixel width back to EMU for TextMeasurer. Divide
+            // by the composite scale (canvas-fit * user-zoom) to recover
+            // the real EMU width -- not just zoomLevel, which omits the
+            // canvas-fit factor and made TextMeasurer think the text box
+            // was ~2x narrower than reality on resized canvases, forcing
+            // aggressive line breaks that looked like justification.
+            long widthEmu = pixelsToEmu(boundsPixels.getWidth() / mapper.getEffectiveScale());
             try {
                 MeasuredText measured = TextMeasurer.measure(textBody, widthEmu);
                 TextPainter.paint(textBody, measured, boundsPixels, ctx, slideCtx, phType);
