@@ -202,11 +202,21 @@ public class PPTXDocument implements AutoCloseable {
      * Return a cached {@link ParsedSlideData} for the given slide number,
      * reparsing only when the document's revision counter has advanced
      * since the last parse. Callers in the hot render path should prefer
-     * this over constructing their own SlideXMLParser.
+     * this over constructing their own parser instance per render.
+     *
+     * The parser is injected as a function because this class lives in
+     * core/model, which compiles before xml/parsers (SlideXMLParser
+     * itself imports from core/model, so the dependency is strictly
+     * one-way). Callers already own a parser reference for other reasons.
      *
      * Returns null if the slide doesn't exist or parsing fails.
      */
-    public com.excudo.core.model.ParsedSlideData getParsedSlideData(int slideNumber) {
+    @FunctionalInterface
+    public interface SlideParser {
+        com.excudo.core.model.ParsedSlideData parse(Document slideDom, int slideNumber) throws Exception;
+    }
+
+    public com.excudo.core.model.ParsedSlideData getParsedSlideData(int slideNumber, SlideParser parser) {
         Document slideDom = getSlideDocument(slideNumber);
         if (slideDom == null) return null;
 
@@ -216,8 +226,7 @@ public class PPTXDocument implements AutoCloseable {
             return cached.data;
         }
         try {
-            com.excudo.xml.parsers.SlideXMLParser parser = new com.excudo.xml.parsers.SlideXMLParser();
-            com.excudo.core.model.ParsedSlideData fresh = parser.parseSlide(slideDom, slideNumber);
+            com.excudo.core.model.ParsedSlideData fresh = parser.parse(slideDom, slideNumber);
             cachedSlideData.put(slideNumber, new CachedSlideData(fresh, currentRev));
             return fresh;
         } catch (Exception e) {

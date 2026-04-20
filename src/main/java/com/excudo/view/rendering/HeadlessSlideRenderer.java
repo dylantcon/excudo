@@ -122,7 +122,10 @@ public class HeadlessSlideRenderer {
 
         // Prefer the PPTXDocument's cached ParsedSlideData so SlideRenderer
         // doesn't re-run SlideXMLParser.parseSlide inside its render path.
-        com.excudo.core.model.ParsedSlideData parsed = doc.getParsedSlideData(slideNumber);
+        // Parser is injected because PPTXDocument can't import from
+        // xml/parsers (that package imports core/model).
+        com.excudo.core.model.ParsedSlideData parsed = doc.getParsedSlideData(slideNumber,
+            (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
         BufferedImage image = parsed != null
             ? renderToBufferedImage(parsed, slideContext)
             : renderToBufferedImage(slideDom, slideContext);
