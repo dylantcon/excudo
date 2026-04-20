@@ -182,12 +182,21 @@ public final class TextPainter {
             themeStyle = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
         }
 
+        // OOXML inheritance: theme paragraph styles (margin / indent /
+        // spacing) only apply to placeholder shapes. A plain RECTANGLE or
+        // text box that doesn't set its own marL inherits NOTHING from
+        // theme -- defaults are zero, not the theme's body-style margin.
+        // Without this guard a 13pt-wide text box on a slide with a 12pt
+        // theme body margin had its text pushed past the right edge.
+        // Same pattern as the phantom-bullet inheritance fix.
+        boolean isPlaceholder = placeholderType != null;
+
         // Resolve left margin and indent from paragraph or theme
         double marginLeftPx = 0;
         double indentPx = 0;
         if (para.getMarginLeft() != null) {
             marginLeftPx = emuToPixels(para.getMarginLeft()) * zoom;
-        } else if (themeStyle != null) {
+        } else if (themeStyle != null && isPlaceholder) {
             marginLeftPx = emuToPixels(themeStyle.getMarginLeft()) * zoom;
             indentPx = emuToPixels(themeStyle.getIndent()) * zoom;
         }
@@ -196,22 +205,12 @@ public final class TextPainter {
         double spaceBeforePx = 0;
         if (para.getSpaceBefore() != null && para.getSpaceBefore() > 0) {
             spaceBeforePx = (para.getSpaceBefore() / 100.0) * zoom;
-        } else if (themeStyle != null && themeStyle.getSpaceBefore() > 0) {
+        } else if (themeStyle != null && isPlaceholder && themeStyle.getSpaceBefore() > 0) {
             spaceBeforePx = (themeStyle.getSpaceBefore() / 100.0) * zoom;
         }
 
         double currentY = startY + spaceBeforePx;
         double textX = startX + marginLeftPx;
-
-        // Theme bullet inheritance is a placeholder-only behaviour in OOXML.
-        // A rectangle / ellipse / text box / etc. whose paragraph doesn't
-        // explicitly set <a:buChar> renders with NO bullet -- the inheritance
-        // chain (paragraph -> layout -> master -> theme) only resolves
-        // through a placeholder reference. Before this guard we were
-        // pulling the theme body-style bullet into every non-placeholder
-        // shape, producing phantom bullets that weren't in the PPTX and
-        // sent agents chasing nonexistent issues.
-        boolean isPlaceholder = placeholderType != null;
 
         // Render bullet character if present
         if (para.getBulletType() == BulletType.CHARACTER
@@ -263,19 +262,22 @@ public final class TextPainter {
             gc.fillText(numberStr, textX + indentPx, currentY + numberFont.getSize());
         }
 
-        // Adjust X for text after bullet
-        double runX = textX + marginLeftPx;
-        if (indentPx < 0) {
-            // Hanging indent: bullet at marginLeft + indent, text at marginLeft
-            runX = textX;
-        }
+        // Per OOXML: marL is where the TEXT starts (from the shape's text
+        // area left edge), and indent is the FIRST-LINE offset relative to
+        // marL. textX already encodes startX + marL, so the text x-pos is
+        // just textX -- adding marginLeftPx again here pushed text by 2*marL,
+        // which on narrow shapes positioned text past the right edge.
+        // Bullets render at textX + indentPx (negative indent = bullet
+        // before text in a hanging-indent layout).
+        double runX = textX;
 
         // Resolve line height from measurements
         double lineHeightPx = pm.getLineCount() > 0
             ? (emuToPixels(pm.getHeightEmu()) * zoom) / pm.getLineCount()
             : 16.0 * zoom;
 
-        // Available width for text wrapping (from current X to right edge of bounds)
+        // Available width for text wrapping (text area right edge minus textX).
+        // textX is at startX + marL, so what's left is maxWidth - marL.
         double availableWidth = maxWidth - marginLeftPx;
         if (indentPx < 0) {
             availableWidth = maxWidth; // Hanging indent: text area is full width
