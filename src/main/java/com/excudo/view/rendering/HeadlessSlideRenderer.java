@@ -166,17 +166,19 @@ public class HeadlessSlideRenderer {
                 if (!all.isEmpty()) theme = all.get(0);
             }
 
-            // Resolve layout for this slide from parsed state
+            // Resolve layout for this slide from parsed state. Use the
+            // PPTXDocument's cached parsed state -- the underlying parse
+            // walks every layout + master + theme XML part (20-50ms cold)
+            // and the result is stable between mutations, so re-parsing on
+            // every render is pure waste.
             com.excudo.core.model.LayoutInfo layoutInfo = null;
-            try {
-                com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState state =
-                    com.excudo.core.model.PPTXDocumentParser.parse(doc);
+            com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState state =
+                doc.getParsedState();
+            if (state != null) {
                 String layoutId = state.getSlideToLayoutId().get(slideNumber);
                 if (layoutId != null) {
                     layoutInfo = state.getLayouts().get(layoutId);
                 }
-            } catch (Exception e) {
-                logger.debug("Could not resolve layout for slide {}: {}", slideNumber, e.getMessage());
             }
 
             return new SlideRenderContext(theme, layoutInfo, doc, slideNumber, clrMap,

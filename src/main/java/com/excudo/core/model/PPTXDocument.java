@@ -46,6 +46,23 @@ public class PPTXDocument implements AutoCloseable {
     private File lockFile;
     private Thread shutdownHook;
 
+    // Monotonic revision counter. Bumped by every mutation path (put/remove
+    // on xml/media/binary parts, rekeySlides). Readers can snapshot it
+    // alongside derived state and invalidate when the stored snapshot
+    // doesn't match the current value. Cheaper than content hashing and
+    // correct under the "any mutation invalidates everything derived"
+    // semantic we rely on.
+    private final java.util.concurrent.atomic.AtomicLong mutations =
+        new java.util.concurrent.atomic.AtomicLong(0);
+
+    // Cached ParsedPresentationState. Parsing walks every layout +
+    // master + theme XML part -- 20-50 ms on cold -- and the result is
+    // stable between mutations. getParsedState() returns the cached
+    // snapshot if the revision counter hasn't advanced since it was
+    // computed; otherwise re-parses.
+    private volatile com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState cachedParsedState;
+    private volatile long cachedParsedStateRevision = -1;
+
     // ========== PART NAME CONSTANTS ==========
 
     private static final String CONTENT_TYPES_PART = "[Content_Types].xml";
@@ -157,14 +174,53 @@ public class PPTXDocument implements AutoCloseable {
         return xmlParts.get(partName);
     }
 
+    /**
+     * Current monotonic mutation revision. Bumped by every put/remove on
+     * xml/media/binary parts. Use for cache-invalidation keys where you
+     * want "any change invalidates everything" semantics.
+     */
+    public long getRevision() {
+        return mutations.get();
+    }
+
+    /**
+     * Return a cached {@link PPTXDocumentParser.ParsedPresentationState},
+     * reparsing from scratch only when the revision counter has advanced
+     * since the last parse. Callers in the hot render path should prefer
+     * this over calling {@code PPTXDocumentParser.parse(doc)} directly --
+     * the parse walks every layout + master + theme XML part and that
+     * result is stable between mutations.
+     *
+     * Returns null if parsing fails; callers should handle that fallback.
+     */
+    public com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState getParsedState() {
+        long currentRev = mutations.get();
+        com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState cached = cachedParsedState;
+        if (cached != null && cachedParsedStateRevision == currentRev) {
+            return cached;
+        }
+        try {
+            com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState fresh =
+                com.excudo.core.model.PPTXDocumentParser.parse(this);
+            cachedParsedState = fresh;
+            cachedParsedStateRevision = currentRev;
+            return fresh;
+        } catch (Exception e) {
+            logger.warn("Failed to parse presentation state: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public void putXmlPart(String partName, Document doc) {
         xmlParts.put(partName, doc);
         dirtyParts.add(partName);
+        mutations.incrementAndGet();
     }
 
     public void removeXmlPart(String partName) {
         xmlParts.remove(partName);
         dirtyParts.remove(partName);
+        mutations.incrementAndGet();
     }
 
     public MediaElement getMediaPart(String partName) {
@@ -174,11 +230,13 @@ public class PPTXDocument implements AutoCloseable {
     public void putMediaPart(MediaElement media) {
         mediaParts.put(media.getPartName(), media);
         dirtyParts.add(media.getPartName());
+        mutations.incrementAndGet();
     }
 
     public void removeMediaPart(String partName) {
         mediaParts.remove(partName);
         dirtyParts.remove(partName);
+        mutations.incrementAndGet();
     }
 
     public boolean hasPart(String partName) {
@@ -235,6 +293,7 @@ public class PPTXDocument implements AutoCloseable {
         String partName = slidePartName(slideNumber);
         xmlParts.put(partName, document);
         dirtyParts.add(partName);
+        mutations.incrementAndGet();
         logger.debug("Put slide {} into PPTXDocument (now dirty)", slideNumber);
     }
 
@@ -255,6 +314,7 @@ public class PPTXDocument implements AutoCloseable {
                 slideFile.delete();
             }
         }
+        mutations.incrementAndGet();
         logger.debug("Removed slide {} from PPTXDocument", slideNumber);
     }
 
@@ -299,6 +359,9 @@ public class PPTXDocument implements AutoCloseable {
             dirtyParts.add(newPart);
         }
 
+        if (!slidesToRekey.isEmpty() || !relsToRekey.isEmpty()) {
+            mutations.incrementAndGet();
+        }
         logger.debug("Rekeyed {} slides + {} rels from {} with delta {}",
             slidesToRekey.size(), relsToRekey.size(), startFrom, delta);
     }
