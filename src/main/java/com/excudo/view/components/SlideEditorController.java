@@ -350,11 +350,20 @@ public class SlideEditorController implements Initializable {
     
     // ========== SLIDE MANAGEMENT ==========
     
+    // Slide-switch instrumentation. Opt-in via EXCUDO_SLIDESWITCH_TIMING=1.
+    // When set, logs per-phase latency (fetch -> context -> parse -> render)
+    // so we can see where slow slide-clicks burn time.
+    private static final boolean SWITCH_TIMING = "1".equals(System.getenv("EXCUDO_SLIDESWITCH_TIMING"));
+    private static final java.util.concurrent.atomic.AtomicInteger renderCount =
+        new java.util.concurrent.atomic.AtomicInteger();
+    private long switchStartNanos;
+
     /**
      * Load slide for editing
      */
     public void loadSlide(int slideNumber) {
         this.currentSlideNumber = slideNumber;
+        if (SWITCH_TIMING) switchStartNanos = System.nanoTime();
 
         // Load slide XML through orchestrator
         if (mainController != null && mainController.getOrchestrator() != null) {
@@ -415,12 +424,14 @@ public class SlideEditorController implements Initializable {
 
     private void loadSlideDocument(Document slideDocument, PPTXDocument pptxDoc, int slideNumber) {
         this.currentSlideDocument = slideDocument;
+        long t0 = SWITCH_TIMING ? System.nanoTime() : 0;
 
         // Build SlideRenderContext so the renderer has theme, layout, and color info
         currentSlideContext = buildSlideRenderContext(pptxDoc, slideNumber);
         if (slideRenderer != null) {
             slideRenderer.setSlideContext(currentSlideContext);
         }
+        long t1 = SWITCH_TIMING ? System.nanoTime() : 0;
 
         // Parse slide data for animations
         try {
@@ -436,9 +447,22 @@ public class SlideEditorController implements Initializable {
             logger.warn("Error parsing slide data: {}", e.getMessage());
             updateAnimationStatus("Error loading animations: " + e.getMessage());
         }
+        long t2 = SWITCH_TIMING ? System.nanoTime() : 0;
 
         // Render slide on canvas
         renderSlide();
+        long t3 = SWITCH_TIMING ? System.nanoTime() : 0;
+
+        if (SWITCH_TIMING) {
+            double fetchMs = (t0 - switchStartNanos) / 1_000_000.0;
+            double ctxMs = (t1 - t0) / 1_000_000.0;
+            double parseMs = (t2 - t1) / 1_000_000.0;
+            double renderMs = (t3 - t2) / 1_000_000.0;
+            double totalMs = (t3 - switchStartNanos) / 1_000_000.0;
+            int n = renderCount.incrementAndGet();
+            System.err.printf("[slide-switch #%d] slide=%d fetch=%.1fms ctx=%.1fms parse=%.1fms render=%.1fms total=%.1fms%n",
+                n, slideNumber, fetchMs, ctxMs, parseMs, renderMs, totalMs);
+        }
 
         // Update UI state
         updateButtonStates();
