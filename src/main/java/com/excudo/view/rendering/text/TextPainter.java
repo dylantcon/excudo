@@ -267,9 +267,19 @@ public final class TextPainter {
             gc.setFont(font);
             Color color = ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx);
 
+            // Fast measurement path: use the run's unscaled OOXML point size
+            // plus FontData's glyph-advance table. measureStringWidthEmu is
+            // microseconds per word. The previous computeTextWidth path was
+            // allocating a javafx.scene.text.Text node per word and calling
+            // getLayoutBounds(), which forces a full JavaFX layout pass each
+            // call -- ~50-100ms per word, multiplied by the hundreds of words
+            // on code-heavy slides, was the 15-20s bottleneck.
+            int sizeHundredths = resolveRunSizeHundredths(run, slideCtx, level, isTitle);
+            com.excudo.core.metrics.FontData fd = resolveRunFontData(run, slideCtx, isTitle);
+
             String[] words = run.getText().split("(?<=\\s)");
             for (String word : words) {
-                double wordWidth = computeTextWidth(gc, word);
+                double wordWidth = measureWordWidth(word, gc, fd, sizeHundredths, zoom);
 
                 if (currentLineWidth + wordWidth > availableWidth && !currentLine.isEmpty()) {
                     lines.add(currentLine);
@@ -354,6 +364,17 @@ public final class TextPainter {
         return currentY;
     }
 
+    // Cache for resolved JavaFX Font objects. Every text run on every render
+    // calls resolveFont, and on code-heavy slides with syntax highlighting we
+    // can hit 80+ runs per slide all sharing the same (family, size, style).
+    // Without a cache, each run re-runs Font.font() (a JavaFX registry lookup
+    // that's not free) and the familyMatches substitution check (another
+    // Font.font call + lazy metadata load). 166 calls per render turned into
+    // 16 seconds of lag on Consolas-heavy code slides. With this cache the
+    // first run on a novel combo pays the cost; every subsequent run is O(1).
+    private static final java.util.concurrent.ConcurrentHashMap<String, Font> FONT_CACHE =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
     /**
      * Resolve a JavaFX Font from run properties + theme fallback.
      */
@@ -400,7 +421,20 @@ public final class TextPainter {
         FontWeight weight = bold ? FontWeight.BOLD : FontWeight.NORMAL;
         FontPosture posture = italic ? FontPosture.ITALIC : FontPosture.REGULAR;
 
+        // Check the cache first -- size is quantised to 0.1pt so we don't
+        // explode the cache across zoom increments that round identically
+        // to the same pixel height. The fallback family (if any) is included
+        // in the key because it affects the final resolved Font.
+        String fallbackFamily = slideCtx == null ? null
+            : (isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback());
+        String cacheKey = family + "|" + weight + "|" + posture
+            + "|" + Math.round(scaledSize * 10)
+            + "|" + (fallbackFamily == null ? "" : fallbackFamily);
+        Font cached = FONT_CACHE.get(cacheKey);
+        if (cached != null) return cached;
+
         Font requested = Font.font(family, weight, posture, scaledSize);
+        Font resolved = requested;
 
         // JavaFX silently substitutes a system default when the requested
         // family isn't installed -- typically a serif on Linux hosts where
@@ -408,18 +442,16 @@ public final class TextPainter {
         // substitution by family-name comparison and try the theme's
         // declared fallback. If that also doesn't match, accept whatever
         // JavaFX gave us -- we've done what we can.
-        if (!familyMatches(requested, family) && slideCtx != null) {
-            String fallback = isTitle ? slideCtx.getMajorFontFallback()
-                                      : slideCtx.getMinorFontFallback();
-            if (fallback != null && !fallback.isBlank() && !fallback.equalsIgnoreCase(family)) {
-                Font fallbackFont = Font.font(fallback, weight, posture, scaledSize);
-                if (familyMatches(fallbackFont, fallback)) {
-                    return fallbackFont;
-                }
+        if (!familyMatches(requested, family) && fallbackFamily != null
+                && !fallbackFamily.isBlank() && !fallbackFamily.equalsIgnoreCase(family)) {
+            Font fallbackFont = Font.font(fallbackFamily, weight, posture, scaledSize);
+            if (familyMatches(fallbackFont, fallbackFamily)) {
+                resolved = fallbackFont;
             }
         }
 
-        return requested;
+        FONT_CACHE.put(cacheKey, resolved);
+        return resolved;
     }
 
     /**
@@ -442,6 +474,75 @@ public final class TextPainter {
             return Color.web(slideCtx.getTitleTextColorHex());
         }
         return Color.web(slideCtx.getBodyTextColorHex());
+    }
+
+    /**
+     * Measure one word's width in screen pixels at the current zoom. Prefers
+     * FontData (glyph-advance table, microseconds per call, already cached
+     * per font path). Falls back to the JavaFX Text-node helper only when
+     * FontData isn't available -- which means the font either couldn't be
+     * resolved from a TTF on disk or the parse failed. For normal TTF fonts
+     * on the host, the fast path applies.
+     */
+    private static double measureWordWidth(String word, GraphicsContext gc,
+                                            com.excudo.core.metrics.FontData fd,
+                                            int sizeHundredths, double zoom) {
+        if (fd != null && sizeHundredths > 0) {
+            long emuUnscaled = fd.measureStringWidthEmu(word, sizeHundredths);
+            return (emuUnscaled / 9525.0) * zoom;
+        }
+        return computeTextWidth(gc, word);
+    }
+
+    /**
+     * Compute the OOXML-hundredths-point size for a run using the same
+     * inheritance order as resolveFont: run > theme style > default.
+     */
+    private static int resolveRunSizeHundredths(TextRun run, SlideRenderContext slideCtx,
+                                                 int level, boolean isTitle) {
+        if (run != null && run.getFontSize() != null) return run.getFontSize();
+        if (slideCtx != null) {
+            TextLevelStyle style = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
+            if (style != null) return style.getFontSize();
+        }
+        return 1800; // 18pt default, matches resolveFont
+    }
+
+    /**
+     * Resolve FontData (glyph advance + metrics tables) for a run. Uses the
+     * same family-resolution logic as resolveFont, with fallback to the
+     * theme's *Fallback family if the primary isn't available. FontResolver
+     * and TrueTypeFontParser both cache internally, so repeated calls for
+     * the same family are O(1).
+     */
+    private static com.excudo.core.metrics.FontData resolveRunFontData(TextRun run,
+                                                                        SlideRenderContext slideCtx,
+                                                                        boolean isTitle) {
+        String family = null;
+        if (run != null && run.getFontFamily() != null) family = run.getFontFamily();
+        if (family == null && slideCtx != null) {
+            family = isTitle ? slideCtx.getMajorFont() : slideCtx.getMinorFont();
+        }
+        if (family == null) return null;
+
+        com.excudo.core.metrics.FontData fd = loadFontData(family);
+        if (fd == null && slideCtx != null) {
+            String fallback = isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback();
+            if (fallback != null && !fallback.isBlank() && !fallback.equalsIgnoreCase(family)) {
+                fd = loadFontData(fallback);
+            }
+        }
+        return fd;
+    }
+
+    private static com.excudo.core.metrics.FontData loadFontData(String family) {
+        try {
+            java.nio.file.Path path = com.excudo.core.metrics.FontResolver.resolve(family, false, false);
+            if (path != null) {
+                return com.excudo.core.metrics.TrueTypeFontParser.parse(path);
+            }
+        } catch (java.io.IOException ignored) {}
+        return null;
     }
 
     private static double computeTextWidth(GraphicsContext gc, String text) {
