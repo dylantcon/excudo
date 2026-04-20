@@ -63,6 +63,21 @@ public class PPTXDocument implements AutoCloseable {
     private volatile com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState cachedParsedState;
     private volatile long cachedParsedStateRevision = -1;
 
+    // Cached per-slide ParsedSlideData. SlideXMLParser.parseSlide walks
+    // the slide's shape tree and builds a ShapeRegistry -- ~5-10 ms per
+    // slide -- and the MCP render path hits it on every render. Keyed
+    // by slide number; invalidated via global revision check in the
+    // same cheap way as the presentation-state cache.
+    private static final class CachedSlideData {
+        final com.excudo.core.model.ParsedSlideData data;
+        final long revision;
+        CachedSlideData(com.excudo.core.model.ParsedSlideData d, long r) {
+            this.data = d; this.revision = r;
+        }
+    }
+    private final java.util.concurrent.ConcurrentHashMap<Integer, CachedSlideData>
+        cachedSlideData = new java.util.concurrent.ConcurrentHashMap<>();
+
     // ========== PART NAME CONSTANTS ==========
 
     private static final String CONTENT_TYPES_PART = "[Content_Types].xml";
@@ -181,6 +196,34 @@ public class PPTXDocument implements AutoCloseable {
      */
     public long getRevision() {
         return mutations.get();
+    }
+
+    /**
+     * Return a cached {@link ParsedSlideData} for the given slide number,
+     * reparsing only when the document's revision counter has advanced
+     * since the last parse. Callers in the hot render path should prefer
+     * this over constructing their own SlideXMLParser.
+     *
+     * Returns null if the slide doesn't exist or parsing fails.
+     */
+    public com.excudo.core.model.ParsedSlideData getParsedSlideData(int slideNumber) {
+        Document slideDom = getSlideDocument(slideNumber);
+        if (slideDom == null) return null;
+
+        long currentRev = mutations.get();
+        CachedSlideData cached = cachedSlideData.get(slideNumber);
+        if (cached != null && cached.revision == currentRev) {
+            return cached.data;
+        }
+        try {
+            com.excudo.xml.parsers.SlideXMLParser parser = new com.excudo.xml.parsers.SlideXMLParser();
+            com.excudo.core.model.ParsedSlideData fresh = parser.parseSlide(slideDom, slideNumber);
+            cachedSlideData.put(slideNumber, new CachedSlideData(fresh, currentRev));
+            return fresh;
+        } catch (Exception e) {
+            logger.warn("Failed to parse slide {}: {}", slideNumber, e.getMessage());
+            return null;
+        }
     }
 
     /**

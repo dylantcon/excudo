@@ -77,7 +77,15 @@ public class HeadlessSlideRenderer {
             backgroundColorHex, masterStyles);
         long t2 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-        BufferedImage image = renderToBufferedImage(slideDom, slideContext);
+        // Prefer the PPTXDocument's cached ParsedSlideData so SlideRenderer
+        // doesn't re-run SlideXMLParser.parseSlide inside its render path.
+        // The cache hits as long as no mutation has happened since the last
+        // render of this slide. Falls back to Document-path if the cache
+        // returns null.
+        com.excudo.core.model.ParsedSlideData parsed = doc.getParsedSlideData(slideNumber);
+        BufferedImage image = parsed != null
+            ? renderToBufferedImage(parsed, slideContext)
+            : renderToBufferedImage(slideDom, slideContext);
         long t3 = TIMING_ENABLED ? System.nanoTime() : 0;
 
         outputFile.getParentFile().mkdirs();
@@ -93,15 +101,35 @@ public class HeadlessSlideRenderer {
     }
 
     /**
+     * Render pre-parsed slide data to a BufferedImage. Preferred over the
+     * Document-accepting overload because it avoids re-parsing inside
+     * SlideRenderer.renderSlide(Document).
+     */
+    public BufferedImage renderToBufferedImage(com.excudo.core.model.ParsedSlideData slideData,
+                                                SlideRenderContext slideContext) throws IOException {
+        return renderOnFxThread(slideContext, renderer -> renderer.renderSlide(slideData));
+    }
+
+    /**
      * Render a slide DOM to a BufferedImage with theme/layout context.
+     * Re-parses the slide internally; prefer the ParsedSlideData overload.
      */
     public BufferedImage renderToBufferedImage(Document slideDom, SlideRenderContext slideContext) throws IOException {
+        return renderOnFxThread(slideContext, renderer -> renderer.renderSlide(slideDom));
+    }
+
+    /**
+     * Shared core: hop to the FX thread, allocate Canvas + SlideRenderer,
+     * run the caller's paint closure, snapshot, convert, return.
+     */
+    private BufferedImage renderOnFxThread(SlideRenderContext slideContext,
+                                            java.util.function.Consumer<SlideRenderer> paintAction)
+            throws IOException {
         AtomicReference<BufferedImage> result = new AtomicReference<>();
         AtomicReference<Exception> error = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-
-        // JavaFX rendering must happen on the FX Application Thread
         AtomicReference<long[]> innerTimings = new AtomicReference<>();
+
         Platform.runLater(() -> {
             long f0 = TIMING_ENABLED ? System.nanoTime() : 0;
             try {
@@ -111,7 +139,7 @@ public class HeadlessSlideRenderer {
                     renderer.setSlideContext(slideContext);
                 }
                 long f1 = TIMING_ENABLED ? System.nanoTime() : 0;
-                renderer.renderSlide(slideDom);
+                paintAction.accept(renderer);
                 long f2 = TIMING_ENABLED ? System.nanoTime() : 0;
 
                 // Snapshot the canvas to an image
