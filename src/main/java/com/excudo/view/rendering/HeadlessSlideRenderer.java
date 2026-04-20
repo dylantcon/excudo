@@ -31,6 +31,19 @@ public class HeadlessSlideRenderer {
     private static final ComponentLogger logger = Logger.getLogger(HeadlessSlideRenderer.class);
     private static boolean toolkitInitialized = false;
 
+    // Per-phase timing log. Enabled via EXCUDO_RENDER_TIMING=1 env var. When
+    // on, each render prints the parse/context/render/snapshot/encode
+    // breakdown to INFO so we can measure optimisation phases against a
+    // real baseline instead of eyeballing wall-clock from outside.
+    private static final boolean TIMING_ENABLED = timingEnabled();
+
+    private static boolean timingEnabled() {
+        String v = System.getenv("EXCUDO_RENDER_TIMING");
+        return v != null && !v.isBlank() && !"0".equals(v) && !"false".equalsIgnoreCase(v);
+    }
+
+    private static double ms(long nanos) { return nanos / 1_000_000.0; }
+
     private final int width;
     private final int height;
 
@@ -53,17 +66,30 @@ public class HeadlessSlideRenderer {
                              String backgroundColorHex,
                              java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
             throws IOException {
+        long t0 = TIMING_ENABLED ? System.nanoTime() : 0;
         Document slideDom = doc.getSlideDocument(slideNumber);
         if (slideDom == null) {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
         }
 
+        long t1 = TIMING_ENABLED ? System.nanoTime() : 0;
         SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, clrMap,
             backgroundColorHex, masterStyles);
+        long t2 = TIMING_ENABLED ? System.nanoTime() : 0;
+
         BufferedImage image = renderToBufferedImage(slideDom, slideContext);
+        long t3 = TIMING_ENABLED ? System.nanoTime() : 0;
+
         outputFile.getParentFile().mkdirs();
         ImageIO.write(image, "png", outputFile);
-        logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
+        long t4 = TIMING_ENABLED ? System.nanoTime() : 0;
+
+        if (TIMING_ENABLED) {
+            logger.info("render-timing slide={} context={}ms render+snapshot={}ms encode={}ms total={}ms",
+                slideNumber, ms(t2 - t1), ms(t3 - t2), ms(t4 - t3), ms(t4 - t0));
+        } else {
+            logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
+        }
     }
 
     /**
@@ -75,14 +101,18 @@ public class HeadlessSlideRenderer {
         CountDownLatch latch = new CountDownLatch(1);
 
         // JavaFX rendering must happen on the FX Application Thread
+        AtomicReference<long[]> innerTimings = new AtomicReference<>();
         Platform.runLater(() -> {
+            long f0 = TIMING_ENABLED ? System.nanoTime() : 0;
             try {
                 Canvas canvas = new Canvas(width, height);
                 SlideRenderer renderer = new SlideRenderer(canvas);
                 if (slideContext != null) {
                     renderer.setSlideContext(slideContext);
                 }
+                long f1 = TIMING_ENABLED ? System.nanoTime() : 0;
                 renderer.renderSlide(slideDom);
+                long f2 = TIMING_ENABLED ? System.nanoTime() : 0;
 
                 // Snapshot the canvas to an image
                 SnapshotParameters params = new SnapshotParameters();
@@ -91,6 +121,10 @@ public class HeadlessSlideRenderer {
 
                 // Convert JavaFX image to AWT BufferedImage for ImageIO
                 result.set(SwingFXUtils.fromFXImage(fxImage, null));
+                long f3 = TIMING_ENABLED ? System.nanoTime() : 0;
+                if (TIMING_ENABLED) {
+                    innerTimings.set(new long[]{f1 - f0, f2 - f1, f3 - f2});
+                }
             } catch (Exception e) {
                 error.set(e);
             } finally {
@@ -107,6 +141,12 @@ public class HeadlessSlideRenderer {
 
         if (error.get() != null) {
             throw new IOException("Rendering failed: " + error.get().getMessage(), error.get());
+        }
+
+        if (TIMING_ENABLED && innerTimings.get() != null) {
+            long[] t = innerTimings.get();
+            logger.info("  fx-thread: setup={}ms render={}ms snapshot+convert={}ms",
+                ms(t[0]), ms(t[1]), ms(t[2]));
         }
 
         return result.get();
