@@ -30,11 +30,32 @@ public class SlideMasterOrchestrationManager {
 
     private final OrchestrationContext context;
 
+    // Master/theme-derived values the GUI reads on every slide switch.
+    // Each DOM walk is 10-30 ms; before caching, a single slide switch
+    // re-walked the master 3-4 times plus re-resolved backgrounds. These
+    // results are stable between mutations -- invalidateMasterCache()
+    // is called from every putXmlPart site that writes the master or
+    // theme back.
+    private volatile Map<String, String> cachedClrMap;
+    private volatile Map<String, TextLevelStyle[]> cachedMasterStyles;
+    private final java.util.concurrent.ConcurrentHashMap<Integer, String> cachedBgBySlide =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
     public SlideMasterOrchestrationManager(OrchestrationContext context) {
         if (context == null) {
             throw new IllegalArgumentException("OrchestrationContext cannot be null");
         }
         this.context = context;
+    }
+
+    /**
+     * Clear all master/theme-derived caches. Called from every master or
+     * theme mutation so subsequent reads re-walk the updated DOM.
+     */
+    public void invalidateMasterCache() {
+        cachedClrMap = null;
+        cachedMasterStyles = null;
+        cachedBgBySlide.clear();
     }
 
     // ========== TEXT STYLE OPERATIONS ==========
@@ -85,6 +106,7 @@ public class SlideMasterOrchestrationManager {
             applyStyleUpdates(doc, lvlPPr, updates);
 
             context.putXmlPart(MASTER_PART, doc);
+            invalidateMasterCache();
             logger.info("Updated {} level {} with {}", target, level, updates.keySet());
             return ExecutionResult.success("EditMasterStyle", null);
 
@@ -102,6 +124,9 @@ public class SlideMasterOrchestrationManager {
      *         to a TextLevelStyle array (9 levels).
      */
     public Map<String, TextLevelStyle[]> getMasterStyles() {
+        Map<String, TextLevelStyle[]> cached = cachedMasterStyles;
+        if (cached != null) return cached;
+
         Map<String, TextLevelStyle[]> result = new LinkedHashMap<>();
         try {
             Document doc = context.getXmlPart(MASTER_PART);
@@ -115,6 +140,7 @@ public class SlideMasterOrchestrationManager {
         } catch (Exception e) {
             logger.error("Failed to read master styles: {}", e.getMessage());
         }
+        cachedMasterStyles = result;
         return result;
     }
 
@@ -140,6 +166,7 @@ public class SlideMasterOrchestrationManager {
             clrMap.setAttribute(logicalColor, themeColor);
             context.putXmlPart(MASTER_PART, doc);
 
+            invalidateMasterCache();
             // Invalidate cached isDarkTheme in PresentationOrchestrationManager
             invalidateDarkThemeCache();
 
@@ -157,6 +184,9 @@ public class SlideMasterOrchestrationManager {
      * Get the current color map from the slide master.
      */
     public Map<String, String> getClrMap() {
+        Map<String, String> cached = cachedClrMap;
+        if (cached != null) return cached;
+
         Map<String, String> result = new LinkedHashMap<>();
         try {
             Document doc = context.getXmlPart(MASTER_PART);
@@ -175,6 +205,7 @@ public class SlideMasterOrchestrationManager {
         } catch (Exception e) {
             logger.error("Failed to read clrMap: {}", e.getMessage());
         }
+        cachedClrMap = result;
         return result;
     }
 
@@ -230,6 +261,7 @@ public class SlideMasterOrchestrationManager {
             schemeClrEl.setAttribute("val", schemeColor);
 
             context.putXmlPart(MASTER_PART, doc);
+            invalidateMasterCache();
             logger.info("Set master background idx={} color={}", fillIndex, schemeColor);
             return ExecutionResult.success("SetMasterBg", null);
 
@@ -245,6 +277,19 @@ public class SlideMasterOrchestrationManager {
      * slide p:bg > master p:bg. Returns null if no background is defined.
      */
     public String getBackgroundColorHex(int slideNumber) {
+        String cached = cachedBgBySlide.get(slideNumber);
+        if (cached != null) {
+            // Sentinel "" means resolved-to-null last time -- short-circuit
+            // without re-walking the DOM.
+            return cached.isEmpty() ? null : cached;
+        }
+
+        String resolved = resolveBackgroundColorHex(slideNumber);
+        cachedBgBySlide.put(slideNumber, resolved == null ? "" : resolved);
+        return resolved;
+    }
+
+    private String resolveBackgroundColorHex(int slideNumber) {
         // Check slide-level background
         Document slideDom = context.getSlideDocument(slideNumber);
         if (slideDom != null) {
@@ -426,6 +471,7 @@ public class SlideMasterOrchestrationManager {
             lnStyle.appendChild(lnFontRef);
 
             context.putXmlPart(THEME_PART, doc);
+            invalidateMasterCache();
             logger.info("Set object defaults: fontColor={}, lineWidth={}", fontColor, lineWidth);
             return ExecutionResult.success("SetObjectDefaults", null);
 

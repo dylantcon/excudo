@@ -448,7 +448,8 @@ public class SlideEditorController implements Initializable {
      * Render current slide on canvas
      */
     private void renderSlide() {
-        if (slideRenderer == null || currentSlideDocument == null) return;
+        if (slideRenderer == null) return;
+        if (currentSlideData == null && currentSlideDocument == null) return;
         try {
             clearCanvas();
 
@@ -458,7 +459,15 @@ public class SlideEditorController implements Initializable {
             ctx.setShowSpids(showSpids);
             ctx.setDebugMode(debugMode);
 
-            slideRenderer.renderSlide(currentSlideDocument);
+            // Prefer the pre-parsed slide data that loadSlideDocument already
+            // built. Without this, slideRenderer.renderSlide(Document) would
+            // run SlideXMLParser.parseSlide AGAIN -- a full DOM walk per
+            // render for content we just parsed moments ago.
+            if (currentSlideData != null) {
+                slideRenderer.renderSlide(currentSlideData);
+            } else {
+                slideRenderer.renderSlide(currentSlideDocument);
+            }
 
         } catch (Exception e) {
             GraphicsContext gc = slideCanvas.getGraphicsContext2D();
