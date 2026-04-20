@@ -14,7 +14,32 @@ import java.util.Map;
  */
 public final class FontResolver {
 
+    // Sentinel for "we looked and couldn't find this font" so the next
+    // resolve for the same key short-circuits instead of re-walking
+    // C:\Windows\Fonts and re-spawning fc-match. Path.of("") is legal but
+    // not equal to any real font path, so `== NOT_FOUND` identity checks
+    // suffice.
+    private static final Path NOT_FOUND = Path.of("");
     private static final Map<String, Path> cache = new ConcurrentHashMap<>();
+
+    // fc-match only exists on Linux (and sometimes macOS via Homebrew).
+    // On Windows every ProcessBuilder.start() attempt pays CreateProcess +
+    // Defender cost before failing -- we hit that path twice per miss, so
+    // skipping the whole branch on Windows removes the worst offender.
+    private static final boolean FC_MATCH_AVAILABLE = detectFcMatch();
+
+    private static boolean detectFcMatch() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) return false;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("fc-match", "--version");
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            return proc.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private static final Path[] FALLBACK_SEARCH_DIRS = buildFallbackDirs();
 
@@ -52,19 +77,19 @@ public final class FontResolver {
     public static Path resolve(String family, boolean bold, boolean italic) {
         String key = family + "|" + bold + "|" + italic;
         Path cached = cache.get(key);
-        if (cached != null) return cached;
+        if (cached != null) return cached == NOT_FOUND ? null : cached;
 
         // Check bundled fonts first for consistent cross-platform behavior
         Path resolved = resolveViaFileSearch(family);
-        if (resolved == null) {
+        if (resolved == null && FC_MATCH_AVAILABLE) {
             resolved = resolveViaFcMatch(family, bold, italic);
+            if (resolved == null) {
+                resolved = resolveViaFcMatch(family, false, false);
+            }
         }
-        if (resolved == null) {
-            resolved = resolveViaFcMatch(family, false, false);
-        }
-        if (resolved != null) {
-            cache.put(key, resolved);
-        }
+        // Always cache -- a miss cached as NOT_FOUND saves a full
+        // Files.walk on every subsequent render of the same text run.
+        cache.put(key, resolved != null ? resolved : NOT_FOUND);
         return resolved;
     }
 
