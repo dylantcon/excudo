@@ -418,12 +418,30 @@ public class MainController implements Initializable, OrchestrationStateListener
     
     private void openPresentationFile(File file) {
         showStatus("Opening presentation: " + file.getName());
-        
+
+        // Route through the console engine's session-create flow when one
+        // is available so the console session state and the GUI's
+        // orchestrator converge on the same instance. Without this, the
+        // GUI Open path used MainController.orchestrator directly while
+        // UIConsoleEngine kept its separate session state, and the
+        // console panel stayed unaware of files loaded via the menu.
+        // The orchestratorChangeHandler we already wire up in
+        // TechnicalConsoleController -> MainController.setOrchestrator
+        // propagates the new session orchestrator back to the GUI.
+        // Falls back to the legacy direct-load path if no console engine
+        // is available (e.g. console UI not yet initialised).
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
-                // Load presentation file using orchestrator
-                if (orchestrator != null) {
+                com.excudo.view.console.UIConsoleEngine engine =
+                    consoleController != null ? consoleController.getConsoleEngine() : null;
+                if (engine != null) {
+                    com.excudo.core.commands.SessionResult result =
+                        engine.createSession(file.getAbsolutePath());
+                    if (!result.isSuccess()) {
+                        throw new Exception(result.getErrorMessage());
+                    }
+                } else if (orchestrator != null) {
                     var result = orchestrator.loadPresentation(file);
                     if (!result.isSuccess()) {
                         throw new Exception(result.getMessage());
@@ -431,7 +449,7 @@ public class MainController implements Initializable, OrchestrationStateListener
                 }
                 return null;
             }
-            
+
             @Override
             protected void succeeded() {
                 Platform.runLater(() -> {
@@ -440,14 +458,14 @@ public class MainController implements Initializable, OrchestrationStateListener
                         viewManager.setCurrentPresentationFile(file);
                         viewManager.markAsSaved();
                     }
-                    
+
                     // Update UI with loaded presentation
                     updatePresentationViews();
                     updateUIState();
                     showStatus("Presentation loaded: " + file.getName());
                 });
             }
-            
+
             @Override
             protected void failed() {
                 Platform.runLater(() -> {
@@ -455,7 +473,7 @@ public class MainController implements Initializable, OrchestrationStateListener
                 });
             }
         };
-        
+
         runBackgroundTask(task);
     }
     
