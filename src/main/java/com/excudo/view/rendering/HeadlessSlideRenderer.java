@@ -44,6 +44,28 @@ public class HeadlessSlideRenderer {
 
     private static double ms(long nanos) { return nanos / 1_000_000.0; }
 
+    // Render-result cache: keyed on (PPTXDocument.revision, slide#, W, H).
+    // Any document mutation bumps the revision which makes every previously
+    // cached entry for that document unreachable -- conservative but
+    // correct. Bounded LRU so long-running sessions don't accumulate.
+    // Access-order iteration so the newest entry lives at the tail.
+    private static final int CACHE_CAPACITY = 32;
+    private static final java.util.LinkedHashMap<String, byte[]> RENDER_CACHE =
+        new java.util.LinkedHashMap<>(CACHE_CAPACITY, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, byte[]> eldest) {
+                return size() > CACHE_CAPACITY;
+            }
+        };
+    private static final Object CACHE_LOCK = new Object();
+
+    /** Clear the render-result cache. Useful for tests and memory release. */
+    public static void clearRenderCache() {
+        synchronized (CACHE_LOCK) {
+            RENDER_CACHE.clear();
+        }
+    }
+
     private final int width;
     private final int height;
 
@@ -67,6 +89,27 @@ public class HeadlessSlideRenderer {
                              java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
             throws IOException {
         long t0 = TIMING_ENABLED ? System.nanoTime() : 0;
+
+        // Cache lookup: skip the entire render + encode pipeline on hit.
+        // The revision counter means any mutation since the last cache
+        // put makes this key unreachable.
+        String cacheKey = cacheKey(doc, slideNumber);
+        byte[] cachedPng;
+        synchronized (CACHE_LOCK) {
+            cachedPng = RENDER_CACHE.get(cacheKey);
+        }
+        if (cachedPng != null) {
+            writeBytesToFile(outputFile, cachedPng);
+            if (TIMING_ENABLED) {
+                logger.info("render-timing slide={} [cache hit] total={}ms",
+                    slideNumber, ms(System.nanoTime() - t0));
+            } else {
+                logger.info("Rendered slide {} to {} (cache hit, {} bytes)",
+                    slideNumber, outputFile.getName(), cachedPng.length);
+            }
+            return;
+        }
+
         Document slideDom = doc.getSlideDocument(slideNumber);
         if (slideDom == null) {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
@@ -79,17 +122,24 @@ public class HeadlessSlideRenderer {
 
         // Prefer the PPTXDocument's cached ParsedSlideData so SlideRenderer
         // doesn't re-run SlideXMLParser.parseSlide inside its render path.
-        // The cache hits as long as no mutation has happened since the last
-        // render of this slide. Falls back to Document-path if the cache
-        // returns null.
         com.excudo.core.model.ParsedSlideData parsed = doc.getParsedSlideData(slideNumber);
         BufferedImage image = parsed != null
             ? renderToBufferedImage(parsed, slideContext)
             : renderToBufferedImage(slideDom, slideContext);
         long t3 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-        outputFile.getParentFile().mkdirs();
-        ImageIO.write(image, "png", outputFile);
+        // Encode PNG to bytes ONCE, then write to file AND cache the bytes
+        // so the next request for this (revision, slide, w, h) tuple can
+        // skip the whole pipeline above.
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        ImageIO.write(image, "png", bos);
+        byte[] pngBytes = bos.toByteArray();
+
+        synchronized (CACHE_LOCK) {
+            RENDER_CACHE.put(cacheKey, pngBytes);
+        }
+
+        writeBytesToFile(outputFile, pngBytes);
         long t4 = TIMING_ENABLED ? System.nanoTime() : 0;
 
         if (TIMING_ENABLED) {
@@ -98,6 +148,17 @@ public class HeadlessSlideRenderer {
         } else {
             logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
         }
+    }
+
+    private String cacheKey(PPTXDocument doc, int slideNumber) {
+        return doc.getRevision() + "|" + slideNumber + "|" + width + "|" + height;
+    }
+
+    private void writeBytesToFile(File outputFile, byte[] bytes) throws IOException {
+        if (outputFile.getParentFile() != null) {
+            outputFile.getParentFile().mkdirs();
+        }
+        java.nio.file.Files.write(outputFile.toPath(), bytes);
     }
 
     /**

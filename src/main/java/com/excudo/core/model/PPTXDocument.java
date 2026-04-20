@@ -311,9 +311,17 @@ public class PPTXDocument implements AutoCloseable {
     }
 
     // ========== DIRTY TRACKING ==========
+    //
+    // markDirty / markSlideDirty / markContentTypesDirty are how in-place
+    // DOM mutations announce themselves: the orchestrator edits an existing
+    // Document's elements and then calls one of these instead of round-
+    // tripping through put{Slide,Xml}Part. The revision counter must bump
+    // here too so dependent caches (parsed state, parsed slide data, render
+    // results) invalidate -- otherwise stale renders persist through edits.
 
     public void markDirty(String partName) {
         dirtyParts.add(partName);
+        mutations.incrementAndGet();
     }
 
     // ========== SLIDE DOCUMENT ACCESS (typed convenience) ==========
@@ -411,6 +419,7 @@ public class PPTXDocument implements AutoCloseable {
 
     public void markSlideDirty(int slideNumber) {
         dirtyParts.add(slidePartName(slideNumber));
+        mutations.incrementAndGet();
     }
 
     public int getSlideCount() {
@@ -447,6 +456,7 @@ public class PPTXDocument implements AutoCloseable {
 
     public void markContentTypesDirty() {
         dirtyParts.add(CONTENT_TYPES_PART);
+        mutations.incrementAndGet();
     }
 
     /**
