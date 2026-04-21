@@ -342,8 +342,18 @@ public class CommandRegistry {
                 .llmName("lineColor")
                 .required(false)
                 .build())
+            .parameter(Parameter.builder("align")
+                .description("Paragraph horizontal alignment for the shape's text. "
+                    + "Values: l/left, ctr/center, r/right, just/justify. "
+                    + "Defaults to OOXML's center default for shape text bodies. "
+                    + "Required to render code or indented text correctly inside shapes -- "
+                    + "leaving it default centers each line and destroys leading whitespace.")
+                .llmName("align")
+                .required(false)
+                .build())
             .example("add-shape 1 RECTANGLE \"Hello\" 100 100 200 100")
             .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
+            .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
             .build();
 
         schemas.put("add-shape", schema);

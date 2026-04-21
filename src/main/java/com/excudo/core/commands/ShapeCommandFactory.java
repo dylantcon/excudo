@@ -106,6 +106,9 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 Double height = parsedCommand.getDouble("height");
                 String fillColor = parsedCommand.getString("fill-color");
                 String lineColor = parsedCommand.getString("line-color");
+                // Normalize alignment aliases to OOXML vocabulary.
+                String alignRaw = parsedCommand.getString("align");
+                String alignment = normalizeAlignment(alignRaw);
 
                 // TEXT_BOX isn't a drawingml preset -- OOXML models text boxes
                 // as rectangles with no fill, no line, and no p:style element.
@@ -129,7 +132,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     ? ShapeStyle.textBox()
                     : parseShapeStyle(fillColor, lineColor);
                 return new AddShapeCommand(shapeSlide != null ? shapeSlide : 1, shapeType, geometry,
-                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, orchestrator);
+                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, alignment, orchestrator);
                 
             case "remove-shape":
                 Integer removeSlide = parsedCommand.getInteger("slide");
@@ -635,6 +638,29 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
      * Accepts hex colors (e.g. "FF0000", "#FF0000") or scheme names (e.g. "accent1").
      * Returns null if no style parameters given (triggers default theme style).
      */
+    /**
+     * Normalize an alignment input ("left" / "l" / "center" / "ctr" /
+     * "right" / "r" / "justify" / "just") to the canonical OOXML token
+     * ("l" / "ctr" / "r" / "just"). Returns null if the input is null
+     * or blank, signaling "use default alignment." Throws on
+     * unrecognized values rather than silently dropping them so the
+     * agent gets immediate feedback.
+     */
+    private String normalizeAlignment(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String v = raw.trim().toLowerCase();
+        switch (v) {
+            case "l": case "left":    return "l";
+            case "ctr": case "center": case "centre": return "ctr";
+            case "r": case "right":   return "r";
+            case "just": case "justify": return "just";
+            default:
+                throw new IllegalArgumentException(
+                    "Unrecognised alignment: '" + raw
+                    + "'. Use one of: l/left, ctr/center, r/right, just/justify.");
+        }
+    }
+
     private ShapeStyle parseShapeStyle(String fillColor, String lineColor) {
         ShapeFill fill = null;
         ShapeLine line = null;

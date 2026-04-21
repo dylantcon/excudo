@@ -20,17 +20,24 @@ public class AddShapeCommand implements Command {
     private final String text;
     private final String shapeName;
     private final ShapeStyle style;
+    private final String alignment;
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
     private Integer createdSpid = null;
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, null, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, null, null, orchestrator);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, PPTXOrchestrator orchestrator) {
+        this(slideNumber, shapeType, geometry, text, shapeName, style, null, orchestrator);
+    }
+
+    public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
+                          String text, String shapeName, ShapeStyle style, String alignment,
+                          PPTXOrchestrator orchestrator) {
         if (orchestrator == null) {
             throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         }
@@ -40,13 +47,14 @@ public class AddShapeCommand implements Command {
         if (geometry == null) {
             throw new IllegalArgumentException("ShapeGeometry cannot be null");
         }
-        
+
         this.slideNumber = slideNumber;
         this.shapeType = shapeType;
         this.geometry = geometry;
         this.text = text;
         this.shapeName = shapeName != null ? shapeName : "Shape_" + System.currentTimeMillis();
         this.style = style;
+        this.alignment = alignment;
         this.orchestrator = orchestrator;
     }
     
@@ -76,6 +84,17 @@ public class AddShapeCommand implements Command {
                     );
                 }
                 executed = true;
+
+                // If the caller specified explicit paragraph alignment,
+                // override the shape's default (typically "ctr") by
+                // extracting its TextBody, rewriting each paragraph's
+                // alignment, and writing back via setTextBody. Done as a
+                // post-step so we don't have to thread the alignment
+                // parameter through the entire shape-factory call chain.
+                // No-op when alignment is null (default behavior).
+                if (alignment != null) {
+                    applyAlignmentOverride();
+                }
                 // Slide-modified notification is fired centrally by
                 // ShapeOrchestrationManager.performShapeXMLOperation so
                 // every shape mutation (add/remove/edit/resize/group/etc)
@@ -228,5 +247,70 @@ public class AddShapeCommand implements Command {
      */
     public Integer getCreatedSpid() {
         return createdSpid;
+    }
+
+    /**
+     * Read the shape's TextBody, rewrite each paragraph's alignment to
+     * the requested value, and write the modified body back via the
+     * orchestrator's setTextBody path. Done as a post-creation step so
+     * the alignment parameter doesn't have to be threaded through the
+     * full shape-factory call chain (5 layers).
+     *
+     * Both empty-text and content-bearing shapes get the override --
+     * an empty shape's lone end-paragraph still has a pPr that we
+     * rewrite so subsequent text typed into the shape inherits the
+     * right alignment.
+     *
+     * Failures here are logged but don't fail the overall add-shape
+     * operation; the shape exists and is usable, just with the default
+     * alignment instead of the requested one.
+     */
+    private void applyAlignmentOverride() {
+        try {
+            var slideDataResult = orchestrator.getSlideData(slideNumber);
+            if (!slideDataResult.isSuccess() || slideDataResult.getData().isEmpty()) return;
+            SlideShape shape = slideDataResult.getData().get()
+                .getShapeRegistry().getShape(createdSpid);
+            if (shape == null || shape.getXmlElement() == null) return;
+
+            com.excudo.core.model.TextBody existing =
+                com.excudo.core.metrics.TextBodyExtractor.extractFromShape(shape.getXmlElement());
+            if (existing == null) return;
+
+            // Rebuild each paragraph with the requested alignment.
+            com.excudo.core.model.TextBody.Builder rebuilt =
+                com.excudo.core.model.TextBody.builder()
+                    .bodyProperties(existing.getBodyProperties())
+                    .placeholder(existing.isPlaceholder());
+            for (com.excudo.core.model.TextParagraph p : existing.getParagraphs()) {
+                com.excudo.core.model.TextParagraph.Builder pb =
+                    com.excudo.core.model.TextParagraph.builder()
+                        .level(p.getLevel())
+                        .alignment(alignment);
+                if (p.getMarginLeft() != null) pb.marginLeft(p.getMarginLeft());
+                if (p.getIndent() != null) pb.indent(p.getIndent());
+                if (p.getLineSpacing() != null) pb.lineSpacing(p.getLineSpacing());
+                if (p.getSpaceBefore() != null) pb.spaceBefore(p.getSpaceBefore());
+                if (p.getSpaceAfter() != null) pb.spaceAfter(p.getSpaceAfter());
+                if (p.getBulletType() == com.excudo.core.model.BulletType.AUTONUMBER
+                        && p.getAutonumType() != null) {
+                    pb.autonumber(p.getAutonumType());
+                } else if (p.getBulletType() == com.excudo.core.model.BulletType.CHARACTER) {
+                    pb.characterBullet(p.getBulletChar(), p.getBulletFont(),
+                        p.getBulletFontPanose(), p.getBulletFontPitchFamily(), p.getBulletFontCharset());
+                }
+                for (com.excudo.core.model.TextRun r : p.getRuns()) {
+                    pb.addRun(r);
+                }
+                rebuilt.addParagraph(pb.build());
+            }
+            orchestrator.setTextBody(slideNumber, createdSpid, rebuilt.build());
+        } catch (Exception e) {
+            // Non-fatal: shape was created successfully, only the
+            // alignment override failed. Log so the user can investigate.
+            java.util.logging.Logger.getLogger(AddShapeCommand.class.getName())
+                .warning("Failed to apply alignment override on SPID " + createdSpid
+                    + " (shape was created successfully): " + e.getMessage());
+        }
     }
 }
