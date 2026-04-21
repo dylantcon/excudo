@@ -124,7 +124,7 @@ public class SlideXMLParser {
         // Recursively register children of group shapes so they are visible
         // to bulk operations, LLM context retrieval, and SPID-based lookups
         if (shape.getType() == SlideShape.ShapeType.GROUP) {
-          registerGroupChildren(shapeElement, slideNumber, registry);
+          registerGroupChildren(shapeElement, shape.getSpid(), slideNumber, registry);
         }
       }
     }
@@ -138,7 +138,7 @@ public class SlideXMLParser {
    * (a:chOff/a:chExt) to absolute slide coordinates so the flat ShapeRegistry
    * contains renderable shapes with correct positions.
    */
-  private void registerGroupChildren(Element groupElement, int slideNumber, ShapeRegistry registry)
+  private void registerGroupChildren(Element groupElement, int parentGroupSpid, int slideNumber, ShapeRegistry registry)
       throws XPathExpressionException {
     // Extract group transform: position on slide + child coordinate system
     String grpX = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:off/@x", groupElement, XPathConstants.STRING);
@@ -179,8 +179,12 @@ public class SlideXMLParser {
                 childShape.getXmlElement(), childShape.getParagraphMetadata());
           }
           registry.addShape(childShape);
+          // Record structural parentage at parse time -- consumers that
+          // need to know "is SPID X inside a group" read this directly
+          // rather than re-deriving from geometry downstream.
+          registry.registerGroupMembership(childShape.getSpid(), parentGroupSpid);
           if (childShape.getType() == SlideShape.ShapeType.GROUP) {
-            registerGroupChildren(child, slideNumber, registry);
+            registerGroupChildren(child, childShape.getSpid(), slideNumber, registry);
           }
         }
       }

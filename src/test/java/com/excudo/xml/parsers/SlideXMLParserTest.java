@@ -301,6 +301,221 @@ class SlideXMLParserTest {
     // ========== ERROR HANDLING TESTS ==========
 
     @Test
+    @DisplayName("Group children registered exactly once (no XPath double-walk)")
+    void testGroupChildrenNotDoubleCounted() throws XMLParsingException, IOException {
+        // Regression: XPATH_ALL_SHAPES_AND_PICTURES previously used `//p:spTree//p:sp`
+        // (descendant-or-self) which picked up every p:sp including those inside
+        // p:grpSp. registerGroupChildren then re-added the same children, ending
+        // up with each grouped child in ShapeRegistry.allShapes twice. Fix was to
+        // select only direct children of spTree; registerGroupChildren recurses
+        // on its own. This test pins that: a group with two children yields
+        // exactly 3 shapes in the registry (group + 2), not 5.
+        String slideWithGroup = """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>
+                  <p:nvGrpSpPr>
+                    <p:cNvPr id="1" name=""/>
+                    <p:cNvGrpSpPr/>
+                    <p:nvPr/>
+                  </p:nvGrpSpPr>
+                  <p:grpSpPr>
+                    <a:xfrm>
+                      <a:off x="0" y="0"/>
+                      <a:ext cx="0" cy="0"/>
+                      <a:chOff x="0" y="0"/>
+                      <a:chExt cx="0" cy="0"/>
+                    </a:xfrm>
+                  </p:grpSpPr>
+                  <p:grpSp>
+                    <p:nvGrpSpPr>
+                      <p:cNvPr id="7" name="CodeBoxGroup"/>
+                      <p:cNvGrpSpPr/>
+                      <p:nvPr/>
+                    </p:nvGrpSpPr>
+                    <p:grpSpPr>
+                      <a:xfrm>
+                        <a:off x="1000000" y="1000000"/>
+                        <a:ext cx="4000000" cy="2000000"/>
+                        <a:chOff x="0" y="0"/>
+                        <a:chExt cx="4000000" cy="2000000"/>
+                      </a:xfrm>
+                    </p:grpSpPr>
+                    <p:sp>
+                      <p:nvSpPr>
+                        <p:cNvPr id="3" name="LineNumbers"/>
+                        <p:cNvSpPr/>
+                        <p:nvPr/>
+                      </p:nvSpPr>
+                      <p:spPr>
+                        <a:xfrm>
+                          <a:off x="0" y="0"/>
+                          <a:ext cx="500000" cy="2000000"/>
+                        </a:xfrm>
+                      </p:spPr>
+                    </p:sp>
+                    <p:sp>
+                      <p:nvSpPr>
+                        <p:cNvPr id="4" name="Code"/>
+                        <p:cNvSpPr/>
+                        <p:nvPr/>
+                      </p:nvSpPr>
+                      <p:spPr>
+                        <a:xfrm>
+                          <a:off x="500000" y="0"/>
+                          <a:ext cx="3500000" cy="2000000"/>
+                        </a:xfrm>
+                      </p:spPr>
+                    </p:sp>
+                  </p:grpSp>
+                </p:spTree>
+              </p:cSld>
+            </p:sld>
+            """;
+
+        File slideFile = createTempSlideFile("group_double_count.xml", slideWithGroup);
+        ParsedSlideData result = parser.parseSlide(slideFile);
+
+        List<SlideShape> shapes = result.getShapeRegistry().getAllShapes();
+        assertEquals(3, shapes.size(),
+            "Expected exactly 3 shapes (group + 2 children), got " + shapes.size() + ": "
+                + shapes.stream().map(s -> s.getSpid() + ":" + s.getType()).toList());
+
+        long groupCount = shapes.stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.GROUP)
+            .count();
+        assertEquals(1, groupCount, "Should have exactly one GROUP");
+
+        long childCount = shapes.stream()
+            .filter(s -> s.getType() != SlideShape.ShapeType.GROUP)
+            .count();
+        assertEquals(2, childCount, "Should have exactly 2 non-group children");
+    }
+
+    @Test
+    @DisplayName("Parser records parent-group SPID on each grouped child")
+    void testGroupMembershipRegisteredAtParse() throws XMLParsingException, IOException {
+        // Structural parentage must survive the flat-registry flattening --
+        // formatters and tools should read registry.getParentSpid(x) rather
+        // than re-deriving from geometry. This pins that the parser
+        // populates membership for direct + nested group children.
+        String nested = """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>
+                  <p:nvGrpSpPr>
+                    <p:cNvPr id="1" name=""/>
+                    <p:cNvGrpSpPr/>
+                    <p:nvPr/>
+                  </p:nvGrpSpPr>
+                  <p:grpSpPr>
+                    <a:xfrm>
+                      <a:off x="0" y="0"/>
+                      <a:ext cx="0" cy="0"/>
+                      <a:chOff x="0" y="0"/>
+                      <a:chExt cx="0" cy="0"/>
+                    </a:xfrm>
+                  </p:grpSpPr>
+                  <p:sp>
+                    <p:nvSpPr>
+                      <p:cNvPr id="2" name="Loose"/>
+                      <p:cNvSpPr/>
+                      <p:nvPr/>
+                    </p:nvSpPr>
+                    <p:spPr>
+                      <a:xfrm>
+                        <a:off x="0" y="0"/>
+                        <a:ext cx="1000000" cy="1000000"/>
+                      </a:xfrm>
+                    </p:spPr>
+                  </p:sp>
+                  <p:grpSp>
+                    <p:nvGrpSpPr>
+                      <p:cNvPr id="7" name="OuterGroup"/>
+                      <p:cNvGrpSpPr/>
+                      <p:nvPr/>
+                    </p:nvGrpSpPr>
+                    <p:grpSpPr>
+                      <a:xfrm>
+                        <a:off x="0" y="0"/>
+                        <a:ext cx="4000000" cy="2000000"/>
+                        <a:chOff x="0" y="0"/>
+                        <a:chExt cx="4000000" cy="2000000"/>
+                      </a:xfrm>
+                    </p:grpSpPr>
+                    <p:sp>
+                      <p:nvSpPr>
+                        <p:cNvPr id="3" name="DirectChild"/>
+                        <p:cNvSpPr/>
+                        <p:nvPr/>
+                      </p:nvSpPr>
+                      <p:spPr>
+                        <a:xfrm>
+                          <a:off x="0" y="0"/>
+                          <a:ext cx="1000000" cy="1000000"/>
+                        </a:xfrm>
+                      </p:spPr>
+                    </p:sp>
+                    <p:grpSp>
+                      <p:nvGrpSpPr>
+                        <p:cNvPr id="8" name="InnerGroup"/>
+                        <p:cNvGrpSpPr/>
+                        <p:nvPr/>
+                      </p:nvGrpSpPr>
+                      <p:grpSpPr>
+                        <a:xfrm>
+                          <a:off x="1000000" y="0"/>
+                          <a:ext cx="3000000" cy="2000000"/>
+                          <a:chOff x="0" y="0"/>
+                          <a:chExt cx="3000000" cy="2000000"/>
+                        </a:xfrm>
+                      </p:grpSpPr>
+                      <p:sp>
+                        <p:nvSpPr>
+                          <p:cNvPr id="5" name="NestedChild"/>
+                          <p:cNvSpPr/>
+                          <p:nvPr/>
+                        </p:nvSpPr>
+                        <p:spPr>
+                          <a:xfrm>
+                            <a:off x="0" y="0"/>
+                            <a:ext cx="500000" cy="500000"/>
+                          </a:xfrm>
+                        </p:spPr>
+                      </p:sp>
+                    </p:grpSp>
+                  </p:grpSp>
+                </p:spTree>
+              </p:cSld>
+            </p:sld>
+            """;
+
+        File slideFile = createTempSlideFile("nested_groups.xml", nested);
+        ParsedSlideData result = parser.parseSlide(slideFile);
+        ShapeRegistry registry = result.getShapeRegistry();
+
+        // Top-level shapes: no parent
+        assertEquals(-1, registry.getParentSpid(2), "Loose shape has no parent group");
+        assertEquals(-1, registry.getParentSpid(7), "OuterGroup is top-level");
+        assertEquals(0, registry.getNestingDepth(2));
+        assertEquals(0, registry.getNestingDepth(7));
+
+        // Direct children of OuterGroup
+        assertEquals(7, registry.getParentSpid(3), "DirectChild's parent is OuterGroup");
+        assertEquals(7, registry.getParentSpid(8), "InnerGroup's parent is OuterGroup");
+        assertEquals(1, registry.getNestingDepth(3));
+        assertEquals(1, registry.getNestingDepth(8));
+
+        // Nested child: parent is InnerGroup, depth is 2
+        assertEquals(8, registry.getParentSpid(5), "NestedChild's parent is InnerGroup");
+        assertEquals(2, registry.getNestingDepth(5));
+    }
+
+    @Test
     @DisplayName("Handle invalid XML file gracefully")
     void testHandleInvalidXML() throws IOException {
         // Arrange - Create invalid XML

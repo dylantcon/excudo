@@ -30,8 +30,12 @@ public final class XMLConstants {
   public static final String RELATIONSHIPS_PREFIX = "r";
   public static final String PACKAGE_RELATIONSHIPS_PREFIX = "rel";
 
-  // XPath expressions for shape extraction
-  public static final String XPATH_ALL_SHAPES_AND_PICTURES = "//p:spTree//p:sp | //p:spTree//p:pic | //p:spTree/p:grpSp";
+  // XPath expressions for shape extraction. Select only direct children
+  // of spTree -- SlideXMLParser.registerGroupChildren recurses into
+  // groups, so including descendant-or-self ("//" under spTree) would
+  // double-walk every grouped shape and register each child twice in the
+  // flat ShapeRegistry.
+  public static final String XPATH_ALL_SHAPES_AND_PICTURES = "//p:spTree/p:sp | //p:spTree/p:pic | //p:spTree/p:grpSp";
   public static final String XPATH_SHAPE_ID_ATTRIBUTE = ".//p:cNvPr/@id";
   public static final String XPATH_SHAPE_NAME_ATTRIBUTE = ".//p:cNvPr/@name";
   public static final String XPATH_SHAPE_TEXT_CONTENT = ".//a:t/text()";

@@ -249,10 +249,14 @@ public class ToolDispatcher {
         int slideNumber = getToolInputInt(toolInput, "slideNumber");
         try {
             ContextService.SlideContext slideCtx = getContextService().getSlideContext(slideNumber);
+            var registry = slideCtx.getSlideData().getShapeRegistry();
             StringBuilder sb = new StringBuilder();
             sb.append("Slide ").append(slideNumber).append(":\n");
-            for (SlideShape shape : slideCtx.getSlideData().getShapeRegistry().getAllShapes()) {
-                sb.append("  ").append(shape.getSpid()).append(" ");
+            for (SlideShape shape : registry.getAllShapes()) {
+                int depth = registry.getNestingDepth(shape.getSpid());
+                sb.append("  ");
+                for (int i = 0; i < depth; i++) sb.append("  ");
+                sb.append(shape.getSpid()).append(" ");
                 sb.append(shape.getType());
                 if (shape.getName() != null) sb.append(" \"").append(shape.getName()).append("\"");
                 if (shape.hasText()) {
