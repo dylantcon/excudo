@@ -188,6 +188,9 @@ public final class TextBodyXMLWriter {
         if (run.getCapitalization() != null) {
             rPr.setAttribute("cap", run.getCapitalization());
         }
+        if (run.getBaseline() != null) {
+            rPr.setAttribute("baseline", String.valueOf(run.getBaseline()));
+        }
 
         // Color fill
         if (run.getColor() != null) {

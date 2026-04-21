@@ -238,6 +238,12 @@ public final class TextBodyExtractor {
             String cap = rPr.getAttribute("cap");
             if (!cap.isEmpty()) builder.capitalization(cap);
 
+            String baseline = rPr.getAttribute("baseline");
+            if (!baseline.isEmpty()) {
+                try { builder.baseline(Integer.parseInt(baseline)); }
+                catch (NumberFormatException ignored) { /* malformed, skip */ }
+            }
+
             // Color: solidFill
             Element solidFill = getFirstChild(rPr, "a:solidFill");
             if (solidFill != null) {

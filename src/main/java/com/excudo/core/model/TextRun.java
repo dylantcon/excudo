@@ -17,6 +17,7 @@ public final class TextRun {
     private final TextColor highlight;
     private final String language;
     private final String capitalization;
+    private final Integer baseline;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -30,6 +31,7 @@ public final class TextRun {
         this.highlight = builder.highlight;
         this.language = builder.language;
         this.capitalization = builder.capitalization;
+        this.baseline = builder.baseline;
     }
 
     public String getText() { return text; }
@@ -44,6 +46,13 @@ public final class TextRun {
     public String getLanguage() { return language; }
     /** OOXML rPr/@cap: "none" (default), "small" (smallcaps), or "all" (uppercase transform). Null means inherit. */
     public String getCapitalization() { return capitalization; }
+    /**
+     * OOXML rPr/@baseline: super/sub-script offset, expressed as percent
+     * of font size times 1000. Positive raises the run above the baseline
+     * (superscript), negative drops it below (subscript). Null/zero is
+     * normal baseline.
+     */
+    public Integer getBaseline() { return baseline; }
 
     /**
      * Text as it should be rendered + measured, after applying any
@@ -77,6 +86,7 @@ public final class TextRun {
         private TextColor highlight;
         private String language = "en-US";
         private String capitalization;
+        private Integer baseline;
 
         private Builder(String text) {
             this.text = text;
@@ -95,6 +105,8 @@ public final class TextRun {
         public Builder language(String lang) { this.language = lang; return this; }
         /** OOXML values: "none", "small", "all". Null keeps inheritance. */
         public Builder capitalization(String cap) { this.capitalization = cap; return this; }
+        /** Super/sub-script offset in percent*1000 units. Positive = super, negative = sub. */
+        public Builder baseline(int baseline) { this.baseline = baseline; return this; }
 
         public TextRun build() {
             return new TextRun(this);

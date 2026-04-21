@@ -359,12 +359,23 @@ public final class TextPainter {
                     surface.fillRect(lineX, lineY, seg.width(), seg.font().sizePx() + 2);
                 }
 
+                // Baseline shift: rPr/@baseline is percent*1000 of the
+                // font size. Positive = superscript (y up = negative
+                // screen delta); negative = subscript (y down = positive
+                // screen delta). Decorations (underline, strikethrough)
+                // shift with the text so they land relative to the run,
+                // not the paragraph baseline.
+                Integer baselineAttr = seg.run().getBaseline();
+                double baselineShift = baselineAttr != null
+                    ? -baselineAttr / 100000.0 * seg.font().sizePx()
+                    : 0.0;
+
                 surface.setFill(seg.color());
-                surface.fillText(seg.text(), lineX, lineY + seg.font().sizePx());
+                surface.fillText(seg.text(), lineX, lineY + seg.font().sizePx() + baselineShift);
 
                 // Underline
                 if (seg.run().getUnderline() != null && !"none".equals(seg.run().getUnderline())) {
-                    double underlineY = lineY + seg.font().sizePx() + 2;
+                    double underlineY = lineY + seg.font().sizePx() + 2 + baselineShift;
                     surface.setStroke(seg.color());
                     surface.setLineWidth("heavy".equals(seg.run().getUnderline()) ? 2.0 : 1.0);
                     surface.strokeLine(lineX, underlineY, lineX + seg.width(), underlineY);
@@ -372,7 +383,7 @@ public final class TextPainter {
 
                 // Strikethrough (sngStrike or dblStrike)
                 if (seg.run().getStrikethrough() != null) {
-                    double strikeY = lineY + seg.font().sizePx() * 0.6;
+                    double strikeY = lineY + seg.font().sizePx() * 0.6 + baselineShift;
                     surface.setStroke(seg.color());
                     surface.setLineWidth(1.0);
                     surface.strokeLine(lineX, strikeY, lineX + seg.width(), strikeY);

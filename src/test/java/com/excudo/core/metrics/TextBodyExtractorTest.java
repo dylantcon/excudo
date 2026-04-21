@@ -197,6 +197,39 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripBaselineSuperscript() throws Exception {
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("E=mc").build())
+                .addRun(TextRun.builder("2").baseline(30000).build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        var runs = extracted.getParagraphs().get(0).getRuns();
+        assertEquals(2, runs.size());
+        assertNull("normal text has no baseline", runs.get(0).getBaseline());
+        assertEquals("superscript baseline", Integer.valueOf(30000), runs.get(1).getBaseline());
+    }
+
+    @Test
+    public void testRoundTripBaselineSubscript() throws Exception {
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("H").build())
+                .addRun(TextRun.builder("2").baseline(-25000).build())
+                .addRun(TextRun.builder("O").build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        var runs = extracted.getParagraphs().get(0).getRuns();
+        assertEquals(3, runs.size());
+        assertEquals("subscript baseline", Integer.valueOf(-25000), runs.get(1).getBaseline());
+        assertNull(runs.get(2).getBaseline());
+    }
+
+    @Test
     public void testRoundTripTextRunFormatting() throws Exception {
         TextBody original = TextBody.builder()
             .addParagraph(TextParagraph.builder()
