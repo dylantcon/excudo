@@ -9,7 +9,7 @@ import com.excudo.exceptions.XMLParsingException;
 /**
  * Tests for SlideNotesWriter functionality
  */
-@Disabled("Temporarily disabled while establishing stable CI/CD baseline - will re-enable systematically")
+@Disabled("testAppendToExistingNotes + testCreateNotesForSlideWithoutNotes fail after the in-memory migration -- SlideNotesWriter no longer persists in the shape the disk-read assertions expect. Rewrite to assert against PPTXDocument.")
 public class SlideNotesWriterTest {
     
     private static final String TEST_PPTX = "test-pptx-samples/generalist_test_file.pptx";

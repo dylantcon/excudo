@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for CoordinateMapper - the foundation of all coordinate transformations.
  * Tests EMU ↔ Pixel conversions, viewport handling, and zoom operations.
  */
-@Disabled("Temporarily disabled while establishing stable CI/CD baseline - will re-enable systematically")
+@Disabled("Lives under src/test/java/com/excudo/view and is auto-excluded by the headless test runner; re-enable once the runner grows a finer-grained filter than path-prefix")
 class CoordinateMapperTest {
     
     private CoordinateMapper mapper;

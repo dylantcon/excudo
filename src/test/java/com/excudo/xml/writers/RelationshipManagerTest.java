@@ -24,7 +24,7 @@ import com.excudo.core.utils.XMLConstants;
  * @author Excudo Test Suite
  * @version 1.0
  */
-@Disabled("Temporarily disabled while establishing stable CI/CD baseline - will re-enable systematically")
+@Disabled("Asserts on disk-side _rels files but the PPTXDocument in-memory migration stopped writing them to disk. Tests need to be rewritten to assert on PPTXDocument's in-memory relationship state.")
 class RelationshipManagerTest {
 
   /**
