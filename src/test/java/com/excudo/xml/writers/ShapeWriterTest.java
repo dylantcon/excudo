@@ -196,6 +196,129 @@ class ShapeWriterTest {
   }
 
   @Test
+  @DisplayName("updateShapeGeometry on GROUP updates ext only; leaves chExt and chOff")
+  void testUpdateShapeGeometry_groupPreservesChildCoordSystem() throws Exception {
+    // Build a slide with a grpSp containing two children. Resize the group
+    // to 50% of its original size. The fix: only ext is updated; chExt and
+    // chOff stay at their original values so OOXML's render formula
+    // (off + (childOff - chOff) * ext/chExt) naturally scales children.
+    Document doc = documentBuilder.newDocument();
+    Element sld = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:sld");
+    sld.setAttribute("xmlns:a", XMLConstants.DRAWING_NS);
+    doc.appendChild(sld);
+    Element cSld = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cSld");
+    sld.appendChild(cSld);
+    Element spTree = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:spTree");
+    cSld.appendChild(spTree);
+
+    Element grpSp = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:grpSp");
+    Element nvGrpSpPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:nvGrpSpPr");
+    Element grpCNvPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cNvPr");
+    grpCNvPr.setAttribute("id", "42");
+    grpCNvPr.setAttribute("name", "TestGroup");
+    nvGrpSpPr.appendChild(grpCNvPr);
+    nvGrpSpPr.appendChild(doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cNvGrpSpPr"));
+    nvGrpSpPr.appendChild(doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:nvPr"));
+    grpSp.appendChild(nvGrpSpPr);
+
+    Element grpSpPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:grpSpPr");
+    Element xfrm = doc.createElementNS(XMLConstants.DRAWING_NS, "a:xfrm");
+    Element off = doc.createElementNS(XMLConstants.DRAWING_NS, "a:off");
+    off.setAttribute("x", "1000000"); off.setAttribute("y", "500000");
+    xfrm.appendChild(off);
+    Element ext = doc.createElementNS(XMLConstants.DRAWING_NS, "a:ext");
+    ext.setAttribute("cx", "4000000"); ext.setAttribute("cy", "2000000");
+    xfrm.appendChild(ext);
+    Element chOff = doc.createElementNS(XMLConstants.DRAWING_NS, "a:chOff");
+    chOff.setAttribute("x", "1000000"); chOff.setAttribute("y", "500000");
+    xfrm.appendChild(chOff);
+    Element chExt = doc.createElementNS(XMLConstants.DRAWING_NS, "a:chExt");
+    chExt.setAttribute("cx", "4000000"); chExt.setAttribute("cy", "2000000");
+    xfrm.appendChild(chExt);
+    grpSpPr.appendChild(xfrm);
+    grpSp.appendChild(grpSpPr);
+    spTree.appendChild(grpSp);
+
+    ShapeWriter writer = new ShapeWriter(doc, xpath, spTree, null, new ShapeFactoryRegistry());
+
+    // Resize to 50%: keep origin at (1000000, 500000), halve the size.
+    writer.updateShapeGeometry(42, new ShapeGeometry(1000000, 500000, 2000000, 1000000));
+
+    // ext updated to new size
+    assertEquals("2000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:ext/@cx", grpSp));
+    assertEquals("1000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:ext/@cy", grpSp));
+    // off unchanged (caller passed same origin)
+    assertEquals("1000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:off/@x", grpSp));
+    assertEquals("500000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:off/@y", grpSp));
+    // chOff + chExt must NOT have been overwritten: they stay at original.
+    // (This is the whole point -- the ext/chExt ratio going from 1:1 to
+    // 1:2 is what makes children scale to 50% at render time.)
+    assertEquals("1000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chOff/@x", grpSp));
+    assertEquals("500000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chOff/@y", grpSp));
+    assertEquals("4000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chExt/@cx", grpSp));
+    assertEquals("2000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chExt/@cy", grpSp));
+  }
+
+  @Test
+  @DisplayName("updateShapeGeometry on GROUP move updates off only; chOff untouched")
+  void testUpdateShapeGeometry_groupMoveLeavesChildCoordOriginAlone() throws Exception {
+    // Pure move: change off without changing ext. chOff must stay at its
+    // original value so children ride along with the group. The previous
+    // code synced chOff := new off, which made the render formula collapse
+    // to `childOff` (ignoring the move entirely).
+    Document doc = documentBuilder.newDocument();
+    Element sld = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:sld");
+    sld.setAttribute("xmlns:a", XMLConstants.DRAWING_NS);
+    doc.appendChild(sld);
+    Element cSld = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cSld");
+    sld.appendChild(cSld);
+    Element spTree = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:spTree");
+    cSld.appendChild(spTree);
+
+    Element grpSp = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:grpSp");
+    Element nvGrpSpPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:nvGrpSpPr");
+    Element grpCNvPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cNvPr");
+    grpCNvPr.setAttribute("id", "11");
+    grpCNvPr.setAttribute("name", "MoveGroup");
+    nvGrpSpPr.appendChild(grpCNvPr);
+    nvGrpSpPr.appendChild(doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:cNvGrpSpPr"));
+    nvGrpSpPr.appendChild(doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:nvPr"));
+    grpSp.appendChild(nvGrpSpPr);
+
+    Element grpSpPr = doc.createElementNS(XMLConstants.PRESENTATION_NS, "p:grpSpPr");
+    Element xfrm = doc.createElementNS(XMLConstants.DRAWING_NS, "a:xfrm");
+    Element off = doc.createElementNS(XMLConstants.DRAWING_NS, "a:off");
+    off.setAttribute("x", "1000000"); off.setAttribute("y", "500000");
+    xfrm.appendChild(off);
+    Element ext = doc.createElementNS(XMLConstants.DRAWING_NS, "a:ext");
+    ext.setAttribute("cx", "4000000"); ext.setAttribute("cy", "2000000");
+    xfrm.appendChild(ext);
+    Element chOff = doc.createElementNS(XMLConstants.DRAWING_NS, "a:chOff");
+    chOff.setAttribute("x", "1000000"); chOff.setAttribute("y", "500000");
+    xfrm.appendChild(chOff);
+    Element chExt = doc.createElementNS(XMLConstants.DRAWING_NS, "a:chExt");
+    chExt.setAttribute("cx", "4000000"); chExt.setAttribute("cy", "2000000");
+    xfrm.appendChild(chExt);
+    grpSpPr.appendChild(xfrm);
+    grpSp.appendChild(grpSpPr);
+    spTree.appendChild(grpSp);
+
+    ShapeWriter writer = new ShapeWriter(doc, xpath, spTree, null, new ShapeFactoryRegistry());
+
+    // Move: new origin (3000000, 500000), same size.
+    writer.updateShapeGeometry(11, new ShapeGeometry(3000000, 500000, 4000000, 2000000));
+
+    assertEquals("3000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:off/@x", grpSp));
+    assertEquals("500000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:off/@y", grpSp));
+    assertEquals("4000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:ext/@cx", grpSp));
+    assertEquals("2000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:ext/@cy", grpSp));
+    // chOff unchanged -- children ride along with the group rather than
+    // being pinned to their pre-move slide coords.
+    assertEquals("1000000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chOff/@x", grpSp));
+    assertEquals("500000", xpath.evaluate("./p:grpSpPr/a:xfrm/a:chOff/@y", grpSp));
+  }
+
+  @Test
   @DisplayName("updateShapeGeometry throws for missing SPID")
   void testUpdateShapeGeometry_throwsForMissingSpid() {
     assertThrows(XMLParsingException.class,

@@ -1284,21 +1284,27 @@ public class ShapeWriter {
       ext.setAttribute("cy", String.valueOf(geometry.getHeight()));
     }
 
-    // For group shapes, keep child coordinate system (a:chOff, a:chExt) in sync.
-    // When moving a group, chOff should match the new position so children render
-    // at the same relative offsets. When resizing, chExt should match the new size.
-    if ("grpSp".equals(shape.getLocalName())) {
-      Element chOff = (Element) xpath.evaluate("./a:chOff", xfrm, XPathConstants.NODE);
-      if (chOff != null) {
-        chOff.setAttribute("x", String.valueOf(geometry.getX()));
-        chOff.setAttribute("y", String.valueOf(geometry.getY()));
-      }
-      Element chExt = (Element) xpath.evaluate("./a:chExt", xfrm, XPathConstants.NODE);
-      if (chExt != null) {
-        chExt.setAttribute("cx", String.valueOf(geometry.getWidth()));
-        chExt.setAttribute("cy", String.valueOf(geometry.getHeight()));
-      }
-    }
+    // GROUP shapes: update a:off + a:ext ONLY; leave a:chOff + a:chExt
+    // at their original values so OOXML's render pipeline naturally
+    // scales children.
+    //
+    // The old behavior synced chOff -> off and chExt -> ext, which
+    // neutralized both the move and the resize: the render formula
+    //   slideSpace = off + (childOff - chOff) * (ext / chExt)
+    // collapses to childOff whenever chOff==off and chExt==ext, so
+    // children stayed pinned at their stored slide-space coordinates
+    // regardless of what happened to the group. On resize this was the
+    // silent no-op surfaced in beta testing; on move it was latent.
+    //
+    // With chOff/chExt preserved, the ratio ext/chExt becomes the scale
+    // factor applied uniformly to every child's relative position and
+    // size. Halving ext halves children's visible sizes AND their gaps
+    // within the group -- the canonical proportional-scale semantics.
+    //
+    // Rotation (a:rot) on the group is untouched; OOXML applies scale
+    // in child-space then rotates in slide-space, which is exactly
+    // scale-then-rotate composition. Non-uniform scale (sx != sy) is
+    // honored in the group's own axes, preserving compositional intent.
   }
 
   private void addTextToShape(Element shape, String text) {
