@@ -113,6 +113,67 @@ public class HeadlessSlideRendererCacheTest {
     }
 
     @Test
+    public void editingOneSlideLeavesAnotherSlidesCachedRender() throws Exception {
+        // Per-slide revision invariant: editing slide 1 must NOT invalidate
+        // slide 2's cached render. Deck-scope revision stays put because no
+        // theme/master/layout mutation occurred -- only slide 1's own XML
+        // changed. The cache key for slide 2 is unchanged, so the second
+        // render of slide 2 must produce byte-identical output.
+        PPTXDocument doc = buildTwoSlideDoc();
+
+        HeadlessSlideRenderer renderer = new HeadlessSlideRenderer(640, 360);
+
+        File slide2First = File.createTempFile("excudo-granular-s2a", ".png");
+        slide2First.deleteOnExit();
+        File slide2Second = File.createTempFile("excudo-granular-s2b", ".png");
+        slide2Second.deleteOnExit();
+        File slide1Post = File.createTempFile("excudo-granular-s1post", ".png");
+        slide1Post.deleteOnExit();
+        try {
+            renderSlide(renderer, doc, 1, output);
+            byte[] slide1Before = Files.readAllBytes(output.toPath());
+
+            renderSlide(renderer, doc, 2, slide2First);
+            byte[] slide2Before = Files.readAllBytes(slide2First.toPath());
+
+            long slide2RevBefore = doc.getSlideRevision(2);
+            long slide1RevBefore = doc.getSlideRevision(1);
+            long deckRevBefore = doc.getDeckRevision();
+
+            var shapeResult = orch.addShape(1,
+                com.excudo.core.model.SlideShape.ShapeType.RECTANGLE,
+                new com.excudo.core.model.ShapeGeometry(500000, 500000, 2000000, 2000000),
+                "EDIT-ON-SLIDE-1",
+                "EditOnSlide1",
+                com.excudo.core.model.ShapeStyle.withFill(
+                    com.excudo.core.model.ShapeFill.solid("00FFFF")));
+            assertTrue("addShape must succeed: " + shapeResult.getMessage(),
+                shapeResult.isSuccess());
+
+            assertEquals("slide-2 revision must NOT advance after editing slide 1",
+                slide2RevBefore, doc.getSlideRevision(2));
+            assertTrue("slide-1 revision must advance",
+                doc.getSlideRevision(1) > slide1RevBefore);
+            assertEquals("deck revision must NOT advance on a slide-local edit",
+                deckRevBefore, doc.getDeckRevision());
+
+            renderSlide(renderer, doc, 2, slide2Second);
+            byte[] slide2After = Files.readAllBytes(slide2Second.toPath());
+            assertArrayEquals("slide 2 must still be a cache hit after slide 1 edit",
+                slide2Before, slide2After);
+
+            renderSlide(renderer, doc, 1, slide1Post);
+            byte[] slide1After = Files.readAllBytes(slide1Post.toPath());
+            assertFalse("slide 1 must re-render after the edit on slide 1",
+                java.util.Arrays.equals(slide1Before, slide1After));
+        } finally {
+            slide2First.delete();
+            slide2Second.delete();
+            slide1Post.delete();
+        }
+    }
+
+    @Test
     public void differentDimensionsAreCachedSeparately() throws Exception {
         PPTXDocument doc = buildSingleSlideDoc();
 
@@ -138,6 +199,15 @@ public class HeadlessSlideRendererCacheTest {
         orch = new PPTXOrchestratorImpl();
         orch.initialize(doc);
         orch.createSlide(1, "Cache Test Title", "slideLayout2");
+        return orch.getContext().get().getDocument();
+    }
+
+    private PPTXDocument buildTwoSlideDoc() throws Exception {
+        PPTXDocument doc = PresentationScaffolder.scaffoldDocument("excudo");
+        orch = new PPTXOrchestratorImpl();
+        orch.initialize(doc);
+        orch.createSlide(1, "Slide One", "slideLayout2");
+        orch.createSlide(2, "Slide Two", "slideLayout2");
         return orch.getContext().get().getDocument();
     }
 

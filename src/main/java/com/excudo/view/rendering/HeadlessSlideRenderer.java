@@ -173,7 +173,13 @@ public class HeadlessSlideRenderer {
     }
 
     private String cacheKey(PPTXDocument doc, int slideNumber) {
-        return doc.getRevision() + "|" + slideNumber + "|" + width + "|" + height;
+        // Deck + per-slide revisions, rather than the global mutations
+        // counter, so an edit to slide N leaves slide M's cached render
+        // reachable. Deck revision covers theme/master/layout/media --
+        // any of those invalidates every entry (correct, since they
+        // affect every slide's render).
+        return doc.getDeckRevision() + "|" + doc.getSlideRevision(slideNumber)
+            + "|" + slideNumber + "|" + width + "|" + height;
     }
 
     private void writeBytesToFile(File outputFile, byte[] bytes) throws IOException {

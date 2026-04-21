@@ -55,6 +55,21 @@ public class PPTXDocument implements AutoCloseable {
     private final java.util.concurrent.atomic.AtomicLong mutations =
         new java.util.concurrent.atomic.AtomicLong(0);
 
+    // Deck-scope revision. Bumped ONLY by mutations that affect rendering
+    // state shared across slides: theme, master, layout, presentation.xml,
+    // media, content types. Slide-local mutations do NOT bump this, which
+    // is what lets the render cache keep other slides' entries after one
+    // slide is edited.
+    private final java.util.concurrent.atomic.AtomicLong deckMutations =
+        new java.util.concurrent.atomic.AtomicLong(0);
+
+    // Per-slide revision counters. Bumped only when a mutation targets a
+    // specific slide's XML or rels part. Independent from deckMutations
+    // above; the render cache uses both in its key so a slide-local edit
+    // leaves every other slide's cached render reachable.
+    private final java.util.concurrent.ConcurrentHashMap<Integer, java.util.concurrent.atomic.AtomicLong>
+        slideRevisions = new java.util.concurrent.ConcurrentHashMap<>();
+
     // Cached ParsedPresentationState. Parsing walks every layout +
     // master + theme XML part -- 20-50 ms on cold -- and the result is
     // stable between mutations. getParsedState() returns the cached
@@ -199,6 +214,46 @@ public class PPTXDocument implements AutoCloseable {
     }
 
     /**
+     * Deck-scope revision. Bumped only by mutations that affect rendering
+     * state shared across slides (theme, master, layout, presentation,
+     * media, content types). Does NOT bump when a slide's own XML/rels
+     * change -- those bump {@link #getSlideRevision(int)} instead.
+     */
+    public long getDeckRevision() {
+        return deckMutations.get();
+    }
+
+    /**
+     * Per-slide revision. Bumped when slide {@code n}'s own XML or rels
+     * part mutates. Zero for slides that have never been touched since
+     * load. Pair with {@link #getDeckRevision()} for cache keys that
+     * invalidate granularly on slide-local edits.
+     */
+    public long getSlideRevision(int slideNumber) {
+        java.util.concurrent.atomic.AtomicLong c = slideRevisions.get(slideNumber);
+        return c == null ? 0L : c.get();
+    }
+
+    private void bumpSlideRevision(int slideNumber) {
+        slideRevisions.computeIfAbsent(slideNumber,
+            k -> new java.util.concurrent.atomic.AtomicLong(0)).incrementAndGet();
+    }
+
+    /**
+     * Route a path-based mutation to either the per-slide counter (if the
+     * path is a slide's XML or rels part) or the deck counter (for every
+     * other part -- theme, master, layout, presentation, rels, etc.).
+     * Always bump mutations separately; this helper is additive.
+     */
+    private void bumpScopedRevisionFor(String partName) {
+        int n = extractSlideNumber(partName);
+        if (n > 0) { bumpSlideRevision(n); return; }
+        int r = extractSlideRelsNumber(partName);
+        if (r > 0) { bumpSlideRevision(r); return; }
+        deckMutations.incrementAndGet();
+    }
+
+    /**
      * Return a cached {@link ParsedSlideData} for the given slide number,
      * reparsing only when the document's revision counter has advanced
      * since the last parse. Callers in the hot render path should prefer
@@ -267,12 +322,14 @@ public class PPTXDocument implements AutoCloseable {
         xmlParts.put(partName, doc);
         dirtyParts.add(partName);
         mutations.incrementAndGet();
+        bumpScopedRevisionFor(partName);
     }
 
     public void removeXmlPart(String partName) {
         xmlParts.remove(partName);
         dirtyParts.remove(partName);
         mutations.incrementAndGet();
+        bumpScopedRevisionFor(partName);
     }
 
     public MediaElement getMediaPart(String partName) {
@@ -283,12 +340,14 @@ public class PPTXDocument implements AutoCloseable {
         mediaParts.put(media.getPartName(), media);
         dirtyParts.add(media.getPartName());
         mutations.incrementAndGet();
+        deckMutations.incrementAndGet();
     }
 
     public void removeMediaPart(String partName) {
         mediaParts.remove(partName);
         dirtyParts.remove(partName);
         mutations.incrementAndGet();
+        deckMutations.incrementAndGet();
     }
 
     public boolean hasPart(String partName) {
@@ -331,6 +390,7 @@ public class PPTXDocument implements AutoCloseable {
     public void markDirty(String partName) {
         dirtyParts.add(partName);
         mutations.incrementAndGet();
+        bumpScopedRevisionFor(partName);
     }
 
     // ========== SLIDE DOCUMENT ACCESS (typed convenience) ==========
@@ -354,6 +414,7 @@ public class PPTXDocument implements AutoCloseable {
         xmlParts.put(partName, document);
         dirtyParts.add(partName);
         mutations.incrementAndGet();
+        bumpSlideRevision(slideNumber);
         logger.debug("Put slide {} into PPTXDocument (now dirty)", slideNumber);
     }
 
@@ -375,6 +436,7 @@ public class PPTXDocument implements AutoCloseable {
             }
         }
         mutations.incrementAndGet();
+        bumpSlideRevision(slideNumber);
         logger.debug("Removed slide {} from PPTXDocument", slideNumber);
     }
 
@@ -421,6 +483,14 @@ public class PPTXDocument implements AutoCloseable {
 
         if (!slidesToRekey.isEmpty() || !relsToRekey.isEmpty()) {
             mutations.incrementAndGet();
+            // Rekeying shifts slide identity: both the source slots and
+            // the destination slots now hold different content than they
+            // did. Bump all affected slide revisions; the deck counter
+            // stays put (theme/master/layout unaffected).
+            for (int key : slidesToRekey.keySet()) {
+                bumpSlideRevision(key);
+                bumpSlideRevision(key + delta);
+            }
         }
         logger.debug("Rekeyed {} slides + {} rels from {} with delta {}",
             slidesToRekey.size(), relsToRekey.size(), startFrom, delta);
@@ -429,6 +499,7 @@ public class PPTXDocument implements AutoCloseable {
     public void markSlideDirty(int slideNumber) {
         dirtyParts.add(slidePartName(slideNumber));
         mutations.incrementAndGet();
+        bumpSlideRevision(slideNumber);
     }
 
     public int getSlideCount() {
@@ -466,6 +537,7 @@ public class PPTXDocument implements AutoCloseable {
     public void markContentTypesDirty() {
         dirtyParts.add(CONTENT_TYPES_PART);
         mutations.incrementAndGet();
+        deckMutations.incrementAndGet();
     }
 
     /**
