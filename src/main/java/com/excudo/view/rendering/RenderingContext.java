@@ -1,5 +1,7 @@
 package com.excudo.view.rendering;
 
+import com.excudo.view.rendering.surface.CanvasRenderSurface;
+import com.excudo.view.rendering.surface.RenderSurface;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
@@ -11,23 +13,30 @@ import java.util.Stack;
 /**
  * Maintains rendering state and context for PowerPoint slide rendering.
  * Provides coordinate mapping, graphics state management, and rendering utilities.
+ *
+ * <p>As of the Bridge-pattern refactor, this type holds a
+ * {@link RenderSurface} rather than a raw {@link GraphicsContext}.
+ * {@link #getGraphicsContext()} remains as a shim during Phase A so
+ * existing renderers that still call it compile unchanged; Phase B
+ * rewires renderers to {@link #getSurface()} and Phase E removes the
+ * shim entirely.
  */
 public class RenderingContext {
-    
-    private final GraphicsContext graphicsContext;
+
+    private final RenderSurface surface;
     private final CoordinateMapper coordinateMapper;
     private final Stack<RenderingState> stateStack;
     private final Map<String, Object> renderingHints;
-    
+
     // Current rendering state
     private double zoomFactor;
     private boolean debugMode;
     private boolean showBounds;
     private boolean showSpids;
     private boolean showGrid;
-    
-    public RenderingContext(GraphicsContext graphicsContext, CoordinateMapper coordinateMapper) {
-        this.graphicsContext = graphicsContext;
+
+    public RenderingContext(RenderSurface surface, CoordinateMapper coordinateMapper) {
+        this.surface = surface;
         this.coordinateMapper = coordinateMapper;
         this.stateStack = new Stack<>();
         this.renderingHints = new HashMap<>();
@@ -37,31 +46,40 @@ public class RenderingContext {
         this.showSpids = false;
         this.showGrid = false;
     }
+
+    /**
+     * Legacy constructor accepting a raw GraphicsContext. Internally
+     * wraps the GraphicsContext's Canvas in a {@link CanvasRenderSurface}.
+     * Kept for callers that haven't migrated yet; remove once the
+     * codebase is fully on the surface API.
+     */
+    public RenderingContext(GraphicsContext graphicsContext, CoordinateMapper coordinateMapper) {
+        this(new CanvasRenderSurface(graphicsContext.getCanvas()), coordinateMapper);
+    }
     
     // ========== STATE MANAGEMENT ==========
-    
+    //
+    // The parallel RenderingState stack that captured fill/stroke/font
+    // was redundant with the surface's native save/restore (the fields
+    // were populated but never read back). Collapsed onto surface.save/
+    // surface.restore; the stateStack and RenderingState holder remain
+    // below only to avoid API churn in callers that peek at the depth.
+
     /**
      * Save current graphics state to stack
      */
     public void saveState() {
-        RenderingState state = new RenderingState(
-                graphicsContext.getFill(),
-                graphicsContext.getStroke(),
-                graphicsContext.getLineWidth(),
-                graphicsContext.getFont(),
-                graphicsContext.getGlobalAlpha()
-        );
-        stateStack.push(state);
-        graphicsContext.save();
+        stateStack.push(RenderingState.EMPTY);
+        surface.save();
     }
-    
+
     /**
      * Restore graphics state from stack
      */
     public void restoreState() {
         if (!stateStack.isEmpty()) {
-            RenderingState state = stateStack.pop();
-            graphicsContext.restore();
+            stateStack.pop();
+            surface.restore();
         }
     }
     
@@ -82,12 +100,33 @@ public class RenderingContext {
     }
     
     // ========== GRAPHICS CONTEXT ACCESS ==========
-    
+
     /**
-     * Get underlying JavaFX graphics context
+     * Primary API as of the Bridge refactor. Renderers should prefer
+     * this over {@link #getGraphicsContext()}.
      */
+    public RenderSurface getSurface() {
+        return surface;
+    }
+
+    /**
+     * Get underlying JavaFX graphics context.
+     *
+     * <p><b>Deprecated shim.</b> Phase A of the Bridge refactor keeps
+     * this method so renderers that still issue {@code gc.XXX} calls
+     * compile. Phase B migrates every call site onto {@link #getSurface()};
+     * Phase E removes this method. If the active surface is not a
+     * {@link CanvasRenderSurface} (e.g. future AWT backend), this will
+     * throw.
+     */
+    @Deprecated
     public GraphicsContext getGraphicsContext() {
-        return graphicsContext;
+        if (surface instanceof CanvasRenderSurface canvasSurface) {
+            return canvasSurface.getGraphicsContext();
+        }
+        throw new UnsupportedOperationException(
+            "getGraphicsContext() only works with CanvasRenderSurface; surface is "
+                + surface.getClass().getName() + ". Migrate this caller to getSurface().");
     }
     
     // ========== RENDERING SETTINGS ==========
@@ -139,9 +178,9 @@ public class RenderingContext {
      * Clear the entire canvas
      */
     public void clearCanvas() {
-        graphicsContext.clearRect(0, 0, 
-                graphicsContext.getCanvas().getWidth(), 
-                graphicsContext.getCanvas().getHeight());
+        // Clear with transparent; callers that want a specific
+        // background paint on top call surface.clear(paint) directly.
+        surface.clear(com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE);
     }
     
     /**
@@ -160,43 +199,43 @@ public class RenderingContext {
         saveState();
         try {
             javafx.geometry.Rectangle2D bounds = getZoomedCoordinateMapper().getSlideBounds();
-            graphicsContext.setStroke(Color.DARKGRAY);
-            graphicsContext.setLineWidth(2.0);
-            graphicsContext.strokeRect(bounds.getMinX(), bounds.getMinY(), 
-                                     bounds.getWidth(), bounds.getHeight());
+            surface.setStroke(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(169, 169, 169)); // DARKGRAY
+            surface.setLineWidth(2.0);
+            surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
+                               bounds.getWidth(), bounds.getHeight());
         } finally {
             restoreState();
         }
     }
-    
+
     /**
      * Draw coordinate grid for precision editing
      */
     private void drawCoordinateGrid() {
         saveState();
         try {
-            graphicsContext.setStroke(Color.LIGHTGRAY);
-            graphicsContext.setLineWidth(0.5);
-            graphicsContext.setGlobalAlpha(0.3);
-            
+            surface.setStroke(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(211, 211, 211)); // LIGHTGRAY
+            surface.setLineWidth(0.5);
+            surface.setGlobalAlpha(0.3);
+
             javafx.geometry.Rectangle2D bounds = getZoomedCoordinateMapper().getSlideBounds();
             double gridSpacing = 20.0 * zoomFactor; // 20 pixel grid
-            
+
             // Vertical lines
             for (double x = bounds.getMinX(); x <= bounds.getMaxX(); x += gridSpacing) {
-                graphicsContext.strokeLine(x, bounds.getMinY(), x, bounds.getMaxY());
+                surface.strokeLine(x, bounds.getMinY(), x, bounds.getMaxY());
             }
-            
+
             // Horizontal lines
             for (double y = bounds.getMinY(); y <= bounds.getMaxY(); y += gridSpacing) {
-                graphicsContext.strokeLine(bounds.getMinX(), y, bounds.getMaxX(), y);
+                surface.strokeLine(bounds.getMinX(), y, bounds.getMaxX(), y);
             }
-            
+
         } finally {
             restoreState();
         }
     }
-    
+
     /**
      * Draw debug bounds rectangle for a shape
      */
@@ -204,17 +243,17 @@ public class RenderingContext {
         if (showBounds || debugMode) {
             saveState();
             try {
-                graphicsContext.setStroke(color);
-                graphicsContext.setLineWidth(1.0);
-                graphicsContext.setGlobalAlpha(0.7);
-                graphicsContext.strokeRect(bounds.getMinX(), bounds.getMinY(),
-                                         bounds.getWidth(), bounds.getHeight());
+                surface.setStroke(toSurfacePaint(color));
+                surface.setLineWidth(1.0);
+                surface.setGlobalAlpha(0.7);
+                surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
+                                   bounds.getWidth(), bounds.getHeight());
             } finally {
                 restoreState();
             }
         }
     }
-    
+
     /**
      * Draw SPID label for debugging
      */
@@ -222,50 +261,49 @@ public class RenderingContext {
         if (showSpids || debugMode) {
             saveState();
             try {
-                graphicsContext.setFill(Color.RED);
-                graphicsContext.setFont(Font.font("Monospace", 10));
-                graphicsContext.fillText("SPID:" + spid, position.getX() + 5, position.getY() - 5);
+                surface.setFill(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(255, 0, 0)); // RED
+                surface.setFont(com.excudo.view.rendering.surface.SurfaceFont.of("Monospaced", 10));
+                surface.fillText("SPID:" + spid, position.getX() + 5, position.getY() - 5);
             } finally {
                 restoreState();
             }
         }
     }
-    
+
     /**
      * Set up graphics context for shape rendering
      */
     public void setupForShapeRendering() {
-        graphicsContext.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
-        graphicsContext.setLineJoin(javafx.scene.shape.StrokeLineJoin.ROUND);
-        graphicsContext.setMiterLimit(10.0);
+        surface.setLineCap(com.excudo.view.rendering.surface.StrokeCap.ROUND);
+        surface.setLineJoin(com.excudo.view.rendering.surface.StrokeJoin.ROUND);
+        surface.setMiterLimit(10.0);
+    }
+
+    /**
+     * Convert a JavaFX Color to a neutral SurfacePaint. Used by the few
+     * debug-overlay call sites that still accept a {@code Color} argument
+     * at their public API; callers can migrate freely once the shim is
+     * removed.
+     */
+    private static com.excudo.view.rendering.surface.SurfacePaint toSurfacePaint(Color c) {
+        if (c == null) return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
+        int r = (int) Math.round(c.getRed()   * 255);
+        int g = (int) Math.round(c.getGreen() * 255);
+        int b = (int) Math.round(c.getBlue()  * 255);
+        return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(r, g, b, c.getOpacity());
     }
     
     // ========== RENDERING STATE HOLDER ==========
-    
-    /**
-     * Immutable state holder for graphics context state
-     */
-    private static class RenderingState {
-        private final Paint fill;
-        private final Paint stroke;
-        private final double lineWidth;
-        private final Font font;
-        private final double globalAlpha;
-        
-        public RenderingState(Paint fill, Paint stroke, double lineWidth, Font font, double globalAlpha) {
-            this.fill = fill;
-            this.stroke = stroke;
-            this.lineWidth = lineWidth;
-            this.font = font;
-            this.globalAlpha = globalAlpha;
-        }
-        
-        // Getters if needed for state inspection
-        public Paint getFill() { return fill; }
-        public Paint getStroke() { return stroke; }
-        public double getLineWidth() { return lineWidth; }
-        public Font getFont() { return font; }
-        public double getGlobalAlpha() { return globalAlpha; }
+    //
+    // Empty placeholder class retained only so stateStack depth
+    // inspection (if any caller ever does that) keeps working. The
+    // surface's native save/restore handles the actual paint/stroke/
+    // font/transform/clip stacks. Removed in Phase E along with the
+    // rest of the legacy shim.
+
+    private static final class RenderingState {
+        static final RenderingState EMPTY = new RenderingState();
+        private RenderingState() {}
     }
     
     // ========== COMMON RENDERING HINT CONSTANTS ==========

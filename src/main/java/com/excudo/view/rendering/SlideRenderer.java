@@ -7,6 +7,10 @@ import com.excudo.view.rendering.shapes.ModelShapeRenderer;
 import com.excudo.view.rendering.shapes.PlaceholderRenderer;
 import com.excudo.view.rendering.shapes.GeometricShapeRenderer;
 import com.excudo.view.rendering.shapes.PictureRenderer;
+import com.excudo.view.rendering.surface.CanvasRenderSurface;
+import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.view.rendering.surface.SurfaceFont;
 import com.excudo.xml.parsers.SlideXMLParser;
 import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
@@ -44,8 +48,12 @@ public class SlideRenderer {
 
     public SlideRenderer(Canvas canvas) {
         this.canvas = canvas;
+        // Bridge refactor: renderers talk to a RenderSurface, not the
+        // raw GraphicsContext. Canvas backend is the direct drop-in;
+        // headless AWT backend ships in Phase D.
+        RenderSurface surface = new CanvasRenderSurface(canvas);
         this.renderingContext = new RenderingContext(
-                canvas.getGraphicsContext2D(),
+                surface,
                 new CoordinateMapper(canvas.getWidth(), canvas.getHeight())
         );
         this.viewportCuller = new ViewportCuller();
@@ -136,9 +144,9 @@ public class SlideRenderer {
                 ShapeGeometry g = shape.getGeometry();
                 Rectangle2D bounds = renderingContext.getZoomedCoordinateMapper()
                     .mapToCanvas(g.getX(), g.getY(), g.getWidth(), g.getHeight());
-                GraphicsContext gc = renderingContext.getGraphicsContext();
-                gc.setStroke(Color.RED);
-                gc.strokeRect(bounds.getMinX(), bounds.getMinY(),
+                RenderSurface surface = renderingContext.getSurface();
+                surface.setStroke(SurfacePaint.Solid.rgb(255, 0, 0));
+                surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
                     bounds.getWidth(), bounds.getHeight());
             }
         } finally {
@@ -152,14 +160,12 @@ public class SlideRenderer {
         renderingContext.saveState();
         try {
             String bgHex = (slideContext != null) ? slideContext.getBackgroundColorHex() : "#FFFFFF";
-            Color bgColor = Color.web(bgHex);
-
-            GraphicsContext gc = renderingContext.getGraphicsContext();
-            gc.setFill(bgColor);
+            RenderSurface surface = renderingContext.getSurface();
+            surface.setFill(SurfacePaint.Solid.fromHex(bgHex));
 
             Rectangle2D slideBounds = renderingContext.getZoomedCoordinateMapper().getSlideBounds();
-            gc.fillRect(slideBounds.getMinX(), slideBounds.getMinY(),
-                       slideBounds.getWidth(), slideBounds.getHeight());
+            surface.fillRect(slideBounds.getMinX(), slideBounds.getMinY(),
+                             slideBounds.getWidth(), slideBounds.getHeight());
         } finally {
             renderingContext.restoreState();
         }
@@ -173,9 +179,10 @@ public class SlideRenderer {
 
     private void renderErrorState(Exception e) {
         try {
-            GraphicsContext gc = renderingContext.getGraphicsContext();
-            gc.setFill(Color.RED);
-            gc.fillText("Render error: " + e.getMessage(), 20, 40);
+            RenderSurface surface = renderingContext.getSurface();
+            surface.setFill(SurfacePaint.Solid.rgb(255, 0, 0));
+            surface.setFont(SurfaceFont.of("System", 12));
+            surface.fillText("Render error: " + e.getMessage(), 20, 40);
         } catch (Exception ex) {
             // Can't render the error
         }
