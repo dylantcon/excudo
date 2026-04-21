@@ -526,10 +526,29 @@ public final class TextPainter {
     private static double measureWordWidth(String word, GraphicsContext gc,
                                             com.excudo.core.metrics.FontData fd,
                                             int sizeHundredths, double zoom) {
-        if (fd != null && sizeHundredths > 0) {
-            long emuUnscaled = fd.measureStringWidthEmu(word, sizeHundredths);
-            return (emuUnscaled / 9525.0) * zoom;
-        }
+        // Width measurement MUST track what fillText actually renders.
+        // The raw TTF advance-width sum from FontData is only guaranteed
+        // to match rendering when: (a) the same font file backs both, and
+        // (b) the renderer does no hinting / sub-pixel snapping that
+        // shifts glyph advances off the nominal values. (a) fails on
+        // Linux where FontResolver fc-match'd to DejaVu Sans Mono while
+        // JavaFX substituted to "System"; (b) fails on Windows with
+        // DirectWrite + ClearType at fractional point sizes where the
+        // per-char drift accumulates into per-word gaps. Both surface
+        // the same visible symptom: wide whitespace between adjacent
+        // WordSegments because lineX advances by measured width past
+        // where the glyph actually ended.
+        //
+        // Going through JavaFX's Text node uses the same Font object
+        // that fillText uses, so measurement and render agree by
+        // construction. Results are memoised per (font-cache-key, text)
+        // so the cost stays bounded -- first render of a slide pays
+        // the Text-allocation hit once per unique word; every subsequent
+        // render for the same slide (or another slide with repeated
+        // tokens) is a HashMap lookup.
+        //
+        // FontData is still used for line-height / baseline metrics
+        // elsewhere; that path remains unchanged.
         return computeTextWidth(gc, word);
     }
 
@@ -584,11 +603,28 @@ public final class TextPainter {
         return null;
     }
 
+    // Per-(font, text) width memoisation. First call for a unique word
+    // at a given font + size pays the Text allocation + layout pass;
+    // repeats hit the map. Slides with repeated tokens (code blocks,
+    // long prose with common words) amortise the cost to near-zero.
+    // Bounded implicitly by the product of fonts-in-use * unique words
+    // across the session -- low thousands at most for typical decks.
+    private static final java.util.concurrent.ConcurrentHashMap<String, Double> WIDTH_CACHE =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
     private static double computeTextWidth(GraphicsContext gc, String text) {
-        // Approximate: use JavaFX text measurement
+        javafx.scene.text.Font font = gc.getFont();
+        // Size quantised to 0.01pt so widths cache across tiny zoom
+        // increments that round to the same sub-pixel placement.
+        String key = (font == null ? "null" : font.getFamily() + "|" + font.getStyle()
+            + "|" + Math.round(font.getSize() * 100)) + "|" + text;
+        Double cached = WIDTH_CACHE.get(key);
+        if (cached != null) return cached;
         javafx.scene.text.Text helper = new javafx.scene.text.Text(text);
-        helper.setFont(gc.getFont());
-        return helper.getLayoutBounds().getWidth();
+        if (font != null) helper.setFont(font);
+        double width = helper.getLayoutBounds().getWidth();
+        WIDTH_CACHE.put(key, width);
+        return width;
     }
 
     private static double emuToPixels(long emu) {
