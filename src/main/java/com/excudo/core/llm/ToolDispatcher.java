@@ -257,7 +257,12 @@ public class ToolDispatcher {
                 sb.append("  ");
                 for (int i = 0; i < depth; i++) sb.append("  ");
                 sb.append(shape.getSpid()).append(" ");
-                sb.append(shape.getType());
+                // Display "TEXT_BOX" when the OOXML cNvSpPr/@txBox marker
+                // is set -- preserves the authorial-intent distinction
+                // between a Text Box (Insert -> Text Box) and a styled
+                // rectangle that happens to contain text. Both are
+                // structurally RECTANGLE in the model.
+                sb.append(shape.isTextBox() ? "TEXT_BOX" : shape.getType().toString());
                 if (shape.getName() != null) sb.append(" \"").append(shape.getName()).append("\"");
                 if (shape.hasText()) {
                     String text = shape.getTextContent();

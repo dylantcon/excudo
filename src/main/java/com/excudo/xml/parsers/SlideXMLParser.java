@@ -176,7 +176,8 @@ public class SlideXMLParser {
             childShape = new SlideShape(childShape.getSpid(), childShape.getName(),
                 childShape.getType(), childShape.getTextContent(),
                 new ShapeGeometry(absX, absY, absW, absH, cg.getRotation()),
-                childShape.getXmlElement(), childShape.getParagraphMetadata());
+                childShape.getXmlElement(), childShape.getParagraphMetadata(),
+                childShape.isTextBox());
           }
           registry.addShape(childShape);
           // Record structural parentage at parse time -- consumers that
@@ -262,7 +263,21 @@ public class SlideXMLParser {
       }
     }
 
-    return new SlideShape(spid, name, type, textContent, geometry, shapeElement, paragraphMetadata);
+    // Read OOXML's cNvSpPr/@txBox marker so consumers can distinguish a
+    // shape authored as a Text Box (Insert -> Text Box in PowerPoint)
+    // from a styled rectangle that happens to contain text. Both have
+    // structural ShapeType=RECTANGLE, but the txBox flag carries the
+    // authorial-intent distinction the spec encodes.
+    boolean isTextBox = false;
+    try {
+      String txBoxAttr = (String) xpath.evaluate(
+          ".//p:cNvSpPr/@txBox", shapeElement, XPathConstants.STRING);
+      isTextBox = "1".equals(txBoxAttr) || "true".equalsIgnoreCase(txBoxAttr);
+    } catch (XPathExpressionException ignored) {
+      // Treat absent attribute as not-a-text-box (default).
+    }
+
+    return new SlideShape(spid, name, type, textContent, geometry, shapeElement, paragraphMetadata, isTextBox);
   }
   
   /**

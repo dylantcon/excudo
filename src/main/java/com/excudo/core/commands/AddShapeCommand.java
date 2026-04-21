@@ -21,23 +21,30 @@ public class AddShapeCommand implements Command {
     private final String shapeName;
     private final ShapeStyle style;
     private final String alignment;
+    private final boolean isTextBox;
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
     private Integer createdSpid = null;
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, null, null, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, null, null, false, orchestrator);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, style, null, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, style, null, false, orchestrator);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, String alignment,
                           PPTXOrchestrator orchestrator) {
+        this(slideNumber, shapeType, geometry, text, shapeName, style, alignment, false, orchestrator);
+    }
+
+    public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
+                          String text, String shapeName, ShapeStyle style, String alignment,
+                          boolean isTextBox, PPTXOrchestrator orchestrator) {
         if (orchestrator == null) {
             throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         }
@@ -55,6 +62,7 @@ public class AddShapeCommand implements Command {
         this.shapeName = shapeName != null ? shapeName : "Shape_" + System.currentTimeMillis();
         this.style = style;
         this.alignment = alignment;
+        this.isTextBox = isTextBox;
         this.orchestrator = orchestrator;
     }
     
@@ -94,6 +102,16 @@ public class AddShapeCommand implements Command {
                 // No-op when alignment is null (default behavior).
                 if (alignment != null) {
                     applyAlignmentOverride();
+                }
+
+                // Apply OOXML's cNvSpPr/@txBox="1" marker when the
+                // caller signaled "this is a text box" (TEXT_BOX alias
+                // on add-shape). Done as a post-creation step so we
+                // don't have to thread a structural flag through the
+                // ShapeFactory call chain. The orchestrator's
+                // setBodyProperties path knows how to set this flag.
+                if (isTextBox) {
+                    applyTextBoxMarker();
                 }
                 // Slide-modified notification is fired centrally by
                 // ShapeOrchestrationManager.performShapeXMLOperation so
@@ -265,6 +283,36 @@ public class AddShapeCommand implements Command {
      * operation; the shape exists and is usable, just with the default
      * alignment instead of the requested one.
      */
+    /**
+     * Set the OOXML cNvSpPr/@txBox="1" attribute on the just-created
+     * shape so it round-trips as a Text Box (matches PowerPoint's
+     * Insert -> Text Box output). Goes through setBodyProperties which
+     * already knows how to set the flag; we extract the shape's
+     * existing BodyProperties first so the writer's clear-and-rebuild
+     * of bodyPr preserves any attributes the shape factory set
+     * (typically just anchor="ctr" for empty shapes).
+     */
+    private void applyTextBoxMarker() {
+        try {
+            var slideDataResult = orchestrator.getSlideData(slideNumber);
+            if (!slideDataResult.isSuccess() || slideDataResult.getData().isEmpty()) return;
+            SlideShape shape = slideDataResult.getData().get()
+                .getShapeRegistry().getShape(createdSpid);
+            if (shape == null || shape.getXmlElement() == null) return;
+
+            com.excudo.core.model.TextBody existing =
+                com.excudo.core.metrics.TextBodyExtractor.extractFromShape(shape.getXmlElement());
+            com.excudo.core.model.BodyProperties bodyProps = existing != null
+                ? existing.getBodyProperties()
+                : com.excudo.core.model.BodyProperties.builder().build();
+            orchestrator.setBodyProperties(slideNumber, createdSpid, bodyProps, true);
+        } catch (Exception e) {
+            java.util.logging.Logger.getLogger(AddShapeCommand.class.getName())
+                .warning("Failed to apply txBox marker on SPID " + createdSpid
+                    + " (shape was created successfully): " + e.getMessage());
+        }
+    }
+
     private void applyAlignmentOverride() {
         try {
             var slideDataResult = orchestrator.getSlideData(slideNumber);

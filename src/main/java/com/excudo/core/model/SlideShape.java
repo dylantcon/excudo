@@ -174,14 +174,26 @@ public class SlideShape {
   private final ShapeGeometry geometry;
   private final Element xmlElement;
   private final ParagraphMetadata paragraphMetadata;
+  // OOXML cNvSpPr/@txBox="1" marker. Set by the parser when the
+  // attribute is present on the shape's non-visual properties; remains
+  // false otherwise. Distinct from the structural ShapeType (a text box
+  // is structurally still a RECTANGLE preset); this field carries the
+  // authorial intent the spec encodes via that attribute.
+  private final boolean isTextBox;
 
   public SlideShape(int spid, String name, ShapeType type, String textContent,
       ShapeGeometry geometry, Element xmlElement) {
-    this(spid, name, type, textContent, geometry, xmlElement, null);
+    this(spid, name, type, textContent, geometry, xmlElement, null, false);
   }
-  
+
   public SlideShape(int spid, String name, ShapeType type, String textContent,
       ShapeGeometry geometry, Element xmlElement, ParagraphMetadata paragraphMetadata) {
+    this(spid, name, type, textContent, geometry, xmlElement, paragraphMetadata, false);
+  }
+
+  public SlideShape(int spid, String name, ShapeType type, String textContent,
+      ShapeGeometry geometry, Element xmlElement, ParagraphMetadata paragraphMetadata,
+      boolean isTextBox) {
     this.spid = spid;
     this.name = name;
     this.type = type;
@@ -189,6 +201,7 @@ public class SlideShape {
     this.geometry = geometry;
     this.xmlElement = xmlElement;
     this.paragraphMetadata = paragraphMetadata;
+    this.isTextBox = isTextBox;
   }
 
   // Getters
@@ -197,6 +210,8 @@ public class SlideShape {
   public ShapeType getType() { return type; }
   public String getTextContent() { return textContent; }
   public String getText() { return textContent; }  // Alias for Commands
+  /** True iff the parsed cNvSpPr carried the OOXML txBox="1" marker. */
+  public boolean isTextBox() { return isTextBox; }
   public ShapeGeometry getGeometry() { return geometry; }
   public Element getXmlElement() { return xmlElement; }
   public ParagraphMetadata getParagraphMetadata() { return paragraphMetadata; }

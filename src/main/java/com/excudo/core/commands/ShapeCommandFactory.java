@@ -132,7 +132,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     ? ShapeStyle.textBox()
                     : parseShapeStyle(fillColor, lineColor);
                 return new AddShapeCommand(shapeSlide != null ? shapeSlide : 1, shapeType, geometry,
-                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, alignment, orchestrator);
+                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, alignment,
+                    isTextBoxAlias, orchestrator);
                 
             case "remove-shape":
                 Integer removeSlide = parsedCommand.getInteger("slide");
