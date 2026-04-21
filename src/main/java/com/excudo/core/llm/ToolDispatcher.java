@@ -1070,11 +1070,20 @@ public class ToolDispatcher {
             java.util.Map<String, String> clrMap = orchestrator.getClrMap();
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
             var masterStyles = orchestrator.getMasterStyles();
-            renderFn.render(doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex, masterStyles);
+            java.util.List<String> warnings = renderFn.render(
+                doc, slideNumber, outputFile, width, height, theme, clrMap, bgHex, masterStyles);
             lastRenderFile = outputFile;
 
-            return "Rendered slide " + slideNumber + " to " + displayPath
-                + " (" + width + "x" + height + ", " + outputFile.length() + " bytes)";
+            StringBuilder out = new StringBuilder();
+            out.append("Rendered slide ").append(slideNumber).append(" to ").append(displayPath)
+               .append(" (").append(width).append("x").append(height).append(", ")
+               .append(outputFile.length()).append(" bytes)");
+            if (warnings != null && !warnings.isEmpty()) {
+                for (String w : warnings) {
+                    out.append("\nNOTE: ").append(w);
+                }
+            }
+            return out.toString();
         } catch (Exception e) {
             return "Error rendering slide: " + e.getMessage();
         }

@@ -263,11 +263,30 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             com.excudo.core.commands.UtilityCommandFactory.setSlideRenderFunction(
                 (doc, slideNum, outFile, w, h, theme, clrMap, bgHex, masterStyles) -> {
                     Object renderer = rendererClass.getConstructor(int.class, int.class).newInstance(w, h);
-                    rendererClass.getMethod("renderToFile",
+                    // Use renderToFileWithReport so we can surface font
+                    // substitution warnings to the caller; view-layer types
+                    // are handled reflectively so this class doesn't need
+                    // to compile against JavaFX/AWT. Convert the returned
+                    // RenderReport's substitution list into pre-formatted
+                    // strings before handing back to core/commands.
+                    Object report = rendererClass.getMethod("renderToFileWithReport",
                         com.excudo.core.model.PPTXDocument.class, int.class, java.io.File.class,
                         com.excudo.core.themes.ThemeDefinition.class, java.util.Map.class,
                         String.class, java.util.Map.class)
                         .invoke(renderer, doc, slideNum, outFile, theme, clrMap, bgHex, masterStyles);
+                    Object subsObj = report.getClass().getMethod("substitutions").invoke(report);
+                    java.util.List<?> subs = (java.util.List<?>) subsObj;
+                    java.util.List<String> warnings = new java.util.ArrayList<>(subs.size());
+                    for (Object s : subs) {
+                        Class<?> subCls = s.getClass();
+                        String requested = (String) subCls.getMethod("requested").invoke(s);
+                        String actual = (String) subCls.getMethod("actual").invoke(s);
+                        warnings.add("font '" + requested
+                            + "' not available on render host; substituted with '" + actual
+                            + "'. The saved .pptx will display correctly wherever '"
+                            + requested + "' is installed.");
+                    }
+                    return warnings;
                 });
         } catch (ClassNotFoundException | NoClassDefFoundError e) {
             // View layer not available (headless build without JavaFX)

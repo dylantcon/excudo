@@ -312,15 +312,28 @@ public final class CanvasRenderSurface implements RenderSurface {
         double size = Math.max(1, f.sizePx());
 
         Font requested = Font.font(f.family(), weight, posture, size);
-        if (familyMatches(requested, f.family()) || f.fallbackFamily() == null
-                || f.fallbackFamily().isBlank()
+        if (familyMatches(requested, f.family())) {
+            return requested;
+        }
+        // Requested family isn't available -- JavaFX has already picked a
+        // substitute behind the scenes. If the caller declared a fallback
+        // family, try that next; otherwise accept JavaFX's pick and record
+        // the substitution so the render response can surface it.
+        if (f.fallbackFamily() == null || f.fallbackFamily().isBlank()
                 || f.fallbackFamily().equalsIgnoreCase(f.family())) {
+            FontSubstitutionTracker.record(f.family(),
+                requested.getFamily() == null ? "(unknown)" : requested.getFamily(),
+                "canvas");
             return requested;
         }
         Font fallback = Font.font(f.fallbackFamily(), weight, posture, size);
         if (familyMatches(fallback, f.fallbackFamily())) {
+            FontSubstitutionTracker.record(f.family(), f.fallbackFamily(), "canvas");
             return fallback;
         }
+        FontSubstitutionTracker.record(f.family(),
+            requested.getFamily() == null ? "(unknown)" : requested.getFamily(),
+            "canvas");
         return requested;
     }
 

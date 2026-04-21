@@ -4,6 +4,7 @@ import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.view.rendering.surface.CanvasRenderSurface;
+import com.excudo.view.rendering.surface.FontSubstitutionTracker;
 import com.excudo.view.rendering.surface.Graphics2DRenderSurface;
 import com.excudo.view.rendering.surface.RenderSurface;
 import javafx.application.Platform;
@@ -64,11 +65,20 @@ public class HeadlessSlideRenderer {
     // cached entry for that document unreachable -- conservative but
     // correct. Bounded LRU so long-running sessions don't accumulate.
     // Access-order iteration so the newest entry lives at the tail.
+    //
+    // Cached value carries both the PNG bytes AND the list of font
+    // substitutions observed during that render, so cache hits emit the
+    // same warnings as cold renders -- consistent agent feedback.
+    public record CachedRender(byte[] bytes, java.util.List<FontSubstitutionTracker.Substitution> substitutions) {}
+
+    /** Output of a render call, including any font substitutions observed during the paint path. */
+    public record RenderReport(byte[] pngBytes, java.util.List<FontSubstitutionTracker.Substitution> substitutions, boolean cacheHit) {}
+
     private static final int CACHE_CAPACITY = 32;
-    private static final java.util.LinkedHashMap<String, byte[]> RENDER_CACHE =
+    private static final java.util.LinkedHashMap<String, CachedRender> RENDER_CACHE =
         new java.util.LinkedHashMap<>(CACHE_CAPACITY, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(java.util.Map.Entry<String, byte[]> eldest) {
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, CachedRender> eldest) {
                 return size() > CACHE_CAPACITY;
             }
         };
@@ -100,8 +110,26 @@ public class HeadlessSlideRenderer {
 
     /**
      * Render a slide to a PNG file with full theme/layout/color context.
+     * Discards the {@link RenderReport}; prefer {@link #renderToFileWithReport}
+     * when the caller needs to surface substitution warnings.
      */
     public void renderToFile(PPTXDocument doc, int slideNumber, File outputFile,
+                             com.excudo.core.themes.ThemeDefinition theme,
+                             java.util.Map<String, String> clrMap,
+                             String backgroundColorHex,
+                             java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
+            throws IOException {
+        renderToFileWithReport(doc, slideNumber, outputFile, theme, clrMap, backgroundColorHex, masterStyles);
+    }
+
+    /**
+     * Render variant that returns the cached PNG bytes + any font
+     * substitutions observed during this render. The MCP render handler
+     * uses this to attach substitution warnings to its response so the
+     * agent knows host-font-availability is driving a visual divergence
+     * rather than a theme bug.
+     */
+    public RenderReport renderToFileWithReport(PPTXDocument doc, int slideNumber, File outputFile,
                              com.excudo.core.themes.ThemeDefinition theme,
                              java.util.Map<String, String> clrMap,
                              String backgroundColorHex,
@@ -113,26 +141,30 @@ public class HeadlessSlideRenderer {
         // The revision counter means any mutation since the last cache
         // put makes this key unreachable.
         String cacheKey = cacheKey(doc, slideNumber);
-        byte[] cachedPng;
+        CachedRender cached;
         synchronized (CACHE_LOCK) {
-            cachedPng = RENDER_CACHE.get(cacheKey);
+            cached = RENDER_CACHE.get(cacheKey);
         }
-        if (cachedPng != null) {
-            writeBytesToFile(outputFile, cachedPng);
+        if (cached != null) {
+            writeBytesToFile(outputFile, cached.bytes());
             if (TIMING_ENABLED) {
                 logger.info("render-timing slide={} [cache hit] total={}ms",
                     slideNumber, ms(System.nanoTime() - t0));
             } else {
                 logger.info("Rendered slide {} to {} (cache hit, {} bytes)",
-                    slideNumber, outputFile.getName(), cachedPng.length);
+                    slideNumber, outputFile.getName(), cached.bytes().length);
             }
-            return;
+            return new RenderReport(cached.bytes(), cached.substitutions(), true);
         }
 
         Document slideDom = doc.getSlideDocument(slideNumber);
         if (slideDom == null) {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
         }
+
+        // Reset the substitution tracker so we only collect events that
+        // happen during THIS render rather than leftovers from a prior one.
+        FontSubstitutionTracker.beginRender();
 
         long t1 = TIMING_ENABLED ? System.nanoTime() : 0;
         SlideRenderContext slideContext = buildSlideContext(doc, slideNumber, theme, clrMap,
@@ -157,8 +189,14 @@ public class HeadlessSlideRenderer {
         ImageIO.write(image, "png", bos);
         byte[] pngBytes = bos.toByteArray();
 
+        // Drain substitutions now so they're captured alongside the bytes.
+        // Caching them means subsequent cache-hit renders surface the same
+        // warnings (host fonts don't change between renders on one JVM).
+        java.util.List<FontSubstitutionTracker.Substitution> substitutions =
+            FontSubstitutionTracker.drain();
+
         synchronized (CACHE_LOCK) {
-            RENDER_CACHE.put(cacheKey, pngBytes);
+            RENDER_CACHE.put(cacheKey, new CachedRender(pngBytes, substitutions));
         }
 
         writeBytesToFile(outputFile, pngBytes);
@@ -170,6 +208,7 @@ public class HeadlessSlideRenderer {
         } else {
             logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
         }
+        return new RenderReport(pngBytes, substitutions, false);
     }
 
     private String cacheKey(PPTXDocument doc, int slideNumber) {

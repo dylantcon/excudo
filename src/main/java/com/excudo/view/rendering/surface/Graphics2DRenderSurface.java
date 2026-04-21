@@ -578,13 +578,22 @@ public final class Graphics2DRenderSurface implements RenderSurface {
         if (sf.fallbackFamily() != null && !sf.fallbackFamily().isBlank()
                 && !sf.fallbackFamily().equalsIgnoreCase(sf.family())) {
             resolved = tryIndexedFont(sf.fallbackFamily(), sf.weight(), sf.posture(), size);
-            if (resolved != null) return resolved.deriveFont(style, size);
+            if (resolved != null) {
+                FontSubstitutionTracker.record(sf.family(), sf.fallbackFamily(), "awt");
+                return resolved.deriveFont(style, size);
+            }
         }
 
         // Last resort: AWT's own family-name resolution. Substitutes
         // Dialog/SansSerif if the requested family is unknown -- same
-        // behaviour as AWT's default drawString path.
-        return new Font(sf.family(), style, (int) size).deriveFont(size);
+        // behaviour as AWT's default drawString path. Record the
+        // substitution so HeadlessSlideRenderer can surface it to the
+        // MCP response rather than silently shipping the wrong font.
+        Font last = new Font(sf.family(), style, (int) size).deriveFont(size);
+        if (last.getFamily() != null && !last.getFamily().equalsIgnoreCase(sf.family())) {
+            FontSubstitutionTracker.record(sf.family(), last.getFamily(), "awt");
+        }
+        return last;
     }
 
     private static Font tryIndexedFont(String family, SurfaceFont.Weight weight,

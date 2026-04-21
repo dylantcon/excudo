@@ -15,10 +15,14 @@ public class RenderSlideCommand implements Command {
 
     /**
      * Functional interface for slide rendering, implemented by the view layer.
+     * Returns a list of warning strings (e.g. font substitutions) that the
+     * caller can surface to the user / agent; empty list means a clean
+     * render. Strings are pre-formatted here so core/commands doesn't need
+     * to import view-layer types.
      */
     @FunctionalInterface
     public interface SlideRenderFunction {
-        void render(PPTXDocument doc, int slideNumber, File outputFile,
+        java.util.List<String> render(PPTXDocument doc, int slideNumber, File outputFile,
                     int width, int height, ThemeDefinition theme,
                     java.util.Map<String, String> clrMap,
                     String backgroundColorHex,
@@ -32,6 +36,12 @@ public class RenderSlideCommand implements Command {
     private final int height;
     private final SlideRenderFunction renderFunction;
     private boolean executed = false;
+    private java.util.List<String> lastWarnings = java.util.List.of();
+
+    /** Warnings captured from the most recent render (e.g. font substitutions). */
+    public java.util.List<String> getLastWarnings() {
+        return lastWarnings;
+    }
 
     public RenderSlideCommand(PPTXOrchestrator orchestrator,
                               int slideNumber, String outputPath, int width, int height,
@@ -66,7 +76,8 @@ public class RenderSlideCommand implements Command {
             String bgHex = orchestrator.getBackgroundColorHex(slideNumber);
             var masterStyles = orchestrator.getMasterStyles();
             File output = new File(outputPath);
-            renderFunction.render(doc, slideNumber, output, width, height, theme, clrMap, bgHex, masterStyles);
+            this.lastWarnings = renderFunction.render(
+                doc, slideNumber, output, width, height, theme, clrMap, bgHex, masterStyles);
             executed = true;
         } catch (Exception e) {
             Throwable cause = e;
