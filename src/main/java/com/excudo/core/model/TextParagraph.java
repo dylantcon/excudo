@@ -26,6 +26,7 @@ public final class TextParagraph {
     private final Integer lineSpacing;
     private final Integer spaceBefore;
     private final Integer spaceAfter;
+    private final Integer defaultTabSize;
 
     private TextParagraph(Builder builder) {
         this.runs = Collections.unmodifiableList(new ArrayList<>(builder.runs));
@@ -44,6 +45,7 @@ public final class TextParagraph {
         this.lineSpacing = builder.lineSpacing;
         this.spaceBefore = builder.spaceBefore;
         this.spaceAfter = builder.spaceAfter;
+        this.defaultTabSize = builder.defaultTabSize;
     }
 
     public List<TextRun> getRuns() { return runs; }
@@ -62,6 +64,13 @@ public final class TextParagraph {
     public Integer getLineSpacing() { return lineSpacing; }
     public Integer getSpaceBefore() { return spaceBefore; }
     public Integer getSpaceAfter() { return spaceAfter; }
+    /**
+     * OOXML pPr/@defTabSz: default tab stop spacing in EMUs. Only
+     * matters when the paragraph's text contains tab characters --
+     * currently round-tripped but not consumed by the renderer
+     * (tab-stop-driven layout is a separate work item).
+     */
+    public Integer getDefaultTabSize() { return defaultTabSize; }
 
     public boolean isEmpty() {
         return runs.isEmpty() || (runs.size() == 1 && runs.get(0).getText().isEmpty());
@@ -88,6 +97,7 @@ public final class TextParagraph {
         private Integer lineSpacing;
         private Integer spaceBefore;
         private Integer spaceAfter;
+        private Integer defaultTabSize;
 
         public Builder addRun(TextRun run) { this.runs.add(run); return this; }
         public Builder addText(String text) { this.runs.add(TextRun.builder(text).build()); return this; }
@@ -106,6 +116,8 @@ public final class TextParagraph {
         public Builder lineSpacing(int percentTimes1000) { this.lineSpacing = percentTimes1000; return this; }
         public Builder spaceBefore(int pointsTimes100) { this.spaceBefore = pointsTimes100; return this; }
         public Builder spaceAfter(int pointsTimes100) { this.spaceAfter = pointsTimes100; return this; }
+        /** Default tab stop spacing in EMUs. */
+        public Builder defaultTabSize(int emu) { this.defaultTabSize = emu; return this; }
 
         /** Convenience: set up character bullet with full font metadata */
         public Builder characterBullet(String ch, String font, String panose, String pitchFamily, String charset) {

@@ -74,6 +74,23 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripDefaultTabSize() throws Exception {
+        // defTabSz must round-trip even though tab characters aren't yet
+        // honoured at render-time -- losing the attribute on edit would
+        // strip author intent from any deck that sets custom tab spacing.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Tabbed\tcolumn").build())
+                .defaultTabSize(457200)  // 0.5 inch
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextParagraph para = extracted.getParagraphs().get(0);
+        assertEquals(Integer.valueOf(457200), para.getDefaultTabSize());
+    }
+
+    @Test
     public void testRoundTripParagraphMargins() throws Exception {
         // marL + marR must both survive the write/extract cycle. marR
         // had no model representation historically, so any paragraph

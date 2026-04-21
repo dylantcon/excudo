@@ -94,7 +94,8 @@ public final class TextBodyXMLWriter {
                 || para.getBulletType() == BulletType.AUTONUMBER
                 || para.getLineSpacing() != null
                 || para.getSpaceBefore() != null
-                || para.getSpaceAfter() != null;
+                || para.getSpaceAfter() != null
+                || para.getDefaultTabSize() != null;
     }
 
     private static void writeParagraphProperties(Document doc, Element pPr, TextParagraph para) {
@@ -112,6 +113,9 @@ public final class TextBodyXMLWriter {
         }
         if (para.getAlignment() != null) {
             pPr.setAttribute("algn", para.getAlignment());
+        }
+        if (para.getDefaultTabSize() != null) {
+            pPr.setAttribute("defTabSz", String.valueOf(para.getDefaultTabSize()));
         }
 
         if (para.getLineSpacing() != null) {

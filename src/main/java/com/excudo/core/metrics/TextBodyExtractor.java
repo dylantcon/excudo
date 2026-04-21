@@ -141,6 +141,12 @@ public final class TextBodyExtractor {
         String algn = pPr.getAttribute("algn");
         if (!algn.isEmpty()) builder.alignment(algn);
 
+        String defTabSz = pPr.getAttribute("defTabSz");
+        if (!defTabSz.isEmpty()) {
+            try { builder.defaultTabSize(Integer.parseInt(defTabSz)); }
+            catch (NumberFormatException ignored) { /* malformed, skip */ }
+        }
+
         // Line spacing
         Element lnSpc = getFirstChild(pPr, "a:lnSpc");
         if (lnSpc != null) {
