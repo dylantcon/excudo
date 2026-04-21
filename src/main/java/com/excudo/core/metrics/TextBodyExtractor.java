@@ -256,6 +256,12 @@ public final class TextBodyExtractor {
                 catch (NumberFormatException ignored) { /* malformed, skip */ }
             }
 
+            String kern = rPr.getAttribute("kern");
+            if (!kern.isEmpty()) {
+                try { builder.kerningThreshold(Integer.parseInt(kern)); }
+                catch (NumberFormatException ignored) { /* malformed, skip */ }
+            }
+
             // Color: solidFill
             Element solidFill = getFirstChild(rPr, "a:solidFill");
             if (solidFill != null) {

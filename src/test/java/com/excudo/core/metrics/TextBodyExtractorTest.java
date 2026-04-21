@@ -230,6 +230,41 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripKerningThreshold() throws Exception {
+        // kern is hundredths of a point. PowerPoint convention: kern=1200
+        // means kerning kicks in at 12pt and above.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Kerned text")
+                    .kerningThreshold(1200)
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextRun run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals(Integer.valueOf(1200), run.getKerningThreshold());
+    }
+
+    @Test
+    public void testRoundTripKerningDisabled() throws Exception {
+        // kern=0 explicitly disables kerning -- distinct from the
+        // "inherit" null state.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("No kerning")
+                    .kerningThreshold(0)
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextRun run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals("kern=0 must round-trip distinctly from null",
+            Integer.valueOf(0), run.getKerningThreshold());
+    }
+
+    @Test
     public void testRoundTripCharacterSpacing() throws Exception {
         // spc is hundredths of a point; positive widens, negative tightens.
         TextBody original = TextBody.builder()

@@ -198,6 +198,9 @@ public final class TextBodyXMLWriter {
         if (run.getCharacterSpacing() != null) {
             rPr.setAttribute("spc", String.valueOf(run.getCharacterSpacing()));
         }
+        if (run.getKerningThreshold() != null) {
+            rPr.setAttribute("kern", String.valueOf(run.getKerningThreshold()));
+        }
 
         // Color fill
         if (run.getColor() != null) {

@@ -19,6 +19,7 @@ public final class TextRun {
     private final String capitalization;
     private final Integer baseline;
     private final Integer characterSpacing;
+    private final Integer kerningThreshold;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -34,6 +35,7 @@ public final class TextRun {
         this.capitalization = builder.capitalization;
         this.baseline = builder.baseline;
         this.characterSpacing = builder.characterSpacing;
+        this.kerningThreshold = builder.kerningThreshold;
     }
 
     public String getText() { return text; }
@@ -64,6 +66,14 @@ public final class TextRun {
      * enough for wrap-width calculations to track the intent.
      */
     public Integer getCharacterSpacing() { return characterSpacing; }
+    /**
+     * OOXML rPr/@kern: minimum font size at which kerning is applied,
+     * in hundredths of a point. Zero disables kerning entirely; null
+     * means inherit. Render-time application is AWT-backend only and
+     * lives behind the per-glyph accumulator backlog item -- this
+     * field round-trips today so author intent isn't stripped on edit.
+     */
+    public Integer getKerningThreshold() { return kerningThreshold; }
 
     /**
      * Text as it should be rendered + measured, after applying any
@@ -99,6 +109,7 @@ public final class TextRun {
         private String capitalization;
         private Integer baseline;
         private Integer characterSpacing;
+        private Integer kerningThreshold;
 
         private Builder(String text) {
             this.text = text;
@@ -121,6 +132,8 @@ public final class TextRun {
         public Builder baseline(int baseline) { this.baseline = baseline; return this; }
         /** Character spacing (tracking) in hundredths of a point. Positive = looser, negative = tighter. */
         public Builder characterSpacing(int spc) { this.characterSpacing = spc; return this; }
+        /** Kerning threshold in hundredths of a point. Zero disables kerning. */
+        public Builder kerningThreshold(int kern) { this.kerningThreshold = kern; return this; }
 
         public TextRun build() {
             return new TextRun(this);
