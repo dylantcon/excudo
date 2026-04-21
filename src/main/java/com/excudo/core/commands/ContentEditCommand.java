@@ -5,6 +5,9 @@ import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ParsedSlideData;
+import com.excudo.core.model.TextBody;
+import com.excudo.core.model.TextParagraph;
+import com.excudo.core.model.TextRun;
 import java.util.logging.Logger;
 
 /**
@@ -89,24 +92,70 @@ public class ContentEditCommand implements Command {
             // Phase 3 Enhancement: Pre-execution validation and debugging
             validateAndCaptureShapeContext();
 
-            // Capture current text for undo + for prepend/append composition.
+            // Capture the flat text for undo + a length-delta hint in the
+            // feedback message. Undo is approximate for rich shapes (see
+            // note in the undo path); the length delta comes from the
+            // TextBody paragraph count + total run char count after edit
+            // when we go through the TextBody path.
             originalText = orchestrator.getShapeText(slideNumber, spid);
 
-            // Compose the final text from mode + existing + new. REPLACE
-            // uses newText verbatim (empty string clears). PREPEND /
-            // APPEND with empty newText are no-ops that still emit
-            // feedback so the user knows nothing changed.
-            String existing = originalText != null ? originalText : "";
-            appliedText = switch (mode) {
-                case REPLACE -> newText;
-                case PREPEND -> newText + existing;
-                case APPEND  -> existing + newText;
-            };
-
-            // Phase 3 Enhancement: Log operation context for debugging
             logContentEditOperation();
 
-            ExecutionResult<Void> result = orchestrator.editShapeText(slideNumber, spid, appliedText);
+            ExecutionResult<Void> result = switch (mode) {
+                case REPLACE -> {
+                    // Flat-string replace goes through the markdown-parsing
+                    // path in updateShapeText, which is correct for the
+                    // "user passes markdown body, it becomes the shape's
+                    // new content" intent.
+                    appliedText = newText;
+                    yield orchestrator.editShapeText(slideNumber, spid, appliedText);
+                }
+                case PREPEND, APPEND -> {
+                    // Prepend/append MUST preserve existing paragraph
+                    // structure (bullets, numbered lists, multi-paragraph
+                    // layouts, run-level formatting). Flat-string
+                    // concatenation would downgrade rich shapes to plain
+                    // text because getShapeText returns only the first
+                    // run's text. Instead:
+                    //   1) Extract the full existing TextBody via
+                    //      TextBodyExtractor.extractFromShape (preserves
+                    //      every paragraph + bodyProperties + runs).
+                    //   2) Parse newText as its own TextBody via
+                    //      TextBody.fromPlainText (markdown-aware).
+                    //   3) Concat paragraph lists -- existing body wins
+                    //      on bodyProperties so shape styling survives.
+                    //   4) Write back via setTextBody (typed path).
+                    // Empty newText is an explicit no-op that still
+                    // emits feedback below.
+                    if (newText.isEmpty()) {
+                        appliedText = originalText != null ? originalText : "";
+                        yield ExecutionResult.success("EditShapeText", null);
+                    }
+                    TextBody existing = targetShape != null
+                        ? com.excudo.core.metrics.TextBodyExtractor.extractFromShape(targetShape.getXmlElement())
+                        : null;
+                    // Derive isPlaceholder from the shape itself, not
+                    // from the extracted TextBody's flag -- the extractor
+                    // doesn't propagate that flag, and deriving from the
+                    // XML is authoritative anyway (presence of <p:ph>).
+                    boolean shapeIsPlaceholder = isPlaceholder
+                        || (targetShape != null
+                            && targetShape.getType() == SlideShape.ShapeType.PLACEHOLDER);
+                    TextBody incoming = TextBody.fromPlainText(newText, shapeIsPlaceholder);
+                    TextBody combined = (mode == Mode.PREPEND)
+                        ? TextBody.concat(incoming, existing)
+                        : TextBody.concat(existing, incoming);
+                    // Compute appliedText for feedback length-delta.
+                    StringBuilder flat = new StringBuilder();
+                    for (TextParagraph p : combined.getParagraphs()) {
+                        for (TextRun r : p.getRuns()) flat.append(r.getText());
+                        flat.append('\n');
+                    }
+                    if (flat.length() > 0) flat.setLength(flat.length() - 1);
+                    appliedText = flat.toString();
+                    yield orchestrator.setTextBody(slideNumber, spid, combined);
+                }
+            };
 
             if (result.isSuccess()) {
                 executed = true;

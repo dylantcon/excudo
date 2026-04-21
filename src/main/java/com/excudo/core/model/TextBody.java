@@ -44,6 +44,34 @@ public final class TextBody {
     public boolean isPlaceholder() { return placeholder; }
 
     /**
+     * Concatenate two TextBodies paragraph-by-paragraph. Used by
+     * prepend/append content-edit modes to compose user-supplied
+     * paragraphs onto a shape's existing paragraphs without touching
+     * bullet markers, numbering, or run-level formatting.
+     *
+     * BodyProperties and placeholder flag are inherited from {@code base}
+     * (the shape's existing text body) so the shape's own styling wins
+     * over anything the caller's ad-hoc text might have implied.
+     * Concatenates {@code base}'s paragraphs followed by {@code extra}'s
+     * -- swap argument order for prepend vs append semantics.
+     *
+     * Null-safe: if either side is null, returns the other (or an empty
+     * TextBody if both are null).
+     */
+    public static TextBody concat(TextBody base, TextBody extra) {
+        if (base == null && extra == null) return builder().build();
+        if (base == null) return extra;
+        if (extra == null) return base;
+
+        Builder b = builder()
+            .bodyProperties(base.getBodyProperties())
+            .placeholder(base.isPlaceholder());
+        for (TextParagraph p : base.getParagraphs()) b.addParagraph(p);
+        for (TextParagraph p : extra.getParagraphs()) b.addParagraph(p);
+        return b.build();
+    }
+
+    /**
      * Factory method that splits text by newlines, detects markdown bullets,
      * numbered lists, and inline formatting (**bold**, *italic*, ***both***).
      */
