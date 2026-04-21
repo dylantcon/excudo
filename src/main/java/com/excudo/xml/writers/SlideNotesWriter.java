@@ -33,16 +33,51 @@ public class SlideNotesWriter {
     }
     
     /**
+     * Resolve the actual notesSlide path for slide {@code slideNumber} by
+     * reading {@code ppt/slides/_rels/slide{N}.xml.rels} and following the
+     * notesSlide relationship to its target. Returns null when the slide
+     * has no notes relationship (no notes yet).
+     *
+     * Needed because OOXML numbers notesSlide parts sequentially
+     * independent of slide number -- assuming {@code notesSlide{N}.xml}
+     * belongs to slide N reads (and silently clobbers) the wrong file
+     * whenever the two numberings diverge.
+     */
+    private Path resolveNotesPathForSlide(Path tempDir, int slideNumber) throws IOException {
+        Path slideRelsPath = tempDir.resolve("ppt/slides/_rels/slide" + slideNumber + ".xml.rels");
+        if (!Files.exists(slideRelsPath)) return null;
+
+        try {
+            javax.xml.parsers.DocumentBuilder db = XMLFactoryProvider.createDocumentBuilder();
+            Document relsDoc = db.parse(slideRelsPath.toFile());
+            NodeList rels = relsDoc.getElementsByTagName("Relationship");
+            for (int i = 0; i < rels.getLength(); i++) {
+                Element rel = (Element) rels.item(i);
+                String type = rel.getAttribute("Type");
+                if (type.endsWith("/notesSlide")) {
+                    // Target is typically "../notesSlides/notesSlide3.xml"
+                    // relative to ppt/slides/; resolve against that anchor.
+                    String target = rel.getAttribute("Target");
+                    return tempDir.resolve("ppt/slides").resolve(target).normalize();
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to parse slide rels for slide {}: {}", slideNumber, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Get the next sequential number for a notes slide by counting existing notes slides.
-     * 
-     * MICROSOFT'S TERRIBLE DESIGN: PowerPoint numbers notes slides sequentially (1, 2, 3...) 
-     * regardless of which slide they belong to. This means:
+     *
+     * OOXML numbers notes slides sequentially (1, 2, 3...) regardless of which slide
+     * they belong to:
      * - notesSlide1.xml might belong to slide 2 (if slide 2 is the first slide with notes)
      * - notesSlide2.xml might belong to slide 5 (if slide 5 is the second slide with notes)
      * - Adding notes to slide 1 later would require renaming ALL existing notes files!
-     * 
-     * The OOXML spec doesn't explain WHY this insane design exists. We're forced to 
-     * implement this madness for compatibility.
+     *
+     * The resolver in {@link #resolveNotesPathForSlide} follows the slide's
+     * own relationship chain rather than guessing from filename.
      */
     private int getNextNotesSlideNumber(Path notesDir) throws IOException {
         if (!Files.exists(notesDir)) {
@@ -76,20 +111,24 @@ public class SlideNotesWriter {
     public void appendToSlideNotes(int slideNumber, String textToAppend) throws XMLParsingException {
         try {
             Path tempDir = Files.createTempDirectory("pptx_notes_");
-            
+
             // Extract the presentation
             extractPptx(presentationPath, tempDir);
-            
-            // Check if notes slide exists
-            Path notesPath = tempDir.resolve("ppt/notesSlides/notesSlide" + slideNumber + ".xml");
-            Path notesDir = tempDir.resolve("ppt/notesSlides");
-            Path slideRelPath = tempDir.resolve("ppt/slides/_rels/slide" + slideNumber + ".xml.rels");
-            
-            if (!Files.exists(notesPath)) {
-                // Create notes slide structure
+
+            // Follow the slide's own rels to find its actual notesSlide
+            // (sequential numbering -- see resolveNotesPathForSlide javadoc).
+            // Null means no notes yet; createNotesSlide allocates the next
+            // sequential number and wires up the rels.
+            Path notesPath = resolveNotesPathForSlide(tempDir, slideNumber);
+            if (notesPath == null) {
                 createNotesSlide(tempDir, slideNumber);
+                notesPath = resolveNotesPathForSlide(tempDir, slideNumber);
+                if (notesPath == null) {
+                    throw new XMLParsingException(
+                        "createNotesSlide did not register a notes relationship for slide " + slideNumber);
+                }
             }
-            
+
             // Update the notes content
             updateNotesContent(notesPath, textToAppend);
             
@@ -110,21 +149,21 @@ public class SlideNotesWriter {
     public String getSlideNotes(int slideNumber) throws XMLParsingException {
         try {
             Path tempDir = Files.createTempDirectory("pptx_notes_read_");
-            
+
             // Extract the presentation
             extractPptx(presentationPath, tempDir);
-            
-            // Check if notes slide exists
-            Path notesPath = tempDir.resolve("ppt/notesSlides/notesSlide" + slideNumber + ".xml");
-            
+
+            // Follow the slide's own rels rather than guessing notesSlide{N}.xml.
+            Path notesPath = resolveNotesPathForSlide(tempDir, slideNumber);
+
             String notesText = "";
-            if (Files.exists(notesPath)) {
+            if (notesPath != null && Files.exists(notesPath)) {
                 notesText = xmlParser.parseNotesSlide(notesPath.toFile());
             }
-            
+
             // Cleanup
             deleteDirectory(tempDir);
-            
+
             return notesText;
             
         } catch (Exception e) {
