@@ -408,6 +408,102 @@ public class TextBodyExtractorTest {
         assertEquals(Integer.valueOf(75000), extracted.getBodyProperties().getFontScale());
     }
 
+    @Test
+    public void testRoundTripKitchenSink() throws Exception {
+        // Single TextBody exercising every attribute added across the
+        // paragraph-coverage work. Catches interaction bugs that per-
+        // attribute tests miss: e.g. does tabLst survive when bullet
+        // properties ARE set, does cap coexist with baseline, does the
+        // hasParagraphProperties check accumulate correctly.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                // pPr margins + alignment + tabs
+                .marginLeft(457200)
+                .marginRight(228600)
+                .indent(-228600)
+                .alignment("l")
+                .defaultTabSize(914400)
+                .addTabStop(1828800, "ctr")
+                .addTabStop(3657600, "r")
+                // pPr booleans
+                .rightToLeft(false)
+                .hangingPunctuation(true)
+                .eastAsianLineBreak(true)
+                .latinLineBreak(true)
+                // pPr spacing
+                .lineSpacing(115000)
+                .spaceBefore(600)
+                .spaceAfter(300)
+                // bullet
+                .characterBullet("\u2022", "Arial", null, null, null)
+                // run-level: cap + baseline + spc + kern
+                .addRun(TextRun.builder("Header")
+                    .fontSize(1800)
+                    .bold(true)
+                    .capitalization("all")
+                    .characterSpacing(200)
+                    .kerningThreshold(1200)
+                    .build())
+                .addRun(TextRun.builder("^2")
+                    .fontSize(1400)
+                    .baseline(30000)
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextParagraph para = extracted.getParagraphs().get(0);
+
+        // pPr attrs
+        assertEquals(Integer.valueOf(457200), para.getMarginLeft());
+        assertEquals(Integer.valueOf(228600), para.getMarginRight());
+        assertEquals(Integer.valueOf(-228600), para.getIndent());
+        assertEquals("l", para.getAlignment());
+        assertEquals(Integer.valueOf(914400), para.getDefaultTabSize());
+
+        // tabLst
+        assertNotNull(para.getTabStops());
+        assertEquals(2, para.getTabStops().size());
+        assertEquals(1828800, para.getTabStops().get(0).positionEmu());
+        assertEquals("ctr", para.getTabStops().get(0).alignment());
+        assertEquals(3657600, para.getTabStops().get(1).positionEmu());
+        assertEquals("r", para.getTabStops().get(1).alignment());
+
+        // pPr booleans
+        assertEquals(Boolean.FALSE, para.getRightToLeft());
+        assertEquals(Boolean.TRUE, para.getHangingPunctuation());
+        assertEquals(Boolean.TRUE, para.getEastAsianLineBreak());
+        assertEquals(Boolean.TRUE, para.getLatinLineBreak());
+
+        // spacing
+        assertEquals(Integer.valueOf(115000), para.getLineSpacing());
+        assertEquals(Integer.valueOf(600), para.getSpaceBefore());
+        assertEquals(Integer.valueOf(300), para.getSpaceAfter());
+
+        // bullet
+        assertEquals(BulletType.CHARACTER, para.getBulletType());
+        assertEquals("\u2022", para.getBulletChar());
+        assertEquals("Arial", para.getBulletFont());
+
+        // runs
+        assertEquals(2, para.getRuns().size());
+        TextRun header = para.getRuns().get(0);
+        assertEquals("Header", header.getText());
+        assertEquals("HEADER", header.getDisplayText());
+        assertEquals("all", header.getCapitalization());
+        assertEquals(Integer.valueOf(200), header.getCharacterSpacing());
+        assertEquals(Integer.valueOf(1200), header.getKerningThreshold());
+        assertEquals(Boolean.TRUE, header.getBold());
+        assertEquals(Integer.valueOf(1800), header.getFontSize());
+        assertNull("no baseline on header", header.getBaseline());
+
+        TextRun sup = para.getRuns().get(1);
+        assertEquals("^2", sup.getText());
+        assertEquals(Integer.valueOf(30000), sup.getBaseline());
+        assertEquals(Integer.valueOf(1400), sup.getFontSize());
+        assertNull("no cap on superscript", sup.getCapitalization());
+    }
+
     private TextBody roundTrip(TextBody original) throws Exception {
         Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
         Element txBody = TextBodyXMLWriter.write(doc, original);
