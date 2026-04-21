@@ -235,6 +235,9 @@ public final class TextBodyExtractor {
             String strike = rPr.getAttribute("strike");
             if (!strike.isEmpty() && !"noStrike".equals(strike)) builder.strikethrough(strike);
 
+            String cap = rPr.getAttribute("cap");
+            if (!cap.isEmpty()) builder.capitalization(cap);
+
             // Color: solidFill
             Element solidFill = getFirstChild(rPr, "a:solidFill");
             if (solidFill != null) {

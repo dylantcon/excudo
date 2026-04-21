@@ -185,6 +185,9 @@ public final class TextBodyXMLWriter {
         if (run.getUnderline() != null) {
             rPr.setAttribute("u", run.getUnderline());
         }
+        if (run.getCapitalization() != null) {
+            rPr.setAttribute("cap", run.getCapitalization());
+        }
 
         // Color fill
         if (run.getColor() != null) {

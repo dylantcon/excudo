@@ -16,6 +16,7 @@ public final class TextRun {
     private final TextColor color;
     private final TextColor highlight;
     private final String language;
+    private final String capitalization;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -28,6 +29,7 @@ public final class TextRun {
         this.color = builder.color;
         this.highlight = builder.highlight;
         this.language = builder.language;
+        this.capitalization = builder.capitalization;
     }
 
     public String getText() { return text; }
@@ -40,6 +42,24 @@ public final class TextRun {
     public TextColor getColor() { return color; }
     public TextColor getHighlight() { return highlight; }
     public String getLanguage() { return language; }
+    /** OOXML rPr/@cap: "none" (default), "small" (smallcaps), or "all" (uppercase transform). Null means inherit. */
+    public String getCapitalization() { return capitalization; }
+
+    /**
+     * Text as it should be rendered + measured, after applying any
+     * capitalization transform. {@code cap="all"} uppercases the raw
+     * text; {@code cap="small"} falls back to the raw text for now
+     * (true smallcaps needs per-glyph font support, tracked in the
+     * paragraph-coverage backlog). {@code cap="none"} or null returns
+     * the raw text unchanged.
+     */
+    public String getDisplayText() {
+        if (text == null) return "";
+        if ("all".equalsIgnoreCase(capitalization)) {
+            return text.toUpperCase(java.util.Locale.ROOT);
+        }
+        return text;
+    }
 
     public static Builder builder(String text) {
         return new Builder(text);
@@ -56,6 +76,7 @@ public final class TextRun {
         private TextColor color;
         private TextColor highlight;
         private String language = "en-US";
+        private String capitalization;
 
         private Builder(String text) {
             this.text = text;
@@ -72,6 +93,8 @@ public final class TextRun {
         public Builder hexColor(String hex) { this.color = TextColor.hex(hex); return this; }
         public Builder highlight(TextColor hl) { this.highlight = hl; return this; }
         public Builder language(String lang) { this.language = lang; return this; }
+        /** OOXML values: "none", "small", "all". Null keeps inheritance. */
+        public Builder capitalization(String cap) { this.capitalization = cap; return this; }
 
         public TextRun build() {
             return new TextRun(this);

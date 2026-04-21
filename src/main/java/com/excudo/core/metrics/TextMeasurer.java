@@ -98,7 +98,9 @@ public final class TextMeasurer {
         // Concatenate all run text for word wrapping
         StringBuilder fullText = new StringBuilder();
         for (TextRun run : para.getRuns()) {
-            fullText.append(run.getText());
+            // Use display text so cap="all" widths track the rendered
+            // uppercase glyphs (uppercase is typically wider).
+            fullText.append(run.getDisplayText());
         }
 
         FontData fontData = resolveFontData(fontFamily);

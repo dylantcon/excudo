@@ -160,6 +160,43 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripCapitalizationAll() throws Exception {
+        // cap="all" must survive the round-trip AND getDisplayText must
+        // return the uppercased string. The raw stored text is untouched.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Hello World")
+                    .capitalization("all")
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextRun run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals("Hello World", run.getText());
+        assertEquals("all", run.getCapitalization());
+        assertEquals("HELLO WORLD", run.getDisplayText());
+    }
+
+    @Test
+    public void testRoundTripCapitalizationNone() throws Exception {
+        // cap="none" is explicit "inherit nothing" -- must round-trip
+        // but getDisplayText stays identical to the raw text.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Hello World")
+                    .capitalization("none")
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextRun run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals("none", run.getCapitalization());
+        assertEquals("Hello World", run.getDisplayText());
+    }
+
+    @Test
     public void testRoundTripTextRunFormatting() throws Exception {
         TextBody original = TextBody.builder()
             .addParagraph(TextParagraph.builder()

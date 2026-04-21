@@ -302,13 +302,14 @@ public final class TextPainter {
         double currentLineWidth = 0;
 
         for (TextRun run : para.getRuns()) {
-            if (run.getText() == null || run.getText().isEmpty()) continue;
+            String runText = run.getDisplayText();
+            if (runText == null || runText.isEmpty()) continue;
 
             SurfaceFont font = resolveFont(run, slideCtx, zoom, level, isTitle);
             surface.setFont(font);
             SurfacePaint color = ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx);
 
-            String[] words = run.getText().split("(?<=\\s)");
+            String[] words = runText.split("(?<=\\s)");
             for (String word : words) {
                 // Width comes from the surface -- same Font object that
                 // will render the text, so measurement tracks rendering.
