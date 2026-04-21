@@ -240,6 +240,29 @@ public class SATCollisionDetector {
         }
         
         /**
+         * Compute the polygon's area via the shoelace formula. Returns
+         * the absolute (unsigned) area regardless of vertex winding
+         * order, so caller doesn't have to know whether the polygon was
+         * built clockwise or counter-clockwise.
+         *
+         * Correct for any simple polygon (no self-intersections),
+         * convex or concave. Degenerate (< 3 vertices) returns 0.
+         *
+         * Reference: https://en.wikipedia.org/wiki/Shoelace_formula
+         */
+        public double area() {
+            int n = vertices.size();
+            if (n < 3) return 0.0;
+            double sum = 0.0;
+            for (int i = 0; i < n; i++) {
+                Vector2D a = vertices.get(i);
+                Vector2D b = vertices.get((i + 1) % n);
+                sum += a.getX() * b.getY() - b.getX() * a.getY();
+            }
+            return Math.abs(sum) / 2.0;
+        }
+
+        /**
          * Get the bounding box of the polygon
          */
         public BoundingBox getBoundingBox() {

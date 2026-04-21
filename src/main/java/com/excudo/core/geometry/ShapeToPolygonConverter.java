@@ -24,17 +24,38 @@ public class ShapeToPolygonConverter {
     }
     
     /**
-     * Convert a SlideShape to a Polygon for SAT collision detection
+     * Convert a SlideShape to a Polygon for SAT collision detection +
+     * polygon-clipping area computation. Applies the shape's rotation
+     * after polygon construction so consumers (SAT, Sutherland-Hodgman,
+     * area) operate on geometry that matches what the renderer paints.
      */
     public Polygon convertToPolygon(SlideShape shape) {
         if (shape == null || shape.getGeometry() == null) {
             return null;
         }
-        
+
         ShapeGeometry geometry = shape.getGeometry();
         SlideShape.ShapeType type = shape.getType();
-        
-        // Handle different shape types
+        Polygon raw = convertToUnrotatedPolygon(shape, geometry, type);
+        return applyRotation(raw, geometry);
+    }
+
+    /**
+     * Build the un-rotated polygon for a shape's type. Splits the type
+     * dispatch from rotation handling so {@link #convertToPolygon} can
+     * apply rotation uniformly without duplicating the switch in every
+     * helper. Direct callers that genuinely want the un-rotated polygon
+     * (e.g. the un-rotated bounding-box pre-filter in collision tests)
+     * can use this overload.
+     */
+    public Polygon convertToUnrotatedPolygon(SlideShape shape) {
+        if (shape == null || shape.getGeometry() == null) {
+            return null;
+        }
+        return convertToUnrotatedPolygon(shape, shape.getGeometry(), shape.getType());
+    }
+
+    private Polygon convertToUnrotatedPolygon(SlideShape shape, ShapeGeometry geometry, SlideShape.ShapeType type) {
         switch (type) {
             case CUSTOM_GEOMETRY:
                 return convertCustomGeometry(shape);
@@ -74,6 +95,8 @@ public class ShapeToPolygonConverter {
                 return createStar(geometry, 24);
             case STAR_32_POINTS:
                 return createStar(geometry, 32);
+            case ELLIPSE:
+                return createEllipse(geometry);
             case RIGHT_ARROW:
             case LEFT_ARROW:
             case UP_ARROW:
@@ -95,6 +118,65 @@ public class ShapeToPolygonConverter {
                 // For rectangular shapes and others, create a simple rectangle
                 return createRectangle(geometry);
         }
+    }
+
+    /**
+     * Number of polar samples around an ellipse perimeter. With 32
+     * uniformly-spaced angular samples the inscribed-polygon area is
+     * within roughly 0.5% of the analytic pi*a*b -- well below the
+     * 25% threshold the agent overlap warning uses, and dense enough
+     * that polygon clipping doesn't introduce visible artifacts.
+     */
+    private static final int ELLIPSE_SAMPLE_COUNT = 32;
+
+    /**
+     * Sample an ellipse perimeter with {@link #ELLIPSE_SAMPLE_COUNT}
+     * uniformly-spaced polar samples. Returns a closed convex polygon.
+     * Circles are the special case width == height -- no separate
+     * preset needed.
+     */
+    private Polygon createEllipse(ShapeGeometry geometry) {
+        double centerX = geometry.getX() + geometry.getWidth() / 2.0;
+        double centerY = geometry.getY() + geometry.getHeight() / 2.0;
+        double a = geometry.getWidth() / 2.0;
+        double b = geometry.getHeight() / 2.0;
+
+        List<Vector2D> vertices = new ArrayList<>(ELLIPSE_SAMPLE_COUNT);
+        for (int i = 0; i < ELLIPSE_SAMPLE_COUNT; i++) {
+            double theta = 2 * Math.PI * i / ELLIPSE_SAMPLE_COUNT;
+            vertices.add(new Vector2D(centerX + a * Math.cos(theta),
+                                       centerY + b * Math.sin(theta)));
+        }
+        return new Polygon(vertices);
+    }
+
+    /**
+     * Rotate every vertex of {@code raw} around the shape's geometric
+     * center by {@code geometry.getRotationDegrees()} degrees. OOXML
+     * stores rotation in 60000ths of a degree; ShapeGeometry exposes
+     * the converted value so we just consume it. Identity is fast-path
+     * skipped (zero rotation produces the same polygon back).
+     */
+    private Polygon applyRotation(Polygon raw, ShapeGeometry geometry) {
+        if (raw == null) return null;
+        double degrees = geometry.getRotationDegrees();
+        if (degrees == 0.0) return raw;
+
+        double rad = Math.toRadians(degrees);
+        double cos = Math.cos(rad);
+        double sin = Math.sin(rad);
+        double cx = geometry.getX() + geometry.getWidth() / 2.0;
+        double cy = geometry.getY() + geometry.getHeight() / 2.0;
+
+        List<Vector2D> rotated = new ArrayList<>(raw.getVertexCount());
+        for (Vector2D v : raw.getVertices()) {
+            double dx = v.getX() - cx;
+            double dy = v.getY() - cy;
+            double rx = dx * cos - dy * sin + cx;
+            double ry = dx * sin + dy * cos + cy;
+            rotated.add(new Vector2D(rx, ry));
+        }
+        return new Polygon(rotated);
     }
     
     /**
