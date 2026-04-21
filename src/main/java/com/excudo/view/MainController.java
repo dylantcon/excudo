@@ -436,11 +436,26 @@ public class MainController implements Initializable, OrchestrationStateListener
                 com.excudo.view.console.UIConsoleEngine engine =
                     consoleController != null ? consoleController.getConsoleEngine() : null;
                 if (engine != null) {
+                    // createSession() creates the session and returns a
+                    // SessionResult but does NOT activate it as "current"
+                    // -- currentSessionId stays null, so subsequent console
+                    // commands see "No active session". Activate it via
+                    // setCurrentSession() which UIConsoleEngine overrides
+                    // to also fire orchestratorChangeHandler and sync the
+                    // GUI's orchestrator back.
                     com.excudo.core.commands.SessionResult result =
                         engine.createSession(file.getAbsolutePath());
                     if (!result.isSuccess()) {
                         throw new Exception(result.getErrorMessage());
                     }
+                    // Pass the session's own file reference rather than the
+                    // outer `file` closure -- they're the same File here,
+                    // but this keeps the engine state self-consistent with
+                    // whatever ConsoleSessionManager tracked internally.
+                    engine.setCurrentSession(result.getSessionId(),
+                        result.getOrchestrator(),
+                        result.getLlmHandler(),
+                        result.getCurrentFile());
                 } else if (orchestrator != null) {
                     var result = orchestrator.loadPresentation(file);
                     if (!result.isSuccess()) {
