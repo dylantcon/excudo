@@ -516,6 +516,32 @@ public class ToolDispatcher {
             for (LayoutInfo layout : layouts) {
                 sb.append("  ").append(layout.getLayoutId())
                   .append(" - ").append(layout.getName()).append("\n");
+                // Inline placeholder geometry so agents can pick a layout
+                // without instantiating a slide just to inspect its bounds.
+                // EMU first (machine-parseable), then a parenthesized
+                // inches summary for human reads.
+                var geometries = layout.getPlaceholderGeometries();
+                if (geometries != null && !geometries.isEmpty()) {
+                    for (var g : geometries) {
+                        sb.append("    ");
+                        // Identify by type when available, else by idx.
+                        String label = g.getPlaceholderType() != null
+                            ? g.getPlaceholderType()
+                            : ("idx=" + g.getPlaceholderIndex());
+                        // Strip the "type:" prefix used internally for type-keyed entries.
+                        if (label.startsWith("type:")) label = label.substring(5);
+                        sb.append(label);
+                        // Pad to a roughly consistent column width so the
+                        // listing is scannable across layouts.
+                        int padTo = 12;
+                        for (int i = label.length(); i < padTo; i++) sb.append(' ');
+                        sb.append(" @ (").append(g.getX()).append(", ").append(g.getY()).append(") ")
+                          .append(g.getWidth()).append("x").append(g.getHeight()).append(" EMU")
+                          .append(String.format("  (~%.2fin x ~%.2fin)",
+                              g.getWidth() / 914400.0, g.getHeight() / 914400.0))
+                          .append('\n');
+                    }
+                }
             }
             sb.append("Use the layoutId value (e.g. slideLayout1) when creating slides.");
             return sb.toString();

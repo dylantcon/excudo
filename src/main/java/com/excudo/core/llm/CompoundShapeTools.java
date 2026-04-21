@@ -57,9 +57,15 @@ public class CompoundShapeTools {
     /**
      * Create a code box: line number panel (left) + code panel (right).
      * Width AND height are computed from font metrics + line count so the
-     * box fits its content exactly. Callers can still pass explicit x/y/height
+     * box fits its content exactly. Callers can still pass explicit x/y/width/height
      * if they want manual placement or sizing.
-     * Input JSON: {"slideNumber":N, "code":"...", "language":"python", "x":EMU, "y":EMU, "height":EMU}
+     * Input JSON: {"slideNumber":N, "code":"...", "language":"python", "x":EMU, "y":EMU, "width":EMU, "height":EMU}
+     *
+     * Width auto-sizes from the longest code line + the line-number gutter at
+     * the configured monospace font size. Pass an explicit `width` when the
+     * code is short but you want the box to fill a layout column. The
+     * line-number gutter still autosizes from the line count; the remainder
+     * of the requested width goes to the code panel.
      */
     public String createCodeBox(String toolInput) {
         try {
@@ -93,9 +99,22 @@ public class CompoundShapeTools {
                     : line.length() * 76200L;
                 longestCodeLine = Math.max(longestCodeLine, lineWidth);
             }
-            long codeWidth = longestCodeLine + 2 * inset;
+            long autoCodeWidth = longestCodeLine + 2 * inset;
+            long autoTotalWidth = lineNumWidth + autoCodeWidth;
 
-            long totalWidth = lineNumWidth + codeWidth;
+            // Honor explicit width when caller provides one (typical when
+            // they want the code box to fill a layout column rather than
+            // shrink-wrap content). The line-number gutter stays at its
+            // measured size; the remainder goes to the code panel. If the
+            // requested width is too small to fit even the line-number
+            // column plus minimal padding, fall back to the auto width
+            // so the box doesn't render with negative-width children.
+            long requestedTotalWidth = extractLong(toolInput, "width", autoTotalWidth);
+            long minTotalWidth = lineNumWidth + (long) inset * 2;
+            long totalWidth = requestedTotalWidth >= minTotalWidth
+                ? requestedTotalWidth
+                : autoTotalWidth;
+            long codeWidth = totalWidth - lineNumWidth;
 
             // Auto-compute height from line count. The previous fixed default
             // (3.2M EMU ~= 3.5 inches) made short snippets look broken by
