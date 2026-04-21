@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Proper JavaFX integration test that initializes the JavaFX Toolkit.
  * Tests the complete animation integration pipeline with real JavaFX environment.
  */
-@Disabled("Temporarily disabled while establishing stable CI/CD baseline - will re-enable systematically")
+@Disabled("Lives under src/test/java/com/excudo/view and is auto-excluded by the headless test runner's path-prefix filter; requires a GUI-enabled test environment.")
 class JavaFXAnimationIntegrationTest {
     
     private static boolean javaFXInitialized = false;

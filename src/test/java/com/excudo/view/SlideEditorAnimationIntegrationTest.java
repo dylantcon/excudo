@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * Integration test for animation functionality within SlideEditorController.
  * Tests the end-to-end animation preview pipeline.
  */
-@Disabled("Temporarily disabled while establishing stable CI/CD baseline - will re-enable systematically")
+@Disabled("Lives under src/test/java/com/excudo/view and is auto-excluded by the headless test runner's path-prefix filter; requires a GUI-enabled test environment.")
 class SlideEditorAnimationIntegrationTest {
     
     @Test
