@@ -23,28 +23,35 @@ public class AddShapeCommand implements Command {
     private final String alignment;
     private final boolean isTextBox;
     private final PPTXOrchestrator orchestrator;
+    private final Object displayAdapter;
     private boolean executed = false;
     private Integer createdSpid = null;
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, null, null, false, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, null, null, false, orchestrator, null);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, style, null, false, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, style, null, false, orchestrator, null);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, String alignment,
                           PPTXOrchestrator orchestrator) {
-        this(slideNumber, shapeType, geometry, text, shapeName, style, alignment, false, orchestrator);
+        this(slideNumber, shapeType, geometry, text, shapeName, style, alignment, false, orchestrator, null);
     }
 
     public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
                           String text, String shapeName, ShapeStyle style, String alignment,
                           boolean isTextBox, PPTXOrchestrator orchestrator) {
+        this(slideNumber, shapeType, geometry, text, shapeName, style, alignment, isTextBox, orchestrator, null);
+    }
+
+    public AddShapeCommand(int slideNumber, SlideShape.ShapeType shapeType, ShapeGeometry geometry,
+                          String text, String shapeName, ShapeStyle style, String alignment,
+                          boolean isTextBox, PPTXOrchestrator orchestrator, Object displayAdapter) {
         if (orchestrator == null) {
             throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         }
@@ -64,6 +71,7 @@ public class AddShapeCommand implements Command {
         this.alignment = alignment;
         this.isTextBox = isTextBox;
         this.orchestrator = orchestrator;
+        this.displayAdapter = displayAdapter;
     }
     
     /**
@@ -113,6 +121,16 @@ public class AddShapeCommand implements Command {
                 if (isTextBox) {
                     applyTextBoxMarker();
                 }
+
+                // Tier 3: warn when the new shape overlaps an existing
+                // one beyond the configured threshold. True polygon-
+                // intersection area (not bbox) computed via
+                // PolygonClipping; honors rotation; concave-aware via
+                // ear-clipping. Skips placeholders (the user is meant
+                // to fill them) so we don't fire on every shape that
+                // lands inside the content placeholder by design.
+                emitOverlapWarningsIfAny();
+
                 // Slide-modified notification is fired centrally by
                 // ShapeOrchestrationManager.performShapeXMLOperation so
                 // every shape mutation (add/remove/edit/resize/group/etc)
@@ -283,6 +301,105 @@ public class AddShapeCommand implements Command {
      * operation; the shape exists and is usable, just with the default
      * alignment instead of the requested one.
      */
+    /**
+     * Default overlap warning threshold: warn when intersection >= 25%
+     * of the smaller shape's actual area. Configurable via the
+     * EXCUDO_OVERLAP_THRESHOLD env var (e.g. "0.10" for stricter
+     * warnings, "0.40" for looser).
+     */
+    private static final double DEFAULT_OVERLAP_THRESHOLD = 0.25;
+
+    private static double overlapThreshold() {
+        String env = System.getenv("EXCUDO_OVERLAP_THRESHOLD");
+        if (env == null || env.isBlank()) return DEFAULT_OVERLAP_THRESHOLD;
+        try {
+            double v = Double.parseDouble(env.trim());
+            if (v < 0 || v > 1) return DEFAULT_OVERLAP_THRESHOLD;
+            return v;
+        } catch (NumberFormatException e) {
+            return DEFAULT_OVERLAP_THRESHOLD;
+        }
+    }
+
+    /**
+     * Compute true polygon-intersection ratios between the just-created
+     * shape and every non-placeholder existing shape on the slide. Emit
+     * a NOTE-style warning through the display adapter for any pair
+     * whose intersection exceeds the threshold.
+     *
+     * <p>Placeholders (title/content/subtitle ph types) are skipped --
+     * the user is expected to land shapes inside them, so warning on
+     * every overlap with the content placeholder would be noise. A
+     * shape inside a placeholder is intentional layout-fill, not an
+     * overlap bug.
+     *
+     * <p>Failures here are non-fatal: the shape exists and is usable.
+     * Geometry conversion can fail for unusual custom-geometry paths;
+     * we log and move on rather than failing the add-shape.
+     */
+    private void emitOverlapWarningsIfAny() {
+        if (!(displayAdapter instanceof CommandDisplay display)) return;
+        try {
+            var slideDataResult = orchestrator.getSlideData(slideNumber);
+            if (!slideDataResult.isSuccess() || slideDataResult.getData().isEmpty()) return;
+            var registry = slideDataResult.getData().get().getShapeRegistry();
+            SlideShape created = registry.getShape(createdSpid);
+            if (created == null) return;
+
+            com.excudo.core.geometry.ShapeToPolygonConverter conv =
+                new com.excudo.core.geometry.ShapeToPolygonConverter();
+            com.excudo.core.geometry.SATCollisionDetector.Polygon createdPoly =
+                conv.convertToPolygon(created);
+            if (createdPoly == null || createdPoly.getVertexCount() < 3) return;
+
+            double threshold = overlapThreshold();
+
+            for (SlideShape other : registry.getAllShapes()) {
+                if (other.getSpid() == createdSpid) continue;
+                if (isPlaceholder(other)) continue;
+                if (other.getType() == SlideShape.ShapeType.GROUP) continue; // children covered separately
+
+                com.excudo.core.geometry.SATCollisionDetector.Polygon otherPoly =
+                    conv.convertToPolygon(other);
+                if (otherPoly == null || otherPoly.getVertexCount() < 3) continue;
+
+                double interArea = com.excudo.core.geometry.PolygonClipping
+                    .intersectionArea(createdPoly, otherPoly);
+                if (interArea <= 0) continue;
+
+                double smallerArea = Math.min(createdPoly.area(), otherPoly.area());
+                if (smallerArea <= 0) continue;
+                double ratio = interArea / smallerArea;
+                if (ratio < threshold) continue;
+
+                String otherLabel = other.getName() != null && !other.getName().isBlank()
+                    ? "\"" + other.getName() + "\""
+                    : other.getType().toString();
+                display.displayMessage(String.format(
+                    "NOTE: %s SPID %d overlaps SPID %d %s by %.0f%% of the smaller shape's area "
+                        + "(%.0f EMU\u00b2 intersection). If intentional, use "
+                        + "`reorder %d %d front` (or back/forward/backward) to set explicit "
+                        + "z-order; if not, consider `move` or `resize`.",
+                    shapeType.name(), createdSpid, other.getSpid(), otherLabel,
+                    ratio * 100.0, interArea, slideNumber, createdSpid));
+            }
+        } catch (Exception e) {
+            java.util.logging.Logger.getLogger(AddShapeCommand.class.getName())
+                .warning("Overlap-warning computation failed for SPID " + createdSpid
+                    + " (shape was created successfully): " + e.getMessage());
+        }
+    }
+
+    /**
+     * True iff the shape is an OOXML placeholder (title / content /
+     * subtitle / etc). Placeholders are intentional landing pads; a
+     * shape overlapping the content placeholder isn't a bug, it's the
+     * design.
+     */
+    private static boolean isPlaceholder(SlideShape shape) {
+        return shape.getType() == SlideShape.ShapeType.PLACEHOLDER;
+    }
+
     /**
      * Set the OOXML cNvSpPr/@txBox="1" attribute on the just-created
      * shape so it round-trips as a Text Box (matches PowerPoint's
