@@ -700,12 +700,21 @@ public class SmartContentEnhancer {
         
         try {
             // 1. Copy image file to presentation media directory with target dimensions
-            String mediaFileName = copyIconToMediaDirectory(iconAsset, slideNumber, 
-                position.getWidth(), position.getHeight());
+            String mediaFileName;
+            try {
+                mediaFileName = copyIconToMediaDirectory(iconAsset, slideNumber,
+                    position.getWidth(), position.getHeight());
+            } catch (IconInjectionException iie) {
+                // Specific, agent-legible failure reason -- path + cause + hint.
+                logger.error("Failed to copy icon to media directory: " + iie.getMessage());
+                return ExecutionResult.failure("image-injection", iie.getMessage());
+            }
             if (mediaFileName == null) {
                 logger.error("Failed to copy icon to media directory - no OOXML injection performed");
-                return ExecutionResult.failure("image-injection", 
-                    "Failed to copy image file to presentation media directory");
+                return ExecutionResult.failure("image-injection",
+                    "Failed to copy image file to presentation media directory "
+                    + "(source=" + iconAsset.getPath() + "). "
+                    + "Check that the icon file exists and a presentation is loaded.");
             }
             
             // 2. Create OOXML media relationship 
@@ -751,13 +760,27 @@ public class SmartContentEnhancer {
      * @param targetWidthEmu target width in EMUs for SVG conversion
      * @param targetHeightEmu target height in EMUs for SVG conversion
      */
+    /**
+     * Thrown by {@link #copyIconToMediaDirectory} with a diagnostic
+     * message the MCP layer can surface to the agent verbatim. Carries
+     * path + OS-level cause so the agent doesn't have to guess why
+     * injection failed.
+     */
+    private static final class IconInjectionException extends Exception {
+        IconInjectionException(String message) { super(message); }
+        IconInjectionException(String message, Throwable cause) { super(message, cause); }
+    }
+
     private String copyIconToMediaDirectory(IconRepository.IconAsset iconAsset, int slideNumber,
-                                          long targetWidthEmu, long targetHeightEmu) {
+                                          long targetWidthEmu, long targetHeightEmu) throws IconInjectionException {
         try {
             File sourceFile = new File(iconAsset.getPath());
             if (!sourceFile.exists()) {
                 logger.error("Source icon file does not exist: " + iconAsset.getPath());
-                return null;
+                throw new IconInjectionException(
+                    "Icon source file not found: " + iconAsset.getPath()
+                    + ". The icon may have been removed from the repository, "
+                    + "or the IconRepository path is stale.");
             }
 
             // Extract file extension from source
@@ -814,11 +837,28 @@ public class SmartContentEnhancer {
 
             // No PPTXDocument available -- cannot write media
             logger.error("Cannot inject icon: no PPTXDocument set on SmartContentEnhancer");
-            return null;
+            throw new IconInjectionException(
+                "No active presentation loaded. Create one with the 'new' command "
+                + "or load an existing PPTX before injecting icons.");
 
+        } catch (IconInjectionException iie) {
+            // Preserve our diagnostic message verbatim.
+            throw iie;
+        } catch (java.io.IOException e) {
+            // OS-level I/O failure -- carries ENOENT/EACCES/etc in its
+            // message, and we append the target path so the agent can
+            // triage without guessing.
+            String target = "ppt/media/ (under presentation's media parts)";
+            throw new IconInjectionException(
+                "I/O failure while copying icon to " + target
+                + ": " + e.getClass().getSimpleName() + " - " + e.getMessage()
+                + ". Source: " + iconAsset.getPath(), e);
         } catch (Exception e) {
             logger.error("Failed to inject icon: " + e.getMessage());
-            return null;
+            throw new IconInjectionException(
+                "Unexpected error during icon injection: "
+                + e.getClass().getSimpleName() + " - " + e.getMessage()
+                + ". Source: " + iconAsset.getPath(), e);
         }
     }
 
