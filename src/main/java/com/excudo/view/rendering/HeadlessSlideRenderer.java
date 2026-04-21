@@ -3,12 +3,11 @@ package com.excudo.view.rendering;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
+import com.excudo.view.rendering.surface.CanvasRenderSurface;
+import com.excudo.view.rendering.surface.Graphics2DRenderSurface;
+import com.excudo.view.rendering.surface.RenderSurface;
 import javafx.application.Platform;
-import javafx.embed.swing.SwingFXUtils;
-import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
-import javafx.scene.image.WritableImage;
-import javafx.scene.paint.Color;
 import org.w3c.dom.Document;
 
 import javax.imageio.ImageIO;
@@ -36,6 +35,22 @@ public class HeadlessSlideRenderer {
     // breakdown to INFO so we can measure optimisation phases against a
     // real baseline instead of eyeballing wall-clock from outside.
     private static final boolean TIMING_ENABLED = timingEnabled();
+
+    // Rendering backend selection. Default is "canvas" (JavaFX Canvas
+    // + WritableImage snapshot + SwingFXUtils conversion -- same as
+    // pre-Phase-D behaviour). Set EXCUDO_RENDER_BACKEND=awt to use the
+    // Graphics2D backend which skips the FX-thread hop, writes
+    // directly to BufferedImage, and uses TextLayout for sub-pixel
+    // typography. Phase E flips this default to "awt".
+    private static final Backend BACKEND = selectBackend();
+
+    private enum Backend { CANVAS, AWT }
+
+    private static Backend selectBackend() {
+        String v = System.getenv("EXCUDO_RENDER_BACKEND");
+        if (v != null && "awt".equalsIgnoreCase(v.trim())) return Backend.AWT;
+        return Backend.CANVAS;
+    }
 
     private static boolean timingEnabled() {
         String v = System.getenv("EXCUDO_RENDER_TIMING");
@@ -72,7 +87,11 @@ public class HeadlessSlideRenderer {
     public HeadlessSlideRenderer(int width, int height) {
         this.width = width;
         this.height = height;
-        ensureToolkitInitialized();
+        // Only the Canvas backend needs the JavaFX toolkit + Monocle.
+        // AWT backend runs on the calling thread with no FX dependency.
+        if (BACKEND == Backend.CANVAS) {
+            ensureToolkitInitialized();
+        }
     }
 
     public HeadlessSlideRenderer() {
@@ -171,7 +190,7 @@ public class HeadlessSlideRenderer {
      */
     public BufferedImage renderToBufferedImage(com.excudo.core.model.ParsedSlideData slideData,
                                                 SlideRenderContext slideContext) throws IOException {
-        return renderOnFxThread(slideContext, renderer -> renderer.renderSlide(slideData));
+        return dispatchRender(slideContext, renderer -> renderer.renderSlide(slideData));
     }
 
     /**
@@ -179,11 +198,57 @@ public class HeadlessSlideRenderer {
      * Re-parses the slide internally; prefer the ParsedSlideData overload.
      */
     public BufferedImage renderToBufferedImage(Document slideDom, SlideRenderContext slideContext) throws IOException {
-        return renderOnFxThread(slideContext, renderer -> renderer.renderSlide(slideDom));
+        return dispatchRender(slideContext, renderer -> renderer.renderSlide(slideDom));
     }
 
     /**
-     * Shared core: hop to the FX thread, allocate Canvas + SlideRenderer,
+     * Backend dispatcher. Picks the concrete render path based on the
+     * static BACKEND selection. Canvas backend hops to the FX thread and
+     * snapshots through WritableImage; AWT backend runs on the calling
+     * thread with direct-to-BufferedImage output.
+     */
+    private BufferedImage dispatchRender(SlideRenderContext slideContext,
+                                          java.util.function.Consumer<SlideRenderer> paintAction)
+            throws IOException {
+        return BACKEND == Backend.AWT
+            ? renderOnAwtBackend(slideContext, paintAction)
+            : renderOnFxThread(slideContext, paintAction);
+    }
+
+    /**
+     * AWT backend: allocate Graphics2DRenderSurface + SlideRenderer on
+     * the calling thread, run the paint action, return the surface's
+     * BufferedImage directly. No FX toolkit, no Platform.runLater, no
+     * Canvas->WritableImage->BufferedImage roundtrip.
+     */
+    private BufferedImage renderOnAwtBackend(SlideRenderContext slideContext,
+                                              java.util.function.Consumer<SlideRenderer> paintAction)
+            throws IOException {
+        long f0 = TIMING_ENABLED ? System.nanoTime() : 0;
+        try {
+            Graphics2DRenderSurface surface = new Graphics2DRenderSurface(width, height);
+            SlideRenderer renderer = new SlideRenderer(surface);
+            if (slideContext != null) {
+                renderer.setSlideContext(slideContext);
+            }
+            long f1 = TIMING_ENABLED ? System.nanoTime() : 0;
+            paintAction.accept(renderer);
+            long f2 = TIMING_ENABLED ? System.nanoTime() : 0;
+
+            BufferedImage result = surface.toBufferedImage();
+            long f3 = TIMING_ENABLED ? System.nanoTime() : 0;
+            if (TIMING_ENABLED) {
+                logger.info("  awt-backend: setup={}ms render={}ms toBufferedImage={}ms",
+                    ms(f1 - f0), ms(f2 - f1), ms(f3 - f2));
+            }
+            return result;
+        } catch (Exception e) {
+            throw new IOException("Rendering failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Canvas backend: hop to the FX thread, allocate Canvas + SlideRenderer,
      * run the caller's paint closure, snapshot, convert, return.
      */
     private BufferedImage renderOnFxThread(SlideRenderContext slideContext,
@@ -206,13 +271,10 @@ public class HeadlessSlideRenderer {
                 paintAction.accept(renderer);
                 long f2 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-                // Snapshot the canvas to an image
-                SnapshotParameters params = new SnapshotParameters();
-                params.setFill(Color.WHITE);
-                WritableImage fxImage = canvas.snapshot(params, null);
-
-                // Convert JavaFX image to AWT BufferedImage for ImageIO
-                result.set(SwingFXUtils.fromFXImage(fxImage, null));
+                // Snapshot via the Canvas backend's toBufferedImage (which
+                // owns the snapshot + SwingFXUtils conversion internally).
+                CanvasRenderSurface surface = new CanvasRenderSurface(canvas);
+                result.set(surface.toBufferedImage());
                 long f3 = TIMING_ENABLED ? System.nanoTime() : 0;
                 if (TIMING_ENABLED) {
                     innerTimings.set(new long[]{f1 - f0, f2 - f1, f3 - f2});

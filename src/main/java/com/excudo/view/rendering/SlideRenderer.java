@@ -15,7 +15,6 @@ import com.excudo.xml.parsers.SlideXMLParser;
 import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
 import org.w3c.dom.Document;
 
 import java.util.ArrayList;
@@ -32,7 +31,6 @@ import java.util.List;
  */
 public class SlideRenderer {
 
-    private final Canvas canvas;
     private final RenderingContext renderingContext;
     private final ViewportCuller viewportCuller;
     private final List<ModelShapeRenderer> renderers;
@@ -45,15 +43,28 @@ public class SlideRenderer {
     private int totalShapes;
     private int culledShapes;
 
+    /**
+     * GUI live-preview constructor. Wraps the provided Canvas in a
+     * {@link CanvasRenderSurface} and delegates to the surface-based
+     * constructor.
+     */
     public SlideRenderer(Canvas canvas) {
-        this.canvas = canvas;
-        // Bridge refactor: renderers talk to a RenderSurface, not the
-        // raw GraphicsContext. Canvas backend is the direct drop-in;
-        // headless AWT backend ships in Phase D.
-        RenderSurface surface = new CanvasRenderSurface(canvas);
+        this(new CanvasRenderSurface(canvas), canvas.getWidth(), canvas.getHeight());
+    }
+
+    /**
+     * Backend-agnostic constructor. Used by
+     * {@link HeadlessSlideRenderer} when running on the AWT backend --
+     * no Canvas, no FX thread, direct-to-BufferedImage output.
+     */
+    public SlideRenderer(RenderSurface surface) {
+        this(surface, surface.widthPx(), surface.heightPx());
+    }
+
+    private SlideRenderer(RenderSurface surface, double widthPx, double heightPx) {
         this.renderingContext = new RenderingContext(
                 surface,
-                new CoordinateMapper(canvas.getWidth(), canvas.getHeight())
+                new CoordinateMapper(widthPx, heightPx)
         );
         this.viewportCuller = new ViewportCuller();
         this.renderers = new ArrayList<>();
