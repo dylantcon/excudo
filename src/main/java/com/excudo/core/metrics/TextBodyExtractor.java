@@ -221,6 +221,24 @@ public final class TextBodyExtractor {
         if (buChar == null && buAutoNum == null && buNone == null) {
             builder.bulletType(com.excudo.core.model.BulletType.INHERITED);
         }
+
+        // tabLst: read each a:tab child into the paragraph's TabStop list.
+        Element tabLst = getFirstChild(pPr, "a:tabLst");
+        if (tabLst != null) {
+            NodeList tabs = tabLst.getChildNodes();
+            for (int i = 0; i < tabs.getLength(); i++) {
+                Node n = tabs.item(i);
+                if (n instanceof Element tab && matchesName(tab, "a:tab")) {
+                    String posStr = tab.getAttribute("pos");
+                    if (posStr.isEmpty()) continue;
+                    try {
+                        int pos = Integer.parseInt(posStr);
+                        String tabAlgn = tab.getAttribute("algn");
+                        builder.addTabStop(pos, tabAlgn.isEmpty() ? null : tabAlgn);
+                    } catch (NumberFormatException ignored) { /* skip */ }
+                }
+            }
+        }
     }
 
     private static TextRun extractRun(Element r) {

@@ -31,6 +31,17 @@ public final class TextParagraph {
     private final Boolean hangingPunctuation;
     private final Boolean eastAsianLineBreak;
     private final Boolean latinLineBreak;
+    private final List<TabStop> tabStops;
+
+    /**
+     * OOXML a:tab — an explicit tab stop under a:tabLst.
+     *
+     * @param positionEmu absolute tab-stop position in EMUs
+     * @param alignment   one of "l" (left, default), "ctr" (center),
+     *                    "r" (right), "dec" (decimal). Null is
+     *                    permitted and round-trips as the OOXML default.
+     */
+    public static record TabStop(int positionEmu, String alignment) {}
 
     private TextParagraph(Builder builder) {
         this.runs = Collections.unmodifiableList(new ArrayList<>(builder.runs));
@@ -54,6 +65,9 @@ public final class TextParagraph {
         this.hangingPunctuation = builder.hangingPunctuation;
         this.eastAsianLineBreak = builder.eastAsianLineBreak;
         this.latinLineBreak = builder.latinLineBreak;
+        this.tabStops = builder.tabStops.isEmpty()
+            ? null
+            : Collections.unmodifiableList(new ArrayList<>(builder.tabStops));
     }
 
     public List<TextRun> getRuns() { return runs; }
@@ -87,6 +101,8 @@ public final class TextParagraph {
     public Boolean getEastAsianLineBreak() { return eastAsianLineBreak; }
     /** OOXML pPr/@latinLnBrk: apply latin line-break rules. Round-trip only. */
     public Boolean getLatinLineBreak() { return latinLineBreak; }
+    /** Explicit tab stops (a:tab children of a:tabLst), or null when the paragraph uses defTabSz only. */
+    public List<TabStop> getTabStops() { return tabStops; }
 
     public boolean isEmpty() {
         return runs.isEmpty() || (runs.size() == 1 && runs.get(0).getText().isEmpty());
@@ -118,6 +134,7 @@ public final class TextParagraph {
         private Boolean hangingPunctuation;
         private Boolean eastAsianLineBreak;
         private Boolean latinLineBreak;
+        private final List<TabStop> tabStops = new ArrayList<>();
 
         public Builder addRun(TextRun run) { this.runs.add(run); return this; }
         public Builder addText(String text) { this.runs.add(TextRun.builder(text).build()); return this; }
@@ -142,6 +159,10 @@ public final class TextParagraph {
         public Builder hangingPunctuation(boolean v) { this.hangingPunctuation = v; return this; }
         public Builder eastAsianLineBreak(boolean v) { this.eastAsianLineBreak = v; return this; }
         public Builder latinLineBreak(boolean v) { this.latinLineBreak = v; return this; }
+        public Builder addTabStop(int positionEmu, String alignment) {
+            this.tabStops.add(new TabStop(positionEmu, alignment));
+            return this;
+        }
 
         /** Convenience: set up character bullet with full font metadata */
         public Builder characterBullet(String ch, String font, String panose, String pitchFamily, String charset) {

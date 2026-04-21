@@ -74,6 +74,51 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripTabStops() throws Exception {
+        // Three tab stops: left, center, right aligned. Round-trip must
+        // preserve position, alignment, and order.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Col1\tCol2\tCol3").build())
+                .addTabStop(914400, "l")     // 1 inch, left
+                .addTabStop(1828800, "ctr")  // 2 inches, center
+                .addTabStop(2743200, "r")    // 3 inches, right
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        var stops = extracted.getParagraphs().get(0).getTabStops();
+        assertNotNull(stops);
+        assertEquals(3, stops.size());
+        assertEquals(914400, stops.get(0).positionEmu());
+        assertEquals("l", stops.get(0).alignment());
+        assertEquals(1828800, stops.get(1).positionEmu());
+        assertEquals("ctr", stops.get(1).alignment());
+        assertEquals(2743200, stops.get(2).positionEmu());
+        assertEquals("r", stops.get(2).alignment());
+    }
+
+    @Test
+    public void testRoundTripTabStopNoAlignment() throws Exception {
+        // algn is optional; absence must round-trip to null (OOXML
+        // default is "l" but the extractor preserves the distinction
+        // between "explicit l" and "unspecified").
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("X\tY").build())
+                .addTabStop(457200, null)
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        var stops = extracted.getParagraphs().get(0).getTabStops();
+        assertNotNull(stops);
+        assertEquals(1, stops.size());
+        assertEquals(457200, stops.get(0).positionEmu());
+        assertNull(stops.get(0).alignment());
+    }
+
+    @Test
     public void testRoundTripParagraphBooleans() throws Exception {
         // rtl / hangingPunct / eaLnBrk / latinLnBrk are all xsd:boolean
         // round-trip-only paragraph attrs. Render-time enforcement for

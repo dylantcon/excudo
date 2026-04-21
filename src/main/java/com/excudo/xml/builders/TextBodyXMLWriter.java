@@ -99,7 +99,8 @@ public final class TextBodyXMLWriter {
                 || para.getRightToLeft() != null
                 || para.getHangingPunctuation() != null
                 || para.getEastAsianLineBreak() != null
-                || para.getLatinLineBreak() != null;
+                || para.getLatinLineBreak() != null
+                || (para.getTabStops() != null && !para.getTabStops().isEmpty());
     }
 
     private static void writeParagraphProperties(Document doc, Element pPr, TextParagraph para) {
@@ -187,6 +188,22 @@ public final class TextBodyXMLWriter {
             Element buAutoNum = doc.createElementNS(NS, "a:buAutoNum");
             buAutoNum.setAttribute("type", para.getAutonumType());
             pPr.appendChild(buAutoNum);
+        }
+
+        // tabLst sits after bullet properties, before defRPr per
+        // CT_TextParagraphProperties. Only emit when non-empty; the
+        // getter returns null rather than an empty list.
+        if (para.getTabStops() != null && !para.getTabStops().isEmpty()) {
+            Element tabLst = doc.createElementNS(NS, "a:tabLst");
+            for (TextParagraph.TabStop t : para.getTabStops()) {
+                Element tab = doc.createElementNS(NS, "a:tab");
+                tab.setAttribute("pos", String.valueOf(t.positionEmu()));
+                if (t.alignment() != null) {
+                    tab.setAttribute("algn", t.alignment());
+                }
+                tabLst.appendChild(tab);
+            }
+            pPr.appendChild(tabLst);
         }
     }
 
