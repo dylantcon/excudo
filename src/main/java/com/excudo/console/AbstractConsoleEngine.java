@@ -707,6 +707,11 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             this.currentSessionId = result.getSessionId();
             this.orchestrator = result.getOrchestrator();
             this.llmHandler = result.getLlmHandler();
+            // Announce the active-session move to every SessionManager
+            // subscriber (GUI MainController, PresentationExplorer, etc).
+            // Unified replacement for the old per-engine
+            // orchestratorChangeHandler fan-out.
+            if (sessionManager != null) sessionManager.setActiveSession(this.currentSessionId);
         }
         return new SwitchSessionResultAdapter(result);
     }
@@ -722,6 +727,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         this.orchestrator = null;
         this.llmHandler = null;
         this.currentFile = null;
+        if (sessionManager != null) sessionManager.setActiveSession(null);
     }
 
     @Override
@@ -780,6 +786,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         this.orchestrator = orchestrator;
         this.llmHandler = (LLMConsoleHandler) llmHandler;
         this.currentFile = currentFile;
+        if (sessionManager != null) sessionManager.setActiveSession(sessionId);
     }
     
     @Override
@@ -921,25 +928,27 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
      */
     protected void createSessionDirect(String filename) {
         ConsoleSessionManager.SessionCreationResult result = consoleSessionManager.createSession(filename);
-        
+
         if (result.isSuccess()) {
             this.currentSessionId = result.getSessionId();
             this.orchestrator = result.getOrchestrator();
             this.llmHandler = result.getLlmHandler();
             this.currentFile = result.getCurrentFile();
+            if (sessionManager != null) sessionManager.setActiveSession(this.currentSessionId);
         } else {
             displayError(result.getErrorMessage());
         }
     }
-    
+
     protected void createEmptySessionDirect() {
         ConsoleSessionManager.SessionCreationResult result = consoleSessionManager.createEmptySession();
-        
+
         if (result.isSuccess()) {
             this.currentSessionId = result.getSessionId();
             this.orchestrator = result.getOrchestrator();
             this.llmHandler = result.getLlmHandler();
             this.currentFile = null;
+            if (sessionManager != null) sessionManager.setActiveSession(this.currentSessionId);
         } else {
             displayError(result.getErrorMessage());
         }

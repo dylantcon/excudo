@@ -1,11 +1,14 @@
 package com.excudo.view.components;
 
+import com.excudo.core.orchestration.OrchestrationStateListener;
 import com.excudo.core.orchestration.PresentationMetadata;
+import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.orchestration.SlideMetadata;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import com.excudo.view.MainController;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -19,8 +22,14 @@ import java.util.List;
 /**
  * Controller for the presentation explorer tree view.
  * Manages slide hierarchy, selection, and navigation.
+ *
+ * <p>Subscribes to {@link SessionManager}'s state-listener fan-out so
+ * the tree refreshes whenever the active session changes -- via GUI
+ * menu, console command, OR MCP tool. Before the Session Unification
+ * refactor, MCP-loaded decks left this tree stale because MCP never
+ * fed MainController's one-way orchestrator callback.
  */
-public class PresentationExplorerController implements Initializable {
+public class PresentationExplorerController implements Initializable, OrchestrationStateListener {
     
     // ========== FXML COMPONENTS ==========
     
@@ -44,6 +53,48 @@ public class PresentationExplorerController implements Initializable {
         setupTreeView();
         setupEventHandlers();
         setupInitialState();
+        // Subscribe once for the controller's lifetime. The Explorer is
+        // a long-lived singleton in the GUI; listener fan-out is
+        // idempotent, so no cleanup is wired here.
+        SessionManager.getInstance().addStateListener(this);
+    }
+
+    // ========== OrchestrationStateListener ==========
+
+    /**
+     * Fired whenever the active session pointer moves -- from any engine
+     * (UIConsoleEngine, MCPConsoleEngine, future). Reads the live active
+     * orchestrator and rebuilds the tree. Both args may be null for
+     * "no active session" which clears the tree.
+     */
+    @Override
+    public void onActiveSessionChanged(String sessionId, PPTXOrchestrator orchestrator) {
+        Platform.runLater(this::refreshFromActiveSession);
+    }
+
+    @Override
+    public void onPresentationStructureChanged() {
+        // Add/remove/reorder -- re-read metadata from the active session.
+        Platform.runLater(this::refreshFromActiveSession);
+    }
+
+    private void refreshFromActiveSession() {
+        PPTXOrchestrator orch = SessionManager.getInstance().getActiveOrchestrator();
+        if (orch == null) {
+            // Empty state: clear the tree.
+            updatePresentation(null, java.util.Collections.emptyList());
+            return;
+        }
+        try {
+            PresentationMetadata meta = orch.getPresentationMetadata();
+            List<SlideMetadata> slides = orch.getAllSlideMetadata();
+            updatePresentation(meta, slides);
+        } catch (Exception ignored) {
+            // If the orchestrator can't produce metadata (race with close,
+            // uninitialised session) treat as empty state rather than
+            // propagating to the UI.
+            updatePresentation(null, java.util.Collections.emptyList());
+        }
     }
     
     // ========== INITIALIZATION ==========

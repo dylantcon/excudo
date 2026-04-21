@@ -32,7 +32,6 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
     private BiConsumer<String, ConsoleStyle> styledHandler;
     private Consumer<String> statusHandler;
     private Consumer<Boolean> modeChangeHandler;
-    private Consumer<PPTXOrchestrator> orchestratorChangeHandler;
 
     public UIConsoleEngine(TextArea outputArea) {
         this.legacyOutputArea = outputArea;
@@ -42,48 +41,19 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
         this.styledHandler = (text, style) -> appendFallback(text);
         this.statusHandler = text -> {};
         this.modeChangeHandler = isArrange -> {};
-        this.orchestratorChangeHandler = orch -> {};
     }
 
-    @Override
-    public void initialize(PPTXOrchestrator orchestrator) {
-        super.initialize(orchestrator);
-        fireOrchestratorChanged(orchestrator);
-    }
-
-    @Override
-    public void setCurrentSession(String sessionId, PPTXOrchestrator orchestrator,
-                                  Object llmHandler, java.io.File currentFile) {
-        super.setCurrentSession(sessionId, orchestrator, llmHandler, currentFile);
-        fireOrchestratorChanged(orchestrator);
-    }
-
-    @Override
-    protected void createSessionDirect(String filename) {
-        super.createSessionDirect(filename);
-        fireOrchestratorChanged(getCurrentSessionOrchestrator());
-    }
-
-    @Override
-    protected void createEmptySessionDirect() {
-        super.createEmptySessionDirect();
-        fireOrchestratorChanged(getCurrentSessionOrchestrator());
-    }
-
-    @Override
-    protected void switchSession(String sessionId) {
-        super.switchSession(sessionId);
-        fireOrchestratorChanged(getCurrentSessionOrchestrator());
-    }
-
-    private void fireOrchestratorChanged(PPTXOrchestrator orch) {
-        if (orch == null) return;
-        if (Platform.isFxApplicationThread()) {
-            orchestratorChangeHandler.accept(orch);
-        } else {
-            Platform.runLater(() -> orchestratorChangeHandler.accept(orch));
-        }
-    }
+    // The per-instance orchestratorChangeHandler + initialize /
+    // setCurrentSession / createSessionDirect / createEmptySessionDirect
+    // / switchSession overrides used to exist here to fire a GUI-local
+    // callback whenever this engine's session changed. The Session
+    // Unification refactor makes SessionManager.setActiveSession the
+    // single authoritative announcement point (AbstractConsoleEngine
+    // calls it from every session-mutation site), and SessionManager's
+    // listener fan-out delivers onActiveSessionChanged to every
+    // subscriber -- including MainController. No more per-engine
+    // handlers means MCP-created sessions are visible to the GUI for
+    // free, which was the whole point of the refactor.
 
     // ========== Arrange mode hook ==========
     //
@@ -222,11 +192,11 @@ public class UIConsoleEngine extends AbstractConsoleEngine {
     }
 
     /**
-     * Register a callback invoked when the console's active orchestrator changes
-     * (after load, new, or session switch). The hosting controller uses this to
-     * keep the GUI's orchestrator reference in sync with the console session.
+     * Previously: register a per-instance orchestrator-change callback.
+     * Removed in the Session Unification refactor. Subscribe to
+     * {@code SessionManager.getInstance().addStateListener(...)} and
+     * override {@code onActiveSessionChanged} instead -- that path
+     * catches session changes from any engine (UIConsoleEngine,
+     * MCPConsoleEngine, future), not just this one.
      */
-    public void setOrchestratorChangeHandler(Consumer<PPTXOrchestrator> handler) {
-        this.orchestratorChangeHandler = handler != null ? handler : (o -> {});
-    }
 }

@@ -109,10 +109,9 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private Button refreshPropertiesButton;
     
     // ========== CONTROLLERS ==========
-    
+
     private ViewManager viewManager;
-    private PPTXOrchestrator orchestrator;
-    
+
     // Component controllers
     private PresentationExplorerController explorerController;
     private SlideEditorController editorController;
@@ -129,10 +128,25 @@ public class MainController implements Initializable, OrchestrationStateListener
     // ========== PUBLIC ACCESSORS ==========
     
     /**
-     * Get the current orchestrator instance
+     * Get the current orchestrator instance.
+     *
+     * <p>As of the Session Unification refactor, this always reads from
+     * {@link SessionManager#getActiveOrchestrator()} rather than a
+     * GUI-local field. May return {@code null} when no session is
+     * active (app just started, all sessions closed). Callers must
+     * null-check.
      */
     public PPTXOrchestrator getCurrentOrchestrator() {
-        return orchestrator;
+        return SessionManager.getInstance().getActiveOrchestrator();
+    }
+
+    /**
+     * Shorthand alias matching the historical field name. Kept for
+     * call-site convenience during the refactor; every read goes
+     * through {@link #getCurrentOrchestrator()}.
+     */
+    public PPTXOrchestrator getOrchestrator() {
+        return getCurrentOrchestrator();
     }
     
     /**
@@ -159,22 +173,16 @@ public class MainController implements Initializable, OrchestrationStateListener
     public void initialize(ViewManager viewManager) {
         this.viewManager = viewManager;
 
-        // Initialize core components
-
-        try {
-            // Initialize the orchestrator
-            this.orchestrator = new com.excudo.core.orchestration.PPTXOrchestratorImpl();
-
-            // Check if orchestrator already has presentation data (demos, etc.)
-            updatePresentationViews();
-        } catch (Exception e) {
-            System.err.println("Failed to initialize orchestrator: " + e.getMessage());
-        }
-
         // Subscribe to state changes from any code path that loads/modifies a presentation
-        // (console commands, menu actions, programmatic flows). Callbacks hop onto the FX
-        // thread since commands may run on background threads.
+        // (console commands, menu actions, MCP tools, programmatic flows). Callbacks hop
+        // onto the FX thread since they may fire from background or engine threads.
+        // The active-session pointer on SessionManager is now the sole authority; this
+        // controller no longer holds its own orchestrator reference.
         SessionManager.getInstance().addStateListener(this);
+
+        // Reflect whatever the active session is right now -- e.g. if a console
+        // engine pre-seeded one before the GUI attached.
+        updatePresentationViews();
 
         // Setup initial view state
         updateUIState();
@@ -194,6 +202,16 @@ public class MainController implements Initializable, OrchestrationStateListener
 
     @Override
     public void onPresentationStructureChanged() {
+        Platform.runLater(this::updatePresentationViews);
+    }
+
+    @Override
+    public void onActiveSessionChanged(String sessionId, PPTXOrchestrator orchestrator) {
+        // New authoritative handoff from any engine (UIConsoleEngine, MCPConsoleEngine,
+        // future). GUI refresh -> always re-read current orchestrator via
+        // SessionManager rather than trusting the parameter, so "no active session"
+        // (both args null) naturally resolves to the empty-state branches in
+        // updatePresentationViews.
         Platform.runLater(this::updatePresentationViews);
     }
 
@@ -456,10 +474,13 @@ public class MainController implements Initializable, OrchestrationStateListener
                         result.getOrchestrator(),
                         result.getLlmHandler(),
                         result.getCurrentFile());
-                } else if (orchestrator != null) {
-                    var result = orchestrator.loadPresentation(file);
-                    if (!result.isSuccess()) {
-                        throw new Exception(result.getMessage());
+                } else {
+                    PPTXOrchestrator orch = getOrchestrator();
+                    if (orch != null) {
+                        var result = orch.loadPresentation(file);
+                        if (!result.isSuccess()) {
+                            throw new Exception(result.getMessage());
+                        }
                     }
                 }
                 return null;
@@ -520,16 +541,18 @@ public class MainController implements Initializable, OrchestrationStateListener
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
-                // Save presentation using orchestrator
-                if (orchestrator != null) {
-                    var result = orchestrator.savePresentation(file);
-                    if (!result.isSuccess()) {
-                        throw new Exception(result.getMessage());
-                    }
+                // Save presentation using the active-session orchestrator
+                PPTXOrchestrator orch = getOrchestrator();
+                if (orch == null) {
+                    throw new Exception("No active session to save. Open or create a presentation first.");
+                }
+                var result = orch.savePresentation(file);
+                if (!result.isSuccess()) {
+                    throw new Exception(result.getMessage());
                 }
                 return null;
             }
-            
+
             @Override
             protected void succeeded() {
                 Platform.runLater(() -> {
@@ -568,18 +591,20 @@ public class MainController implements Initializable, OrchestrationStateListener
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
-                // Export presentation with full validation
-                if (orchestrator != null) {
-                    var result = orchestrator.finalizePresentation();
-                    if (!result.isSuccess()) {
-                        throw new Exception(result.getMessage());
-                    }
-                    
-                    // Save to export file
-                    var saveResult = orchestrator.savePresentation(file);
-                    if (!saveResult.isSuccess()) {
-                        throw new Exception(saveResult.getMessage());
-                    }
+                // Export presentation with full validation, targeting the active session
+                PPTXOrchestrator orch = getOrchestrator();
+                if (orch == null) {
+                    throw new Exception("No active session to export. Open or create a presentation first.");
+                }
+                var result = orch.finalizePresentation();
+                if (!result.isSuccess()) {
+                    throw new Exception(result.getMessage());
+                }
+
+                // Save to export file
+                var saveResult = orch.savePresentation(file);
+                if (!saveResult.isSuccess()) {
+                    throw new Exception(saveResult.getMessage());
                 }
                 return null;
             }
@@ -659,43 +684,52 @@ public class MainController implements Initializable, OrchestrationStateListener
      * Update views when presentation is loaded
      */
     public void updatePresentationViews() {
-        if (orchestrator != null) {
-            try {
-                // Get presentation metadata
-                PresentationMetadata metadata = orchestrator.getPresentationMetadata();
-                List<SlideMetadata> slides = orchestrator.getAllSlideMetadata();
-                
-                System.out.println("Presentation updated: " + 
-                    (metadata != null ? metadata.getTitle() + " (" + slides.size() + " slides)" : "No metadata"));
-                
-                
-                // Update component controllers with loaded data
-                if (explorerController != null) {
-                    explorerController.updatePresentation(metadata, slides);
-                }
-                
-                if (editorController != null && slides != null && !slides.isEmpty()) {
-                    // Load first slide in editor
-                    editorController.loadSlide(slides.get(0).getSlideNumber());
-                }
-                
-                // Notify console controller that presentation is loaded
-                if (consoleController != null) {
-                    consoleController.onPresentationLoaded();
-                }
+        PPTXOrchestrator orch = getOrchestrator();
+        if (orch == null) {
+            // No active session -> render empty state. The explorer is
+            // cleared by its own onActiveSessionChanged path; we still
+            // update local flags + the console so downstream handlers
+            // observe the "nothing loaded" transition consistently.
+            presentationLoaded = false;
+            updateUIState();
+            return;
+        }
+        try {
+            // Get presentation metadata from the active-session orchestrator
+            PresentationMetadata metadata = orch.getPresentationMetadata();
+            List<SlideMetadata> slides = orch.getAllSlideMetadata();
 
-                // Keep Edit menu in sync with the session's command history
-                updateUndoRedoState();
+            System.out.println("Presentation updated: " +
+                (metadata != null ? metadata.getTitle() + " (" + slides.size() + " slides)" : "No metadata"));
 
-                showStatus("Presentation loaded: " + slides.size() + " slides");
-                
-            } catch (Exception e) {
-                logger.error("Failed to update presentation views: " + e.getMessage(), e);
-                showStatus("Error loading presentation data");
+
+            // Update component controllers with loaded data
+            if (explorerController != null) {
+                explorerController.updatePresentation(metadata, slides);
             }
+
+            if (editorController != null && slides != null && !slides.isEmpty()) {
+                // Load first slide in editor
+                editorController.loadSlide(slides.get(0).getSlideNumber());
+            }
+
+            // Notify console controller that presentation is loaded
+            if (consoleController != null) {
+                consoleController.onPresentationLoaded();
+            }
+
+            // Keep Edit menu in sync with the session's command history
+            updateUndoRedoState();
+
+            presentationLoaded = true;
+            showStatus("Presentation loaded: " + slides.size() + " slides");
+
+        } catch (Exception e) {
+            logger.error("Failed to update presentation views: " + e.getMessage(), e);
+            showStatus("Error loading presentation data");
         }
     }
-    
+
     /**
      * Handle slide selection change from presentation explorer
      */
@@ -703,10 +737,11 @@ public class MainController implements Initializable, OrchestrationStateListener
         if (editorController != null) {
             editorController.loadSlide(slideNumber);
         }
-        
+
         // Update properties panel with slide metadata
-        if (propertiesController != null && orchestrator != null) {
-            var slideMetadata = orchestrator.getSlideMetadata(slideNumber);
+        PPTXOrchestrator orch = getOrchestrator();
+        if (propertiesController != null && orch != null) {
+            var slideMetadata = orch.getSlideMetadata(slideNumber);
             slideMetadata.ifPresent(metadata -> propertiesController.displaySlideProperties(metadata));
         }
         
@@ -754,18 +789,19 @@ public class MainController implements Initializable, OrchestrationStateListener
     
     @FXML
     private void handleValidatePresentation() {
-        if (!presentationLoaded || orchestrator == null) {
+        PPTXOrchestrator orch = getOrchestrator();
+        if (!presentationLoaded || orch == null) {
             showError("No presentation loaded", new IllegalStateException("Please load a presentation first"));
             return;
         }
-        
+
         showStatus("Validating presentation...");
-        
+
         Task<String> task = new Task<String>() {
             @Override
             protected String call() throws Exception {
                 // Get the current context to access managers
-                var context = orchestrator.getContext();
+                var context = orch.getContext();
                 if (!context.isPresent()) {
                     throw new Exception("No presentation context available");
                 }
@@ -823,15 +859,16 @@ public class MainController implements Initializable, OrchestrationStateListener
 
     @FXML
     private void handleRegenerateSpids() {
-        if (!presentationLoaded || orchestrator == null) {
+        PPTXOrchestrator orch = getOrchestrator();
+        if (!presentationLoaded || orch == null) {
             showError("No presentation loaded", new IllegalStateException("Please load a presentation first"));
             return;
         }
-        
+
         // Confirm action as this modifies the presentation
         if (viewManager != null) {
             boolean confirmed = viewManager.showConfirmation(
-                "Regenerate SPIDs", 
+                "Regenerate SPIDs",
                 "This will regenerate all Shape IDs in the presentation",
                 "This operation will modify the presentation structure. Are you sure you want to continue?"
             );
@@ -839,18 +876,18 @@ public class MainController implements Initializable, OrchestrationStateListener
                 return;
             }
         }
-        
+
         showStatus("Regenerating SPIDs...");
-        
+
         Task<String> task = new Task<String>() {
             @Override
             protected String call() throws Exception {
                 // Get the current context to access managers
-                var context = orchestrator.getContext();
+                var context = orch.getContext();
                 if (!context.isPresent()) {
                     throw new Exception("No presentation context available");
                 }
-                
+
                 var spidManager = context.get().getSpidManager();
                 var relationshipManager = context.get().getRelationshipManager();
                 
@@ -864,7 +901,7 @@ public class MainController implements Initializable, OrchestrationStateListener
                 report.append("  Warnings: ").append(spidValidation.getWarnings().size()).append("\n\n");
                 
                 // Perform batch SPID regeneration by iterating through all slides
-                List<SlideMetadata> slides = orchestrator.getAllSlideMetadata();
+                List<SlideMetadata> slides = orch.getAllSlideMetadata();
                 int totalSlidesProcessed = 0;
                 int totalShapesProcessed = 0;
                 int totalAnimationsUpdated = 0;
@@ -1061,26 +1098,13 @@ public class MainController implements Initializable, OrchestrationStateListener
     }
     
     // ========== GETTERS ==========
-    
-    public PPTXOrchestrator getOrchestrator() {
-        return orchestrator;
-    }
 
-    /**
-     * Adopt an orchestrator from another source (e.g., the console session).
-     * Keeps the GUI in sync when the console creates or switches sessions.
-     */
-    public void setOrchestrator(PPTXOrchestrator orchestrator) {
-        if (orchestrator == this.orchestrator) return; // prevent re-entrant loop
-        this.orchestrator = orchestrator;
-        presentationLoaded = (orchestrator != null && orchestrator.getContext().isPresent());
-        Platform.runLater(() -> {
-            updatePresentationViews();
-            updateUIState();
-        });
-    }
-    
-    
+    // getOrchestrator() + getCurrentOrchestrator() are defined near the
+    // top of the class -- both resolve through SessionManager.
+    // setOrchestrator() was removed in the Session Unification refactor:
+    // the active session is set by whichever engine is driving it, and
+    // the GUI subscribes to onActiveSessionChanged to refresh.
+
     public ViewManager getViewManager() {
         return viewManager;
     }

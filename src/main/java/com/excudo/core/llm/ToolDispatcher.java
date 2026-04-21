@@ -85,6 +85,21 @@ public class ToolDispatcher {
         this.mermaidDiagramTool = new MermaidDiagramTool(newOrch);
     }
 
+    /**
+     * Sync this dispatcher's local caches to the current active session.
+     * Called at the top of every dispatch so a session changed by
+     * another engine (GUI Open, console load) is picked up on the next
+     * tool call instead of waiting for an explicit updateOrchestrator.
+     * No-op when the active orchestrator is already the one we cached.
+     */
+    private void syncToActiveSession() {
+        PPTXOrchestrator active = com.excudo.core.orchestration.SessionManager
+            .getInstance().getActiveOrchestrator();
+        if (active != null && active != this.orchestrator) {
+            updateOrchestrator(active);
+        }
+    }
+
     public void setPresentationCreated(boolean created) {
         this.presentationCreated = created;
     }
@@ -99,6 +114,13 @@ public class ToolDispatcher {
 
     public String dispatch(String toolName, String toolInput) {
         try {
+            // First thing every tool call does: align this dispatcher's
+            // cached orchestrator + sub-factories to whatever session is
+            // active right now. Covers the MCP-created-deck-then-GUI-
+            // edits path that the old updateOrchestrator-on-demand dance
+            // missed.
+            syncToActiveSession();
+
             String inputSnippet = toolInput != null
                 ? toolInput.substring(0, Math.min(toolInput.length(), 300))
                 : "(none)";
