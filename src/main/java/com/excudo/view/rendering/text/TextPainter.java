@@ -191,13 +191,22 @@ public final class TextPainter {
         // Same pattern as the phantom-bullet inheritance fix.
         boolean isPlaceholder = placeholderType != null;
 
-        // Resolve left margin and indent from paragraph or theme
+        // Resolve marL and indent INDEPENDENTLY. The old code only read
+        // para.getMarginLeft() and left indentPx=0 whenever the paragraph
+        // overrode marL, so explicit <a:pPr marL=X indent=-X> on a
+        // placeholder body paragraph lost its hanging indent and the
+        // bullet landed at textX on top of the first letter. Theme
+        // fallback still only applies to placeholders per OOXML scoping.
         double marginLeftPx = 0;
         double indentPx = 0;
         if (para.getMarginLeft() != null) {
             marginLeftPx = emuToPixels(para.getMarginLeft()) * zoom;
         } else if (themeStyle != null && isPlaceholder) {
             marginLeftPx = emuToPixels(themeStyle.getMarginLeft()) * zoom;
+        }
+        if (para.getIndent() != null) {
+            indentPx = emuToPixels(para.getIndent()) * zoom;
+        } else if (themeStyle != null && isPlaceholder) {
             indentPx = emuToPixels(themeStyle.getIndent()) * zoom;
         }
 
