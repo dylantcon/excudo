@@ -2,10 +2,8 @@ package com.excudo.view.rendering;
 
 import com.excudo.view.rendering.surface.CanvasRenderSurface;
 import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
-import javafx.scene.text.Font;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
@@ -239,11 +237,11 @@ public class RenderingContext {
     /**
      * Draw debug bounds rectangle for a shape
      */
-    public void drawDebugBounds(javafx.geometry.Rectangle2D bounds, Color color) {
+    public void drawDebugBounds(javafx.geometry.Rectangle2D bounds, SurfacePaint color) {
         if (showBounds || debugMode) {
             saveState();
             try {
-                surface.setStroke(toSurfacePaint(color));
+                surface.setStroke(color);
                 surface.setLineWidth(1.0);
                 surface.setGlobalAlpha(0.7);
                 surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
@@ -279,19 +277,6 @@ public class RenderingContext {
         surface.setMiterLimit(10.0);
     }
 
-    /**
-     * Convert a JavaFX Color to a neutral SurfacePaint. Used by the few
-     * debug-overlay call sites that still accept a {@code Color} argument
-     * at their public API; callers can migrate freely once the shim is
-     * removed.
-     */
-    private static com.excudo.view.rendering.surface.SurfacePaint toSurfacePaint(Color c) {
-        if (c == null) return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
-        int r = (int) Math.round(c.getRed()   * 255);
-        int g = (int) Math.round(c.getGreen() * 255);
-        int b = (int) Math.round(c.getBlue()  * 255);
-        return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(r, g, b, c.getOpacity());
-    }
     
     // ========== RENDERING STATE HOLDER ==========
     //

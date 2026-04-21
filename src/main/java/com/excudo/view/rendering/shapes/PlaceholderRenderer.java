@@ -10,7 +10,6 @@ import com.excudo.view.rendering.surface.SurfaceFont;
 import com.excudo.view.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.paint.Color;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -34,10 +33,10 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
         }
 
         // 2. Draw placeholder fill (usually transparent for placeholders)
-        javafx.scene.paint.Paint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
-        if (!Color.TRANSPARENT.equals(fill)) {
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
+        if (fill != SurfacePaint.Transparent.INSTANCE) {
             RenderSurface surface = ctx.getSurface();
-            surface.setFill(ShapeStyleExtractor.toSurfacePaint(fill));
+            surface.setFill(fill);
             surface.fillRect(boundsPixels.getMinX(), boundsPixels.getMinY(),
                              boundsPixels.getWidth(), boundsPixels.getHeight());
         }

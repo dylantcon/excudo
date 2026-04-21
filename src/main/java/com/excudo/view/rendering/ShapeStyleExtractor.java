@@ -6,11 +6,7 @@ import com.excudo.core.model.TextColor;
 import com.excudo.core.themes.FmtSchemeResolver;
 import com.excudo.core.themes.ResolvedFill;
 import com.excudo.core.themes.ThemeManager;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.CycleMethod;
-import javafx.scene.paint.LinearGradient;
-import javafx.scene.paint.Paint;
-import javafx.scene.paint.Stop;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -20,7 +16,9 @@ import java.util.List;
 
 /**
  * Extracts visual style properties from a shape's xmlElement for rendering.
- * Read-only -- does not modify the DOM. Returns JavaFX-ready Color objects.
+ * Read-only -- does not modify the DOM. Returns backend-neutral
+ * {@link SurfacePaint} values (the Canvas and AWT backends each translate
+ * to their native types internally).
  *
  * Resolves the OOXML style hierarchy:
  *   shape spPr solidFill > shape p:style fillRef > theme default
@@ -30,12 +28,14 @@ public final class ShapeStyleExtractor {
     private ShapeStyleExtractor() {}
 
     /**
-     * Resolve the fill for a shape. Returns Color (solid/transparent) or LinearGradient.
+     * Resolve the fill for a shape. Returns a {@link SurfacePaint.Solid}
+     * or {@link SurfacePaint.LinearGradient}, or
+     * {@link SurfacePaint.Transparent#INSTANCE} for no-fill.
      * Checks: spPr/solidFill > gradFill > noFill > theme accent1 fallback.
      */
-    public static Paint resolveFillColor(SlideShape shape, SlideRenderContext slideCtx) {
+    public static SurfacePaint resolveFillColor(SlideShape shape, SlideRenderContext slideCtx) {
         if (shape == null || shape.getXmlElement() == null) {
-            return Color.TRANSPARENT;
+            return SurfacePaint.Transparent.INSTANCE;
         }
 
         Element spEl = shape.getXmlElement();
@@ -43,18 +43,15 @@ public final class ShapeStyleExtractor {
         // Check for explicit fill in spPr
         Element spPr = getChild(spEl, "p:spPr");
         if (spPr != null) {
-            // Check noFill
             if (getChild(spPr, "a:noFill") != null) {
-                return Color.TRANSPARENT;
+                return SurfacePaint.Transparent.INSTANCE;
             }
 
-            // Check solidFill
             Element solidFill = getChild(spPr, "a:solidFill");
             if (solidFill != null) {
                 return parseColorElement(solidFill, slideCtx);
             }
 
-            // Check gradFill
             Element gradFill = getChild(spPr, "a:gradFill");
             if (gradFill != null) {
                 return parseGradientFill(gradFill, slideCtx);
@@ -63,10 +60,10 @@ public final class ShapeStyleExtractor {
 
         // If placeholder, default to transparent (inherits from layout/master)
         if (shape.getType() == SlideShape.ShapeType.PLACEHOLDER) {
-            return Color.TRANSPARENT;
+            return SurfacePaint.Transparent.INSTANCE;
         }
 
-        // Check p:style fillRef — resolve through fmtScheme for full gradient/modifier support
+        // Check p:style fillRef -- resolve through fmtScheme for full gradient/modifier support
         Element pStyle = getChild(spEl, "p:style");
         if (pStyle != null) {
             Element fillRef = getChild(pStyle, "a:fillRef");
@@ -79,14 +76,13 @@ public final class ShapeStyleExtractor {
                 if (schemeClr != null && schemeClr.hasAttribute("val")) {
                     String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
 
-                    // Use fmtScheme resolver for full fill style lookup
                     if (idx > 0 && ThemeManager.isThemeLoaded()) {
                         ResolvedFill resolved = ThemeManager.resolveFillStyle(idx, phColorHex);
-                        return convertToJavaFX(resolved);
+                        return convertToSurfacePaint(resolved);
                     }
 
-                    // No fmtScheme — flat scheme color
-                    Color base = colorFromHex(phColorHex);
+                    // No fmtScheme -- flat scheme color
+                    SurfacePaint.Solid base = solidFromHex(phColorHex);
                     return applyAlpha(base, schemeClr);
                 }
             }
@@ -127,11 +123,12 @@ public final class ShapeStyleExtractor {
 
         // Line color
         Element solidFill = getChild(ln, "a:solidFill");
-        Color lineColor;
+        SurfacePaint.Solid lineColor;
         if (solidFill != null) {
-            lineColor = parseColorElement(solidFill, slideCtx);
+            SurfacePaint parsed = parseColorElement(solidFill, slideCtx);
+            lineColor = parsed instanceof SurfacePaint.Solid s ? s : SurfacePaint.Solid.rgb(0, 0, 0);
         } else {
-            // Check p:style lnRef — resolve color through fmtScheme
+            // Check p:style lnRef -- resolve color through fmtScheme
             Element pStyle = getChild(shape.getXmlElement(), "p:style");
             Element lnRef = pStyle != null ? getChild(pStyle, "a:lnRef") : null;
             if (lnRef != null && slideCtx != null) {
@@ -145,17 +142,17 @@ public final class ShapeStyleExtractor {
                     String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
                     FmtSchemeResolver.ResolvedLineStyle resolved =
                         ThemeManager.resolveLineStyle(idx, phColorHex);
-                    lineColor = colorFromHex(resolved.colorHex());
+                    lineColor = solidFromHex(resolved.colorHex());
                     if (resolved.alpha() < 1.0) {
-                        lineColor = lineColor.deriveColor(0, 1, 1, resolved.alpha());
+                        lineColor = lineColor.withAlpha(resolved.alpha());
                     }
                 } else if (schemeClr != null && schemeClr.hasAttribute("val")) {
-                    lineColor = colorFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
+                    lineColor = solidFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
                 } else {
-                    lineColor = Color.BLACK;
+                    lineColor = SurfacePaint.Solid.rgb(0, 0, 0);
                 }
             } else {
-                lineColor = Color.BLACK;
+                lineColor = SurfacePaint.Solid.rgb(0, 0, 0);
             }
         }
 
@@ -170,10 +167,10 @@ public final class ShapeStyleExtractor {
     }
 
     /**
-     * Map OOXML dash style name to JavaFX dash array (scaled by line width).
+     * Map OOXML dash style name to a pixel-space dash array (scaled by line width).
      */
     private static double[] mapDashStyle(String style, double lineWidth) {
-        double u = Math.max(lineWidth, 1); // scale dashes by line width
+        double u = Math.max(lineWidth, 1);
         return switch (style) {
             case "dot"          -> new double[]{u, u * 2};
             case "dash"         -> new double[]{u * 4, u * 2};
@@ -193,24 +190,24 @@ public final class ShapeStyleExtractor {
      * Resolve a text run's rendered color.
      * Checks: run rPr solidFill > scheme color > theme default for placeholder type.
      */
-    public static Color resolveTextRunColor(TextRun run, String placeholderType,
-                                             SlideRenderContext slideCtx) {
+    public static SurfacePaint.Solid resolveTextRunColor(TextRun run, String placeholderType,
+                                                         SlideRenderContext slideCtx) {
         if (run != null && run.getColor() != null) {
             TextColor tc = run.getColor();
             if (tc.getHexVal() != null) {
-                return colorFromHex("#" + tc.getHexVal());
+                return solidFromHex(tc.getHexVal());
             }
             if (tc.isScheme() && slideCtx != null) {
-                return colorFromHex(slideCtx.resolveSchemeColor(tc.getSchemeVal()));
+                return solidFromHex(slideCtx.resolveSchemeColor(tc.getSchemeVal()));
             }
         }
 
         // Default: resolve from theme via SlideRenderContext
         if (slideCtx != null) {
             if ("title".equals(placeholderType) || "ctrTitle".equals(placeholderType)) {
-                return colorFromHex(slideCtx.getTitleTextColorHex());
+                return solidFromHex(slideCtx.getTitleTextColorHex());
             }
-            return colorFromHex(slideCtx.getBodyTextColorHex());
+            return solidFromHex(slideCtx.getBodyTextColorHex());
         }
         throw new IllegalStateException("No text color: slideCtx is null, placeholder='" + placeholderType + "'");
     }
@@ -218,15 +215,15 @@ public final class ShapeStyleExtractor {
     // ========== INTERNAL ==========
 
     /**
-     * Parse a gradient fill into a JavaFX LinearGradient.
+     * Parse a gradient fill into a {@link SurfacePaint.LinearGradient}.
      * Reads a:gsLst for color stops and a:lin for angle.
      */
-    private static Paint parseGradientFill(Element gradFill, SlideRenderContext slideCtx) {
+    private static SurfacePaint parseGradientFill(Element gradFill, SlideRenderContext slideCtx) {
         Element gsLst = getChild(gradFill, "a:gsLst");
-        if (gsLst == null) return Color.LIGHTGRAY;
+        if (gsLst == null) return SurfacePaint.Solid.rgb(211, 211, 211); // LIGHTGRAY
 
         // Collect gradient stops
-        List<Stop> stops = new ArrayList<>();
+        List<SurfacePaint.LinearGradient.Stop> stops = new ArrayList<>();
         NodeList gsNodes = gradFill.getElementsByTagName("a:gs");
         for (int i = 0; i < gsNodes.getLength(); i++) {
             Element gs = (Element) gsNodes.item(i);
@@ -235,13 +232,14 @@ public final class ShapeStyleExtractor {
                 try { pos = Integer.parseInt(gs.getAttribute("pos")) / 100000.0; }
                 catch (NumberFormatException ignored) {}
             }
-            Color color = parseColorElement(gs, slideCtx);
-            stops.add(new Stop(pos, color));
+            SurfacePaint color = parseColorElement(gs, slideCtx);
+            SurfacePaint.Solid solid = color instanceof SurfacePaint.Solid s ? s : SurfacePaint.Solid.rgb(0, 0, 0);
+            stops.add(new SurfacePaint.LinearGradient.Stop(pos, solid));
         }
 
-        if (stops.isEmpty()) return Color.LIGHTGRAY;
-        if (stops.size() == 1) return stops.get(0).getColor();
-        stops.sort(Comparator.comparingDouble(Stop::getOffset));
+        if (stops.isEmpty()) return SurfacePaint.Solid.rgb(211, 211, 211);
+        if (stops.size() == 1) return stops.get(0).color();
+        stops.sort(Comparator.comparingDouble(SurfacePaint.LinearGradient.Stop::position));
 
         // Gradient angle (a:lin/@ang in 60000ths of a degree, default 0 = left-to-right)
         double angleDeg = 0;
@@ -251,33 +249,32 @@ public final class ShapeStyleExtractor {
             catch (NumberFormatException ignored) {}
         }
 
-        // Convert angle to start/end points (OOXML 0 = top-to-bottom, 90 = left-to-right)
+        // Convert angle to start/end points (OOXML 0 = top-to-bottom, 90 = left-to-right).
+        // Normalised 0..1 coordinates (same convention as JavaFX proportional=true).
         double angleRad = Math.toRadians(angleDeg);
         double startX = 0.5 - 0.5 * Math.sin(angleRad);
         double startY = 0.5 - 0.5 * Math.cos(angleRad);
         double endX = 0.5 + 0.5 * Math.sin(angleRad);
         double endY = 0.5 + 0.5 * Math.cos(angleRad);
 
-        return new LinearGradient(startX, startY, endX, endY, true,
-            CycleMethod.NO_CYCLE, stops);
+        return new SurfacePaint.LinearGradient(startX, startY, endX, endY, stops);
     }
 
     /**
      * Parse a color from an OOXML fill element (contains a:srgbClr or a:schemeClr).
-     * Handles alpha transparency via a:alpha child.
+     * Handles alpha transparency via a:alpha child. Returns a {@link SurfacePaint.Solid}
+     * (typed as {@link SurfacePaint} only to let gradient stops reuse this).
      */
-    private static Color parseColorElement(Element fillElement, SlideRenderContext slideCtx) {
-        // Check srgbClr
+    private static SurfacePaint parseColorElement(Element fillElement, SlideRenderContext slideCtx) {
         Element srgb = getChild(fillElement, "a:srgbClr");
         if (srgb != null && srgb.hasAttribute("val")) {
-            Color base = colorFromHex("#" + srgb.getAttribute("val"));
+            SurfacePaint.Solid base = solidFromHex(srgb.getAttribute("val"));
             return applyAlpha(base, srgb);
         }
 
-        // Check schemeClr
         Element scheme = getChild(fillElement, "a:schemeClr");
         if (scheme != null && scheme.hasAttribute("val") && slideCtx != null) {
-            Color base = colorFromHex(slideCtx.resolveSchemeColor(scheme.getAttribute("val")));
+            SurfacePaint.Solid base = solidFromHex(slideCtx.resolveSchemeColor(scheme.getAttribute("val")));
             return applyAlpha(base, scheme);
         }
 
@@ -288,37 +285,40 @@ public final class ShapeStyleExtractor {
      * Apply alpha transparency from a:alpha child element.
      * OOXML alpha: 0 = fully transparent, 100000 = fully opaque.
      */
-    private static Color applyAlpha(Color color, Element colorElement) {
+    private static SurfacePaint.Solid applyAlpha(SurfacePaint.Solid color, Element colorElement) {
         Element alphaEl = getChild(colorElement, "a:alpha");
         if (alphaEl != null && alphaEl.hasAttribute("val")) {
             try {
                 int alphaVal = Integer.parseInt(alphaEl.getAttribute("val"));
                 double opacity = alphaVal / 100000.0;
-                return color.deriveColor(0, 1, 1, opacity);
+                return color.withAlpha(opacity);
             } catch (NumberFormatException ignored) {}
         }
         return color;
     }
 
     /**
-     * Convert a core ResolvedFill to a JavaFX Paint.
+     * Convert a core {@link ResolvedFill} to a {@link SurfacePaint}.
+     * Mirrors the logic that used to produce JavaFX types; output shape
+     * is identical to what {@link #parseGradientFill} / {@link #parseColorElement}
+     * would produce for equivalent XML.
      */
-    private static Paint convertToJavaFX(ResolvedFill fill) {
+    private static SurfacePaint convertToSurfacePaint(ResolvedFill fill) {
         return switch (fill) {
             case ResolvedFill.SolidFill solid -> {
-                Color c = colorFromHex(solid.hex());
-                yield solid.alpha() < 1.0 ? c.deriveColor(0, 1, 1, solid.alpha()) : c;
+                SurfacePaint.Solid c = solidFromHex(solid.hex());
+                yield solid.alpha() < 1.0 ? c.withAlpha(solid.alpha()) : c;
             }
             case ResolvedFill.GradientFill grad -> {
-                List<Stop> stops = new ArrayList<>();
+                List<SurfacePaint.LinearGradient.Stop> stops = new ArrayList<>();
                 for (var gs : grad.stops()) {
-                    Color c = colorFromHex(gs.hex());
-                    if (gs.alpha() < 1.0) c = c.deriveColor(0, 1, 1, gs.alpha());
-                    stops.add(new Stop(gs.position(), c));
+                    SurfacePaint.Solid c = solidFromHex(gs.hex());
+                    if (gs.alpha() < 1.0) c = c.withAlpha(gs.alpha());
+                    stops.add(new SurfacePaint.LinearGradient.Stop(gs.position(), c));
                 }
-                if (stops.isEmpty()) yield Color.TRANSPARENT;
-                if (stops.size() == 1) yield stops.get(0).getColor();
-                stops.sort(Comparator.comparingDouble(Stop::getOffset));
+                if (stops.isEmpty()) yield SurfacePaint.Transparent.INSTANCE;
+                if (stops.size() == 1) yield stops.get(0).color();
+                stops.sort(Comparator.comparingDouble(SurfacePaint.LinearGradient.Stop::position));
 
                 double angleRad = Math.toRadians(grad.angleDegrees());
                 double startX = 0.5 - 0.5 * Math.sin(angleRad);
@@ -326,20 +326,22 @@ public final class ShapeStyleExtractor {
                 double endX = 0.5 + 0.5 * Math.sin(angleRad);
                 double endY = 0.5 + 0.5 * Math.cos(angleRad);
 
-                yield new LinearGradient(startX, startY, endX, endY, true,
-                    CycleMethod.NO_CYCLE, stops);
+                yield new SurfacePaint.LinearGradient(startX, startY, endX, endY, stops);
             }
-            case ResolvedFill.NoFill ignored -> Color.TRANSPARENT;
+            case ResolvedFill.NoFill ignored -> SurfacePaint.Transparent.INSTANCE;
         };
     }
 
-    private static Color colorFromHex(String hex) {
+    /**
+     * Tolerant hex parser. Accepts "#RRGGBB", "RRGGBB", "#AARRGGBB",
+     * "AARRGGBB" (or null/empty/garbage -> opaque black). Never throws.
+     */
+    private static SurfacePaint.Solid solidFromHex(String hex) {
+        if (hex == null || hex.isEmpty()) return SurfacePaint.Solid.rgb(0, 0, 0);
         try {
-            if (hex == null || hex.isEmpty()) return Color.BLACK;
-            if (!hex.startsWith("#")) hex = "#" + hex;
-            return Color.web(hex);
+            return SurfacePaint.Solid.fromHex(hex);
         } catch (Exception e) {
-            return Color.BLACK;
+            return SurfacePaint.Solid.rgb(0, 0, 0);
         }
     }
 
@@ -381,15 +383,18 @@ public final class ShapeStyleExtractor {
         double offsetX = distPx * Math.cos(Math.toRadians(dirDeg));
         double offsetY = distPx * Math.sin(Math.toRadians(dirDeg));
 
-        // Shadow color (default: semi-transparent black)
-        Color shadowColor = Color.color(0, 0, 0, 0.4);
+        // Shadow color (default: semi-transparent black at 40% opacity)
+        SurfacePaint.Solid shadowColor = SurfacePaint.Solid.rgba(0, 0, 0, 0.4);
         Element colorEl = getChild(outerShdw, "a:srgbClr");
         if (colorEl == null) colorEl = getChild(outerShdw, "a:schemeClr");
         if (colorEl != null) {
-            shadowColor = parseColorElement(outerShdw, slideCtx);
-            // If no alpha was set on the color, apply default shadow alpha
-            if (shadowColor.getOpacity() >= 1.0) {
-                shadowColor = shadowColor.deriveColor(0, 1, 1, 0.4);
+            SurfacePaint parsed = parseColorElement(outerShdw, slideCtx);
+            if (parsed instanceof SurfacePaint.Solid s) {
+                shadowColor = s;
+                // If no alpha was set on the color, apply default shadow alpha
+                if (shadowColor.alpha() == 0xFF) {
+                    shadowColor = shadowColor.withAlpha(0.4);
+                }
             }
         }
 
@@ -397,56 +402,13 @@ public final class ShapeStyleExtractor {
     }
 
     /** Immutable line style result with optional dash pattern. */
-    public record LineStyle(Color color, double widthPixels, double[] dashPattern) {
-        public static final LineStyle NONE = new LineStyle(Color.TRANSPARENT, 0, null);
-        public boolean isVisible() { return widthPixels > 0 && !color.equals(Color.TRANSPARENT); }
+    public record LineStyle(SurfacePaint.Solid color, double widthPixels, double[] dashPattern) {
+        public static final LineStyle NONE = new LineStyle(
+            SurfacePaint.Solid.rgba(0, 0, 0, 0), 0, null);
+        /** Visible if the line has positive width and a non-transparent color. */
+        public boolean isVisible() { return widthPixels > 0 && color.alpha() > 0; }
     }
 
     /** Immutable shadow style result. */
-    public record ShadowStyle(double offsetX, double offsetY, Color color) {}
-
-    // ========== BRIDGE ADAPTER (Phase B only; removed in Phase C) ==========
-    //
-    // Renderers have already been rewired to the RenderSurface API, but
-    // this extractor still returns JavaFX Paint/Color to minimise the
-    // scope of any single phase. Phase C rewrites the extractor to
-    // produce SurfacePaint directly, and these helpers are deleted.
-
-    /**
-     * Convert a JavaFX Paint to the neutral SurfacePaint abstraction.
-     * Handles Color and LinearGradient; anything else (RadialGradient,
-     * ImagePattern -- neither produced by this extractor today) falls
-     * back to transparent.
-     */
-    public static com.excudo.view.rendering.surface.SurfacePaint toSurfacePaint(
-            javafx.scene.paint.Paint paint) {
-        if (paint == null) {
-            return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
-        }
-        if (paint instanceof Color c) {
-            return toSurfacePaint(c);
-        }
-        if (paint instanceof javafx.scene.paint.LinearGradient lg) {
-            java.util.List<com.excudo.view.rendering.surface.SurfacePaint.LinearGradient.Stop> stops =
-                new java.util.ArrayList<>(lg.getStops().size());
-            for (javafx.scene.paint.Stop s : lg.getStops()) {
-                stops.add(new com.excudo.view.rendering.surface.SurfacePaint.LinearGradient.Stop(
-                    s.getOffset(), toSurfacePaint(s.getColor())));
-            }
-            return new com.excudo.view.rendering.surface.SurfacePaint.LinearGradient(
-                lg.getStartX(), lg.getStartY(), lg.getEndX(), lg.getEndY(), stops);
-        }
-        return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
-    }
-
-    /** Convenience: Color-typed overload. */
-    public static com.excudo.view.rendering.surface.SurfacePaint.Solid toSurfacePaint(Color c) {
-        if (c == null || Color.TRANSPARENT.equals(c)) {
-            return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(0, 0, 0, 0);
-        }
-        int r = (int) Math.round(c.getRed()   * 255);
-        int g = (int) Math.round(c.getGreen() * 255);
-        int b = (int) Math.round(c.getBlue()  * 255);
-        return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(r, g, b, c.getOpacity());
-    }
+    public record ShadowStyle(double offsetX, double offsetY, SurfacePaint.Solid color) {}
 }

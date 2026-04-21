@@ -9,8 +9,6 @@ import com.excudo.view.rendering.surface.RenderSurface;
 import com.excudo.view.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
 
 /**
  * Renders geometric shapes (rectangles, ellipses, arrows, flowcharts, etc.).
@@ -23,7 +21,7 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
 
     /** Apply line color, width, and dash pattern to the surface. */
     private static void applyLineStyle(RenderSurface surface, ShapeStyleExtractor.LineStyle line) {
-        surface.setStroke(ShapeStyleExtractor.toSurfacePaint(line.color()));
+        surface.setStroke(line.color());
         surface.setLineWidth(line.widthPixels());
         if (line.dashPattern() != null) {
             surface.setLineDashes(line.dashPattern());
@@ -52,17 +50,16 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             surface.translate(-cx, -cy);
         }
 
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
+        SurfacePaint surfaceFill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
         ShapeStyleExtractor.LineStyle line = ShapeStyleExtractor.resolveLineStyle(shape, slideCtx);
-        boolean hasFill = !Color.TRANSPARENT.equals(fill);
-        SurfacePaint surfaceFill = hasFill ? ShapeStyleExtractor.toSurfacePaint(fill) : null;
+        boolean hasFill = surfaceFill != SurfacePaint.Transparent.INSTANCE;
 
         // Shadow: draw offset copy of the shape before the real one
         ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
         if (shadow != null) {
             surface.save();
             surface.translate(shadow.offsetX(), shadow.offsetY());
-            surface.setFill(ShapeStyleExtractor.toSurfacePaint(shadow.color()));
+            surface.setFill(shadow.color());
             surface.fillRect(bounds.getMinX(), bounds.getMinY(),
                 bounds.getWidth(), bounds.getHeight());
             surface.restore();

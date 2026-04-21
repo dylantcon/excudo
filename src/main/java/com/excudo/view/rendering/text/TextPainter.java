@@ -12,7 +12,6 @@ import com.excudo.view.rendering.surface.RenderSurface;
 import com.excudo.view.rendering.surface.SurfaceFont;
 import com.excudo.view.rendering.surface.SurfacePaint;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.paint.Color;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -301,8 +300,7 @@ public final class TextPainter {
 
             SurfaceFont font = resolveFont(run, slideCtx, zoom, level, isTitle);
             surface.setFont(font);
-            SurfacePaint color = ShapeStyleExtractor.toSurfacePaint(
-                ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx));
+            SurfacePaint color = ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx);
 
             String[] words = run.getText().split("(?<=\\s)");
             for (String word : words) {

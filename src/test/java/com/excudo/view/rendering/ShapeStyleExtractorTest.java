@@ -4,8 +4,7 @@ import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.themes.ThemeManager;
 import com.excudo.core.utils.XMLFactoryProvider;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -40,9 +39,14 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
 
-        assertEquals(Color.web("#FF0000"), fill);
+        assertTrue("Fill should be Solid", fill instanceof SurfacePaint.Solid);
+        SurfacePaint.Solid s = (SurfacePaint.Solid) fill;
+        assertEquals(0xFF, s.red());
+        assertEquals(0x00, s.green());
+        assertEquals(0x00, s.blue());
+        assertEquals(0xFF, s.alpha());
     }
 
     /**
@@ -66,9 +70,9 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
 
-        assertEquals(Color.TRANSPARENT, fill);
+        assertSame(SurfacePaint.Transparent.INSTANCE, fill);
     }
 
     /**
@@ -77,10 +81,8 @@ public class ShapeStyleExtractorTest {
      */
     @Test
     public void resolveFillColor_fillRefSchemeClr() throws Exception {
-        // Load the generalist test file's theme so ThemeManager has accent1
         java.io.File testFile = new java.io.File("test-pptx-samples/generalist_test_file.pptx");
         if (!testFile.exists()) {
-            // Running from worktree — adjust path
             testFile = new java.io.File("../../../test-pptx-samples/generalist_test_file.pptx");
         }
         if (!testFile.exists()) return; // skip if test file unavailable
@@ -89,7 +91,6 @@ public class ShapeStyleExtractorTest {
             com.excudo.core.model.PPTXDocument.loadFromZip(testFile);
         ThemeManager.initialize(doc);
 
-        // clrMap for this file: accent1 maps to itself
         java.util.Map<String, String> clrMap = java.util.Map.of(
             "accent1", "accent1", "tx1", "lt1", "bg1", "dk1");
         SlideRenderContext ctx = new SlideRenderContext(
@@ -113,13 +114,14 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, ctx);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, ctx);
 
         // accent1 in generalist_test_file.pptx is #569CD6
-        assertTrue("Fill should be a Color", fill instanceof Color);
-        Color c = (Color) fill;
-        assertEquals("accent1 should be #569CD6",
-            Color.web("#569CD6").toString(), c.toString());
+        assertTrue("Fill should be Solid", fill instanceof SurfacePaint.Solid);
+        SurfacePaint.Solid s = (SurfacePaint.Solid) fill;
+        assertEquals("accent1 red",   0x56, s.red());
+        assertEquals("accent1 green", 0x9C, s.green());
+        assertEquals("accent1 blue",  0xD6, s.blue());
     }
 
     /**
@@ -150,12 +152,13 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
 
         // Should be a gradient, NOT a solid red (which would happen if
         // getChild searched descendants and found the srgbClr inside a:gs)
-        assertTrue("gradFill should produce a LinearGradient, not " + fill.getClass().getSimpleName(),
-            fill instanceof javafx.scene.paint.LinearGradient);
+        assertTrue("gradFill should produce a LinearGradient, not "
+                + fill.getClass().getSimpleName(),
+            fill instanceof SurfacePaint.LinearGradient);
     }
 
     /**
@@ -176,9 +179,9 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.PLACEHOLDER);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
 
-        assertEquals(Color.TRANSPARENT, fill);
+        assertSame(SurfacePaint.Transparent.INSTANCE, fill);
     }
 
     /**
@@ -206,14 +209,16 @@ public class ShapeStyleExtractorTest {
             """;
 
         SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
-        Paint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
 
-        assertTrue(fill instanceof Color);
-        Color c = (Color) fill;
-        assertEquals(0.0, c.getRed(), 0.01);
-        assertEquals(1.0, c.getGreen(), 0.01);
-        assertEquals(0.0, c.getBlue(), 0.01);
-        assertEquals(0.5, c.getOpacity(), 0.01);
+        assertTrue(fill instanceof SurfacePaint.Solid);
+        SurfacePaint.Solid s = (SurfacePaint.Solid) fill;
+        assertEquals(0x00, s.red());
+        assertEquals(0xFF, s.green());
+        assertEquals(0x00, s.blue());
+        // 50% alpha = 127 or 128 (rounding)
+        assertTrue("Alpha should be ~50% (got " + s.alpha() + ")",
+            s.alpha() >= 126 && s.alpha() <= 128);
     }
 
     // ========== HELPERS ==========
