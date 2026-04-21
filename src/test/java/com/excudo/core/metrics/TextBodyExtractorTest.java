@@ -74,6 +74,44 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripParagraphMargins() throws Exception {
+        // marL + marR must both survive the write/extract cycle. marR
+        // had no model representation historically, so any paragraph
+        // that set it lost it through Excudo -- this pins the fix.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Indented block").build())
+                .marginLeft(457200)
+                .marginRight(228600)
+                .indent(-228600)
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextParagraph para = extracted.getParagraphs().get(0);
+        assertEquals(Integer.valueOf(457200), para.getMarginLeft());
+        assertEquals(Integer.valueOf(228600), para.getMarginRight());
+        assertEquals(Integer.valueOf(-228600), para.getIndent());
+    }
+
+    @Test
+    public void testRoundTripMarginRightAlone() throws Exception {
+        // A paragraph with only marR (no marL) must still trigger the
+        // hasParagraphProperties path and write the pPr element.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Right-margin only").build())
+                .marginRight(342900)
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextParagraph para = extracted.getParagraphs().get(0);
+        assertNull("no marL set", para.getMarginLeft());
+        assertEquals(Integer.valueOf(342900), para.getMarginRight());
+    }
+
+    @Test
     public void testRoundTripBodyInsets() throws Exception {
         TextBody original = TextBody.builder()
             .bodyProperties(BodyProperties.builder()

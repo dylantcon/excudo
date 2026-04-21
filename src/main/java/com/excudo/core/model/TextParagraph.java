@@ -21,6 +21,7 @@ public final class TextParagraph {
     private final String bulletFontCharset;
     private final String autonumType;
     private final Integer marginLeft;
+    private final Integer marginRight;
     private final Integer indent;
     private final Integer lineSpacing;
     private final Integer spaceBefore;
@@ -38,6 +39,7 @@ public final class TextParagraph {
         this.bulletFontCharset = builder.bulletFontCharset;
         this.autonumType = builder.autonumType;
         this.marginLeft = builder.marginLeft;
+        this.marginRight = builder.marginRight;
         this.indent = builder.indent;
         this.lineSpacing = builder.lineSpacing;
         this.spaceBefore = builder.spaceBefore;
@@ -55,6 +57,7 @@ public final class TextParagraph {
     public String getBulletFontCharset() { return bulletFontCharset; }
     public String getAutonumType() { return autonumType; }
     public Integer getMarginLeft() { return marginLeft; }
+    public Integer getMarginRight() { return marginRight; }
     public Integer getIndent() { return indent; }
     public Integer getLineSpacing() { return lineSpacing; }
     public Integer getSpaceBefore() { return spaceBefore; }
@@ -80,6 +83,7 @@ public final class TextParagraph {
         private String bulletFontCharset;
         private String autonumType;
         private Integer marginLeft;
+        private Integer marginRight;
         private Integer indent;
         private Integer lineSpacing;
         private Integer spaceBefore;
@@ -97,6 +101,7 @@ public final class TextParagraph {
         public Builder bulletFontCharset(String cs) { this.bulletFontCharset = cs; return this; }
         public Builder autonumType(String type) { this.autonumType = type; return this; }
         public Builder marginLeft(int emu) { this.marginLeft = emu; return this; }
+        public Builder marginRight(int emu) { this.marginRight = emu; return this; }
         public Builder indent(int emu) { this.indent = emu; return this; }
         public Builder lineSpacing(int percentTimes1000) { this.lineSpacing = percentTimes1000; return this; }
         public Builder spaceBefore(int pointsTimes100) { this.spaceBefore = pointsTimes100; return this; }

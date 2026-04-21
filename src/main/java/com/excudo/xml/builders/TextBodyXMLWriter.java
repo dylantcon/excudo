@@ -87,6 +87,7 @@ public final class TextBodyXMLWriter {
     private static boolean hasParagraphProperties(TextParagraph para) {
         return para.getLevel() > 0
                 || para.getMarginLeft() != null
+                || para.getMarginRight() != null
                 || para.getIndent() != null
                 || para.getAlignment() != null
                 || para.getBulletType() == BulletType.CHARACTER
@@ -102,6 +103,9 @@ public final class TextBodyXMLWriter {
         }
         if (para.getMarginLeft() != null) {
             pPr.setAttribute("marL", String.valueOf(para.getMarginLeft()));
+        }
+        if (para.getMarginRight() != null) {
+            pPr.setAttribute("marR", String.valueOf(para.getMarginRight()));
         }
         if (para.getIndent() != null) {
             pPr.setAttribute("indent", String.valueOf(para.getIndent()));

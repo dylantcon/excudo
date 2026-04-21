@@ -283,9 +283,15 @@ public final class TextPainter {
 
         // Available width for text wrapping (text area right edge minus textX).
         // textX is at startX + marL, so what's left is maxWidth - marL.
-        double availableWidth = maxWidth - marginLeftPx;
+        // marR pulls the wrap boundary in from the right edge (symmetric
+        // to marL); on hanging indent it still applies, unlike marL which
+        // only affects non-hanging paragraphs.
+        double marginRightPx = para.getMarginRight() != null
+            ? emuToPixels(Math.max(0, para.getMarginRight())) * zoom
+            : 0;
+        double availableWidth = maxWidth - marginLeftPx - marginRightPx;
         if (indentPx < 0) {
-            availableWidth = maxWidth; // Hanging indent: text area is full width
+            availableWidth = maxWidth - marginRightPx; // Hanging indent: text area is full width on the left, still bounded on the right
         }
 
         // --- Pass 1: collect words into physical lines ---

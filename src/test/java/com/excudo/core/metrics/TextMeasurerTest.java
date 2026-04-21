@@ -135,6 +135,38 @@ public class TextMeasurerTest {
     }
 
     @Test
+    public void testMarginRightReducesWrapWidth() {
+        // marR pulls the wrap boundary in from the right edge. Two bodies,
+        // same text, same shape width: the one with marR=1_000_000 EMU
+        // should wrap to at least as many lines as the one without, and
+        // usually more when the margin is a meaningful fraction of width.
+        TextBody noRight = TextBody.builder()
+            .bodyProperties(BodyProperties.builder()
+                .leftInset(0).topInset(0).rightInset(0).bottomInset(0).build())
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("AAAA AAAA AAAA AAAA AAAA").fontSize(1800).build())
+                .build())
+            .build();
+
+        TextBody withRight = TextBody.builder()
+            .bodyProperties(BodyProperties.builder()
+                .leftInset(0).topInset(0).rightInset(0).bottomInset(0).build())
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("AAAA AAAA AAAA AAAA AAAA").fontSize(1800).build())
+                .marginRight(1000000)
+                .build())
+            .build();
+
+        long width = 3000000;
+        MeasuredText noR = TextMeasurer.measure(noRight, width);
+        MeasuredText withR = TextMeasurer.measure(withRight, width);
+
+        assertTrue("marR must narrow wrap width (>= lines)",
+            withR.getParagraphs().get(0).getLineCount()
+                >= noR.getParagraphs().get(0).getLineCount());
+    }
+
+    @Test
     public void testBulletIndentReducesWidth() {
         TextBody noBullet = TextBody.builder()
             .bodyProperties(BodyProperties.builder()

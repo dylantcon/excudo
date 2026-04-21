@@ -91,7 +91,8 @@ public final class TextMeasurer {
                 indentOffset += para.getIndent(); // indent is typically negative for hanging
             }
         }
-        long effectiveWidth = textAreaWidth - Math.max(0, indentOffset);
+        long rightMargin = para.getMarginRight() != null ? Math.max(0, para.getMarginRight()) : 0;
+        long effectiveWidth = textAreaWidth - Math.max(0, indentOffset) - rightMargin;
         if (effectiveWidth <= 0) effectiveWidth = 1;
 
         // Concatenate all run text for word wrapping

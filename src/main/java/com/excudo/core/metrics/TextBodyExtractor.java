@@ -132,6 +132,9 @@ public final class TextBodyExtractor {
         String marL = pPr.getAttribute("marL");
         if (!marL.isEmpty()) builder.marginLeft(Integer.parseInt(marL));
 
+        String marR = pPr.getAttribute("marR");
+        if (!marR.isEmpty()) builder.marginRight(Integer.parseInt(marR));
+
         String indent = pPr.getAttribute("indent");
         if (!indent.isEmpty()) builder.indent(Integer.parseInt(indent));
 
