@@ -40,4 +40,23 @@ public interface OrchestrationStateListener {
      * @param slideNumber the 1-based slide number that was modified
      */
     default void onSlideModified(int slideNumber) {}
+
+    /**
+     * Fired when the global active-session pointer changes. The active
+     * session is the one every console engine + GUI surface should
+     * read from; this callback is the sole handoff between the engine
+     * that created/switched to a session and any observer that cares
+     * ({@code MainController}, {@code PresentationExplorerController},
+     * {@code ToolDispatcher}, ...).
+     *
+     * <p>Both arguments may be null: {@code sessionId} is null when no
+     * session is active (startup, after the last session closes).
+     * {@code orchestrator} is null iff {@code sessionId} is null or the
+     * referenced session has no orchestrator attached. Implementations
+     * must null-check both.
+     *
+     * <p>Fires on the caller's thread. GUI implementers are responsible
+     * for their own {@code Platform.runLater} hop.
+     */
+    default void onActiveSessionChanged(String sessionId, PPTXOrchestrator orchestrator) {}
 }

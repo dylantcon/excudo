@@ -36,6 +36,16 @@ public class SessionManager {
     // Session storage
     private final Map<String, ManagedSession> activeSessions;
 
+    // Global active-session pointer. The Session Unification refactor
+    // (plan: dreamy-greeting-cosmos.md) makes THIS the sole source of
+    // truth for "which session is everybody looking at right now?".
+    // Engines call setActiveSession on create/switch; observers
+    // (MainController, PresentationExplorerController, ToolDispatcher)
+    // read via getActiveOrchestrator. Volatile because writes happen
+    // from engine threads and reads from UI / dispatcher threads;
+    // single-writer discipline obviates explicit locking.
+    private volatile String activeSessionId;
+
     // State change listeners (GUI observers, etc.)
     private final List<OrchestrationStateListener> stateListeners;
 
@@ -151,7 +161,10 @@ public class SessionManager {
     }
     
     /**
-     * Close a session and cleanup resources
+     * Close a session and cleanup resources. If the closed session was
+     * the active one, the active pointer is cleared and
+     * {@code onActiveSessionChanged(null, null)} fires so observers
+     * transition to an empty state.
      */
     public boolean closeSession(String sessionId) {
         ManagedSession session = activeSessions.remove(sessionId);
@@ -159,10 +172,78 @@ public class SessionManager {
             logger.info("Closing session {}", sessionId);
             session.cleanup();
             firePresentationClosed();
+            // Clear active pointer if we just removed the active session.
+            // Non-active closes do NOT touch the active pointer (invariant 3).
+            if (sessionId != null && sessionId.equals(this.activeSessionId)) {
+                setActiveSession(null);
+            }
             return true;
         } else {
             logger.warn("Attempted to close non-existent session {}", sessionId);
             return false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Active session pointer (Session Unification)
+    // ------------------------------------------------------------------
+
+    /**
+     * Point the global active-session marker at {@code sessionId}. Pass
+     * null to clear (e.g. "no presentation loaded").
+     *
+     * <p>Fires {@link OrchestrationStateListener#onActiveSessionChanged}
+     * on every registered listener on the caller's thread -- GUI
+     * implementers do their own {@code Platform.runLater} hop.
+     *
+     * <p>Idempotent: setting the same id still fires, so callers can
+     * use this as a "re-confirm" signal.
+     */
+    public void setActiveSession(String sessionId) {
+        this.activeSessionId = sessionId;
+        PPTXOrchestrator orch = getActiveOrchestrator();
+        logger.debug("Active session -> {} (orchestrator={})",
+            sessionId, orch == null ? "null" : "present");
+        fireActiveSessionChanged(sessionId, orch);
+    }
+
+    /** @return the active session id, or null if none. */
+    public String getActiveSessionId() {
+        return activeSessionId;
+    }
+
+    /**
+     * @return the ManagedSession for the active id, or empty if the id
+     *     is null / the session has been closed since the pointer was set.
+     */
+    public Optional<ManagedSession> getActiveSession() {
+        String id = activeSessionId;
+        if (id == null) return Optional.empty();
+        return Optional.ofNullable(activeSessions.get(id));
+    }
+
+    /**
+     * @return the orchestrator backing the active session, or null if
+     *     no session is active / the session has no orchestrator. Never
+     *     throws. Observers must null-check.
+     */
+    public PPTXOrchestrator getActiveOrchestrator() {
+        return getActiveSession().map(ManagedSession::getOrchestrator).orElse(null);
+    }
+
+    /**
+     * Notify listeners that the active-session pointer moved. Called
+     * automatically from {@link #setActiveSession}; public so internal
+     * callers that mutate the pointer indirectly (e.g. a closeSession
+     * path) can announce the change explicitly.
+     */
+    public void fireActiveSessionChanged(String sessionId, PPTXOrchestrator orchestrator) {
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onActiveSessionChanged(sessionId, orchestrator);
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onActiveSessionChanged: {}", e.getMessage());
+            }
         }
     }
     
