@@ -5,9 +5,10 @@ import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.metrics.TextMeasurer;
 import com.excudo.core.model.*;
 import com.excudo.view.rendering.*;
+import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 
@@ -20,12 +21,12 @@ import javafx.scene.paint.Paint;
  */
 public class GeometricShapeRenderer implements ModelShapeRenderer {
 
-    /** Apply line color, width, and dash pattern to the graphics context. */
-    private static void applyLineStyle(GraphicsContext gc, ShapeStyleExtractor.LineStyle line) {
-        gc.setStroke(line.color());
-        gc.setLineWidth(line.widthPixels());
+    /** Apply line color, width, and dash pattern to the surface. */
+    private static void applyLineStyle(RenderSurface surface, ShapeStyleExtractor.LineStyle line) {
+        surface.setStroke(ShapeStyleExtractor.toSurfacePaint(line.color()));
+        surface.setLineWidth(line.widthPixels());
         if (line.dashPattern() != null) {
-            gc.setLineDashes(line.dashPattern());
+            surface.setLineDashes(line.dashPattern());
         }
     }
 
@@ -38,46 +39,47 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         Rectangle2D bounds = mapper.mapToCanvas(geom.getX(), geom.getY(),
             geom.getWidth(), geom.getHeight());
 
-        GraphicsContext gc = ctx.getGraphicsContext();
+        RenderSurface surface = ctx.getSurface();
 
         // Apply rotation around shape center
         double rotDeg = geom.getRotationDegrees();
         if (rotDeg != 0) {
             double cx = bounds.getMinX() + bounds.getWidth() / 2;
             double cy = bounds.getMinY() + bounds.getHeight() / 2;
-            gc.save();
-            gc.translate(cx, cy);
-            gc.rotate(rotDeg);
-            gc.translate(-cx, -cy);
+            surface.save();
+            surface.translate(cx, cy);
+            surface.rotate(rotDeg);
+            surface.translate(-cx, -cy);
         }
 
         Paint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
         ShapeStyleExtractor.LineStyle line = ShapeStyleExtractor.resolveLineStyle(shape, slideCtx);
         boolean hasFill = !Color.TRANSPARENT.equals(fill);
+        SurfacePaint surfaceFill = hasFill ? ShapeStyleExtractor.toSurfacePaint(fill) : null;
 
         // Shadow: draw offset copy of the shape before the real one
         ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
         if (shadow != null) {
-            gc.save();
-            gc.translate(shadow.offsetX(), shadow.offsetY());
-            gc.setFill(shadow.color());
-            gc.fillRect(bounds.getMinX(), bounds.getMinY(),
+            surface.save();
+            surface.translate(shadow.offsetX(), shadow.offsetY());
+            surface.setFill(ShapeStyleExtractor.toSurfacePaint(shadow.color()));
+            surface.fillRect(bounds.getMinX(), bounds.getMinY(),
                 bounds.getWidth(), bounds.getHeight());
-            gc.restore();
+            surface.restore();
         }
 
         // Connectors: draw as lines, not filled shapes
         SlideShape.ShapeType type = shape.getType();
         if (type == SlideShape.ShapeType.CONNECTION) {
             if (line.isVisible()) {
-                applyLineStyle(gc, line);
+                applyLineStyle(surface, line);
                 // Straight connector: line from one corner to the opposite
                 // flipH/flipV on xfrm determine direction (not yet modeled -- default diagonal)
-                gc.strokeLine(bounds.getMinX(), bounds.getMinY(),
+                surface.strokeLine(bounds.getMinX(), bounds.getMinY(),
                     bounds.getMaxX(), bounds.getMaxY());
-                gc.setLineDashes((double[]) null);
+                surface.setLineDashes((double[]) null);
             }
-            if (rotDeg != 0) gc.restore();
+            if (rotDeg != 0) surface.restore();
             return;
         }
 
@@ -87,58 +89,58 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         switch (preset) {
             case "ellipse", "flowChartConnector" -> {
                 if (hasFill) {
-                    gc.setFill(fill);
-                    gc.fillOval(bounds.getMinX(), bounds.getMinY(),
+                    surface.setFill(surfaceFill);
+                    surface.fillOval(bounds.getMinX(), bounds.getMinY(),
                         bounds.getWidth(), bounds.getHeight());
                 }
                 if (line.isVisible()) {
-                    applyLineStyle(gc, line);
-                    gc.strokeOval(bounds.getMinX(), bounds.getMinY(),
+                    applyLineStyle(surface, line);
+                    surface.strokeOval(bounds.getMinX(), bounds.getMinY(),
                         bounds.getWidth(), bounds.getHeight());
-                    gc.setLineDashes((double[]) null);
+                    surface.setLineDashes((double[]) null);
                 }
             }
             case "roundRect" -> {
                 double arc = Math.min(bounds.getWidth(), bounds.getHeight()) * 0.15;
                 if (hasFill) {
-                    gc.setFill(fill);
-                    gc.fillRoundRect(bounds.getMinX(), bounds.getMinY(),
+                    surface.setFill(surfaceFill);
+                    surface.fillRoundRect(bounds.getMinX(), bounds.getMinY(),
                         bounds.getWidth(), bounds.getHeight(), arc, arc);
                 }
                 if (line.isVisible()) {
-                    applyLineStyle(gc, line);
-                    gc.strokeRoundRect(bounds.getMinX(), bounds.getMinY(),
+                    applyLineStyle(surface, line);
+                    surface.strokeRoundRect(bounds.getMinX(), bounds.getMinY(),
                         bounds.getWidth(), bounds.getHeight(), arc, arc);
-                    gc.setLineDashes((double[]) null);
+                    surface.setLineDashes((double[]) null);
                 }
             }
             default -> {
                 // Try preset geometry path first
                 PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
                 if (drawer != null) {
-                    drawer.draw(gc, bounds.getMinX(), bounds.getMinY(),
+                    drawer.draw(surface, bounds.getMinX(), bounds.getMinY(),
                         bounds.getWidth(), bounds.getHeight());
                     if (hasFill) {
-                        gc.setFill(fill);
-                        gc.fill();
+                        surface.setFill(surfaceFill);
+                        surface.fillPath();
                     }
                     if (line.isVisible()) {
-                        applyLineStyle(gc, line);
-                        gc.stroke();
-                        gc.setLineDashes((double[]) null);
+                        applyLineStyle(surface, line);
+                        surface.strokePath();
+                        surface.setLineDashes((double[]) null);
                     }
                 } else {
                     // Bounding box fallback for unmapped presets
                     if (hasFill) {
-                        gc.setFill(fill);
-                        gc.fillRect(bounds.getMinX(), bounds.getMinY(),
+                        surface.setFill(surfaceFill);
+                        surface.fillRect(bounds.getMinX(), bounds.getMinY(),
                             bounds.getWidth(), bounds.getHeight());
                     }
                     if (line.isVisible()) {
-                        applyLineStyle(gc, line);
-                        gc.strokeRect(bounds.getMinX(), bounds.getMinY(),
+                        applyLineStyle(surface, line);
+                        surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
                             bounds.getWidth(), bounds.getHeight());
-                        gc.setLineDashes((double[]) null);
+                        surface.setLineDashes((double[]) null);
                     }
                 }
             }
@@ -160,7 +162,7 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
 
         // Restore graphics state after rotation
         if (rotDeg != 0) {
-            gc.restore();
+            surface.restore();
         }
     }
 

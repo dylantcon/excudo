@@ -1,6 +1,6 @@
 package com.excudo.view.rendering.shapes;
 
-import javafx.scene.canvas.GraphicsContext;
+import com.excudo.view.rendering.surface.RenderSurface;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +16,7 @@ public final class PresetGeometryPaths {
 
     @FunctionalInterface
     public interface ShapePathDrawer {
-        void draw(GraphicsContext gc, double x, double y, double w, double h);
+        void draw(RenderSurface surface, double x, double y, double w, double h);
     }
 
     private static final Map<String, ShapePathDrawer> PATHS = new HashMap<>();
@@ -132,9 +132,9 @@ public final class PresetGeometryPaths {
             gc.moveTo(x, y);
             gc.lineTo(x + w, y);
             gc.lineTo(x + w, y + h * 0.85);
-            gc.bezierCurveTo(x + w * 0.75, y + h, x + w * 0.5, y + h * 0.7,
+            gc.bezierTo(x + w * 0.75, y + h, x + w * 0.5, y + h * 0.7,
                 x + w * 0.25, y + h * 0.85);
-            gc.bezierCurveTo(x + w * 0.1, y + h * 0.9, x, y + h * 0.95, x, y + h * 0.85);
+            gc.bezierTo(x + w * 0.1, y + h * 0.9, x, y + h * 0.95, x, y + h * 0.85);
             gc.closePath();
         });
 
@@ -159,10 +159,10 @@ public final class PresetGeometryPaths {
         PATHS.put("heart", (gc, x, y, w, h) -> {
             gc.beginPath();
             gc.moveTo(x + w * 0.5, y + h * 0.3);
-            gc.bezierCurveTo(x + w * 0.5, y, x, y, x, y + h * 0.35);
-            gc.bezierCurveTo(x, y + h * 0.65, x + w * 0.5, y + h * 0.85, x + w * 0.5, y + h);
-            gc.bezierCurveTo(x + w * 0.5, y + h * 0.85, x + w, y + h * 0.65, x + w, y + h * 0.35);
-            gc.bezierCurveTo(x + w, y, x + w * 0.5, y, x + w * 0.5, y + h * 0.3);
+            gc.bezierTo(x + w * 0.5, y, x, y, x, y + h * 0.35);
+            gc.bezierTo(x, y + h * 0.65, x + w * 0.5, y + h * 0.85, x + w * 0.5, y + h);
+            gc.bezierTo(x + w * 0.5, y + h * 0.85, x + w, y + h * 0.65, x + w, y + h * 0.35);
+            gc.bezierTo(x + w, y, x + w * 0.5, y, x + w * 0.5, y + h * 0.3);
             gc.closePath();
         });
 
@@ -209,9 +209,9 @@ public final class PresetGeometryPaths {
             gc.beginPath();
             gc.moveTo(x, y + ey);
             gc.lineTo(x, y + h - ey);
-            gc.bezierCurveTo(x, y + h, x + w, y + h, x + w, y + h - ey);
+            gc.bezierTo(x, y + h, x + w, y + h, x + w, y + h - ey);
             gc.lineTo(x + w, y + ey);
-            gc.bezierCurveTo(x + w, y, x, y, x, y + ey);
+            gc.bezierTo(x + w, y, x, y, x, y + ey);
             gc.closePath();
         });
 
@@ -294,41 +294,41 @@ public final class PresetGeometryPaths {
      * Draw a polygon from normalized coordinates (0-1 range) scaled to bounds.
      * coords = [x0,y0, x1,y1, x2,y2, ...]
      */
-    private static void drawPolygon(GraphicsContext gc, double x, double y, double w, double h,
+    private static void drawPolygon(RenderSurface surface, double x, double y, double w, double h,
                                      double[] coords) {
-        gc.beginPath();
-        gc.moveTo(x + coords[0] * w, y + coords[1] * h);
+        surface.beginPath();
+        surface.moveTo(x + coords[0] * w, y + coords[1] * h);
         for (int i = 2; i < coords.length; i += 2) {
-            gc.lineTo(x + coords[i] * w, y + coords[i + 1] * h);
+            surface.lineTo(x + coords[i] * w, y + coords[i + 1] * h);
         }
-        gc.closePath();
+        surface.closePath();
     }
 
     /**
      * Draw a regular n-sided polygon inscribed in the bounding box.
      */
-    private static void drawRegularPolygon(GraphicsContext gc, double x, double y,
+    private static void drawRegularPolygon(RenderSurface surface, double x, double y,
                                             double w, double h, int sides, double startAngle) {
         double cx = x + w / 2;
         double cy = y + h / 2;
         double rx = w / 2;
         double ry = h / 2;
 
-        gc.beginPath();
+        surface.beginPath();
         for (int i = 0; i < sides; i++) {
             double angle = startAngle + i * 2 * Math.PI / sides;
             double px = cx + rx * Math.cos(angle);
             double py = cy + ry * Math.sin(angle);
-            if (i == 0) gc.moveTo(px, py);
-            else gc.lineTo(px, py);
+            if (i == 0) surface.moveTo(px, py);
+            else surface.lineTo(px, py);
         }
-        gc.closePath();
+        surface.closePath();
     }
 
     /**
      * Draw a star with n points and given inner radius ratio.
      */
-    private static void drawStar(GraphicsContext gc, double x, double y,
+    private static void drawStar(RenderSurface surface, double x, double y,
                                   double w, double h, int points, double innerRatio) {
         double cx = x + w / 2;
         double cy = y + h / 2;
@@ -338,7 +338,7 @@ public final class PresetGeometryPaths {
         double innerRy = outerRy * innerRatio;
         double startAngle = -Math.PI / 2;
 
-        gc.beginPath();
+        surface.beginPath();
         for (int i = 0; i < points * 2; i++) {
             double angle = startAngle + i * Math.PI / points;
             boolean outer = (i % 2 == 0);
@@ -346,19 +346,19 @@ public final class PresetGeometryPaths {
             double ry = outer ? outerRy : innerRy;
             double px = cx + rx * Math.cos(angle);
             double py = cy + ry * Math.sin(angle);
-            if (i == 0) gc.moveTo(px, py);
-            else gc.lineTo(px, py);
+            if (i == 0) surface.moveTo(px, py);
+            else surface.lineTo(px, py);
         }
-        gc.closePath();
+        surface.closePath();
     }
 
     /**
      * Simple rect path (for action buttons etc. that are just rectangles).
      */
-    private static void drawRectPath(GraphicsContext gc, double x, double y, double w, double h) {
-        gc.beginPath();
-        gc.moveTo(x, y); gc.lineTo(x + w, y); gc.lineTo(x + w, y + h);
-        gc.lineTo(x, y + h); gc.closePath();
+    private static void drawRectPath(RenderSurface surface, double x, double y, double w, double h) {
+        surface.beginPath();
+        surface.moveTo(x, y); surface.lineTo(x + w, y); surface.lineTo(x + w, y + h);
+        surface.lineTo(x, y + h); surface.closePath();
     }
 
     private PresetGeometryPaths() {}

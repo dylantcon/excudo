@@ -8,15 +8,14 @@ import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.SlideRenderContext;
+import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfaceFont;
+import com.excudo.view.rendering.surface.SurfaceImage;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.image.Image;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import java.io.ByteArrayInputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,14 +26,16 @@ import java.util.Map;
  *   shape DOM -> p:blipFill/a:blip/@r:embed (rId)
  *   slide rels -> Relationship[@Id=rId]/@Target (e.g., ../media/image1.png)
  *   PPTXDocument.getMediaPart("ppt/media/image1.png") -> byte[]
- *   JavaFX Image -> gc.drawImage()
+ *   surface.decodeImage() -> SurfaceImage -> surface.drawImage()
  */
 public class PictureRenderer implements ModelShapeRenderer {
 
     private static final ComponentLogger logger = Logger.getLogger("PictureRenderer");
 
-    // Cache decoded images by OPC part name to avoid redundant decoding
-    private final Map<String, Image> imageCache = new HashMap<>();
+    // Cache decoded images by OPC part name to avoid redundant decoding.
+    // The backend-neutral SurfaceImage lets this cache survive a swap
+    // from the Canvas backend to the AWT backend without changing callers.
+    private final Map<String, SurfaceImage> imageCache = new HashMap<>();
 
     @Override
     public boolean canRender(SlideShape.ShapeType type) {
@@ -46,37 +47,38 @@ public class PictureRenderer implements ModelShapeRenderer {
         ShapeGeometry geom = shape.getGeometry();
         if (geom == null) return;
 
-        GraphicsContext gc = ctx.getGraphicsContext();
+        RenderSurface surface = ctx.getSurface();
         Rectangle2D bounds = ctx.getZoomedCoordinateMapper().mapToCanvas(
             geom.getX(), geom.getY(), geom.getWidth(), geom.getHeight());
 
         if (slideCtx == null || slideCtx.getDocument() == null) {
-            drawPlaceholder(gc, bounds, "(no document)");
+            drawPlaceholder(surface, bounds, "(no document)");
             return;
         }
 
         // Extract the relationship ID from the blip fill
         String rId = extractBlipRId(shape.getXmlElement());
         if (rId == null) {
-            drawPlaceholder(gc, bounds, "(no blip)");
+            drawPlaceholder(surface, bounds, "(no blip)");
             return;
         }
 
         // Resolve to OPC part name via slide rels
         String partName = resolveMediaPartName(slideCtx.getDocument(), slideCtx.getSlideNumber(), rId);
         if (partName == null) {
-            drawPlaceholder(gc, bounds, "(rel not found: " + rId + ")");
+            drawPlaceholder(surface, bounds, "(rel not found: " + rId + ")");
             return;
         }
 
         // Load and cache the image
-        Image image = imageCache.computeIfAbsent(partName, pn -> loadImage(slideCtx.getDocument(), pn));
+        SurfaceImage image = imageCache.computeIfAbsent(partName,
+            pn -> loadImage(surface, slideCtx.getDocument(), pn));
         if (image == null) {
-            drawPlaceholder(gc, bounds, partName.substring(partName.lastIndexOf('/') + 1));
+            drawPlaceholder(surface, bounds, partName.substring(partName.lastIndexOf('/') + 1));
             return;
         }
 
-        gc.drawImage(image, bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+        surface.drawImage(image, bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
     }
 
     /**
@@ -84,12 +86,10 @@ public class PictureRenderer implements ModelShapeRenderer {
      */
     private String extractBlipRId(Element shapeElement) {
         if (shapeElement == null) return null;
-        // Look for p:blipFill or a:blipFill child
         Element blipFill = getChildByLocalName(shapeElement, "blipFill");
         if (blipFill == null) return null;
         Element blip = getChildByLocalName(blipFill, "blip");
         if (blip == null) return null;
-        // The embed attribute may be namespaced as r:embed
         String rId = blip.getAttribute("r:embed");
         if (rId == null || rId.isEmpty()) {
             rId = blip.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "embed");
@@ -112,7 +112,6 @@ public class PictureRenderer implements ModelShapeRenderer {
             if (rId.equals(rel.getAttribute("Id"))) {
                 String target = rel.getAttribute("Target");
                 if (target == null || target.isEmpty()) continue;
-                // Normalize relative path: ../media/image1.png -> ppt/media/image1.png
                 if (target.startsWith("../")) {
                     return "ppt/" + target.substring(3);
                 } else if (target.startsWith("/")) {
@@ -125,10 +124,10 @@ public class PictureRenderer implements ModelShapeRenderer {
     }
 
     /**
-     * Load an image from PPTXDocument media parts.
+     * Load an image from PPTXDocument media parts via the current surface.
      * Returns null for unsupported formats (EMF, WMF).
      */
-    private Image loadImage(PPTXDocument doc, String partName) {
+    private SurfaceImage loadImage(RenderSurface surface, PPTXDocument doc, String partName) {
         MediaElement media = doc.getMediaPart(partName);
         if (media == null) {
             logger.debug("Media part not found: {}", partName);
@@ -136,14 +135,13 @@ public class PictureRenderer implements ModelShapeRenderer {
         }
 
         String mime = media.getMimeType();
-        // JavaFX Image supports PNG, JPEG, GIF, BMP
         if (mime != null && (mime.contains("emf") || mime.contains("wmf"))) {
             logger.debug("Unsupported image format: {} ({})", partName, mime);
             return null;
         }
 
         try {
-            return new Image(new ByteArrayInputStream(media.getData()));
+            return surface.decodeImage(media.getData(), mime);
         } catch (Exception e) {
             logger.debug("Failed to decode image {}: {}", partName, e.getMessage());
             return null;
@@ -153,19 +151,19 @@ public class PictureRenderer implements ModelShapeRenderer {
     /**
      * Draw a placeholder rectangle for images that can't be rendered.
      */
-    private void drawPlaceholder(GraphicsContext gc, Rectangle2D bounds, String label) {
-        gc.setFill(Color.LIGHTGRAY);
-        gc.fillRect(bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
-        gc.setStroke(Color.GRAY);
-        gc.setLineWidth(1);
-        gc.strokeRect(bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+    private void drawPlaceholder(RenderSurface surface, Rectangle2D bounds, String label) {
+        surface.setFill(SurfacePaint.Solid.rgb(211, 211, 211)); // LIGHTGRAY
+        surface.fillRect(bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
+        surface.setStroke(SurfacePaint.Solid.rgb(128, 128, 128)); // GRAY
+        surface.setLineWidth(1);
+        surface.strokeRect(bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());
         // Draw an X through the placeholder
-        gc.strokeLine(bounds.getMinX(), bounds.getMinY(), bounds.getMaxX(), bounds.getMaxY());
-        gc.strokeLine(bounds.getMaxX(), bounds.getMinY(), bounds.getMinX(), bounds.getMaxY());
+        surface.strokeLine(bounds.getMinX(), bounds.getMinY(), bounds.getMaxX(), bounds.getMaxY());
+        surface.strokeLine(bounds.getMaxX(), bounds.getMinY(), bounds.getMinX(), bounds.getMaxY());
         // Label
-        gc.setFont(Font.font("DejaVu Sans", 10));
-        gc.setFill(Color.DARKGRAY);
-        gc.fillText(label, bounds.getMinX() + 4, bounds.getMinY() + 14);
+        surface.setFont(SurfaceFont.of("DejaVu Sans", 10));
+        surface.setFill(SurfacePaint.Solid.rgb(169, 169, 169)); // DARKGRAY
+        surface.fillText(label, bounds.getMinX() + 4, bounds.getMinY() + 14);
     }
 
     /**

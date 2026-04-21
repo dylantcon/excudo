@@ -92,6 +92,23 @@ public interface RenderSurface {
     void lineTo(double x, double y);
     void quadTo(double cx, double cy, double x, double y);
     void bezierTo(double cx1, double cy1, double cx2, double cy2, double x, double y);
+
+    /**
+     * Append an arc to the current path. {@code startAngleDeg} is
+     * measured in degrees with 0° at the 3-o'clock position, positive
+     * angles sweeping counter-clockwise (matches
+     * {@link javafx.scene.canvas.GraphicsContext#arc} semantics).
+     */
+    void arc(double centerX, double centerY, double radiusX, double radiusY,
+             double startAngleDeg, double arcExtentDeg);
+
+    /**
+     * Append a rounded-corner arc between three points (current point,
+     * corner {@code (x1,y1)}, end {@code (x2,y2)}) with the given radius.
+     * Matches {@link javafx.scene.canvas.GraphicsContext#arcTo} semantics.
+     */
+    void arcTo(double x1, double y1, double x2, double y2, double radius);
+
     void closePath();
     void fillPath();
     void strokePath();

@@ -188,6 +188,14 @@ public final class CanvasRenderSurface implements RenderSurface {
     @Override public void bezierTo(double cx1, double cy1, double cx2, double cy2, double x, double y) {
         gc.bezierCurveTo(cx1, cy1, cx2, cy2, x, y);
     }
+    @Override
+    public void arc(double centerX, double centerY, double radiusX, double radiusY,
+                    double startAngleDeg, double arcExtentDeg) {
+        gc.arc(centerX, centerY, radiusX, radiusY, startAngleDeg, arcExtentDeg);
+    }
+    @Override public void arcTo(double x1, double y1, double x2, double y2, double radius) {
+        gc.arcTo(x1, y1, x2, y2, radius);
+    }
     @Override public void closePath() { gc.closePath(); }
     @Override public void fillPath()  { gc.fill(); }
     @Override public void strokePath() { gc.stroke(); }

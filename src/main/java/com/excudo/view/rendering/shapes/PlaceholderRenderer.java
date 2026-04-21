@@ -5,9 +5,11 @@ import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.metrics.TextMeasurer;
 import com.excudo.core.model.*;
 import com.excudo.view.rendering.*;
+import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfaceFont;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -34,10 +36,10 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
         // 2. Draw placeholder fill (usually transparent for placeholders)
         javafx.scene.paint.Paint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
         if (!Color.TRANSPARENT.equals(fill)) {
-            GraphicsContext gc = ctx.getGraphicsContext();
-            gc.setFill(fill);
-            gc.fillRect(boundsPixels.getMinX(), boundsPixels.getMinY(),
-                       boundsPixels.getWidth(), boundsPixels.getHeight());
+            RenderSurface surface = ctx.getSurface();
+            surface.setFill(ShapeStyleExtractor.toSurfacePaint(fill));
+            surface.fillRect(boundsPixels.getMinX(), boundsPixels.getMinY(),
+                             boundsPixels.getWidth(), boundsPixels.getHeight());
         }
 
         // 3. Extract and paint text
@@ -56,9 +58,10 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
                 TextPainter.paint(textBody, measured, boundsPixels, ctx, slideCtx, phType);
             } catch (Exception e) {
                 // Fallback: render raw text at bounds origin
-                GraphicsContext gc = ctx.getGraphicsContext();
-                gc.setFill(Color.RED);
-                gc.fillText("Text render error: " + e.getMessage(),
+                RenderSurface surface = ctx.getSurface();
+                surface.setFill(SurfacePaint.Solid.rgb(255, 0, 0));
+                surface.setFont(SurfaceFont.of("System", 12));
+                surface.fillText("Text render error: " + e.getMessage(),
                     boundsPixels.getMinX() + 5, boundsPixels.getMinY() + 20);
             }
         }

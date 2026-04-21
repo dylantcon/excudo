@@ -404,4 +404,49 @@ public final class ShapeStyleExtractor {
 
     /** Immutable shadow style result. */
     public record ShadowStyle(double offsetX, double offsetY, Color color) {}
+
+    // ========== BRIDGE ADAPTER (Phase B only; removed in Phase C) ==========
+    //
+    // Renderers have already been rewired to the RenderSurface API, but
+    // this extractor still returns JavaFX Paint/Color to minimise the
+    // scope of any single phase. Phase C rewrites the extractor to
+    // produce SurfacePaint directly, and these helpers are deleted.
+
+    /**
+     * Convert a JavaFX Paint to the neutral SurfacePaint abstraction.
+     * Handles Color and LinearGradient; anything else (RadialGradient,
+     * ImagePattern -- neither produced by this extractor today) falls
+     * back to transparent.
+     */
+    public static com.excudo.view.rendering.surface.SurfacePaint toSurfacePaint(
+            javafx.scene.paint.Paint paint) {
+        if (paint == null) {
+            return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
+        }
+        if (paint instanceof Color c) {
+            return toSurfacePaint(c);
+        }
+        if (paint instanceof javafx.scene.paint.LinearGradient lg) {
+            java.util.List<com.excudo.view.rendering.surface.SurfacePaint.LinearGradient.Stop> stops =
+                new java.util.ArrayList<>(lg.getStops().size());
+            for (javafx.scene.paint.Stop s : lg.getStops()) {
+                stops.add(new com.excudo.view.rendering.surface.SurfacePaint.LinearGradient.Stop(
+                    s.getOffset(), toSurfacePaint(s.getColor())));
+            }
+            return new com.excudo.view.rendering.surface.SurfacePaint.LinearGradient(
+                lg.getStartX(), lg.getStartY(), lg.getEndX(), lg.getEndY(), stops);
+        }
+        return com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE;
+    }
+
+    /** Convenience: Color-typed overload. */
+    public static com.excudo.view.rendering.surface.SurfacePaint.Solid toSurfacePaint(Color c) {
+        if (c == null || Color.TRANSPARENT.equals(c)) {
+            return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(0, 0, 0, 0);
+        }
+        int r = (int) Math.round(c.getRed()   * 255);
+        int g = (int) Math.round(c.getGreen() * 255);
+        int b = (int) Math.round(c.getBlue()  * 255);
+        return com.excudo.view.rendering.surface.SurfacePaint.Solid.rgba(r, g, b, c.getOpacity());
+    }
 }

@@ -1,9 +1,6 @@
 package com.excudo.view.rendering.text;
 
-import com.excudo.core.metrics.FontData;
-import com.excudo.core.metrics.FontResolver;
 import com.excudo.core.metrics.MeasuredText;
-import com.excudo.core.metrics.TrueTypeFontParser;
 import com.excudo.core.model.*;
 import com.excudo.core.model.BulletType;
 import com.excudo.core.themes.TextLevelStyle;
@@ -11,36 +8,36 @@ import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.ShapeStyleExtractor;
 import com.excudo.view.rendering.SlideRenderContext;
+import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.view.rendering.surface.SurfaceFont;
+import com.excudo.view.rendering.surface.SurfacePaint;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontPosture;
-import javafx.scene.text.FontWeight;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Paints pre-measured text onto a JavaFX Canvas.
- * Does NOT extract text from DOM or measure text. Only draws.
+ * Paints pre-measured text onto a {@link RenderSurface}.
+ * Does NOT extract text from DOM or measure text layout. Only draws.
  *
  * Pipeline:
  *   TextBodyExtractor.extract(xmlElement) -> TextBody
  *   TextMeasurer.measure(textBody, widthEmu) -> MeasuredText
  *   TextPainter.paint(textBody, measuredText, bounds, ctx, slideCtx)
+ *
+ * As of the Bridge refactor, the only JavaFX-specific state this class
+ * touches is (a) {@link Color} as an input type from
+ * {@link ShapeStyleExtractor} -- converted to {@link SurfacePaint} via
+ * the Phase-B adapter -- and (b) {@link Rectangle2D} / {@link javafx.geometry.Point2D}
+ * which are pure-geometry types without rendering implications. The
+ * JavaFX Font cache and JavaFX-Text-node width measurement cache that
+ * used to live here migrated into {@link com.excudo.view.rendering.surface.CanvasRenderSurface}.
  */
 public final class TextPainter {
 
-    private static final double EMU_PER_POINT = 12700.0;
-
     private TextPainter() {}
 
-    /**
-     * Paint a TextBody within the given pixel bounds.
-     * Uses MeasuredText for line break positions and heights.
-     */
     /**
      * Paint with default placeholder type detection.
      */
@@ -60,7 +57,7 @@ public final class TextPainter {
                              SlideRenderContext slideCtx, String placeholderType) {
         if (textBody == null || measured == null || boundsPixels == null) return;
 
-        GraphicsContext gc = ctx.getGraphicsContext();
+        RenderSurface surface = ctx.getSurface();
         // Composite scale (canvas-fit * user-zoom). Matches what
         // mapToCanvas applies to shape geometry, so font sizes, insets
         // and indents track the shape rect when the viewport resizes.
@@ -83,12 +80,12 @@ public final class TextPainter {
         boolean isVertical = "vert".equals(vertText) || "eaVert".equals(vertText)
                           || "vert270".equals(vertText);
         if (isVertical) {
-            gc.save();
+            surface.save();
             double cx = boundsPixels.getMinX() + boundsPixels.getWidth() / 2;
             double cy = boundsPixels.getMinY() + boundsPixels.getHeight() / 2;
-            gc.translate(cx, cy);
-            gc.rotate("vert270".equals(vertText) ? -90 : 90);
-            gc.translate(-cx, -cy);
+            surface.translate(cx, cy);
+            surface.rotate("vert270".equals(vertText) ? -90 : 90);
+            surface.translate(-cx, -cy);
             // Swap effective width/height for text layout
             double halfW = boundsPixels.getWidth() / 2;
             double halfH = boundsPixels.getHeight() / 2;
@@ -157,12 +154,12 @@ public final class TextPainter {
             }
 
             boolean isTitle = "title".equals(placeholderType) || "ctrTitle".equals(placeholderType);
-            currentY = paintParagraph(para, pm, startX, currentY, maxWidth, gc, slideCtx, zoom,
+            currentY = paintParagraph(para, pm, startX, currentY, maxWidth, surface, slideCtx, zoom,
                 placeholderType, isTitle, paraNumber);
         }
 
         if (isVertical) {
-            gc.restore();
+            surface.restore();
         }
     }
 
@@ -171,7 +168,7 @@ public final class TextPainter {
      */
     private static double paintParagraph(TextParagraph para, MeasuredText.ParagraphMeasurement pm,
                                           double startX, double startY, double maxWidth,
-                                          GraphicsContext gc, SlideRenderContext slideCtx,
+                                          RenderSurface surface, SlideRenderContext slideCtx,
                                           double zoom, String placeholderType, boolean isTitle,
                                           int autoNumber) {
         int level = para.getLevel();
@@ -246,17 +243,17 @@ public final class TextPainter {
             }
             if (bulletChar != null) {
                 // Use the bullet-specific font (Wingdings, Symbol, Arial, etc.)
-                Font bulletFont;
+                SurfaceFont bulletFont;
                 double bulletSizePt = themeStyle != null ? themeStyle.getFontSize() / 100.0 : 18.0;
                 if (bulletFontFamily != null && !bulletFontFamily.isEmpty()) {
-                    bulletFont = Font.font(bulletFontFamily, bulletSizePt * zoom);
+                    bulletFont = SurfaceFont.of(bulletFontFamily, bulletSizePt * zoom);
                 } else {
                     bulletFont = resolveFont(null, slideCtx, zoom, level, isTitle);
                 }
-                gc.setFont(bulletFont);
-                Color textColor = resolveDefaultTextColor(slideCtx, placeholderType);
-                gc.setFill(textColor);
-                gc.fillText(bulletChar, textX + indentPx, currentY + bulletFont.getSize());
+                surface.setFont(bulletFont);
+                SurfacePaint textColor = resolveDefaultTextColor(slideCtx, placeholderType);
+                surface.setFill(textColor);
+                surface.fillText(bulletChar, textX + indentPx, currentY + bulletFont.sizePx());
             }
         } else if (para.getBulletType() == BulletType.AUTONUMBER && autoNumber > 0) {
             // Auto-numbered list. PowerPoint renders these as "1.", "2.",
@@ -264,11 +261,11 @@ public final class TextPainter {
             // branch, code blocks with line numbers (auto-numbered
             // paragraphs) rendered with no number prefix at all.
             String numberStr = formatAutoNumber(autoNumber, para.getAutonumType());
-            Font numberFont = resolveFont(null, slideCtx, zoom, level, isTitle);
-            gc.setFont(numberFont);
-            Color textColor = resolveDefaultTextColor(slideCtx, placeholderType);
-            gc.setFill(textColor);
-            gc.fillText(numberStr, textX + indentPx, currentY + numberFont.getSize());
+            SurfaceFont numberFont = resolveFont(null, slideCtx, zoom, level, isTitle);
+            surface.setFont(numberFont);
+            SurfacePaint textColor = resolveDefaultTextColor(slideCtx, placeholderType);
+            surface.setFill(textColor);
+            surface.fillText(numberStr, textX + indentPx, currentY + numberFont.sizePx());
         }
 
         // Per OOXML: marL is where the TEXT starts (from the shape's text
@@ -294,7 +291,7 @@ public final class TextPainter {
 
         // --- Pass 1: collect words into physical lines ---
         // Each "word segment" tracks its text, font, color, run, and width.
-        record WordSegment(String text, Font font, Color color, TextRun run, double width) {}
+        record WordSegment(String text, SurfaceFont font, SurfacePaint color, TextRun run, double width) {}
         List<List<WordSegment>> lines = new ArrayList<>();
         List<WordSegment> currentLine = new ArrayList<>();
         double currentLineWidth = 0;
@@ -302,23 +299,16 @@ public final class TextPainter {
         for (TextRun run : para.getRuns()) {
             if (run.getText() == null || run.getText().isEmpty()) continue;
 
-            Font font = resolveFont(run, slideCtx, zoom, level, isTitle);
-            gc.setFont(font);
-            Color color = ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx);
-
-            // Fast measurement path: use the run's unscaled OOXML point size
-            // plus FontData's glyph-advance table. measureStringWidthEmu is
-            // microseconds per word. The previous computeTextWidth path was
-            // allocating a javafx.scene.text.Text node per word and calling
-            // getLayoutBounds(), which forces a full JavaFX layout pass each
-            // call -- ~50-100ms per word, multiplied by the hundreds of words
-            // on code-heavy slides, was the 15-20s bottleneck.
-            int sizeHundredths = resolveRunSizeHundredths(run, slideCtx, level, isTitle);
-            com.excudo.core.metrics.FontData fd = resolveRunFontData(run, slideCtx, isTitle);
+            SurfaceFont font = resolveFont(run, slideCtx, zoom, level, isTitle);
+            surface.setFont(font);
+            SurfacePaint color = ShapeStyleExtractor.toSurfacePaint(
+                ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx));
 
             String[] words = run.getText().split("(?<=\\s)");
             for (String word : words) {
-                double wordWidth = measureWordWidth(word, gc, fd, sizeHundredths, zoom);
+                // Width comes from the surface -- same Font object that
+                // will render the text, so measurement tracks rendering.
+                double wordWidth = surface.measureAdvance(word);
 
                 if (currentLineWidth + wordWidth > availableWidth && !currentLine.isEmpty()) {
                     lines.add(currentLine);
@@ -352,37 +342,37 @@ public final class TextPainter {
             }
 
             for (WordSegment seg : line) {
-                gc.setFont(seg.font());
+                surface.setFont(seg.font());
 
                 // Highlight background (drawn before text)
                 if (seg.run().getHighlight() != null) {
                     TextColor hlColor = seg.run().getHighlight();
-                    Color hl = hlColor.getHexVal() != null
-                        ? Color.web("#" + hlColor.getHexVal())
-                        : Color.YELLOW;
-                    gc.setFill(hl);
-                    gc.fillRect(lineX, lineY, seg.width(), seg.font().getSize() + 2);
+                    SurfacePaint hl = hlColor.getHexVal() != null
+                        ? SurfacePaint.Solid.fromHex(hlColor.getHexVal())
+                        : SurfacePaint.Solid.rgb(255, 255, 0); // YELLOW
+                    surface.setFill(hl);
+                    surface.fillRect(lineX, lineY, seg.width(), seg.font().sizePx() + 2);
                 }
 
-                gc.setFill(seg.color());
-                gc.fillText(seg.text(), lineX, lineY + seg.font().getSize());
+                surface.setFill(seg.color());
+                surface.fillText(seg.text(), lineX, lineY + seg.font().sizePx());
 
                 // Underline
                 if (seg.run().getUnderline() != null && !"none".equals(seg.run().getUnderline())) {
-                    double underlineY = lineY + seg.font().getSize() + 2;
-                    gc.setStroke(seg.color());
-                    gc.setLineWidth("heavy".equals(seg.run().getUnderline()) ? 2.0 : 1.0);
-                    gc.strokeLine(lineX, underlineY, lineX + seg.width(), underlineY);
+                    double underlineY = lineY + seg.font().sizePx() + 2;
+                    surface.setStroke(seg.color());
+                    surface.setLineWidth("heavy".equals(seg.run().getUnderline()) ? 2.0 : 1.0);
+                    surface.strokeLine(lineX, underlineY, lineX + seg.width(), underlineY);
                 }
 
                 // Strikethrough (sngStrike or dblStrike)
                 if (seg.run().getStrikethrough() != null) {
-                    double strikeY = lineY + seg.font().getSize() * 0.6;
-                    gc.setStroke(seg.color());
-                    gc.setLineWidth(1.0);
-                    gc.strokeLine(lineX, strikeY, lineX + seg.width(), strikeY);
+                    double strikeY = lineY + seg.font().sizePx() * 0.6;
+                    surface.setStroke(seg.color());
+                    surface.setLineWidth(1.0);
+                    surface.strokeLine(lineX, strikeY, lineX + seg.width(), strikeY);
                     if ("dblStrike".equals(seg.run().getStrikethrough())) {
-                        gc.strokeLine(lineX, strikeY + 2, lineX + seg.width(), strikeY + 2);
+                        surface.strokeLine(lineX, strikeY + 2, lineX + seg.width(), strikeY + 2);
                     }
                 }
 
@@ -403,28 +393,19 @@ public final class TextPainter {
         return currentY;
     }
 
-    // Cache for resolved JavaFX Font objects. Every text run on every render
-    // calls resolveFont, and on code-heavy slides with syntax highlighting we
-    // can hit 80+ runs per slide all sharing the same (family, size, style).
-    // Without a cache, each run re-runs Font.font() (a JavaFX registry lookup
-    // that's not free) and the familyMatches substitution check (another
-    // Font.font call + lazy metadata load). 166 calls per render turned into
-    // 16 seconds of lag on Consolas-heavy code slides. With this cache the
-    // first run on a novel combo pays the cost; every subsequent run is O(1).
-    private static final java.util.concurrent.ConcurrentHashMap<String, Font> FONT_CACHE =
-        new java.util.concurrent.ConcurrentHashMap<>();
-
     /**
-     * Resolve a JavaFX Font from run properties + theme fallback.
+     * Resolve a SurfaceFont descriptor from run properties + theme
+     * fallback. Backend caching (JavaFX Font resolution + the
+     * substitution-check loop on Linux hosts without the requested
+     * family) lives inside {@link com.excudo.view.rendering.surface.CanvasRenderSurface}.
      */
-    private static Font resolveFont(TextRun run, SlideRenderContext slideCtx,
-                                     double zoom, int level, boolean isTitle) {
+    private static SurfaceFont resolveFont(TextRun run, SlideRenderContext slideCtx,
+                                            double zoom, int level, boolean isTitle) {
         String family = null;
-        double sizePt = 18.0; // Default
+        double sizePt = 18.0;
         boolean bold = false;
         boolean italic = false;
 
-        // Run-level overrides
         if (run != null) {
             if (run.getFontFamily() != null) family = run.getFontFamily();
             if (run.getFontSize() != null) sizePt = run.getFontSize() / 100.0;
@@ -432,7 +413,6 @@ public final class TextPainter {
             if (run.getItalic() != null) italic = run.getItalic();
         }
 
-        // Theme-level defaults (OOXML inheritance: run > paragraph > theme)
         if (slideCtx != null) {
             TextLevelStyle style = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
             if (style != null) {
@@ -454,177 +434,24 @@ public final class TextPainter {
                 + (slideCtx != null) + ", isTitle=" + isTitle);
         }
 
-        double scaledSize = sizePt * zoom;
-        if (scaledSize < 1) scaledSize = 1;
-
-        FontWeight weight = bold ? FontWeight.BOLD : FontWeight.NORMAL;
-        FontPosture posture = italic ? FontPosture.ITALIC : FontPosture.REGULAR;
-
-        // Check the cache first -- size is quantised to 0.1pt so we don't
-        // explode the cache across zoom increments that round identically
-        // to the same pixel height. The fallback family (if any) is included
-        // in the key because it affects the final resolved Font.
-        String fallbackFamily = slideCtx == null ? null
+        double scaledSize = Math.max(1, sizePt * zoom);
+        String fallback = slideCtx == null ? null
             : (isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback());
-        String cacheKey = family + "|" + weight + "|" + posture
-            + "|" + Math.round(scaledSize * 10)
-            + "|" + (fallbackFamily == null ? "" : fallbackFamily);
-        Font cached = FONT_CACHE.get(cacheKey);
-        if (cached != null) return cached;
 
-        Font requested = Font.font(family, weight, posture, scaledSize);
-        Font resolved = requested;
-
-        // JavaFX silently substitutes a system default when the requested
-        // family isn't installed -- typically a serif on Linux hosts where
-        // Segoe UI / Consolas / Calibri / etc. aren't present. Detect the
-        // substitution by family-name comparison and try the theme's
-        // declared fallback. If that also doesn't match, accept whatever
-        // JavaFX gave us -- we've done what we can.
-        if (!familyMatches(requested, family) && fallbackFamily != null
-                && !fallbackFamily.isBlank() && !fallbackFamily.equalsIgnoreCase(family)) {
-            Font fallbackFont = Font.font(fallbackFamily, weight, posture, scaledSize);
-            if (familyMatches(fallbackFont, fallbackFamily)) {
-                resolved = fallbackFont;
-            }
-        }
-
-        FONT_CACHE.put(cacheKey, resolved);
-        return resolved;
+        return new SurfaceFont(family, fallback,
+            bold ? SurfaceFont.Weight.BOLD : SurfaceFont.Weight.NORMAL,
+            italic ? SurfaceFont.Posture.ITALIC : SurfaceFont.Posture.REGULAR,
+            scaledSize);
     }
 
-    /**
-     * JavaFX's returned family may include the style (e.g. "Segoe UI Bold"
-     * when we asked for "Segoe UI" with BOLD weight). Check for prefix /
-     * equality, case-insensitively.
-     */
-    private static boolean familyMatches(Font actual, String requestedFamily) {
-        if (actual == null) return false;
-        String actualFamily = actual.getFamily();
-        if (actualFamily == null) return false;
-        return actualFamily.equalsIgnoreCase(requestedFamily)
-            || actualFamily.toLowerCase().startsWith(requestedFamily.toLowerCase() + " ")
-            || actualFamily.toLowerCase().startsWith(requestedFamily.toLowerCase() + "-");
-    }
-
-    private static Color resolveDefaultTextColor(SlideRenderContext slideCtx, String phType) {
-        if (slideCtx == null) return Color.BLACK;
-        if ("title".equals(phType) || "ctrTitle".equals(phType)) {
-            return Color.web(slideCtx.getTitleTextColorHex());
-        }
-        return Color.web(slideCtx.getBodyTextColorHex());
-    }
-
-    /**
-     * Measure one word's width in screen pixels at the current zoom. Prefers
-     * FontData (glyph-advance table, microseconds per call, already cached
-     * per font path). Falls back to the JavaFX Text-node helper only when
-     * FontData isn't available -- which means the font either couldn't be
-     * resolved from a TTF on disk or the parse failed. For normal TTF fonts
-     * on the host, the fast path applies.
-     */
-    private static double measureWordWidth(String word, GraphicsContext gc,
-                                            com.excudo.core.metrics.FontData fd,
-                                            int sizeHundredths, double zoom) {
-        // Width measurement MUST track what fillText actually renders.
-        // The raw TTF advance-width sum from FontData is only guaranteed
-        // to match rendering when: (a) the same font file backs both, and
-        // (b) the renderer does no hinting / sub-pixel snapping that
-        // shifts glyph advances off the nominal values. (a) fails on
-        // Linux where FontResolver fc-match'd to DejaVu Sans Mono while
-        // JavaFX substituted to "System"; (b) fails on Windows with
-        // DirectWrite + ClearType at fractional point sizes where the
-        // per-char drift accumulates into per-word gaps. Both surface
-        // the same visible symptom: wide whitespace between adjacent
-        // WordSegments because lineX advances by measured width past
-        // where the glyph actually ended.
-        //
-        // Going through JavaFX's Text node uses the same Font object
-        // that fillText uses, so measurement and render agree by
-        // construction. Results are memoised per (font-cache-key, text)
-        // so the cost stays bounded -- first render of a slide pays
-        // the Text-allocation hit once per unique word; every subsequent
-        // render for the same slide (or another slide with repeated
-        // tokens) is a HashMap lookup.
-        //
-        // FontData is still used for line-height / baseline metrics
-        // elsewhere; that path remains unchanged.
-        return computeTextWidth(gc, word);
-    }
-
-    /**
-     * Compute the OOXML-hundredths-point size for a run using the same
-     * inheritance order as resolveFont: run > theme style > default.
-     */
-    private static int resolveRunSizeHundredths(TextRun run, SlideRenderContext slideCtx,
-                                                 int level, boolean isTitle) {
-        if (run != null && run.getFontSize() != null) return run.getFontSize();
-        if (slideCtx != null) {
-            TextLevelStyle style = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
-            if (style != null) return style.getFontSize();
-        }
-        return 1800; // 18pt default, matches resolveFont
-    }
-
-    /**
-     * Resolve FontData (glyph advance + metrics tables) for a run. Uses the
-     * same family-resolution logic as resolveFont, with fallback to the
-     * theme's *Fallback family if the primary isn't available. FontResolver
-     * and TrueTypeFontParser both cache internally, so repeated calls for
-     * the same family are O(1).
-     */
-    private static com.excudo.core.metrics.FontData resolveRunFontData(TextRun run,
-                                                                        SlideRenderContext slideCtx,
-                                                                        boolean isTitle) {
-        String family = null;
-        if (run != null && run.getFontFamily() != null) family = run.getFontFamily();
-        if (family == null && slideCtx != null) {
-            family = isTitle ? slideCtx.getMajorFont() : slideCtx.getMinorFont();
-        }
-        if (family == null) return null;
-
-        com.excudo.core.metrics.FontData fd = loadFontData(family);
-        if (fd == null && slideCtx != null) {
-            String fallback = isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback();
-            if (fallback != null && !fallback.isBlank() && !fallback.equalsIgnoreCase(family)) {
-                fd = loadFontData(fallback);
-            }
-        }
-        return fd;
-    }
-
-    private static com.excudo.core.metrics.FontData loadFontData(String family) {
-        try {
-            java.nio.file.Path path = com.excudo.core.metrics.FontResolver.resolve(family, false, false);
-            if (path != null) {
-                return com.excudo.core.metrics.TrueTypeFontParser.parse(path);
-            }
-        } catch (java.io.IOException ignored) {}
-        return null;
-    }
-
-    // Per-(font, text) width memoisation. First call for a unique word
-    // at a given font + size pays the Text allocation + layout pass;
-    // repeats hit the map. Slides with repeated tokens (code blocks,
-    // long prose with common words) amortise the cost to near-zero.
-    // Bounded implicitly by the product of fonts-in-use * unique words
-    // across the session -- low thousands at most for typical decks.
-    private static final java.util.concurrent.ConcurrentHashMap<String, Double> WIDTH_CACHE =
-        new java.util.concurrent.ConcurrentHashMap<>();
-
-    private static double computeTextWidth(GraphicsContext gc, String text) {
-        javafx.scene.text.Font font = gc.getFont();
-        // Size quantised to 0.01pt so widths cache across tiny zoom
-        // increments that round to the same sub-pixel placement.
-        String key = (font == null ? "null" : font.getFamily() + "|" + font.getStyle()
-            + "|" + Math.round(font.getSize() * 100)) + "|" + text;
-        Double cached = WIDTH_CACHE.get(key);
-        if (cached != null) return cached;
-        javafx.scene.text.Text helper = new javafx.scene.text.Text(text);
-        if (font != null) helper.setFont(font);
-        double width = helper.getLayoutBounds().getWidth();
-        WIDTH_CACHE.put(key, width);
-        return width;
+    private static SurfacePaint resolveDefaultTextColor(SlideRenderContext slideCtx, String phType) {
+        if (slideCtx == null) return SurfacePaint.Solid.rgb(0, 0, 0);
+        String hex = ("title".equals(phType) || "ctrTitle".equals(phType))
+            ? slideCtx.getTitleTextColorHex()
+            : slideCtx.getBodyTextColorHex();
+        if (hex == null || hex.isBlank()) return SurfacePaint.Solid.rgb(0, 0, 0);
+        // Tolerate leading '#' in the theme's hex strings.
+        return SurfacePaint.Solid.fromHex(hex);
     }
 
     private static double emuToPixels(long emu) {
