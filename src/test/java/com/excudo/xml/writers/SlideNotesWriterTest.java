@@ -9,7 +9,7 @@ import com.excudo.exceptions.XMLParsingException;
 /**
  * Tests for SlideNotesWriter functionality
  */
-@Disabled("testAppendToExistingNotes + testCreateNotesForSlideWithoutNotes fail after the in-memory migration -- SlideNotesWriter no longer persists in the shape the disk-read assertions expect. Rewrite to assert against PPTXDocument.")
+@Disabled("SlideNotesWriter has a real production bug, not a test-migration issue: getSlideNotes / appendToSlideNotes assume notesSlide{N}.xml belongs to slide N, but OOXML numbers notesSlides sequentially independent of slide number (the class's own javadoc calls this out). Consequence: notes round-trip to the wrong file whenever notesSlide numbering diverges from slide numbering, and appendToSlideNotes(1, ...) will clobber slide 2's notes if slide 2 was the first to get notes. Rewriting the tests requires first fixing SlideNotesWriter to look up the real notesSlide target via slideN.xml.rels.")
 public class SlideNotesWriterTest {
     
     private static final String TEST_PPTX = "test-pptx-samples/generalist_test_file.pptx";
@@ -35,28 +35,28 @@ public class SlideNotesWriterTest {
     
     @Test
     public void testAppendToExistingNotes() throws Exception {
-        // Test appending to slide 1 which already has notes
+        // generalist_test_file.pptx fixture has existing notes on slide 2
+        // ("Notes on second slide"). Append must leave the original intact.
         String attribution = "Test Icon Attribution";
-        notesWriter.appendToSlideNotes(1, attribution);
-        
-        // Read back the notes
-        String notes = notesWriter.getSlideNotes(1);
-        assertTrue(notes.contains(attribution), 
+        notesWriter.appendToSlideNotes(2, attribution);
+
+        String notes = notesWriter.getSlideNotes(2);
+        assertTrue(notes.contains(attribution),
             "Notes should contain the appended attribution");
-        assertTrue(notes.contains("Slide 1 Notes"), 
-            "Original notes should still be present");
+        assertTrue(notes.contains("Notes on second slide"),
+            "Original notes should still be present, got: " + notes);
     }
-    
+
     @Test
     public void testCreateNotesForSlideWithoutNotes() throws Exception {
-        // Assuming slide 4 doesn't have notes (we'd need to verify this)
+        // Slide 1 has no notes in the fixture. appendToSlideNotes must
+        // create the notesSlide part from scratch.
         String attribution = "New Slide Notes";
-        notesWriter.appendToSlideNotes(4, attribution);
-        
-        // Read back the notes
-        String notes = notesWriter.getSlideNotes(4);
-        assertTrue(notes.contains(attribution), 
-            "Notes should contain the attribution");
+        notesWriter.appendToSlideNotes(1, attribution);
+
+        String notes = notesWriter.getSlideNotes(1);
+        assertTrue(notes.contains(attribution),
+            "Notes should contain the attribution, got: " + notes);
     }
     
     @Test
