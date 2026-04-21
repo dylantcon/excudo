@@ -106,9 +106,14 @@ public class TechnicalConsoleController implements Initializable {
      */
     public void setMainController(MainController mainController) {
         this.mainController = mainController;
-        
-        // Initialize LLM console handler when orchestrator is available
-        if (mainController != null && mainController.getCurrentOrchestrator() != null) {
+
+        // Eagerly initialise the console engine. Post Session Unification,
+        // MainController has no orchestrator of its own and
+        // SessionManager.getActiveOrchestrator() is null at boot (no
+        // session yet), so gating init behind "orchestrator != null"
+        // leaves consoleSessionManager + commandFactory null and every
+        // menu-Open / console-open / create-session path NPEs on first use.
+        if (mainController != null) {
             initializeLLMHandler();
         }
     }
@@ -135,8 +140,10 @@ public class TechnicalConsoleController implements Initializable {
             });
         }
         
-        // Initialize LLM handler if we have main controller and orchestrator
-        if (mainController != null && mainController.getCurrentOrchestrator() != null) {
+        // Initialise the engine as soon as the main controller is wired
+        // up; post Session Unification we can't wait for an active-session
+        // orchestrator because there isn't one until the user opens a deck.
+        if (mainController != null) {
             initializeLLMHandler();
         }
     }
@@ -205,20 +212,36 @@ public class TechnicalConsoleController implements Initializable {
      * Initialize the LLM console handler using proper delegation
      */
     private void initializeLLMHandler() {
-        if (mainController != null && mainController.getCurrentOrchestrator() != null) {
-            llmConsoleHandler = new LLMConsoleHandler(mainController.getCurrentOrchestrator());
-            
-            // Initialize console engine with the orchestrator
-            if (consoleEngine != null) {
-                consoleEngine.initialize(mainController.getCurrentOrchestrator());
-                if (styledView != null) {
-                    consoleEngine.setStyledHandler(styledView::appendLine);
-                }
-                consoleEngine.setStatusHandler(this::updateStatus);
+        if (mainController == null) return;
+
+        // The engine needs an orchestrator to construct its CommandFactory,
+        // LLMConsoleHandler, and ConsoleSessionManager. Post Session
+        // Unification the active orchestrator is null until the first
+        // session is created, so fall back to a fresh sessionless
+        // PPTXOrchestratorImpl at boot; the first setCurrentSession call
+        // will replace the engine's orchestrator with the session-bound
+        // one via the standard UIConsoleEngine/SessionManager plumbing.
+        PPTXOrchestrator orch = mainController.getCurrentOrchestrator();
+        if (orch == null) {
+            try {
+                orch = new PPTXOrchestratorImpl();
+            } catch (Exception e) {
+                printError("Failed to initialize console engine: " + e.getMessage());
+                return;
             }
-            
-            printInfo("LLM Console Handler initialized");
         }
+
+        llmConsoleHandler = new LLMConsoleHandler(orch);
+
+        if (consoleEngine != null) {
+            consoleEngine.initialize(orch);
+            if (styledView != null) {
+                consoleEngine.setStyledHandler(styledView::appendLine);
+            }
+            consoleEngine.setStatusHandler(this::updateStatus);
+        }
+
+        printInfo("Console engine initialized");
     }
     
     /**
