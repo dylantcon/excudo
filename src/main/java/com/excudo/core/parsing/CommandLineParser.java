@@ -32,14 +32,23 @@ public class CommandLineParser {
         StringBuilder currentToken = new StringBuilder();
         boolean inQuotes = false;
         char quoteChar = '\0';
-        
+        // Track whether the current token was explicitly introduced by a
+        // quote so an empty quoted string (e.g. `""`) is preserved as an
+        // intentional empty token. Without this, `edit-content 1 4 ""`
+        // tokenizes to three tokens and the schema's variable-length
+        // fallback silently substitutes "" -- but any caller that relied
+        // on "received '' means user typed ''" would disagree.
+        boolean currentTokenQuoted = false;
+
         for (int i = 0; i < command.length(); i++) {
             char c = command.charAt(i);
-            
+
             if (!inQuotes && (c == '"' || c == '\'')) {
-                // Starting a quoted string
+                // Starting a quoted string -- mark this token as intentional
+                // so an immediate close-quote still emits an empty token.
                 inQuotes = true;
                 quoteChar = c;
+                currentTokenQuoted = true;
             } else if (inQuotes && c == quoteChar) {
                 // Ending the quoted string -- unescape sequences in the completed token
                 String unescaped = unescapeString(currentToken.toString());
@@ -48,21 +57,22 @@ public class CommandLineParser {
                 quoteChar = '\0';
             } else if (!inQuotes && Character.isWhitespace(c)) {
                 // Whitespace outside quotes - end current token
-                if (currentToken.length() > 0) {
+                if (currentToken.length() > 0 || currentTokenQuoted) {
                     tokens.add(currentToken.toString());
                     currentToken = new StringBuilder();
+                    currentTokenQuoted = false;
                 }
             } else {
                 // Regular character or whitespace inside quotes
                 currentToken.append(c);
             }
         }
-        
-        // Add the last token if any
-        if (currentToken.length() > 0) {
+
+        // Add the last token if any -- including intentionally-empty quoted ones.
+        if (currentToken.length() > 0 || currentTokenQuoted) {
             tokens.add(currentToken.toString());
         }
-        
+
         return tokens.toArray(new String[0]);
     }
 

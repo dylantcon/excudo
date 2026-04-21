@@ -317,7 +317,10 @@ public class CommandSchema {
             firstNamedIndex = i + 1;
         }
 
-        // Second pass: process --key value pairs
+        // Second pass: process --key value pairs. Boolean parameters may
+        // be used value-less (--flag alone means true) OR take an
+        // explicit value (--flag true / --flag false). Non-boolean
+        // parameters still require a value.
         for (int i = firstNamedIndex; i < args.length; i++) {
             if (args[i].startsWith("--")) {
                 String paramName = args[i].substring(2);
@@ -329,12 +332,25 @@ public class CommandSchema {
                             paramName, parametersByName.keySet()));
                 }
 
-                if (i + 1 >= args.length) {
-                    throw new CommandParseException(
-                        String.format("Parameter --%s requires a value", paramName));
-                }
+                boolean isBool = param.getType() == Parameter.ParameterType.BOOLEAN;
+                boolean hasNext = i + 1 < args.length;
+                boolean nextLooksLikeValue = hasNext && !args[i + 1].startsWith("--");
 
-                values.put(paramName, args[++i]);
+                if (isBool) {
+                    if (nextLooksLikeValue) {
+                        // Explicit value ("--flag true" or "--flag false").
+                        values.put(paramName, args[++i]);
+                    } else {
+                        // Bare flag -- presence means true.
+                        values.put(paramName, "true");
+                    }
+                } else {
+                    if (!hasNext || args[i + 1].startsWith("--")) {
+                        throw new CommandParseException(
+                            String.format("Parameter --%s requires a value", paramName));
+                    }
+                    values.put(paramName, args[++i]);
+                }
             }
         }
     }

@@ -15,13 +15,26 @@ import java.util.logging.Logger;
  * context awareness for debugging placeholder inheritance issues.
  */
 public class ContentEditCommand implements Command {
-    
+
+    /**
+     * How the passed text interacts with the shape's existing content.
+     * REPLACE (default): the passed string (including empty) replaces
+     * the shape's content. Empty string clears. PREPEND: the passed
+     * string is inserted before existing content. APPEND: the passed
+     * string is appended after existing content. Prepend / append with
+     * empty string are no-ops.
+     */
+    public enum Mode { REPLACE, PREPEND, APPEND }
+
     private final int slideNumber;
     private final int spid;
     private final String newText;
+    private final Mode mode;
     private final PPTXOrchestrator orchestrator;
+    private final Object displayAdapter;
     private boolean executed = false;
     private String originalText = null;
+    private String appliedText = null;
     private static final Logger logger = Logger.getLogger(ContentEditCommand.class.getName());
     
     // Debug information captured during execution
@@ -38,17 +51,27 @@ public class ContentEditCommand implements Command {
      * @param orchestrator the PPTX orchestrator for execution
      */
     public ContentEditCommand(int slideNumber, int spid, String newText, PPTXOrchestrator orchestrator) {
+        this(slideNumber, spid, newText, Mode.REPLACE, orchestrator, null);
+    }
+
+    public ContentEditCommand(int slideNumber, int spid, String newText, Mode mode,
+            PPTXOrchestrator orchestrator, Object displayAdapter) {
         if (orchestrator == null) {
             throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         }
         if (newText == null) {
             throw new IllegalArgumentException("New text cannot be null");
         }
-        
+        if (mode == null) {
+            throw new IllegalArgumentException("Mode cannot be null");
+        }
+
         this.slideNumber = slideNumber;
         this.spid = spid;
         this.newText = newText;
+        this.mode = mode;
         this.orchestrator = orchestrator;
+        this.displayAdapter = displayAdapter;
     }
     
     /**
@@ -65,38 +88,72 @@ public class ContentEditCommand implements Command {
         try {
             // Phase 3 Enhancement: Pre-execution validation and debugging
             validateAndCaptureShapeContext();
-            
-            // Get current text content for undo
+
+            // Capture current text for undo + for prepend/append composition.
             originalText = orchestrator.getShapeText(slideNumber, spid);
-            
+
+            // Compose the final text from mode + existing + new. REPLACE
+            // uses newText verbatim (empty string clears). PREPEND /
+            // APPEND with empty newText are no-ops that still emit
+            // feedback so the user knows nothing changed.
+            String existing = originalText != null ? originalText : "";
+            appliedText = switch (mode) {
+                case REPLACE -> newText;
+                case PREPEND -> newText + existing;
+                case APPEND  -> existing + newText;
+            };
+
             // Phase 3 Enhancement: Log operation context for debugging
             logContentEditOperation();
-            
-            // Update the text content - this automatically handles bullet points
-            ExecutionResult<Void> result = orchestrator.editShapeText(slideNumber, spid, newText);
-            
+
+            ExecutionResult<Void> result = orchestrator.editShapeText(slideNumber, spid, appliedText);
+
             if (result.isSuccess()) {
                 executed = true;
-                logger.fine(String.format("Successfully edited content for SPID %d on slide %d (shape type: %s)",
-                    spid, slideNumber, targetShape != null ? targetShape.getType() : "unknown"));
+                logger.fine(String.format("Successfully edited content for SPID %d on slide %d (shape type: %s, mode=%s)",
+                    spid, slideNumber, targetShape != null ? targetShape.getType() : "unknown", mode));
+                emitSuccessFeedback();
             } else {
                 throw new CommandExecutionException(
-                    getDescription(), 
-                    "execute", 
+                    getDescription(),
+                    "execute",
                     "Failed to edit content: " + result.getMessage()
                 );
             }
-            
+
         } catch (CommandExecutionException e) {
             throw e;
         } catch (Exception e) {
             throw new CommandExecutionException(
-                getDescription(), 
-                "execute", 
+                getDescription(),
+                "execute",
                 "Failed to edit content: " + e.getMessage(),
                 e
             );
         }
+    }
+
+    /**
+     * Emit a success message through the display adapter if one was
+     * provided and implements {@link CommandDisplay}. Describes what
+     * actually happened (replaced / cleared / prepended / appended +
+     * length delta) so silent success no longer looks like silent
+     * failure. The adapter is typed as Object at this layer because
+     * ShapeCommandFactory.createFromParsedCommand still uses that
+     * generic signature; we cast via instanceof to stay properly typed.
+     */
+    private void emitSuccessFeedback() {
+        if (!(displayAdapter instanceof CommandDisplay display)) return;
+        String action = switch (mode) {
+            case REPLACE -> newText.isEmpty() ? "Cleared" : "Replaced";
+            case PREPEND -> newText.isEmpty() ? "No-op prepend (empty text) on" : "Prepended to";
+            case APPEND  -> newText.isEmpty() ? "No-op append (empty text) on" : "Appended to";
+        };
+        int before = originalText == null ? 0 : originalText.length();
+        int after = appliedText == null ? 0 : appliedText.length();
+        display.displaySuccess(String.format(
+            "%s text on slide %d SPID %d (%d -> %d chars)",
+            action, slideNumber, spid, before, after));
     }
     
     /**

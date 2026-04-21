@@ -323,6 +323,16 @@ public class ShapeOrchestrationManager {
                 cs.invalidateSlide(slideNumber);
             }
 
+            // Notify state listeners (GUI, live preview, etc.) that this
+            // slide has changed. Every shape mutation comes through this
+            // method, so firing once here replaces the per-command
+            // one-off calls that only AddShapeCommand remembered to do.
+            // Removing the duplicate fire from AddShapeCommand is a
+            // companion change; firing twice is a minor perf cost but
+            // not correctness-relevant (listeners dedupe by slide id in
+            // practice), and we keep the single source of truth here.
+            SessionManager.getInstance().fireSlideModified(slideNumber);
+
             return ExecutionResult.success(operationName, result);
 
         } catch (Exception e) {

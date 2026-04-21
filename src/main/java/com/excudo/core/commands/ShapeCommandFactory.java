@@ -82,8 +82,19 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 Integer editSlide = parsedCommand.getInteger("slide");
                 String editSpidStr = parsedCommand.getString("spid");
                 String text = parsedCommand.getString("text");
+                if (text == null) text = "";  // accept explicit empty-string -> clear
+                Boolean prependFlag = parsedCommand.getBoolean("prepend");
+                Boolean appendFlag = parsedCommand.getBoolean("append");
+                boolean prepend = prependFlag != null && prependFlag;
+                boolean append = appendFlag != null && appendFlag;
+                if (prepend && append) {
+                    throw new IllegalArgumentException(
+                        "edit-content: --prepend and --append are mutually exclusive");
+                }
+                ContentEditCommand.Mode mode = prepend ? ContentEditCommand.Mode.PREPEND
+                    : (append ? ContentEditCommand.Mode.APPEND : ContentEditCommand.Mode.REPLACE);
                 int editSpid = editSpidStr != null ? Integer.parseInt(editSpidStr) : 0;
-                return createContentEdit(editSlide != null ? editSlide : 1, editSpid, text);
+                return createContentEdit(editSlide != null ? editSlide : 1, editSpid, text, mode, displayAdapter);
                 
             case "add-shape":
                 Integer shapeSlide = parsedCommand.getInteger("slide");
@@ -545,10 +556,19 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
      * @throws IllegalArgumentException if validation fails
      */
     public ContentEditCommand createContentEdit(int slideNumber, int spid, String newText) {
-        // Phase 3 Enhancement: Pre-validate the content edit operation
+        return createContentEdit(slideNumber, spid, newText, ContentEditCommand.Mode.REPLACE, null);
+    }
+
+    /**
+     * Overload for callers who want to choose replace/prepend/append and
+     * receive feedback through a display adapter (typically the console
+     * engine). The display adapter is optional -- passing null suppresses
+     * feedback (headless / programmatic use).
+     */
+    public ContentEditCommand createContentEdit(int slideNumber, int spid, String newText,
+            ContentEditCommand.Mode mode, Object displayAdapter) {
         validateContentEditParameters(slideNumber, spid, newText);
-        
-        return new ContentEditCommand(slideNumber, spid, newText, orchestrator);
+        return new ContentEditCommand(slideNumber, spid, newText, mode, orchestrator, displayAdapter);
     }
     
     /**

@@ -1,7 +1,6 @@
 package com.excudo.core.commands;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;
@@ -77,9 +76,11 @@ public class AddShapeCommand implements Command {
                     );
                 }
                 executed = true;
-
-                // Notify state listeners that the slide's contents changed.
-                SessionManager.getInstance().fireSlideModified(slideNumber);
+                // Slide-modified notification is fired centrally by
+                // ShapeOrchestrationManager.performShapeXMLOperation so
+                // every shape mutation (add/remove/edit/resize/group/etc)
+                // consistently reaches the GUI listener chain. No
+                // per-command fire needed here.
             } else {
                 throw new CommandExecutionException(
                     getDescription(), 
