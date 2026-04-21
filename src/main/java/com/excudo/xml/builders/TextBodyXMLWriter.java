@@ -191,6 +191,9 @@ public final class TextBodyXMLWriter {
         if (run.getBaseline() != null) {
             rPr.setAttribute("baseline", String.valueOf(run.getBaseline()));
         }
+        if (run.getCharacterSpacing() != null) {
+            rPr.setAttribute("spc", String.valueOf(run.getCharacterSpacing()));
+        }
 
         // Color fill
         if (run.getColor() != null) {

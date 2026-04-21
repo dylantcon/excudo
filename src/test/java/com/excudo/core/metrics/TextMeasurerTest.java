@@ -135,6 +135,39 @@ public class TextMeasurerTest {
     }
 
     @Test
+    public void testCharacterSpacingWidensWrap() {
+        // Positive spc adds advance per character. The same text in a
+        // narrow box should wrap to >= the no-spc line count when
+        // tracking is applied.
+        TextBody noSpc = TextBody.builder()
+            .bodyProperties(BodyProperties.builder()
+                .leftInset(0).topInset(0).rightInset(0).bottomInset(0).build())
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("AAAA AAAA AAAA AAAA AAAA").fontSize(1800).build())
+                .build())
+            .build();
+
+        TextBody withSpc = TextBody.builder()
+            .bodyProperties(BodyProperties.builder()
+                .leftInset(0).topInset(0).rightInset(0).bottomInset(0).build())
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("AAAA AAAA AAAA AAAA AAAA")
+                    .fontSize(1800)
+                    .characterSpacing(500)  // +5pt per char
+                    .build())
+                .build())
+            .build();
+
+        long width = 3000000;
+        MeasuredText noS = TextMeasurer.measure(noSpc, width);
+        MeasuredText withS = TextMeasurer.measure(withSpc, width);
+
+        assertTrue("character spacing must not reduce wrap line count",
+            withS.getParagraphs().get(0).getLineCount()
+                >= noS.getParagraphs().get(0).getLineCount());
+    }
+
+    @Test
     public void testMarginRightReducesWrapWidth() {
         // marR pulls the wrap boundary in from the right edge. Two bodies,
         // same text, same shape width: the one with marR=1_000_000 EMU

@@ -213,6 +213,22 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripCharacterSpacing() throws Exception {
+        // spc is hundredths of a point; positive widens, negative tightens.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("Tracked")
+                    .characterSpacing(150)   // +1.5pt per char
+                    .build())
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextRun run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals(Integer.valueOf(150), run.getCharacterSpacing());
+    }
+
+    @Test
     public void testRoundTripBaselineSubscript() throws Exception {
         TextBody original = TextBody.builder()
             .addParagraph(TextParagraph.builder()

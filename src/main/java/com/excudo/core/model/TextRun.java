@@ -18,6 +18,7 @@ public final class TextRun {
     private final String language;
     private final String capitalization;
     private final Integer baseline;
+    private final Integer characterSpacing;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -32,6 +33,7 @@ public final class TextRun {
         this.language = builder.language;
         this.capitalization = builder.capitalization;
         this.baseline = builder.baseline;
+        this.characterSpacing = builder.characterSpacing;
     }
 
     public String getText() { return text; }
@@ -53,6 +55,15 @@ public final class TextRun {
      * normal baseline.
      */
     public Integer getBaseline() { return baseline; }
+    /**
+     * OOXML rPr/@spc: additional spacing between characters (tracking),
+     * in hundredths of a point. Positive = looser, negative = tighter.
+     * Null means inherit. True per-character rendering needs the AWT
+     * per-glyph accumulator (backlog); measurement currently approximates
+     * by adding {@code spc * charCount} to each word's width, which is
+     * enough for wrap-width calculations to track the intent.
+     */
+    public Integer getCharacterSpacing() { return characterSpacing; }
 
     /**
      * Text as it should be rendered + measured, after applying any
@@ -87,6 +98,7 @@ public final class TextRun {
         private String language = "en-US";
         private String capitalization;
         private Integer baseline;
+        private Integer characterSpacing;
 
         private Builder(String text) {
             this.text = text;
@@ -107,6 +119,8 @@ public final class TextRun {
         public Builder capitalization(String cap) { this.capitalization = cap; return this; }
         /** Super/sub-script offset in percent*1000 units. Positive = super, negative = sub. */
         public Builder baseline(int baseline) { this.baseline = baseline; return this; }
+        /** Character spacing (tracking) in hundredths of a point. Positive = looser, negative = tighter. */
+        public Builder characterSpacing(int spc) { this.characterSpacing = spc; return this; }
 
         public TextRun build() {
             return new TextRun(this);

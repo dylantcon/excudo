@@ -77,9 +77,14 @@ public final class TextMeasurer {
         // Determine effective font for this paragraph (from first run)
         int fontSize = DEFAULT_FONT_SIZE;
         String fontFamily = DEFAULT_FONT_FAMILY;
+        // Character spacing is also first-run-wins -- matches the
+        // existing fontSize/family pragma. Per-run spc needs the per-
+        // glyph accumulator refactor (backlog).
+        int characterSpacing = 0;
         for (TextRun run : para.getRuns()) {
             if (run.getFontSize() != null) fontSize = run.getFontSize();
             if (run.getFontFamily() != null) fontFamily = run.getFontFamily();
+            if (run.getCharacterSpacing() != null) characterSpacing = run.getCharacterSpacing();
             break;
         }
 
@@ -120,7 +125,7 @@ public final class TextMeasurer {
         }
 
         // Word wrap
-        List<Long> lineWidths = wrapText(fullText.toString(), fontData, fontSize, effectiveWidth);
+        List<Long> lineWidths = wrapText(fullText.toString(), fontData, fontSize, effectiveWidth, characterSpacing);
         int lineCount = lineWidths.size();
         if (lineCount == 0) lineCount = 1;
 
@@ -140,16 +145,22 @@ public final class TextMeasurer {
     /**
      * Greedy word wrap. Returns per-line widths in EMUs.
      */
-    private static List<Long> wrapText(String text, FontData fontData, int fontSize, long maxWidth) {
+    private static List<Long> wrapText(String text, FontData fontData, int fontSize, long maxWidth, int spcPer100Pt) {
         if (text == null || text.isEmpty()) return List.of(0L);
 
         List<Long> lineWidths = new ArrayList<>();
         String[] words = text.split("(?<=\\s)|(?=\\s)"); // split preserving spaces as tokens
 
+        // Tracking adjustment per character. spc is in 100ths of a point;
+        // 1 point = 12700 EMU, so 1 spc-unit = 127 EMU of additional
+        // advance per character. Positive widens, negative tightens.
+        long spcPerCharEmu = spcPer100Pt * 127L;
+
         long currentLineWidth = 0;
 
         for (String word : words) {
-            long wordWidth = measureWord(word, fontData, fontSize);
+            long wordWidth = measureWord(word, fontData, fontSize)
+                + spcPerCharEmu * word.length();
 
             if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
                 // Wrap to next line

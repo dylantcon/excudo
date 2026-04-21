@@ -244,6 +244,12 @@ public final class TextBodyExtractor {
                 catch (NumberFormatException ignored) { /* malformed, skip */ }
             }
 
+            String spc = rPr.getAttribute("spc");
+            if (!spc.isEmpty()) {
+                try { builder.characterSpacing(Integer.parseInt(spc)); }
+                catch (NumberFormatException ignored) { /* malformed, skip */ }
+            }
+
             // Color: solidFill
             Element solidFill = getFirstChild(rPr, "a:solidFill");
             if (solidFill != null) {
