@@ -95,7 +95,11 @@ public final class TextBodyXMLWriter {
                 || para.getLineSpacing() != null
                 || para.getSpaceBefore() != null
                 || para.getSpaceAfter() != null
-                || para.getDefaultTabSize() != null;
+                || para.getDefaultTabSize() != null
+                || para.getRightToLeft() != null
+                || para.getHangingPunctuation() != null
+                || para.getEastAsianLineBreak() != null
+                || para.getLatinLineBreak() != null;
     }
 
     private static void writeParagraphProperties(Document doc, Element pPr, TextParagraph para) {
@@ -116,6 +120,21 @@ public final class TextBodyXMLWriter {
         }
         if (para.getDefaultTabSize() != null) {
             pPr.setAttribute("defTabSz", String.valueOf(para.getDefaultTabSize()));
+        }
+        // Booleans emit as "1"/"0" per existing rPr convention (b, i, u
+        // all use the same form). OOXML accepts "true"/"false" too but
+        // we match the denser form PowerPoint itself writes.
+        if (para.getRightToLeft() != null) {
+            pPr.setAttribute("rtl", para.getRightToLeft() ? "1" : "0");
+        }
+        if (para.getHangingPunctuation() != null) {
+            pPr.setAttribute("hangingPunct", para.getHangingPunctuation() ? "1" : "0");
+        }
+        if (para.getEastAsianLineBreak() != null) {
+            pPr.setAttribute("eaLnBrk", para.getEastAsianLineBreak() ? "1" : "0");
+        }
+        if (para.getLatinLineBreak() != null) {
+            pPr.setAttribute("latinLnBrk", para.getLatinLineBreak() ? "1" : "0");
         }
 
         if (para.getLineSpacing() != null) {

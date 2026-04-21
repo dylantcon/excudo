@@ -147,6 +147,15 @@ public final class TextBodyExtractor {
             catch (NumberFormatException ignored) { /* malformed, skip */ }
         }
 
+        Boolean rtl = parseBoolAttr(pPr, "rtl");
+        if (rtl != null) builder.rightToLeft(rtl);
+        Boolean hangingPunct = parseBoolAttr(pPr, "hangingPunct");
+        if (hangingPunct != null) builder.hangingPunctuation(hangingPunct);
+        Boolean eaLnBrk = parseBoolAttr(pPr, "eaLnBrk");
+        if (eaLnBrk != null) builder.eastAsianLineBreak(eaLnBrk);
+        Boolean latinLnBrk = parseBoolAttr(pPr, "latinLnBrk");
+        if (latinLnBrk != null) builder.latinLineBreak(latinLnBrk);
+
         // Line spacing
         Element lnSpc = getFirstChild(pPr, "a:lnSpc");
         if (lnSpc != null) {
@@ -292,6 +301,20 @@ public final class TextBodyExtractor {
             ? qualifiedName.substring(qualifiedName.indexOf(':') + 1)
             : qualifiedName;
         return localPart.equals(el.getLocalName()) || qualifiedName.equals(el.getNodeName());
+    }
+
+    /**
+     * Parse an xsd:boolean attribute: accepts "1"/"true" as true,
+     * "0"/"false" as false (case-insensitive). Returns null when the
+     * attribute is absent or unrecognised so the caller can preserve
+     * the "inherit" semantic rather than defaulting to false.
+     */
+    private static Boolean parseBoolAttr(Element el, String attrName) {
+        String v = el.getAttribute(attrName);
+        if (v.isEmpty()) return null;
+        if ("1".equals(v) || "true".equalsIgnoreCase(v)) return Boolean.TRUE;
+        if ("0".equals(v) || "false".equalsIgnoreCase(v)) return Boolean.FALSE;
+        return null;
     }
 
     private static Element getFirstChild(Element parent, String qualifiedName) {

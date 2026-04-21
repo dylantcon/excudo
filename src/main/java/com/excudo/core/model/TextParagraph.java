@@ -27,6 +27,10 @@ public final class TextParagraph {
     private final Integer spaceBefore;
     private final Integer spaceAfter;
     private final Integer defaultTabSize;
+    private final Boolean rightToLeft;
+    private final Boolean hangingPunctuation;
+    private final Boolean eastAsianLineBreak;
+    private final Boolean latinLineBreak;
 
     private TextParagraph(Builder builder) {
         this.runs = Collections.unmodifiableList(new ArrayList<>(builder.runs));
@@ -46,6 +50,10 @@ public final class TextParagraph {
         this.spaceBefore = builder.spaceBefore;
         this.spaceAfter = builder.spaceAfter;
         this.defaultTabSize = builder.defaultTabSize;
+        this.rightToLeft = builder.rightToLeft;
+        this.hangingPunctuation = builder.hangingPunctuation;
+        this.eastAsianLineBreak = builder.eastAsianLineBreak;
+        this.latinLineBreak = builder.latinLineBreak;
     }
 
     public List<TextRun> getRuns() { return runs; }
@@ -71,6 +79,14 @@ public final class TextParagraph {
      * (tab-stop-driven layout is a separate work item).
      */
     public Integer getDefaultTabSize() { return defaultTabSize; }
+    /** OOXML pPr/@rtl: right-to-left paragraph direction. Round-tripped but render-time wrap direction is still LTR. */
+    public Boolean getRightToLeft() { return rightToLeft; }
+    /** OOXML pPr/@hangingPunct: allow punctuation to hang outside text area. Round-trip only. */
+    public Boolean getHangingPunctuation() { return hangingPunctuation; }
+    /** OOXML pPr/@eaLnBrk: apply east-asian line-break rules. Round-trip only. */
+    public Boolean getEastAsianLineBreak() { return eastAsianLineBreak; }
+    /** OOXML pPr/@latinLnBrk: apply latin line-break rules. Round-trip only. */
+    public Boolean getLatinLineBreak() { return latinLineBreak; }
 
     public boolean isEmpty() {
         return runs.isEmpty() || (runs.size() == 1 && runs.get(0).getText().isEmpty());
@@ -98,6 +114,10 @@ public final class TextParagraph {
         private Integer spaceBefore;
         private Integer spaceAfter;
         private Integer defaultTabSize;
+        private Boolean rightToLeft;
+        private Boolean hangingPunctuation;
+        private Boolean eastAsianLineBreak;
+        private Boolean latinLineBreak;
 
         public Builder addRun(TextRun run) { this.runs.add(run); return this; }
         public Builder addText(String text) { this.runs.add(TextRun.builder(text).build()); return this; }
@@ -118,6 +138,10 @@ public final class TextParagraph {
         public Builder spaceAfter(int pointsTimes100) { this.spaceAfter = pointsTimes100; return this; }
         /** Default tab stop spacing in EMUs. */
         public Builder defaultTabSize(int emu) { this.defaultTabSize = emu; return this; }
+        public Builder rightToLeft(boolean v) { this.rightToLeft = v; return this; }
+        public Builder hangingPunctuation(boolean v) { this.hangingPunctuation = v; return this; }
+        public Builder eastAsianLineBreak(boolean v) { this.eastAsianLineBreak = v; return this; }
+        public Builder latinLineBreak(boolean v) { this.latinLineBreak = v; return this; }
 
         /** Convenience: set up character bullet with full font metadata */
         public Builder characterBullet(String ch, String font, String panose, String pitchFamily, String charset) {

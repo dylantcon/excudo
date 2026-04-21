@@ -74,6 +74,29 @@ public class TextBodyExtractorTest {
     }
 
     @Test
+    public void testRoundTripParagraphBooleans() throws Exception {
+        // rtl / hangingPunct / eaLnBrk / latinLnBrk are all xsd:boolean
+        // round-trip-only paragraph attrs. Render-time enforcement for
+        // each is a separate, larger concern.
+        TextBody original = TextBody.builder()
+            .addParagraph(TextParagraph.builder()
+                .addRun(TextRun.builder("hello").build())
+                .rightToLeft(true)
+                .hangingPunctuation(false)
+                .eastAsianLineBreak(true)
+                .latinLineBreak(false)
+                .build())
+            .build();
+
+        TextBody extracted = roundTrip(original);
+        TextParagraph para = extracted.getParagraphs().get(0);
+        assertEquals(Boolean.TRUE, para.getRightToLeft());
+        assertEquals(Boolean.FALSE, para.getHangingPunctuation());
+        assertEquals(Boolean.TRUE, para.getEastAsianLineBreak());
+        assertEquals(Boolean.FALSE, para.getLatinLineBreak());
+    }
+
+    @Test
     public void testRoundTripDefaultTabSize() throws Exception {
         // defTabSz must round-trip even though tab characters aren't yet
         // honoured at render-time -- losing the attribute on edit would
