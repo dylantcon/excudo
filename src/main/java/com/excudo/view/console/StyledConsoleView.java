@@ -33,6 +33,17 @@ public class StyledConsoleView {
     public StyledConsoleView(TextFlow textFlow, ScrollPane scrollPane) {
         this.textFlow = textFlow;
         this.scrollPane = scrollPane;
+
+        // Auto-scroll after every layout pass. Calling setVvalue(1.0)
+        // inline with getChildren().add(...) scrolls to the PREVIOUS
+        // bottom because the new Text node isn't measured until the next
+        // FX pulse. Listening on the TextFlow's height gives us the right
+        // moment to pin the scroll to the newest content. Works for any
+        // content added here, via clear(), or by outside code.
+        if (textFlow != null && scrollPane != null) {
+            textFlow.heightProperty().addListener((obs, oldH, newH) ->
+                scrollPane.setVvalue(1.0));
+        }
     }
 
     /**
@@ -49,9 +60,10 @@ public class StyledConsoleView {
             node.setFill(colorFor(style));
             node.setFont(fontFor(style));
             textFlow.getChildren().add(node);
-            if (scrollPane != null) {
-                scrollPane.setVvalue(1.0);
-            }
+            // No explicit setVvalue here -- the heightProperty listener
+            // attached in the constructor fires on the next layout pass
+            // and pins scroll to the new bottom then, which is after the
+            // node has actually been measured.
         };
         if (Platform.isFxApplicationThread()) {
             append.run();
