@@ -6,7 +6,7 @@ import com.excudo.core.model.TextColor;
 import com.excudo.core.themes.FmtSchemeResolver;
 import com.excudo.core.themes.ResolvedFill;
 import com.excudo.core.themes.ThemeManager;
-import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.core.rendering.surface.SurfacePaint;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -329,6 +329,11 @@ public final class ShapeStyleExtractor {
                 yield new SurfacePaint.LinearGradient(startX, startY, endX, endY, stops);
             }
             case ResolvedFill.NoFill ignored -> SurfacePaint.Transparent.INSTANCE;
+            // BlipFill (image) isn't rendered here yet — shape fill for
+            // theme-blip references falls back to transparent until the
+            // picture-rendering path on the renderer takes over. This
+            // was previously a crash site; now a graceful degradation.
+            case ResolvedFill.BlipFill ignored -> SurfacePaint.Transparent.INSTANCE;
         };
     }
 

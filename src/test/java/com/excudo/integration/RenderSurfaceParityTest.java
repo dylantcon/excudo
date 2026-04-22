@@ -4,7 +4,7 @@ import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestratorImpl;
 import com.excudo.view.rendering.SlideRenderContext;
 import com.excudo.view.rendering.SlideRenderer;
-import com.excudo.view.rendering.surface.Graphics2DRenderSurface;
+import com.excudo.core.rendering.surface.Graphics2DRenderSurface;
 import org.junit.Test;
 
 import java.awt.image.BufferedImage;

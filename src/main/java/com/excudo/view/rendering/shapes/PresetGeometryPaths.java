@@ -1,6 +1,6 @@
 package com.excudo.view.rendering.shapes;
 
-import com.excudo.view.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.RenderSurface;
 
 import java.util.HashMap;
 import java.util.Map;

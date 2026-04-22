@@ -1,4 +1,4 @@
-package com.excudo.view.rendering.surface;
+package com.excudo.core.rendering.surface;
 
 /**
  * Backend-neutral handle to a decoded raster image. Renderers obtain one

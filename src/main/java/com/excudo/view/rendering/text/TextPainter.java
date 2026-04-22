@@ -8,9 +8,9 @@ import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.ShapeStyleExtractor;
 import com.excudo.view.rendering.SlideRenderContext;
-import com.excudo.view.rendering.surface.RenderSurface;
-import com.excudo.view.rendering.surface.SurfaceFont;
-import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.SurfaceFont;
+import com.excudo.core.rendering.surface.SurfacePaint;
 import javafx.geometry.Rectangle2D;
 
 import java.util.ArrayList;

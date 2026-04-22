@@ -1,5 +1,13 @@
 package com.excudo.view.rendering.surface;
 
+import com.excudo.core.rendering.surface.FontSubstitutionTracker;
+import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.StrokeCap;
+import com.excudo.core.rendering.surface.StrokeJoin;
+import com.excudo.core.rendering.surface.SurfaceFont;
+import com.excudo.core.rendering.surface.SurfaceImage;
+import com.excudo.core.rendering.surface.SurfacePaint;
+
 import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;

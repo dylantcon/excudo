@@ -4,7 +4,7 @@ import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.themes.ThemeManager;
 import com.excudo.core.utils.XMLFactoryProvider;
-import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.core.rendering.surface.SurfacePaint;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;

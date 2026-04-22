@@ -1,4 +1,4 @@
-package com.excudo.view.rendering.surface;
+package com.excudo.core.rendering.surface;
 
 import java.util.List;
 

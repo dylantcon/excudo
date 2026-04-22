@@ -1,4 +1,4 @@
-package com.excudo.view.rendering.surface;
+package com.excudo.core.rendering.surface;
 
 /**
  * Backend-neutral stroke line-cap. Mirrors

@@ -5,8 +5,8 @@ import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.metrics.TextMeasurer;
 import com.excudo.core.model.*;
 import com.excudo.view.rendering.*;
-import com.excudo.view.rendering.surface.RenderSurface;
-import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
 

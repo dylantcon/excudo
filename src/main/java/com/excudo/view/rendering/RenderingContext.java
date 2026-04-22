@@ -1,8 +1,8 @@
 package com.excudo.view.rendering;
 
 import com.excudo.view.rendering.surface.CanvasRenderSurface;
-import com.excudo.view.rendering.surface.RenderSurface;
-import com.excudo.view.rendering.surface.SurfacePaint;
+import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.SurfacePaint;
 import javafx.scene.canvas.GraphicsContext;
 import java.util.HashMap;
 import java.util.Map;
@@ -178,7 +178,7 @@ public class RenderingContext {
     public void clearCanvas() {
         // Clear with transparent; callers that want a specific
         // background paint on top call surface.clear(paint) directly.
-        surface.clear(com.excudo.view.rendering.surface.SurfacePaint.Transparent.INSTANCE);
+        surface.clear(com.excudo.core.rendering.surface.SurfacePaint.Transparent.INSTANCE);
     }
     
     /**
@@ -197,7 +197,7 @@ public class RenderingContext {
         saveState();
         try {
             javafx.geometry.Rectangle2D bounds = getZoomedCoordinateMapper().getSlideBounds();
-            surface.setStroke(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(169, 169, 169)); // DARKGRAY
+            surface.setStroke(com.excudo.core.rendering.surface.SurfacePaint.Solid.rgb(169, 169, 169)); // DARKGRAY
             surface.setLineWidth(2.0);
             surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
                                bounds.getWidth(), bounds.getHeight());
@@ -212,7 +212,7 @@ public class RenderingContext {
     private void drawCoordinateGrid() {
         saveState();
         try {
-            surface.setStroke(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(211, 211, 211)); // LIGHTGRAY
+            surface.setStroke(com.excudo.core.rendering.surface.SurfacePaint.Solid.rgb(211, 211, 211)); // LIGHTGRAY
             surface.setLineWidth(0.5);
             surface.setGlobalAlpha(0.3);
 
@@ -259,8 +259,8 @@ public class RenderingContext {
         if (showSpids || debugMode) {
             saveState();
             try {
-                surface.setFill(com.excudo.view.rendering.surface.SurfacePaint.Solid.rgb(255, 0, 0)); // RED
-                surface.setFont(com.excudo.view.rendering.surface.SurfaceFont.of("Monospaced", 10));
+                surface.setFill(com.excudo.core.rendering.surface.SurfacePaint.Solid.rgb(255, 0, 0)); // RED
+                surface.setFont(com.excudo.core.rendering.surface.SurfaceFont.of("Monospaced", 10));
                 surface.fillText("SPID:" + spid, position.getX() + 5, position.getY() - 5);
             } finally {
                 restoreState();
@@ -272,8 +272,8 @@ public class RenderingContext {
      * Set up graphics context for shape rendering
      */
     public void setupForShapeRendering() {
-        surface.setLineCap(com.excudo.view.rendering.surface.StrokeCap.ROUND);
-        surface.setLineJoin(com.excudo.view.rendering.surface.StrokeJoin.ROUND);
+        surface.setLineCap(com.excudo.core.rendering.surface.StrokeCap.ROUND);
+        surface.setLineJoin(com.excudo.core.rendering.surface.StrokeJoin.ROUND);
         surface.setMiterLimit(10.0);
     }
 

@@ -95,6 +95,7 @@ class PCBuilder:
             ("core operations", "src/main/java/com/excudo/core/operations/*.java"),
             ("core geometry", "src/main/java/com/excudo/core/geometry/*.java"),
             ("core metrics", "src/main/java/com/excudo/core/metrics/*.java"),
+            ("core rendering surface", "src/main/java/com/excudo/core/rendering/surface/*.java"),
             ("smartcontent", "src/main/java/com/excudo/core/smartcontent/*.java"),
             ("core parsing", "src/main/java/com/excudo/core/parsing/*.java"),
             ("prism4j grammars", "src/main/java/com/excudo/core/llm/prism/*.java"),
