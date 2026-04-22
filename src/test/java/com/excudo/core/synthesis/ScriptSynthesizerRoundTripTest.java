@@ -1,5 +1,7 @@
 package com.excudo.core.synthesis;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;
 import com.excudo.core.model.PPTXDocument;

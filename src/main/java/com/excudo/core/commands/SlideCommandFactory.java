@@ -1,5 +1,10 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.deck.CopySlideCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
+import com.excudo.core.commands.mutating.deck.MoveSlideCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.ParsedCommand;
 import com.excudo.xml.writers.SlideCreator;

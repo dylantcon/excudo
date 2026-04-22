@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.DuplicateShapeCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.test.utils.StubPPTXOrchestrator;

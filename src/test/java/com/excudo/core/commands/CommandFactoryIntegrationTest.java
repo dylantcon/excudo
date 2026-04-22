@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+
 import com.excudo.core.commands.RequestSchema;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestrator;

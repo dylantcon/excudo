@@ -1,5 +1,8 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LLMCommand;
+import com.excudo.core.commands.meta.LLMConfigCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 
 /**

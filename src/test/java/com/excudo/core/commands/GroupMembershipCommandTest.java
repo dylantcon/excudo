@@ -1,5 +1,9 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.AddToGroupCommand;
+import com.excudo.core.commands.mutating.slide.DetachFromGroupCommand;
+import com.excudo.core.commands.mutating.slide.GroupShapesCommand;
+
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;

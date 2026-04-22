@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+
 import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.model.SlideShape;

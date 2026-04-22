@@ -1,20 +1,20 @@
 package com.excudo.core.synthesis.spec;
 
-import com.excudo.core.commands.AddShapeCommand;
-import com.excudo.core.commands.AnimationEditCommand;
-import com.excudo.core.commands.ClearTransitionCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AnimationEditCommand;
+import com.excudo.core.commands.mutating.slide.ClearTransitionCommand;
 import com.excudo.core.commands.Command;
-import com.excudo.core.commands.ContentEditCommand;
-import com.excudo.core.commands.GroupShapesCommand;
-import com.excudo.core.commands.MoveShapeCommand;
-import com.excudo.core.commands.RemoveAnimationCommand;
-import com.excudo.core.commands.RemoveShapeCommand;
-import com.excudo.core.commands.ReorderShapeCommand;
-import com.excudo.core.commands.ResizeShapeCommand;
-import com.excudo.core.commands.RotateShapeCommand;
-import com.excudo.core.commands.SetStyleCommand;
-import com.excudo.core.commands.SetTransitionCommand;
-import com.excudo.core.commands.UngroupCommand;
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.GroupShapesCommand;
+import com.excudo.core.commands.mutating.slide.MoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.RemoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.ReorderShapeCommand;
+import com.excudo.core.commands.mutating.slide.ResizeShapeCommand;
+import com.excudo.core.commands.mutating.slide.RotateShapeCommand;
+import com.excudo.core.commands.mutating.slide.SetStyleCommand;
+import com.excudo.core.commands.mutating.slide.SetTransitionCommand;
+import com.excudo.core.commands.mutating.slide.UngroupCommand;
 import com.excudo.core.model.TextBody;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
@@ -55,11 +55,11 @@ public final class SpecToCommandMapper {
                                                         s.newWidth(), s.newHeight(), orchestrator);
             case CommandSpec.RotateSpec s        -> new RotateShapeCommand(s.slideNumber(), s.spid(),
                                                         s.newRotationDegrees(), orchestrator);
-            case CommandSpec.RenameShapeSpec s   -> new com.excudo.core.commands.RenameShapeCommand(
+            case CommandSpec.RenameShapeSpec s   -> new com.excudo.core.commands.mutating.slide.RenameShapeCommand(
                                                         s.slideNumber(), s.spid(), s.newName(), orchestrator);
-            case CommandSpec.SetTextBoxFlagSpec s -> new com.excudo.core.commands.SetTextBoxFlagCommand(
+            case CommandSpec.SetTextBoxFlagSpec s -> new com.excudo.core.commands.mutating.slide.SetTextBoxFlagCommand(
                                                         s.slideNumber(), s.spid(), s.flag(), orchestrator);
-            case CommandSpec.SetRunFormatSpec s   -> new com.excudo.core.commands.UpdateRunFormatCommand(
+            case CommandSpec.SetRunFormatSpec s   -> new com.excudo.core.commands.mutating.slide.UpdateRunFormatCommand(
                                                         s.slideNumber(), s.spid(), s.paragraphIdx(), s.runIdx(),
                                                         s.newRun(), orchestrator);
             case CommandSpec.SetTextSpec s       -> buildSetText(s);
@@ -72,7 +72,7 @@ public final class SpecToCommandMapper {
                                                         (GroupIdManager) null);
             case CommandSpec.RemoveAnimationSpec s -> new RemoveAnimationCommand(
                                                         s.slideNumber(), s.timingNodeId(), orchestrator);
-            case CommandSpec.SetAnimationTimingSpec s -> new com.excudo.core.commands.UpdateAnimationTimingCommand(
+            case CommandSpec.SetAnimationTimingSpec s -> new com.excudo.core.commands.mutating.slide.UpdateAnimationTimingCommand(
                                                         s.slideNumber(), s.timingNodeId(),
                                                         s.newDuration(), s.newDelay(), orchestrator);
             case CommandSpec.SetTransitionSpec s -> new SetTransitionCommand(s.slideNumber(),
@@ -82,9 +82,9 @@ public final class SpecToCommandMapper {
             case CommandSpec.CreateGroupSpec s   -> new GroupShapesCommand(s.slideNumber(),
                                                         s.childSpids(), orchestrator);
             case CommandSpec.UngroupSpec s       -> new UngroupCommand(s.slideNumber(), s.groupSpid(), orchestrator);
-            case CommandSpec.AddToGroupSpec s    -> new com.excudo.core.commands.AddToGroupCommand(
+            case CommandSpec.AddToGroupSpec s    -> new com.excudo.core.commands.mutating.slide.AddToGroupCommand(
                                                         s.slideNumber(), s.groupSpid(), s.childSpid(), orchestrator);
-            case CommandSpec.DetachFromGroupSpec s -> new com.excudo.core.commands.DetachFromGroupCommand(
+            case CommandSpec.DetachFromGroupSpec s -> new com.excudo.core.commands.mutating.slide.DetachFromGroupCommand(
                                                         s.slideNumber(), s.childSpid(), orchestrator);
         };
     }

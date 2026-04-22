@@ -1,0 +1,176 @@
+package com.excudo.core.commands.readonly;
+
+import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandDisplay;
+import com.excudo.core.commands.CommandExecutionException;
+
+import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.orchestration.SlideMetadata;
+import com.excudo.core.model.SlideShape;
+import com.excudo.core.model.ParagraphMetadata;
+import com.excudo.core.inspection.SlideInspector;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * GoF Command for displaying detailed information about a specific slide.
+ * 
+ * This is a read-only query command that shows slide content, shapes,
+ * and metadata using existing console utilities. Does not support undo
+ * since it performs no mutations.
+ */
+public class ShowSlideCommand implements Command {
+    
+    private final PPTXOrchestrator orchestrator;
+    private final CommandDisplay display;
+    private final int slideNumber;
+    private boolean executed = false;
+    
+    
+    /**
+     * Create a ShowSlideCommand.
+     * 
+     * @param orchestrator the PPTX orchestrator for querying slide data
+     * @param display the console display interface
+     * @param slideNumber the slide number to show (1-based)
+     */
+    public ShowSlideCommand(PPTXOrchestrator orchestrator, CommandDisplay display, int slideNumber) {
+        if (orchestrator == null) {
+            throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
+        }
+        if (display == null) {
+            throw new IllegalArgumentException("CommandDisplay cannot be null");
+        }
+        if (slideNumber < 1) {
+            throw new IllegalArgumentException("Slide number must be positive");
+        }
+        this.orchestrator = orchestrator;
+        this.display = display;
+        this.slideNumber = slideNumber;
+    }
+    
+    @Override
+    public void execute() {
+        if (executed) {
+            throw new CommandExecutionException(getDescription(), "execute", "Command has already been executed");
+        }
+        
+        try {
+            // Check if presentation is loaded
+            Optional<com.excudo.core.orchestration.OrchestrationContext> context = orchestrator.getContext();
+            if (context.isEmpty()) {
+                display.displayError("No presentation loaded. Use 'load <filename>' to open a presentation.");
+                executed = true;
+                return;
+            }
+            
+            // Validate slide number
+            int slideCount = orchestrator.getPresentationMetadata().getSlideCount();
+            if (slideNumber > slideCount) {
+                display.displayError(String.format("Slide %d does not exist. Presentation has %d slides.", 
+                    slideNumber, slideCount));
+                executed = true;
+                return;
+            }
+            
+            // Get slide metadata
+            Optional<SlideMetadata> slideMetadata = orchestrator.getSlideMetadata(slideNumber);
+            if (slideMetadata.isEmpty()) {
+                display.displayError(String.format("Unable to read metadata for slide %d", slideNumber));
+                executed = true;
+                return;
+            }
+            
+            SlideMetadata slide = slideMetadata.get();
+            
+            // Display slide header
+            display.displayMessage(String.format("=== Slide %d ===", slideNumber));
+            display.displayMessage(String.format("Title: %s", 
+                slide.getTitle() != null ? slide.getTitle() : "(No title)"));
+            display.displayMessage(String.format("Layout: %s", slide.getLayoutName()));
+            display.displayMessage(String.format("Type: %s", slide.getType()));
+            display.displayMessage("");
+            
+            // Display shape information
+            if (slide.getShapeCount() == 0) {
+                display.displayMessage("No shapes on this slide.");
+            } else {
+                display.displayMessage(String.format("Shapes (%d):", slide.getShapeCount()));
+                
+                // Try to get detailed shape information using SlideInspector
+                try {
+                    List<SlideShape> shapes = SlideInspector.getSlideShapes(
+                        orchestrator, slideNumber);
+                    
+                    if (shapes.isEmpty()) {
+                        display.displayMessage("  SPIDs: " + slide.getSpids());
+                    } else {
+                        for (SlideShape shape : shapes) {
+                            display.displayMessage(String.format("  SPID %d: %s",
+                                shape.getSpid(), shape.getType()));
+                            displayShapeText(shape);
+                        }
+                    }
+                } catch (Exception e) {
+                    // Fallback to basic SPID list
+                    display.displayMessage("  SPIDs: " + slide.getSpids());
+                }
+            }
+            
+            // Display animation information
+            if (slide.getAnimationCount() > 0) {
+                display.displayMessage("");
+                display.displayMessage(String.format("Animations: %d", slide.getAnimationCount()));
+                display.displayMessage("  Use 'list-animations " + slideNumber + "' for detailed animation info");
+            }
+            
+            executed = true;
+            
+        } catch (Exception e) {
+            throw new CommandExecutionException(getDescription(), "execute", 
+                "Failed to show slide " + slideNumber + ": " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
+    public void undo() {
+        throw new CommandExecutionException(getDescription(), "undo", 
+            "ShowSlideCommand is read-only and does not support undo");
+    }
+    
+    @Override
+    public boolean canUndo() {
+        return false; // Read-only operation
+    }
+    
+    @Override
+    public boolean isExecuted() {
+        return executed;
+    }
+    
+    @Override
+    public String getDescription() {
+        return "Show slide " + slideNumber;
+    }
+
+    private void displayShapeText(SlideShape shape) {
+        ParagraphMetadata meta = shape.getParagraphMetadata();
+        if (meta != null && meta.getParagraphCount() > 0) {
+            for (int i = 0; i < meta.getParagraphCount(); i++) {
+                String content = meta.getParagraphContent(i);
+                if (content == null || content.trim().isEmpty()) continue;
+                if (meta.isParagraphBullet(i)) {
+                    String marker = meta.getBulletMarker(i);
+                    display.displayMessage(String.format("    %s %s", marker != null ? marker : "-", content));
+                } else {
+                    display.displayMessage(String.format("    \"%s\"", content));
+                }
+            }
+        } else if (shape.getTextContent() != null && !shape.getTextContent().trim().isEmpty()) {
+            String preview = shape.getTextContent().length() > 80
+                ? shape.getTextContent().substring(0, 77) + "..."
+                : shape.getTextContent();
+            display.displayMessage(String.format("    Text: \"%s\"", preview));
+        }
+    }
+}

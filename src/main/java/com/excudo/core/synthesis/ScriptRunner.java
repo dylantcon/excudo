@@ -1,6 +1,6 @@
 package com.excudo.core.synthesis;
 
-import com.excudo.core.commands.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.orchestration.PPTXOrchestrator;

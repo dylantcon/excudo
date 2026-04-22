@@ -686,8 +686,8 @@ public class ToolDispatcher {
             if (slideNumber <= 0) {
                 return "Error: slideNumber is required (positive integer).";
             }
-            com.excudo.core.commands.SynthesizeSlideScriptCommand cmd =
-                new com.excudo.core.commands.SynthesizeSlideScriptCommand(slideNumber, orchestrator);
+            com.excudo.core.commands.readonly.SynthesizeSlideScriptCommand cmd =
+                new com.excudo.core.commands.readonly.SynthesizeSlideScriptCommand(slideNumber, orchestrator);
             try {
                 commandInvoker.executeCommand(cmd);
             } catch (com.excudo.core.commands.CommandExecutionException e) {
@@ -726,8 +726,8 @@ public class ToolDispatcher {
             if (scriptJson == null || scriptJson.isBlank()) {
                 return "Error: script is required (JSON array of CommandSpec objects).";
             }
-            com.excudo.core.commands.RunSlideScriptCommand cmd =
-                new com.excudo.core.commands.RunSlideScriptCommand(
+            com.excudo.core.commands.mutating.slide.RunSlideScriptCommand cmd =
+                new com.excudo.core.commands.mutating.slide.RunSlideScriptCommand(
                     slideNumber, scriptJson, orchestrator, displayAdapter);
             try {
                 commandInvoker.executeCommand(cmd);
@@ -1365,7 +1365,7 @@ public class ToolDispatcher {
                 displayPath = outputFile.getAbsolutePath();
             }
 
-            com.excudo.core.commands.RenderSlideCommand.SlideRenderFunction renderFn =
+            com.excudo.core.commands.readonly.RenderSlideCommand.SlideRenderFunction renderFn =
                 com.excudo.core.commands.UtilityCommandFactory.getSlideRenderFunction();
             if (renderFn == null) {
                 return "Error: Render function not registered. Start from console to enable rendering.";

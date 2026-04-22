@@ -1,6 +1,6 @@
 package com.excudo.view.components;
 
-import com.excudo.core.commands.RunSlideScriptCommand;
+import com.excudo.core.commands.mutating.slide.RunSlideScriptCommand;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.synthesis.ReactiveSynthesizer;

@@ -1,5 +1,10 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.RedoCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.readonly.HelpCommand;
+import com.excudo.core.commands.readonly.HistoryCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.ParsedCommand;
 import java.util.Set;

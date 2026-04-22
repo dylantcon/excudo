@@ -1,6 +1,6 @@
 package com.excudo.core.geometry;
 
-import com.excudo.core.commands.MoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.MoveShapeCommand;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeRegistry;

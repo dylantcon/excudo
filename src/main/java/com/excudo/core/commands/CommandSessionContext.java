@@ -1,5 +1,9 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LoadCommand;
+import com.excudo.core.commands.meta.SaveCommand;
+import com.excudo.core.commands.readonly.ShowShapeCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import java.io.File;
 

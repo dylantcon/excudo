@@ -1,5 +1,26 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.theme.ApplyThemeCommand;
+import com.excudo.core.commands.mutating.theme.CreateThemeCommand;
+import com.excudo.core.commands.mutating.theme.DeleteThemeCommand;
+import com.excudo.core.commands.mutating.theme.EditThemeCommand;
+import com.excudo.core.commands.readonly.DumpShapeCommand;
+import com.excudo.core.commands.readonly.DumpTimingCommand;
+import com.excudo.core.commands.readonly.ListAnimationTypesCommand;
+import com.excudo.core.commands.readonly.ListAnimationsCommand;
+import com.excudo.core.commands.readonly.ListArrangeOpsCommand;
+import com.excudo.core.commands.readonly.ListLayoutsCommand;
+import com.excudo.core.commands.readonly.ListNotesCommand;
+import com.excudo.core.commands.readonly.ListShapeTypesCommand;
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.readonly.ListSpidsCommand;
+import com.excudo.core.commands.readonly.ListThemesCommand;
+import com.excudo.core.commands.readonly.ListTransitionTypesCommand;
+import com.excudo.core.commands.readonly.RenderSlideCommand;
+import com.excudo.core.commands.readonly.ShowShapeCommand;
+import com.excudo.core.commands.readonly.ShowSlideCommand;
+import com.excudo.core.commands.readonly.ShowThemeCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.ParsedCommand;
 import java.util.Set;

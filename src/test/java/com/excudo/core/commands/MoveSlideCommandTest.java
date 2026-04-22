@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.deck.MoveSlideCommand;
+
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestratorImpl;
 import com.excudo.core.orchestration.PresentationScaffolder;

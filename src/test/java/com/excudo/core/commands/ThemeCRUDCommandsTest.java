@@ -1,5 +1,10 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.theme.CreateThemeCommand;
+import com.excudo.core.commands.mutating.theme.DeleteThemeCommand;
+import com.excudo.core.commands.mutating.theme.EditThemeCommand;
+import com.excudo.core.commands.readonly.ShowThemeCommand;
+
 import com.excudo.core.themes.BundledThemes;
 import com.excudo.core.themes.ThemeDefinition;
 import com.excudo.core.themes.ThemeJsonSerializer;

@@ -1,5 +1,14 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LoadCommand;
+import com.excudo.core.commands.meta.NewPresentationCommand;
+import com.excudo.core.commands.meta.SaveCommand;
+import com.excudo.core.commands.meta.SessionCloseCommand;
+import com.excudo.core.commands.meta.SessionCreateCommand;
+import com.excudo.core.commands.meta.SessionInfoCommand;
+import com.excudo.core.commands.meta.SessionListCommand;
+import com.excudo.core.commands.meta.SessionSwitchCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.ParsedCommand;
 import java.util.Set;

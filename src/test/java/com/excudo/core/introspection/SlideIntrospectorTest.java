@@ -1,5 +1,7 @@
 package com.excudo.core.introspection;
 
+import com.excudo.core.commands.mutating.slide.GroupShapesCommand;
+
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;
 import com.excudo.core.model.LayoutInfo;
@@ -213,7 +215,7 @@ public class SlideIntrospectorTest {
             "", "B", ShapeStyle.defaultStyle());
         int aSpid = r1.getData().orElseThrow();
         int bSpid = r2.getData().orElseThrow();
-        new com.excudo.core.commands.GroupShapesCommand(1,
+        new com.excudo.core.commands.mutating.slide.GroupShapesCommand(1,
             java.util.List.of(aSpid, bSpid), orchestrator).execute();
         int groupSpid = -1;
         var parsed = orchestrator.getContext().get().getDocument().getParsedSlideData(1,

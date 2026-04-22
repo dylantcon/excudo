@@ -1,5 +1,8 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LoadCommand;
+import com.excudo.core.commands.meta.SessionCreateCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import java.io.File;
 

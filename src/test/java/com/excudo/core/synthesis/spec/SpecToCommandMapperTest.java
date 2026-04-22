@@ -1,5 +1,7 @@
 package com.excudo.core.synthesis.spec;
 
+import com.excudo.core.commands.mutating.slide.ReorderShapeCommand;
+
 import com.excudo.core.commands.Command;
 import com.excudo.core.introspection.SlideIntrospector;
 import com.excudo.core.model.AnimationBinding;

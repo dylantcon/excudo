@@ -1,5 +1,27 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LoadCommand;
+import com.excudo.core.commands.meta.RedoCommand;
+import com.excudo.core.commands.meta.SaveCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.mutating.deck.CopySlideCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
+import com.excudo.core.commands.mutating.slide.AnimationEditCommand;
+import com.excudo.core.commands.mutating.slide.BulletPointEditCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
+import com.excudo.core.commands.readonly.DumpShapeCommand;
+import com.excudo.core.commands.readonly.DumpTimingCommand;
+import com.excudo.core.commands.readonly.HelpCommand;
+import com.excudo.core.commands.readonly.IconCommand;
+import com.excudo.core.commands.readonly.ListAnimationTypesCommand;
+import com.excudo.core.commands.readonly.ListAnimationsCommand;
+import com.excudo.core.commands.readonly.ListLayoutsCommand;
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.readonly.ListSpidsCommand;
+import com.excudo.core.commands.readonly.ShowSlideCommand;
+
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;

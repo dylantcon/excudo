@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.SetStyleCommand;
+
 import com.excudo.core.model.ShapeStyle;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
