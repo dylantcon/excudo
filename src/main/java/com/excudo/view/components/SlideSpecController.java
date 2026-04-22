@@ -196,11 +196,29 @@ public class SlideSpecController {
         if (idx < 0) { showInfo("Select a spec first."); return; }
         if (!ensureStaged()) return;
         CommandSpec current = stagedSpecs.get(idx);
-        String currentJson = CommandSpecJson.toJson(current);
 
+        // Prefer the typed form dialog when we have one for this spec type.
+        // Fall through to the raw-JSON editor only for types without a
+        // bespoke form (e.g. SetTextSpec's TextBody, AddAnimationSpec's
+        // timing + effect params, SetShapeStyleSpec).
+        if (SpecFormDialog.hasTypedForm(current)) {
+            Optional<CommandSpec> edited = SpecFormDialog.editSpec(current);
+            if (edited.isEmpty()) return;
+            stagedSpecs.set(idx, edited.get());
+            renderStaged();
+            slideSpecListView.getSelectionModel().select(idx);
+            return;
+        }
+
+        editSpecAsJson(idx, current);
+    }
+
+    /** Fallback raw-JSON edit for spec types without a typed form. */
+    private void editSpecAsJson(int idx, CommandSpec current) {
+        String currentJson = CommandSpecJson.toJson(current);
         javafx.scene.control.Dialog<String> dlg = new javafx.scene.control.Dialog<>();
-        dlg.setTitle("Edit spec [" + idx + "]");
-        dlg.setHeaderText("Edit the JSON representation of this spec.");
+        dlg.setTitle("Edit spec [" + idx + "] (JSON)");
+        dlg.setHeaderText("No typed form yet — edit JSON directly.");
         javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(pretty(currentJson));
         area.setPrefRowCount(18);
         area.setPrefColumnCount(60);
