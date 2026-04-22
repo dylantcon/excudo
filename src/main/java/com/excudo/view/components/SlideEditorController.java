@@ -77,6 +77,14 @@ public class SlideEditorController implements Initializable {
     private int currentSlideNumber = -1;
     private double zoomLevel = 1.0;
 
+    // Base canvas dimensions — the size the canvas would be at zoomLevel=1.0,
+    // computed from the viewport's 16:9-fit. Actual canvas size is
+    // baseCanvasWidth * zoomLevel; this keeps the ScrollPane scrollable
+    // when the user zooms past 1.0 (content extends beyond the viewport
+    // and the ScrollPane surfaces scrollbars for pan-via-drag).
+    private double baseCanvasWidth = 720;
+    private double baseCanvasHeight = 540;
+
     // Resize debouncing. JavaFX's viewportBoundsProperty fires continuously
     // during a window drag (dozens to hundreds of events per second). Without
     // coalescing, each one triggers a full SlideRenderer rebuild + re-render,
@@ -499,16 +507,12 @@ public class SlideEditorController implements Initializable {
     
     @FXML
     public void handleZoomFit() {
-        if (slideCanvas != null && canvasScrollPane != null) {
-            double scrollWidth = canvasScrollPane.getViewportBounds().getWidth();
-            double scrollHeight = canvasScrollPane.getViewportBounds().getHeight();
-            
-            double scaleX = scrollWidth / slideCanvas.getWidth();
-            double scaleY = scrollHeight / slideCanvas.getHeight();
-            
-            zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 90% to leave some margin
-            updateZoom();
-        }
+        // baseCanvasWidth/Height is the 16:9 fit computed from the
+        // viewport — zoom=1.0 IS the fit. A small 95% scale leaves a
+        // visible margin around the slide so the user can see where
+        // the canvas ends vs. the surrounding grey area.
+        zoomLevel = 0.95;
+        updateZoom();
     }
     
     /**
@@ -524,17 +528,10 @@ public class SlideEditorController implements Initializable {
      * Enhanced zoom fit with configurable margins
      */
     public void zoomFitWithMargin(double marginPercentage) {
-        if (slideCanvas != null && canvasScrollPane != null) {
-            double scrollWidth = canvasScrollPane.getViewportBounds().getWidth();
-            double scrollHeight = canvasScrollPane.getViewportBounds().getHeight();
-            
-            double scaleX = scrollWidth / slideCanvas.getWidth();
-            double scaleY = scrollHeight / slideCanvas.getHeight();
-            
-            double marginFactor = 1.0 - (marginPercentage / 100.0);
-            zoomLevel = Math.min(scaleX, scaleY) * marginFactor;
-            updateZoom();
-        }
+        // Base is the 16:9 viewport fit; apply the margin reduction
+        // directly as the new zoom level.
+        zoomLevel = Math.max(0.1, 1.0 - (marginPercentage / 100.0));
+        updateZoom();
     }
     
     /**
@@ -786,7 +783,13 @@ public class SlideEditorController implements Initializable {
     // ========== UTILITY METHODS ==========
     
     private void updateZoom() {
-        if (slideCanvas != null && slideRenderer != null) {
+        if (slideCanvas == null) return;
+        // Resize the canvas to match the new zoom so ScrollPane becomes
+        // scrollable when content exceeds the viewport. applyCanvasSize
+        // rebuilds slideRenderer against the new dimensions, so the
+        // coordinate-mapper zoom must be re-applied after.
+        applyCanvasSize();
+        if (slideRenderer != null) {
             slideRenderer.getRenderingContext().getCoordinateMapper().setZoomLevel(zoomLevel);
             if (livePreviewManager != null) {
                 applyRenderingOptions();
@@ -811,14 +814,29 @@ public class SlideEditorController implements Initializable {
         if (slideCanvas == null) return;
 
         double aspect = 12192000.0 / 6858000.0;
-        double w, h;
         if (vpWidth / vpHeight > aspect) {
-            h = vpHeight;
-            w = h * aspect;
+            baseCanvasHeight = vpHeight;
+            baseCanvasWidth = baseCanvasHeight * aspect;
         } else {
-            w = vpWidth;
-            h = w / aspect;
+            baseCanvasWidth = vpWidth;
+            baseCanvasHeight = baseCanvasWidth / aspect;
         }
+
+        applyCanvasSize();
+    }
+
+    /**
+     * Set the canvas's actual size to the base size scaled by the current
+     * zoom level, and rebuild the renderer against the new dimensions.
+     * When zoomLevel > 1 the canvas grows beyond the viewport and the
+     * enclosing ScrollPane surfaces scrollbars; pan-via-drag (already
+     * enabled via setPannable(true)) then lets the user reach clipped
+     * content.
+     */
+    private void applyCanvasSize() {
+        if (slideCanvas == null) return;
+        double w = baseCanvasWidth * zoomLevel;
+        double h = baseCanvasHeight * zoomLevel;
 
         if (Math.abs(slideCanvas.getWidth() - w) < 2 && Math.abs(slideCanvas.getHeight() - h) < 2) {
             return;
