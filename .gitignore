@@ -139,3 +139,4 @@ CLAUDE.md
 # Legacy timing-tree dumps (pre-rename-to-Excudo). No current code writes here.
 .presentation-choreographer/
 test-pptx-samples/design-patterns-presentation.pptx
+javac.*.args
