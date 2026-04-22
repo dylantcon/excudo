@@ -57,18 +57,19 @@
       <VBox fx:id="centerStack" spacing="0.0">
          <!-- Session tabs (fx:include -> panels/SessionTabBar.fxml) -->
          <fx:include fx:id="sessionTabBarInclude" source="panels/SessionTabBar.fxml" />
-      <SplitPane fx:id="mainSplitPane" dividerPositions="0.2" VBox.vgrow="ALWAYS">
+      <SplitPane fx:id="mainSplitPane" dividerPositions="0.2,0.75" VBox.vgrow="ALWAYS">
          <!-- Left Panel: Presentation Explorer (fx:include -> panels/PresentationExplorer.fxml) -->
          <fx:include fx:id="presentationExplorerInclude" source="panels/PresentationExplorer.fxml" />
 
-         <!-- Center Panel: Main Content with Bottom Dock -->
+         <!-- Center Panel: Canvas above, Console + Properties dock below -->
          <SplitPane fx:id="centerRightSplit" dividerPositions="0.65" orientation="VERTICAL">
             <!-- Center: Slide Preview (fx:include -> panels/SlideCanvas.fxml) -->
             <fx:include fx:id="slideCanvasInclude" source="panels/SlideCanvas.fxml" />
 
             <!-- Bottom Dock: Console + Properties side-by-side.
-                 TabPane hosts both; tab switching avoids cramping the
-                 bottom dock vertically when both are visible. -->
+                 SlideSpec used to live here as a third tab; it's been
+                 promoted to a persistent RHS aside (below) so the
+                 synthesized script is always visible while editing. -->
             <TabPane fx:id="bottomTabPane" minHeight="150.0">
                <Tab fx:id="consoleTab" closable="false" text="Console">
                   <fx:include fx:id="consoleInclude" source="panels/Console.fxml" />
@@ -76,11 +77,13 @@
                <Tab fx:id="propertiesTab" closable="false" text="Properties">
                   <fx:include fx:id="propertiesInclude" source="panels/Properties.fxml" />
                </Tab>
-               <Tab fx:id="slideSpecTab" closable="false" text="SlideSpec">
-                  <fx:include fx:id="slideSpecInclude" source="panels/SlideSpec.fxml" />
-               </Tab>
             </TabPane>
          </SplitPane>
+
+         <!-- Right Panel: SlideSpec aside (fx:include -> panels/SlideSpec.fxml).
+              Persistent view of the synthesized command script for the
+              active slide. Follows the active slide selection. -->
+         <fx:include fx:id="slideSpecInclude" source="panels/SlideSpec.fxml" />
       </SplitPane>
       </VBox>
    </center>

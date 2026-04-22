@@ -418,7 +418,7 @@ public class SlideSpecController {
             case CommandSpec.RotateSpec r ->
                 String.format("Rotate spid=%d %.2f°", r.spid(), r.newRotationDegrees());
             case CommandSpec.RenameShapeSpec r ->
-                "Rename spid=" + r.spid() + " → " + r.newName();
+                "Rename spid=" + r.spid() + " to " + r.newName();
             case CommandSpec.SetTextSpec st ->
                 "SetText spid=" + st.spid() + " ("
                     + st.textBody().getParagraphs().size() + "p)";

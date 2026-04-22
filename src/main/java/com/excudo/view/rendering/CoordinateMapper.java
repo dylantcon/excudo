@@ -71,7 +71,7 @@ public class CoordinateMapper {
         this.offsetY = (canvasHeight - scaledSlideHeight) / 2.0;
     }
     
-    // ========== EMU ↔ PIXEL CONVERSION ==========
+    // ========== EMU / PIXEL CONVERSION ==========
     
     /**
      * Convert EMU to pixel (base conversion without scaling)
@@ -94,7 +94,7 @@ public class CoordinateMapper {
         return pixelToEmu(pixels);
     }
     
-    // ========== POWERPOINT → JAVAFX MAPPING ==========
+    // ========== POWERPOINT TO JAVAFX MAPPING ==========
     
     /**
      * Convert PowerPoint EMU coordinates to JavaFX canvas coordinates
@@ -129,7 +129,7 @@ public class CoordinateMapper {
         return emuToPixels(emuDimension) * scaleX * zoomLevel;
     }
     
-    // ========== JAVAFX → POWERPOINT MAPPING ==========
+    // ========== JAVAFX TO POWERPOINT MAPPING ==========
     
     /**
      * Convert JavaFX canvas coordinates to PowerPoint EMU coordinates

@@ -83,9 +83,8 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private VBox centerPanel;
     @FXML private TabPane bottomTabPane;
     @FXML private Tab propertiesTab;
-    @FXML private Tab slideSpecTab;
-    /** Root node of the included SlideSpec.fxml panel. JavaFX auto-injects
-     *  via the fx:id on the fx:include; its sibling
+    /** Root node of the included SlideSpec.fxml panel (RHS aside post-6.12).
+     *  JavaFX auto-injects via the fx:id on the fx:include; its sibling
      *  {@code slideSpecIncludeController} holds the controller instance. */
     @FXML private javafx.scene.layout.VBox slideSpecInclude;
     @FXML private SlideSpecController slideSpecIncludeController;

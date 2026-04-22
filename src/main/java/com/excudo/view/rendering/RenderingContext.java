@@ -84,7 +84,7 @@ public class RenderingContext {
     // ========== COORDINATE MAPPING ==========
     
     /**
-     * Get coordinate mapper for EMU ↔ Canvas conversion
+     * Get coordinate mapper for EMU / Canvas conversion
      */
     public CoordinateMapper getCoordinateMapper() {
         return coordinateMapper;

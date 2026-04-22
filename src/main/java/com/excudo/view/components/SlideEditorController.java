@@ -838,18 +838,24 @@ public class SlideEditorController implements Initializable {
     }
 
     private void clearCanvas() {
-        if (slideCanvas != null) {
-            GraphicsContext gc = slideCanvas.getGraphicsContext2D();
-            gc.clearRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
-            
-            // Draw background
-            gc.setFill(Color.WHITE);
-            gc.fillRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
-            
-            // Draw border
-            gc.setStroke(Color.LIGHTGRAY);
-            gc.strokeRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
+        if (slideCanvas == null) return;
+        GraphicsContext gc = slideCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
+
+        // Only paint the white "slide" background when a slide is
+        // actually loaded. In the empty-session state the canvas gets
+        // hidden so the ScrollPane's grey background shows through —
+        // users see the app is idle, not a fake blank slide.
+        if (currentSlideDocument == null && currentSlideData == null) {
+            slideCanvas.setVisible(false);
+            return;
         }
+
+        slideCanvas.setVisible(true);
+        gc.setFill(Color.WHITE);
+        gc.fillRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
+        gc.setStroke(Color.LIGHTGRAY);
+        gc.strokeRect(0, 0, slideCanvas.getWidth(), slideCanvas.getHeight());
     }
     
     private void updateButtonStates() {
