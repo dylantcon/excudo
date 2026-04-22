@@ -82,6 +82,20 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private VBox centerPanel;
     @FXML private TabPane bottomTabPane;
     @FXML private Tab propertiesTab;
+    @FXML private Tab slideSpecTab;
+    @FXML private ListView<String> slideSpecListView;
+    @FXML private Label slideSpecTitle;
+    @FXML private Label slideSpecWarnings;
+    @FXML private Button slideSpecCopyJsonButton;
+    @FXML private Button slideSpecApplyToNewButton;
+    @FXML private Button slideSpecApplyToExistingButton;
+    @FXML private Button slideSpecEditButton;
+    @FXML private Button slideSpecDuplicateButton;
+    @FXML private Button slideSpecDeleteButton;
+    @FXML private Button slideSpecMoveUpButton;
+    @FXML private Button slideSpecMoveDownButton;
+    @FXML private Button slideSpecResetButton;
+    @FXML private Label slideSpecStagedBadge;
     @FXML private TabPane sessionTabPane;
     @FXML private Button newSessionButton;
 
@@ -119,6 +133,7 @@ public class MainController implements Initializable, OrchestrationStateListener
     private TechnicalConsoleController consoleController;
     private PropertiesController propertiesController;
     private com.excudo.view.components.SessionTabController sessionTabController;
+    private com.excudo.view.components.SlideSpecController slideSpecController;
 
 
     // ========== STATE ==========
@@ -388,6 +403,34 @@ public class MainController implements Initializable, OrchestrationStateListener
             sessionTabController = new com.excudo.view.components.SessionTabController();
             sessionTabController.setTabPane(sessionTabPane);
             sessionTabController.setNewSessionButton(newSessionButton);
+
+            // SlideSpec tab: renders the synthesizer's output for the
+            // active slide. Wires to the bottom-dock FXML widgets and
+            // to the active session's orchestrator (via session listener).
+            slideSpecController = new com.excudo.view.components.SlideSpecController();
+            slideSpecController.setListView(slideSpecListView);
+            slideSpecController.setTitleLabel(slideSpecTitle);
+            slideSpecController.setWarningsLabel(slideSpecWarnings);
+            slideSpecController.setCopyJsonButton(slideSpecCopyJsonButton);
+            slideSpecController.setApplyToNewButton(slideSpecApplyToNewButton);
+            slideSpecController.setApplyToExistingButton(slideSpecApplyToExistingButton);
+            slideSpecController.setStagedBadge(slideSpecStagedBadge);
+            slideSpecController.setEditButton(slideSpecEditButton);
+            slideSpecController.setDuplicateButton(slideSpecDuplicateButton);
+            slideSpecController.setDeleteButton(slideSpecDeleteButton);
+            slideSpecController.setMoveUpButton(slideSpecMoveUpButton);
+            slideSpecController.setMoveDownButton(slideSpecMoveDownButton);
+            slideSpecController.setResetButton(slideSpecResetButton);
+            // Bind to the active orchestrator on session changes.
+            SessionManager.getInstance().addStateListener(
+                new com.excudo.core.orchestration.OrchestrationStateListener() {
+                    @Override
+                    public void onActiveSessionChanged(String sessionId,
+                            com.excudo.core.orchestration.PPTXOrchestrator orchestrator) {
+                        javafx.application.Platform.runLater(() ->
+                            slideSpecController.bindToOrchestrator(orchestrator));
+                    }
+                });
 
         } catch (Exception e) {
             System.err.println("Failed to initialize component controllers: " + e.getMessage());
@@ -769,7 +812,14 @@ public class MainController implements Initializable, OrchestrationStateListener
             var slideMetadata = orch.getSlideMetadata(slideNumber);
             slideMetadata.ifPresent(metadata -> propertiesController.displaySlideProperties(metadata));
         }
-        
+
+        // SlideSpec tab mirrors the active slide so the synthesizer
+        // output the user sees always matches the canvas.
+        if (slideSpecController != null) {
+            slideSpecController.bindToOrchestrator(orch);
+            slideSpecController.setActiveSlide(slideNumber);
+        }
+
         showStatus("Selected slide " + slideNumber);
     }
     
