@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  Slide Canvas panel: slide-preview header + ScrollPane hosting the
+  programmatically-created Canvas. Consumed as the center pane of the
+  vertical SplitPane via fx:include. Controller owns all @FXML
+  injection; the Canvas itself is created and added in code because
+  its size tracks slide geometry dynamically.
+-->
+<VBox fx:id="canvasPane"
+      xmlns="http://javafx.com/javafx/11.0.1"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.excudo.view.components.SlideEditorController"
+      spacing="0.0">
+   <HBox spacing="8.0" alignment="CENTER_LEFT"
+         style="-fx-padding: 4 8; -fx-background-color: #2d2d2d;">
+      <Label text="Slide Preview" style="-fx-text-fill: #cccccc; -fx-font-size: 11px;" />
+   </HBox>
+   <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS"
+               fitToWidth="true" fitToHeight="true"
+               style="-fx-background-color: #3c3c3c;">
+      <!-- Canvas injected programmatically by SlideEditorController. -->
+   </ScrollPane>
+</VBox>

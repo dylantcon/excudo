@@ -57,6 +57,7 @@ public class PresentationExplorerController implements Initializable, Orchestrat
         // a long-lived singleton in the GUI; listener fan-out is
         // idempotent, so no cleanup is wired here.
         SessionManager.getInstance().addStateListener(this);
+        refreshFromActiveSession();
     }
 
     // ========== OrchestrationStateListener ==========
@@ -111,43 +112,13 @@ public class PresentationExplorerController implements Initializable, Orchestrat
     // ========== INITIALIZATION ==========
     
     /**
-     * Set reference to main controller
+     * Set reference to main controller. Called by MainController after
+     * fx:include auto-injection resolves this controller.
      */
     public void setMainController(MainController mainController) {
         this.mainController = mainController;
     }
-    
-    /**
-     * Set the TreeView component from FXML
-     */
-    public void setPresentationTree(TreeView<String> presentationTree) {
-        this.presentationTree = presentationTree;
-        setupTreeView(); // Setup the tree now that we have the component
-        setupEventHandlers();
-    }
-    
-    /**
-     * Set the presentation info label (manual injection)
-     */
-    public void setPresentationInfo(Label presentationInfo) {
-        this.presentationInfo = presentationInfo;
-    }
-    
-    /**
-     * Set the buttons (manual injection)
-     */
-    public void setButtons(Button addSlideButton, Button deleteSlideButton, 
-                          Button moveUpButton, Button moveDownButton, Button refreshButton) {
-        this.addSlideButton = addSlideButton;
-        this.deleteSlideButton = deleteSlideButton;
-        this.moveUpButton = moveUpButton;
-        this.moveDownButton = moveDownButton;
-        this.refreshButton = refreshButton;
-        
-        // Setup event handlers after injection
-        setupEventHandlers();
-    }
-    
+
     private void setupTreeView() {
         // Create root item
         rootItem = new TreeItem<>("No Presentation Loaded");
@@ -162,35 +133,15 @@ public class PresentationExplorerController implements Initializable, Orchestrat
         }
     }
     
-    // Per-component guards so setupEventHandlers() is idempotent. FXML
-    // initialize() and the manual setPresentationTree / setButtons
-    // injections each call this method, and without guards the tree
-    // selection listener was attached 2-3x -- every click emitted as
-    // many slide-switch events as times setupEventHandlers had run.
-    private boolean treeListenerAttached = false;
-    private boolean buttonHandlersAttached = false;
-
     private void setupEventHandlers() {
-        if (presentationTree != null && !treeListenerAttached) {
-            presentationTree.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, newValue) -> handleSlideSelection(newValue)
-            );
-            treeListenerAttached = true;
-        }
-
-        if (!buttonHandlersAttached) {
-            if (refreshButton != null)     refreshButton.setOnAction(e -> handleRefresh());
-            if (addSlideButton != null)    addSlideButton.setOnAction(e -> handleAddSlide());
-            if (deleteSlideButton != null) deleteSlideButton.setOnAction(e -> handleDeleteSlide());
-            if (moveUpButton != null)      moveUpButton.setOnAction(e -> handleMoveSlideUp());
-            if (moveDownButton != null)    moveDownButton.setOnAction(e -> handleMoveSlideDown());
-
-            // Only flip the flag once the buttons actually exist -- they
-            // get injected after initialize() via setButtons, so an early
-            // no-op call shouldn't poison the guard.
-            buttonHandlersAttached = refreshButton != null || addSlideButton != null
-                || deleteSlideButton != null || moveUpButton != null || moveDownButton != null;
-        }
+        presentationTree.getSelectionModel().selectedItemProperty().addListener(
+            (observable, oldValue, newValue) -> handleSlideSelection(newValue)
+        );
+        refreshButton.setOnAction(e -> handleRefresh());
+        addSlideButton.setOnAction(e -> handleAddSlide());
+        deleteSlideButton.setOnAction(e -> handleDeleteSlide());
+        moveUpButton.setOnAction(e -> handleMoveSlideUp());
+        moveDownButton.setOnAction(e -> handleMoveSlideDown());
     }
     
     private void setupInitialState() {

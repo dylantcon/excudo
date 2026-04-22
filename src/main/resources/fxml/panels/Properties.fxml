@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  Properties panel: context-sensitive read-out of slide / shape / group
+  state. Consumed as a Tab's content in MainApplication.fxml via
+  fx:include. Controller owns all @FXML injection.
+-->
+<VBox fx:id="propertiesPanel"
+      xmlns="http://javafx.com/javafx/11.0.1"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.excudo.view.components.PropertiesController"
+      spacing="5.0"
+      style="-fx-padding: 5px;">
+   <Label fx:id="propertiesTitle" text="Properties" style="-fx-font-weight: bold;" />
+   <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS" />
+   <HBox spacing="5.0">
+      <Button fx:id="refreshPropertiesButton" text="Refresh" />
+   </HBox>
+</VBox>

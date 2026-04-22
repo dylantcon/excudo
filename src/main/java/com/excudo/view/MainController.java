@@ -9,6 +9,7 @@ import com.excudo.view.components.PresentationExplorerController;
 import com.excudo.view.components.SlideEditorController;
 import com.excudo.view.components.TechnicalConsoleController;
 import com.excudo.view.components.PropertiesController;
+import com.excudo.view.components.SlideSpecController;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -83,45 +84,31 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private TabPane bottomTabPane;
     @FXML private Tab propertiesTab;
     @FXML private Tab slideSpecTab;
-    @FXML private ListView<String> slideSpecListView;
-    @FXML private Label slideSpecTitle;
-    @FXML private Label slideSpecWarnings;
-    @FXML private Button slideSpecCopyJsonButton;
-    @FXML private Button slideSpecApplyToNewButton;
-    @FXML private Button slideSpecApplyToExistingButton;
-    @FXML private Button slideSpecEditButton;
-    @FXML private Button slideSpecDuplicateButton;
-    @FXML private Button slideSpecDeleteButton;
-    @FXML private Button slideSpecMoveUpButton;
-    @FXML private Button slideSpecMoveDownButton;
-    @FXML private Button slideSpecResetButton;
-    @FXML private Label slideSpecStagedBadge;
-    @FXML private TabPane sessionTabPane;
-    @FXML private Button newSessionButton;
+    /** Root node of the included SlideSpec.fxml panel. JavaFX auto-injects
+     *  via the fx:id on the fx:include; its sibling
+     *  {@code slideSpecIncludeController} holds the controller instance. */
+    @FXML private javafx.scene.layout.VBox slideSpecInclude;
+    @FXML private SlideSpecController slideSpecIncludeController;
+    // Session tab bar (fx:include -> panels/SessionTabBar.fxml)
+    @FXML private javafx.scene.layout.HBox sessionTabBarInclude;
+    @FXML private com.excudo.view.components.SessionTabController sessionTabBarIncludeController;
 
-    // Presentation Explorer
-    @FXML private TreeView<String> presentationTree;
-    @FXML private Label presentationInfo;
-    @FXML private Button addSlideButton;
-    @FXML private Button deleteSlideButton;
-    @FXML private Button moveUpButton;
-    @FXML private Button moveDownButton;
-    @FXML private Button refreshButton;
+    // Presentation Explorer (fx:include -> panels/PresentationExplorer.fxml)
+    @FXML private javafx.scene.layout.VBox presentationExplorerInclude;
+    @FXML private PresentationExplorerController presentationExplorerIncludeController;
     
-    // Slide Editor
-    @FXML private ScrollPane canvasScrollPane;
+    // Slide Canvas (fx:include -> panels/SlideCanvas.fxml)
+    @FXML private javafx.scene.layout.VBox slideCanvasInclude;
+    @FXML private SlideEditorController slideCanvasIncludeController;
 
-    // Console
+    // Console (fx:include -> panels/Console.fxml)
     @FXML private Tab consoleTab;
-    @FXML private ScrollPane consoleScrollPane;
-    @FXML private javafx.scene.text.TextFlow consoleOutput;
-    @FXML private TextField commandInput;
-    @FXML private Button executeButton;
+    @FXML private javafx.scene.layout.VBox consoleInclude;
+    @FXML private TechnicalConsoleController consoleIncludeController;
 
-    // Properties
-    @FXML private TableView propertiesTable;
-    @FXML private Label propertiesTitle;
-    @FXML private Button refreshPropertiesButton;
+    // Properties (fx:include -> panels/Properties.fxml)
+    @FXML private javafx.scene.layout.VBox propertiesInclude;
+    @FXML private PropertiesController propertiesIncludeController;
     
     // ========== CONTROLLERS ==========
 
@@ -374,53 +361,40 @@ public class MainController implements Initializable, OrchestrationStateListener
     private void setupComponentControllers() {
         // Initialize component controllers and connect them to FXML components
         try {
-            // Initialize presentation explorer controller and connect to tree
-            explorerController = new PresentationExplorerController();
+            // Presentation explorer — controller is FXML-injected via
+            // fx:include. Keep a field reference so existing call-sites
+            // can drive metadata refreshes.
+            explorerController = presentationExplorerIncludeController;
             explorerController.setMainController(this);
-            explorerController.setPresentationTree(presentationTree);
-            explorerController.setPresentationInfo(presentationInfo);
-            explorerController.setButtons(addSlideButton, deleteSlideButton, 
-                                         moveUpButton, moveDownButton, refreshButton);
             
-            // Initialize slide editor controller and connect to preview components
-            editorController = new SlideEditorController();
+            // Slide editor — controller is FXML-injected via fx:include.
+            editorController = slideCanvasIncludeController;
             editorController.setMainController(this);
-            editorController.setCanvasScrollPane(canvasScrollPane);
 
-            // Initialize console controller and connect to console components
-            consoleController = new TechnicalConsoleController();
+            // Console — controller is FXML-injected via fx:include. It
+            // already ran @FXML initialize() when the include loaded;
+            // we wire the mainController reference and fire the
+            // post-scene-ready hook for engine + silhouette setup.
+            consoleController = consoleIncludeController;
             consoleController.setMainController(this);
-            consoleController.setConsoleComponents(consoleOutput, consoleScrollPane, commandInput, executeButton);
+            consoleController.postSceneReady();
 
-            // Initialize properties controller and connect to properties table
-            propertiesController = new PropertiesController();
+            // Properties — controller is FXML-injected via fx:include.
+            propertiesController = propertiesIncludeController;
             propertiesController.setMainController(this);
-            propertiesController.setPropertiesTable(propertiesTable);
 
-            // Session tab bar: drives multi-session switching from the UI.
-            // The controller subscribes to SessionManager internally and
-            // keeps its tab state synchronized.
-            sessionTabController = new com.excudo.view.components.SessionTabController();
-            sessionTabController.setTabPane(sessionTabPane);
-            sessionTabController.setNewSessionButton(newSessionButton);
+            // Session tab bar — FXML-injected controller drives
+            // multi-session switching from the UI. The controller
+            // subscribes to SessionManager internally and keeps its tab
+            // state synchronized.
+            sessionTabController = sessionTabBarIncludeController;
 
-            // SlideSpec tab: renders the synthesizer's output for the
-            // active slide. Wires to the bottom-dock FXML widgets and
-            // to the active session's orchestrator (via session listener).
-            slideSpecController = new com.excudo.view.components.SlideSpecController();
-            slideSpecController.setListView(slideSpecListView);
-            slideSpecController.setTitleLabel(slideSpecTitle);
-            slideSpecController.setWarningsLabel(slideSpecWarnings);
-            slideSpecController.setCopyJsonButton(slideSpecCopyJsonButton);
-            slideSpecController.setApplyToNewButton(slideSpecApplyToNewButton);
-            slideSpecController.setApplyToExistingButton(slideSpecApplyToExistingButton);
-            slideSpecController.setStagedBadge(slideSpecStagedBadge);
-            slideSpecController.setEditButton(slideSpecEditButton);
-            slideSpecController.setDuplicateButton(slideSpecDuplicateButton);
-            slideSpecController.setDeleteButton(slideSpecDeleteButton);
-            slideSpecController.setMoveUpButton(slideSpecMoveUpButton);
-            slideSpecController.setMoveDownButton(slideSpecMoveDownButton);
-            slideSpecController.setResetButton(slideSpecResetButton);
+            // SlideSpec tab — the controller is now FXML-injected via
+            // panels/SlideSpec.fxml's fx:controller declaration. We keep
+            // a reference on this field so MainController can drive
+            // slide-selection events, but widget wiring happens inside
+            // the sub-controller's @FXML initialize().
+            slideSpecController = slideSpecIncludeController;
             // Bind to the active orchestrator on session changes.
             SessionManager.getInstance().addStateListener(
                 new com.excudo.core.orchestration.OrchestrationStateListener() {

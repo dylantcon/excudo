@@ -4,6 +4,8 @@ import com.excudo.core.orchestration.OrchestrationStateListener;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.SessionManager;
 import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -11,9 +13,11 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 
 import java.io.File;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ResourceBundle;
 
 /**
  * Session-tab UI. One tab per active session; clicking a tab routes
@@ -29,10 +33,10 @@ import java.util.Optional;
  * Tab ordering follows SessionManager's iteration order, which is
  * insertion-ordered by {@link java.util.LinkedHashMap}.
  */
-public class SessionTabController implements OrchestrationStateListener {
+public class SessionTabController implements OrchestrationStateListener, Initializable {
 
-    private TabPane tabPane;
-    private Button newSessionButton;
+    @FXML private TabPane sessionTabPane;
+    @FXML private Button newSessionButton;
     private final Map<String, Tab> tabsByLayerSessionId = new HashMap<>();
     private boolean suppressActivation = false;
 
@@ -40,36 +44,21 @@ public class SessionTabController implements OrchestrationStateListener {
         SessionManager.getInstance().addStateListener(this);
     }
 
-    public void setTabPane(TabPane tabPane) {
-        this.tabPane = tabPane;
-        if (tabPane != null) {
-            // When the user clicks a tab, activate the backing session.
-            tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-                if (suppressActivation || newTab == null) return;
-                String sessionId = (String) newTab.getUserData();
-                if (sessionId != null) {
-                    try {
-                        SessionManager.getInstance().setActiveSession(sessionId);
-                    } catch (RuntimeException ex) {
-                        showError("Could not switch session: " + ex.getMessage());
-                    }
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        sessionTabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (suppressActivation || newTab == null) return;
+            String sessionId = (String) newTab.getUserData();
+            if (sessionId != null) {
+                try {
+                    SessionManager.getInstance().setActiveSession(sessionId);
+                } catch (RuntimeException ex) {
+                    showError("Could not switch session: " + ex.getMessage());
                 }
-            });
-            // Intercept tab close requests so dirty sessions prompt first.
-            tabPane.addEventFilter(Tab.TAB_CLOSE_REQUEST_EVENT, e -> {
-                // Event filter runs before default close handler; not
-                // wired here because JavaFX's tab close routing is
-                // actually on each Tab via setOnCloseRequest.
-            });
-        }
+            }
+        });
+        newSessionButton.setOnAction(e -> createNewSession());
         refreshFromManager();
-    }
-
-    public void setNewSessionButton(Button newSessionButton) {
-        this.newSessionButton = newSessionButton;
-        if (newSessionButton != null) {
-            newSessionButton.setOnAction(e -> createNewSession());
-        }
     }
 
     // ========== Listener methods ==========
@@ -93,20 +82,20 @@ public class SessionTabController implements OrchestrationStateListener {
 
     /** Rebuild the tab list from SessionManager's current snapshot. */
     private void refreshFromManager() {
-        if (tabPane == null) return;
+        if (sessionTabPane == null) return;
         suppressActivation = true;
         try {
             SessionManager mgr = SessionManager.getInstance();
             var ids = mgr.getActiveSessionIds();
             // Remove tabs whose backing session disappeared.
-            tabPane.getTabs().removeIf(t -> !ids.contains(t.getUserData()));
+            sessionTabPane.getTabs().removeIf(t -> !ids.contains(t.getUserData()));
             tabsByLayerSessionId.keySet().retainAll(ids);
             // Add tabs for any new session.
             for (String id : ids) {
                 if (tabsByLayerSessionId.containsKey(id)) continue;
                 Tab t = buildTab(id);
                 tabsByLayerSessionId.put(id, t);
-                tabPane.getTabs().add(t);
+                sessionTabPane.getTabs().add(t);
             }
             // Refresh tab labels (file may have been saved-as, rename).
             for (String id : ids) {
@@ -116,7 +105,7 @@ public class SessionTabController implements OrchestrationStateListener {
             // Highlight the active tab.
             String active = mgr.getActiveSessionId();
             if (active != null && tabsByLayerSessionId.containsKey(active)) {
-                tabPane.getSelectionModel().select(tabsByLayerSessionId.get(active));
+                sessionTabPane.getSelectionModel().select(tabsByLayerSessionId.get(active));
             }
         } finally {
             suppressActivation = false;

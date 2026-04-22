@@ -94,42 +94,25 @@ public class SlideEditorController implements Initializable {
     
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        // canvasScrollPane is FXML-injected now; configure it before
+        // setupComponents reads it.
+        if (canvasScrollPane != null) {
+            canvasScrollPane.setPannable(true);
+            canvasScrollPane.setFitToWidth(true);
+            canvasScrollPane.setFitToHeight(true);
+        }
         setupComponents();
         setupEventHandlers();
         setupCanvas();
         setupInitialState();
     }
-    
-    // ========== INITIALIZATION ==========
-    
+
     /**
-     * Set reference to main controller
+     * Set reference to main controller. Called by MainController after
+     * fx:include auto-injection resolves this controller.
      */
     public void setMainController(MainController mainController) {
         this.mainController = mainController;
-        
-    }
-    
-    
-    /**
-     * Set the canvas scroll pane component from FXML
-     */
-    public void setCanvasScrollPane(ScrollPane canvasScrollPane) {
-        this.canvasScrollPane = canvasScrollPane;
-        if (canvasScrollPane != null) {
-            canvasScrollPane.setPannable(true);
-            canvasScrollPane.setFitToWidth(true);
-            canvasScrollPane.setFitToHeight(true);
-            
-            // If we don't have a canvas yet, create one and add it to the scroll pane
-            if (slideCanvas == null) {
-                setupCanvas();
-            }
-            
-            System.out.println("Canvas ScrollPane successfully configured");
-        } else {
-            System.err.println("ERROR: Canvas ScrollPane not injected via FXML - visual preview will not be available");
-        }
     }
     
     private void setupComponents() {

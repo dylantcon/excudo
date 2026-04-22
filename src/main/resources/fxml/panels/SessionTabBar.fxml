@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  Session tab bar: one tab per active presentation session + a '+' button
+  for creating new sessions. Consumed via fx:include at the top of the
+  center stack. Controller subscribes to SessionManager internally.
+-->
+<HBox fx:id="sessionTabBar"
+      xmlns="http://javafx.com/javafx/11.0.1"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.excudo.view.components.SessionTabController"
+      spacing="4.0"
+      style="-fx-padding: 4 8; -fx-background-color: #2a2a2a;">
+   <TabPane fx:id="sessionTabPane" tabClosingPolicy="SELECTED_TAB" HBox.hgrow="ALWAYS" minHeight="28.0" />
+   <Button fx:id="newSessionButton" text="+" style="-fx-min-width: 28;" />
+</HBox>

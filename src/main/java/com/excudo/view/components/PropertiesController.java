@@ -39,24 +39,15 @@ public class PropertiesController implements Initializable {
         setupTable();
         setupEventHandlers();
     }
-    
-    // ========== INITIALIZATION ==========
-    
+
     /**
-     * Set reference to main controller
+     * Set reference to main controller. Called by MainController after
+     * fx:include auto-injection resolves this controller.
      */
     public void setMainController(MainController mainController) {
         this.mainController = mainController;
     }
-    
-    /**
-     * Set the properties table from FXML
-     */
-    public void setPropertiesTable(TableView<PropertyItem> propertiesTable) {
-        this.propertiesTable = propertiesTable;
-        setupTable();
-    }
-    
+
     private void setupTable() {
         if (propertiesTable != null) {
             // Configure columns

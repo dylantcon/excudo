@@ -10,6 +10,7 @@ import com.excudo.core.synthesis.spec.CommandSpecJson;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceDialog;
@@ -34,12 +35,20 @@ import java.util.Optional;
  */
 public class SlideSpecController {
 
-    private ListView<String> listView;
-    private Label titleLabel;
-    private Label warningsLabel;
-    private Button copyJsonButton;
-    private Button applyToNewButton;
-    private Button applyToExistingButton;
+    // @FXML-injected from panels/SlideSpec.fxml.
+    @FXML private ListView<String> slideSpecListView;
+    @FXML private Label slideSpecTitle;
+    @FXML private Label slideSpecWarnings;
+    @FXML private Label slideSpecStagedBadge;
+    @FXML private Button slideSpecCopyJsonButton;
+    @FXML private Button slideSpecApplyToNewButton;
+    @FXML private Button slideSpecApplyToExistingButton;
+    @FXML private Button slideSpecEditButton;
+    @FXML private Button slideSpecDuplicateButton;
+    @FXML private Button slideSpecDeleteButton;
+    @FXML private Button slideSpecMoveUpButton;
+    @FXML private Button slideSpecMoveDownButton;
+    @FXML private Button slideSpecResetButton;
 
     private final ObservableList<String> rowLabels = FXCollections.observableArrayList();
     private ReactiveSynthesizer reactive;
@@ -52,69 +61,35 @@ public class SlideSpecController {
     // the view to the staged script and sets the "Staged" badge; Reset
     // returns to the synthesized view.
     private List<CommandSpec> stagedSpecs;
-    private javafx.scene.control.Label stagedBadge;
-    private javafx.scene.control.Button editButton;
-    private javafx.scene.control.Button duplicateButton;
-    private javafx.scene.control.Button deleteButton;
-    private javafx.scene.control.Button moveUpButton;
-    private javafx.scene.control.Button moveDownButton;
-    private javafx.scene.control.Button resetButton;
 
-    // ========== Setters (wired from MainController after FXML load) ==========
-
-    public void setListView(ListView<String> listView) {
-        this.listView = listView;
-        if (listView != null) {
-            listView.setItems(rowLabels);
-            listView.setOnMouseClicked(e -> {
+    /** JavaFX calls this after @FXML injection finishes. Wires up
+     *  button actions + the double-click handler once every node is live. */
+    @FXML
+    private void initialize() {
+        if (slideSpecListView != null) {
+            slideSpecListView.setItems(rowLabels);
+            slideSpecListView.setOnMouseClicked(e -> {
                 if (e.getClickCount() == 2) editSelected();
             });
         }
-    }
-
-    public void setStagedBadge(javafx.scene.control.Label badge) { this.stagedBadge = badge; }
-
-    public void setEditButton(javafx.scene.control.Button btn) {
-        this.editButton = btn;
-        if (btn != null) btn.setOnAction(e -> editSelected());
-    }
-    public void setDuplicateButton(javafx.scene.control.Button btn) {
-        this.duplicateButton = btn;
-        if (btn != null) btn.setOnAction(e -> duplicateSelected());
-    }
-    public void setDeleteButton(javafx.scene.control.Button btn) {
-        this.deleteButton = btn;
-        if (btn != null) btn.setOnAction(e -> deleteSelected());
-    }
-    public void setMoveUpButton(javafx.scene.control.Button btn) {
-        this.moveUpButton = btn;
-        if (btn != null) btn.setOnAction(e -> moveSelected(-1));
-    }
-    public void setMoveDownButton(javafx.scene.control.Button btn) {
-        this.moveDownButton = btn;
-        if (btn != null) btn.setOnAction(e -> moveSelected(+1));
-    }
-    public void setResetButton(javafx.scene.control.Button btn) {
-        this.resetButton = btn;
-        if (btn != null) btn.setOnAction(e -> resetToSynthesized());
-    }
-
-    public void setTitleLabel(Label label) { this.titleLabel = label; }
-    public void setWarningsLabel(Label label) { this.warningsLabel = label; }
-
-    public void setCopyJsonButton(Button button) {
-        this.copyJsonButton = button;
-        if (button != null) button.setOnAction(e -> copyJsonToClipboard());
-    }
-
-    public void setApplyToNewButton(Button button) {
-        this.applyToNewButton = button;
-        if (button != null) button.setOnAction(e -> applyToNewSlide());
-    }
-
-    public void setApplyToExistingButton(Button button) {
-        this.applyToExistingButton = button;
-        if (button != null) button.setOnAction(e -> applyToExistingSlide());
+        if (slideSpecCopyJsonButton != null)
+            slideSpecCopyJsonButton.setOnAction(e -> copyJsonToClipboard());
+        if (slideSpecApplyToNewButton != null)
+            slideSpecApplyToNewButton.setOnAction(e -> applyToNewSlide());
+        if (slideSpecApplyToExistingButton != null)
+            slideSpecApplyToExistingButton.setOnAction(e -> applyToExistingSlide());
+        if (slideSpecEditButton != null)
+            slideSpecEditButton.setOnAction(e -> editSelected());
+        if (slideSpecDuplicateButton != null)
+            slideSpecDuplicateButton.setOnAction(e -> duplicateSelected());
+        if (slideSpecDeleteButton != null)
+            slideSpecDeleteButton.setOnAction(e -> deleteSelected());
+        if (slideSpecMoveUpButton != null)
+            slideSpecMoveUpButton.setOnAction(e -> moveSelected(-1));
+        if (slideSpecMoveDownButton != null)
+            slideSpecMoveDownButton.setOnAction(e -> moveSelected(+1));
+        if (slideSpecResetButton != null)
+            slideSpecResetButton.setOnAction(e -> resetToSynthesized());
     }
 
     /** Attach this controller to the given orchestrator. Pulls the
@@ -166,27 +141,27 @@ public class SlideSpecController {
         if (stagedSpecs != null) {
             return;
         }
-        if (titleLabel != null) {
-            titleLabel.setText("SlideSpec: slide " + slideNumber
+        if (slideSpecTitle != null) {
+            slideSpecTitle.setText("SlideSpec: slide " + slideNumber
                 + " (" + (r != null ? r.script().size() : 0) + " commands)");
         }
         rowLabels.clear();
         if (r == null) {
-            if (warningsLabel != null) warningsLabel.setText("");
+            if (slideSpecWarnings != null) slideSpecWarnings.setText("");
             return;
         }
         List<CommandSpec> order = r.script().topologicalOrder();
         for (int i = 0; i < order.size(); i++) {
             rowLabels.add("[" + i + "] " + summarize(order.get(i)));
         }
-        if (warningsLabel != null) {
+        if (slideSpecWarnings != null) {
             if (r.warnings().isEmpty()) {
-                warningsLabel.setText("");
+                slideSpecWarnings.setText("");
             } else {
-                warningsLabel.setText("Warnings: " + String.join(" | ", r.warnings()));
+                slideSpecWarnings.setText("Warnings: " + String.join(" | ", r.warnings()));
             }
         }
-        if (stagedBadge != null) stagedBadge.setText("");
+        if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("");
     }
 
     /** Refresh the list view from the staged script. Called after every
@@ -197,7 +172,7 @@ public class SlideSpecController {
         for (int i = 0; i < stagedSpecs.size(); i++) {
             rowLabels.add("[" + i + "] " + summarize(stagedSpecs.get(i)) + "  (edited)");
         }
-        if (stagedBadge != null) stagedBadge.setText("Staged — edits not yet applied");
+        if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("Staged — edits not yet applied");
     }
 
     /** Ensure stagedSpecs is non-null; initialize from the last synthesized
@@ -213,7 +188,7 @@ public class SlideSpecController {
     }
 
     private int selectedIndex() {
-        return listView != null ? listView.getSelectionModel().getSelectedIndex() : -1;
+        return slideSpecListView != null ? slideSpecListView.getSelectionModel().getSelectedIndex() : -1;
     }
 
     private void editSelected() {
@@ -243,7 +218,7 @@ public class SlideSpecController {
             CommandSpec parsed = CommandSpecJson.fromJson(edited.get());
             stagedSpecs.set(idx, parsed);
             renderStaged();
-            listView.getSelectionModel().select(idx);
+            slideSpecListView.getSelectionModel().select(idx);
         } catch (RuntimeException ex) {
             showError("Failed to parse edited JSON: " + ex.getMessage());
         }
@@ -255,7 +230,7 @@ public class SlideSpecController {
         if (!ensureStaged()) return;
         stagedSpecs.add(idx + 1, stagedSpecs.get(idx));
         renderStaged();
-        listView.getSelectionModel().select(idx + 1);
+        slideSpecListView.getSelectionModel().select(idx + 1);
     }
 
     private void deleteSelected() {
@@ -265,7 +240,7 @@ public class SlideSpecController {
         stagedSpecs.remove(idx);
         renderStaged();
         if (!stagedSpecs.isEmpty()) {
-            listView.getSelectionModel().select(Math.min(idx, stagedSpecs.size() - 1));
+            slideSpecListView.getSelectionModel().select(Math.min(idx, stagedSpecs.size() - 1));
         }
     }
 
@@ -278,7 +253,7 @@ public class SlideSpecController {
         CommandSpec spec = stagedSpecs.remove(idx);
         stagedSpecs.add(target, spec);
         renderStaged();
-        listView.getSelectionModel().select(target);
+        slideSpecListView.getSelectionModel().select(target);
     }
 
     private void resetToSynthesized() {
@@ -300,8 +275,8 @@ public class SlideSpecController {
     private void clearView() {
         lastResult = null;
         rowLabels.clear();
-        if (titleLabel != null) titleLabel.setText("SlideSpec (no slide selected)");
-        if (warningsLabel != null) warningsLabel.setText("");
+        if (slideSpecTitle != null) slideSpecTitle.setText("SlideSpec (no slide selected)");
+        if (slideSpecWarnings != null) slideSpecWarnings.setText("");
     }
 
     // ========== Actions ==========
@@ -462,9 +437,4 @@ public class SlideSpecController {
         a.showAndWait();
     }
 
-    // Silence unused field sink so the listView / labels / buttons
-    // referenced only via setters remain intentionally wired.
-    @SuppressWarnings("unused")
-    private Object refSink() { return new Object[] { listView, titleLabel, warningsLabel,
-        copyJsonButton, applyToNewButton, applyToExistingButton, reactive }; }
 }

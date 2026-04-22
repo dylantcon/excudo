@@ -119,27 +119,16 @@ public class TechnicalConsoleController implements Initializable {
     }
     
     /**
-     * Set console components from FXML
+     * Post-FXML-init hook for the silhouette + engine now that the
+     * scene graph is ready. FXML auto-injection populates the widget
+     * fields so this does not take them as arguments.
      */
-    public void setConsoleComponents(TextFlow consoleOutput, ScrollPane consoleScrollPane,
-                                     TextField commandInput, Button executeButton) {
-        this.consoleOutput = consoleOutput;
-        this.consoleScrollPane = consoleScrollPane;
-        this.commandInput = commandInput;
-        this.executeButton = executeButton;
-
-        // Re-setup components now that we have them
-        setupComponents();
-        setupEventHandlers();
-        setupInitialState();
-        
+    public void postSceneReady() {
         // Defer silhouette setup to ensure scene graph is ready
         if (commandInput != null) {
-            Platform.runLater(() -> {
-                setupInlineSilhouette();
-            });
+            Platform.runLater(this::setupInlineSilhouette);
         }
-        
+
         // Initialise the engine as soon as the main controller is wired
         // up; post Session Unification we can't wait for an active-session
         // orchestrator because there isn't one until the user opens a deck.

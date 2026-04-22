@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<!--
+  SlideSpec panel: live-synthesized CommandScript viewer + editor.
+  Consumed as a Tab's content in MainApplication.fxml via fx:include.
+  Controller owns all @FXML injection.
+-->
+<VBox fx:id="slideSpecPanel"
+      xmlns="http://javafx.com/javafx/11.0.1"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.excudo.view.components.SlideSpecController"
+      spacing="5.0"
+      style="-fx-padding: 5px;">
+   <HBox spacing="5.0" alignment="CENTER_LEFT">
+      <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
+      <Region HBox.hgrow="ALWAYS" />
+      <Button fx:id="slideSpecCopyJsonButton" text="Copy JSON" />
+      <Button fx:id="slideSpecApplyToNewButton" text="Apply to new slide" />
+      <Button fx:id="slideSpecApplyToExistingButton" text="Apply to existing..." />
+   </HBox>
+   <HBox spacing="5.0" alignment="CENTER_LEFT">
+      <Button fx:id="slideSpecEditButton" text="Edit" />
+      <Button fx:id="slideSpecDuplicateButton" text="Duplicate" />
+      <Button fx:id="slideSpecDeleteButton" text="Delete" />
+      <Button fx:id="slideSpecMoveUpButton" text="Up" />
+      <Button fx:id="slideSpecMoveDownButton" text="Down" />
+      <Region HBox.hgrow="ALWAYS" />
+      <Label fx:id="slideSpecStagedBadge" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" />
+      <Button fx:id="slideSpecResetButton" text="Reset to synthesized" />
+   </HBox>
+   <ListView fx:id="slideSpecListView" VBox.vgrow="ALWAYS" />
+   <Label fx:id="slideSpecWarnings" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" wrapText="true" />
+</VBox>

@@ -2,7 +2,6 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.text.TextFlow?>
 
 <BorderPane fx:id="rootPane" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.excudo.view.MainController">
    <top>
@@ -56,86 +55,29 @@
    </top>
    <center>
       <VBox fx:id="centerStack" spacing="0.0">
-         <!-- Session tabs: one per active presentation, + for new. -->
-         <HBox fx:id="sessionTabBar" spacing="4.0" style="-fx-padding: 4 8; -fx-background-color: #2a2a2a;">
-            <TabPane fx:id="sessionTabPane" tabClosingPolicy="SELECTED_TAB" HBox.hgrow="ALWAYS" minHeight="28.0" />
-            <Button fx:id="newSessionButton" text="+" style="-fx-min-width: 28;" />
-         </HBox>
+         <!-- Session tabs (fx:include -> panels/SessionTabBar.fxml) -->
+         <fx:include fx:id="sessionTabBarInclude" source="panels/SessionTabBar.fxml" />
       <SplitPane fx:id="mainSplitPane" dividerPositions="0.2" VBox.vgrow="ALWAYS">
-         <!-- Left Panel: Presentation Explorer -->
-         <VBox fx:id="leftPanel" spacing="5.0">
-            <Label text="Presentation Explorer" />
-            <TreeView fx:id="presentationTree" VBox.vgrow="ALWAYS" />
-            <Label fx:id="presentationInfo" text="No presentation loaded" wrapText="true" />
-            <FlowPane hgap="5.0" vgap="5.0">
-               <Button fx:id="addSlideButton" text="Add" />
-               <Button fx:id="deleteSlideButton" text="Delete" />
-               <Button fx:id="moveUpButton" text="Up" />
-               <Button fx:id="moveDownButton" text="Down" />
-               <Button fx:id="refreshButton" text="Refresh" />
-            </FlowPane>
-         </VBox>
+         <!-- Left Panel: Presentation Explorer (fx:include -> panels/PresentationExplorer.fxml) -->
+         <fx:include fx:id="presentationExplorerInclude" source="panels/PresentationExplorer.fxml" />
 
          <!-- Center Panel: Main Content with Bottom Dock -->
          <SplitPane fx:id="centerRightSplit" dividerPositions="0.65" orientation="VERTICAL">
-            <!-- Center: Slide Preview -->
-            <VBox fx:id="centerPanel" spacing="0.0">
-               <HBox spacing="8.0" alignment="CENTER_LEFT" style="-fx-padding: 4 8; -fx-background-color: #2d2d2d;">
-                  <Label text="Slide Preview" style="-fx-text-fill: #cccccc; -fx-font-size: 11px;" />
-               </HBox>
-               <ScrollPane fx:id="canvasScrollPane" VBox.vgrow="ALWAYS"
-                           fitToWidth="true" fitToHeight="true"
-                           style="-fx-background-color: #3c3c3c;">
-                  <!-- Canvas will be added programmatically -->
-               </ScrollPane>
-            </VBox>
+            <!-- Center: Slide Preview (fx:include -> panels/SlideCanvas.fxml) -->
+            <fx:include fx:id="slideCanvasInclude" source="panels/SlideCanvas.fxml" />
 
             <!-- Bottom Dock: Console + Properties side-by-side.
                  TabPane hosts both; tab switching avoids cramping the
                  bottom dock vertically when both are visible. -->
             <TabPane fx:id="bottomTabPane" minHeight="150.0">
                <Tab fx:id="consoleTab" closable="false" text="Console">
-                  <VBox spacing="5.0">
-                     <ScrollPane fx:id="consoleScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" style="-fx-background-color: #1e1e1e;">
-                        <TextFlow fx:id="consoleOutput" styleClass="console-output" />
-                     </ScrollPane>
-                     <HBox spacing="5.0">
-                        <TextField fx:id="commandInput" HBox.hgrow="ALWAYS" />
-                        <Button fx:id="executeButton" text="Execute" />
-                     </HBox>
-                  </VBox>
+                  <fx:include fx:id="consoleInclude" source="panels/Console.fxml" />
                </Tab>
                <Tab fx:id="propertiesTab" closable="false" text="Properties">
-                  <VBox fx:id="propertiesPanel" spacing="5.0" style="-fx-padding: 5px;">
-                     <Label fx:id="propertiesTitle" text="Properties" style="-fx-font-weight: bold;" />
-                     <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS" />
-                     <HBox spacing="5.0">
-                        <Button fx:id="refreshPropertiesButton" text="Refresh" />
-                     </HBox>
-                  </VBox>
+                  <fx:include fx:id="propertiesInclude" source="panels/Properties.fxml" />
                </Tab>
                <Tab fx:id="slideSpecTab" closable="false" text="SlideSpec">
-                  <VBox fx:id="slideSpecPanel" spacing="5.0" style="-fx-padding: 5px;">
-                     <HBox spacing="5.0" alignment="CENTER_LEFT">
-                        <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
-                        <Region HBox.hgrow="ALWAYS" />
-                        <Button fx:id="slideSpecCopyJsonButton" text="Copy JSON" />
-                        <Button fx:id="slideSpecApplyToNewButton" text="Apply to new slide" />
-                        <Button fx:id="slideSpecApplyToExistingButton" text="Apply to existing..." />
-                     </HBox>
-                     <HBox spacing="5.0" alignment="CENTER_LEFT">
-                        <Button fx:id="slideSpecEditButton" text="Edit" />
-                        <Button fx:id="slideSpecDuplicateButton" text="Duplicate" />
-                        <Button fx:id="slideSpecDeleteButton" text="Delete" />
-                        <Button fx:id="slideSpecMoveUpButton" text="Up" />
-                        <Button fx:id="slideSpecMoveDownButton" text="Down" />
-                        <Region HBox.hgrow="ALWAYS" />
-                        <Label fx:id="slideSpecStagedBadge" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" />
-                        <Button fx:id="slideSpecResetButton" text="Reset to synthesized" />
-                     </HBox>
-                     <ListView fx:id="slideSpecListView" VBox.vgrow="ALWAYS" />
-                     <Label fx:id="slideSpecWarnings" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" wrapText="true" />
-                  </VBox>
+                  <fx:include fx:id="slideSpecInclude" source="panels/SlideSpec.fxml" />
                </Tab>
             </TabPane>
          </SplitPane>

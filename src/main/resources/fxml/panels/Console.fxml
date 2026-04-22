@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.TextFlow?>
+
+<!--
+  Technical console panel: scrollable styled output + command input.
+  Consumed as a Tab's content in MainApplication.fxml via fx:include.
+  Controller owns all @FXML injection + lifecycle.
+-->
+<VBox fx:id="consoleContainer"
+      xmlns="http://javafx.com/javafx/11.0.1"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.excudo.view.components.TechnicalConsoleController"
+      spacing="5.0">
+   <ScrollPane fx:id="consoleScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS"
+               style="-fx-background-color: #1e1e1e;">
+      <TextFlow fx:id="consoleOutput" styleClass="console-output" />
+   </ScrollPane>
+   <HBox spacing="5.0">
+      <TextField fx:id="commandInput" HBox.hgrow="ALWAYS" />
+      <Button fx:id="executeButton" text="Execute" />
+   </HBox>
+</VBox>

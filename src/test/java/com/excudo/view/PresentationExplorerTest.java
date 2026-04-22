@@ -57,32 +57,46 @@ public class PresentationExplorerTest {
     @BeforeEach
     void setUp() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        
+
         Platform.runLater(() -> {
             try {
-                // Create controller and mock FXML components
                 controller = new PresentationExplorerController();
-                
-                // Create and inject FXML components
+
+                // Post-FXML-modularization the controller no longer exposes
+                // setters for the tree / info / buttons; tests stand in for
+                // the FXML loader by reflectively writing the @FXML fields.
                 treeView = new TreeView<>();
                 presentationInfo = new Label();
                 addSlideButton = new Button("Add");
                 deleteSlideButton = new Button("Delete");
-                
-                // Set the components (simulate FXML injection)
-                controller.setPresentationTree(treeView);
-                
-                // Initialize the controller
+                Button moveUpButton = new Button("Up");
+                Button moveDownButton = new Button("Down");
+                Button refreshButton = new Button("Refresh");
+
+                injectField("presentationTree", treeView);
+                injectField("presentationInfo", presentationInfo);
+                injectField("addSlideButton", addSlideButton);
+                injectField("deleteSlideButton", deleteSlideButton);
+                injectField("moveUpButton", moveUpButton);
+                injectField("moveDownButton", moveDownButton);
+                injectField("refreshButton", refreshButton);
+
                 controller.initialize(null, null);
-                
+
                 latch.countDown();
             } catch (Exception e) {
                 e.printStackTrace();
                 latch.countDown();
             }
         });
-        
+
         assertTrue(latch.await(5, TimeUnit.SECONDS), "JavaFX initialization timed out");
+    }
+
+    private void injectField(String name, Object value) throws Exception {
+        java.lang.reflect.Field f = PresentationExplorerController.class.getDeclaredField(name);
+        f.setAccessible(true);
+        f.set(controller, value);
     }
     
     @Test
