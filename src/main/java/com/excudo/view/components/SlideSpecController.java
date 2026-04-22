@@ -36,6 +36,7 @@ import java.util.Optional;
 public class SlideSpecController {
 
     // @FXML-injected from panels/SlideSpec.fxml.
+    @FXML private javafx.scene.layout.VBox slideSpecPanel;
     @FXML private ListView<String> slideSpecListView;
     @FXML private Label slideSpecTitle;
     @FXML private Label slideSpecWarnings;
@@ -90,6 +91,59 @@ public class SlideSpecController {
             slideSpecMoveDownButton.setOnAction(e -> moveSelected(+1));
         if (slideSpecResetButton != null)
             slideSpecResetButton.setOnAction(e -> resetToSynthesized());
+
+        installDynamicFontScaling();
+    }
+
+    // ==================================================================
+    // Dynamic font scaling — the SlideSpec aside can narrow past the
+    // default button widths. Stock JavaFX then ellipsizes button text to
+    // "Apply t..." / "Apply to ex...". We scale font size (and via
+    // inheritance, button padding/widths) down to a floor so buttons
+    // shrink gracefully rather than ellipsizing.
+    //
+    // Scale curve: at >= NATURAL_WIDTH, scale=1.0 (base 12pt); at
+    // <= MIN_WIDTH, scale=0.65 (clamp floor). Linear interpolation in
+    // between. The floor is the smallest readable-at-arms-length size;
+    // past that, ellipsis beats microscopic text.
+    // ==================================================================
+
+    private static final double NATURAL_WIDTH = 360.0;
+    private static final double MIN_WIDTH     = 160.0;
+    private static final double MAX_SCALE     = 1.00;
+    private static final double MIN_SCALE     = 0.65;
+    private static final double BASE_FONT_PT  = 12.0;
+
+    private void installDynamicFontScaling() {
+        if (slideSpecPanel == null) return;
+        slideSpecPanel.widthProperty().addListener((obs, oldW, newW) -> {
+            if (newW == null) return;
+            applyFontScale(newW.doubleValue());
+        });
+        // Apply once at install time so the layout doesn't flash at
+        // the default size before the first width event.
+        applyFontScale(slideSpecPanel.getWidth());
+    }
+
+    private void applyFontScale(double width) {
+        if (width <= 0) return;
+        double scale;
+        if (width >= NATURAL_WIDTH) {
+            scale = MAX_SCALE;
+        } else if (width <= MIN_WIDTH) {
+            scale = MIN_SCALE;
+        } else {
+            double t = (width - MIN_WIDTH) / (NATURAL_WIDTH - MIN_WIDTH);
+            scale = MIN_SCALE + t * (MAX_SCALE - MIN_SCALE);
+        }
+        double pt = BASE_FONT_PT * scale;
+        // Inline font-size cascades through the Scene graph to every
+        // child control, so buttons shrink text + intrinsic widths
+        // together. One listener, one style write, whole panel scales.
+        slideSpecPanel.setStyle(String.format(
+            java.util.Locale.ROOT,
+            "-fx-padding: 5px; -fx-font-size: %.2fpt;",
+            pt));
     }
 
     /** Attach this controller to the given orchestrator. Pulls the

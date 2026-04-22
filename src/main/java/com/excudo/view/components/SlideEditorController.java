@@ -678,9 +678,16 @@ public class SlideEditorController implements Initializable {
 
     /** Rerender with current rendering-option flags. Public entry point
      *  for the RenderingBinder to invoke after a decorated widget's
-     *  state write. Also called internally by zoom handlers. */
+     *  state write. Also called internally by zoom handlers.
+     *
+     *  <p>Delegates to {@link #renderSlide()}, which pushes the current
+     *  showGrid/showBounds/showSpids/debugMode flags into the rendering
+     *  context and paints. (LivePreviewManager's forceRender path was
+     *  a dead end: {@code currentSlideDocument} is never populated on
+     *  that side, so it early-returns before rendering. The editor's
+     *  own renderSlide is the real render.) */
     public void forceRerender() {
-        applyRenderingOptions();
+        renderSlide();
     }
 
     private void applyRenderingOptions() {

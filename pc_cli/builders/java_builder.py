@@ -6,6 +6,7 @@ modular compilation steps, and cross-platform compatibility.
 """
 
 import os
+import re
 import shutil
 import platform
 import subprocess
@@ -63,6 +64,108 @@ class PCBuilder:
                 changed.append(src)
         return changed
 
+    # Regex for top-level type declarations in a .java file. Matches
+    # "public class Foo", "class Foo", "record Foo", "interface Foo",
+    # "enum Foo", "@interface Foo" at any visibility. A .java file can
+    # declare multiple top-level types (one public + N package-private)
+    # which all compile to separate .class files in the same package.
+    _TOP_LEVEL_TYPE_RE = re.compile(
+        r"^\s*(?:public\s+|abstract\s+|final\s+|sealed\s+|non-sealed\s+|static\s+)*"
+        r"(?:class|interface|enum|record|@interface)\s+(\w+)",
+        re.MULTILINE,
+    )
+
+    def _purge_orphaned_classes(self, verbose: bool = False) -> int:
+        """Delete .class files whose corresponding source has been deleted.
+
+        pc.py's incremental walks sources forward (source -> expected .class).
+        It never walks backward (.class -> did its source survive?), so after
+        a `git mv` or outright delete, the old .class at the stale location
+        lingers on disk and on classpath. Tests then pick up stale symbols
+        instead of the intended new ones, producing confusing
+        "incompatible types" errors.
+
+        Forward map .class -> source is not 1:1. Cases to handle:
+        - Inner / anonymous classes: Foo$Bar.class, Foo$1.class share Foo.java.
+        - File-private classes: SlideExecutionResult.java may declare both
+          SlideExecutionResult (public) and SlideActionData (package-private).
+          Both .class files exist; only the public one is name-matched.
+
+        Algorithm:
+        1. Compute outer class name (strip $suffix).
+        2. Fast path: if {outer}.java exists in the package dir, keep.
+        3. Slow path: scan all .java files in the package dir for a
+           top-level declaration whose name matches {outer}. If found,
+           keep. Otherwise, purge.
+
+        This is still source-of-truth-is-src — purging is only triggered
+        when NO .java file in the package declares the outer type.
+        """
+        if not self.build_dir.exists():
+            return 0
+
+        main_src = self.project_root / "src" / "main" / "java"
+        test_src = self.project_root / "src" / "test" / "java"
+
+        # Memoize per-package scans so a package with many orphaned .class
+        # files only walks its .java files once.
+        pkg_decl_cache: dict[Path, set[str]] = {}
+
+        def declared_types_in_pkg(pkg_dir: Path) -> set[str]:
+            cached = pkg_decl_cache.get(pkg_dir)
+            if cached is not None:
+                return cached
+            decls: set[str] = set()
+            if pkg_dir.exists():
+                for java in pkg_dir.glob("*.java"):
+                    try:
+                        text = java.read_text(encoding="utf-8")
+                    except Exception:
+                        continue
+                    for m in self._TOP_LEVEL_TYPE_RE.finditer(text):
+                        decls.add(m.group(1))
+            pkg_decl_cache[pkg_dir] = decls
+            return decls
+
+        deleted = 0
+        for class_file in self.build_dir.rglob("*.class"):
+            rel = class_file.relative_to(self.build_dir)
+            parts = rel.parts
+            if parts and parts[0] == "test":
+                src_root = test_src
+                pkg_parts = parts[1:]
+            else:
+                src_root = main_src
+                pkg_parts = parts
+            if not pkg_parts:
+                continue
+
+            outer_name = pkg_parts[-1].rsplit(".class", 1)[0]
+            if "$" in outer_name:
+                outer_name = outer_name.split("$", 1)[0]
+
+            pkg_dir = src_root.joinpath(*pkg_parts[:-1])
+
+            # Fast path.
+            if pkg_dir.joinpath(outer_name + ".java").exists():
+                continue
+
+            # Slow path: scan every .java in the package for a top-level
+            # declaration of `outer_name`. Handles file-private classes
+            # (e.g. SlideActionData inside SlideExecutionResult.java).
+            if outer_name in declared_types_in_pkg(pkg_dir):
+                continue
+
+            try:
+                class_file.unlink()
+                deleted += 1
+            except OSError:
+                pass
+
+        if deleted and verbose:
+            print(f"Purged {deleted} orphaned .class file{'s' if deleted != 1 else ''}")
+        return deleted
+
     def build(self, verbose: bool = False, clean: bool = False) -> bool:
         """Build the Java application"""
         if clean:
@@ -70,6 +173,11 @@ class PCBuilder:
 
         self.build_dir.mkdir(exist_ok=True)
         (self.build_dir / "test").mkdir(exist_ok=True)
+
+        # Drop .class files whose source is gone (moves, deletions, renames).
+        # Without this, stale classes linger on classpath and mask errors or
+        # introduce "incompatible types" between package variants.
+        self._purge_orphaned_classes(verbose)
 
         javac = self.env.get_javac_executable()
 
