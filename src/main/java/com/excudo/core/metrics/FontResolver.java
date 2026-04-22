@@ -69,6 +69,15 @@ public final class FontResolver {
                 resolved = resolveViaFcMatch(family, false, false);
             }
         }
+        // Cross-platform last-resort fallback: bundled DejaVu Sans. On
+        // platforms without fontconfig (macOS, Windows) an unrecognized
+        // family like "Calibri" would otherwise return null, breaking
+        // every downstream consumer that treats a font path as a required
+        // invariant. DejaVu is shipped in lib/fonts/ via `pc.py deps` so
+        // this path exists on every dev + CI host.
+        if (resolved == null) {
+            resolved = FontIndex.lookup("DejaVu Sans", bold, italic);
+        }
         cache.put(key, resolved != null ? resolved : NOT_FOUND);
         return resolved;
     }
