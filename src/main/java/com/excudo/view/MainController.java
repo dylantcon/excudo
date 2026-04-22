@@ -274,19 +274,8 @@ public class MainController implements Initializable, OrchestrationStateListener
             redoMenuItem.setOnAction(e -> handleRedo());
         }
 
-        // View menu handlers
-        if (showGridItem != null) {
-            showGridItem.setOnAction(e -> handleToggleGrid());
-        }
-        if (showBoundsItem != null) {
-            showBoundsItem.setOnAction(e -> handleToggleBounds());
-        }
-        if (showSpidsItem != null) {
-            showSpidsItem.setOnAction(e -> handleToggleSpids());
-        }
-        if (debugModeItem != null) {
-            debugModeItem.setOnAction(e -> handleToggleDebugMode());
-        }
+        // View menu toggles wire up in setupComponentControllers() once
+        // editorController is in place; see wireRenderingToggles().
         
         // Tools menu handlers
         if (validatePresentationItem != null) {
@@ -405,11 +394,15 @@ public class MainController implements Initializable, OrchestrationStateListener
                     }
                 });
 
+            // View-menu toggle Decorator — editorController is now
+            // available for the RenderingBinder to target.
+            wireRenderingToggles();
+
         } catch (Exception e) {
             System.err.println("Failed to initialize component controllers: " + e.getMessage());
         }
     }
-    
+
     // ========== FILE OPERATIONS ==========
     
     @FXML
@@ -682,40 +675,21 @@ public class MainController implements Initializable, OrchestrationStateListener
     
     // ========== VIEW OPERATIONS ==========
     
-    @FXML
-    private void handleToggleGrid() {
-        boolean showGrid = showGridItem != null && showGridItem.isSelected();
-        if (editorController != null) {
-            editorController.setShowGrid(showGrid);
-        }
-        showStatus("Grid " + (showGrid ? "enabled" : "disabled"));
-    }
-    
-    @FXML
-    private void handleToggleBounds() {
-        boolean showBounds = showBoundsItem != null && showBoundsItem.isSelected();
-        if (editorController != null) {
-            editorController.setShowBounds(showBounds);
-        }
-        showStatus("Bounds " + (showBounds ? "enabled" : "disabled"));
-    }
-    
-    @FXML
-    private void handleToggleSpids() {
-        boolean showSpids = showSpidsItem != null && showSpidsItem.isSelected();
-        if (editorController != null) {
-            editorController.setShowSpids(showSpids);
-        }
-        showStatus("SPIDs " + (showSpids ? "enabled" : "disabled"));
-    }
-    
-    @FXML
-    private void handleToggleDebugMode() {
-        boolean debugMode = debugModeItem != null && debugModeItem.isSelected();
-        if (editorController != null) {
-            editorController.setDebugMode(debugMode);
-        }
-        showStatus("Debug mode " + (debugMode ? "enabled" : "disabled"));
+    /**
+     * Wire the View-menu CheckMenuItems through {@link RenderingBinder}.
+     * Called once from {@link #setupEventHandlers()} after the editor
+     * controller is in place. Adding a new visual-toggle menu item is
+     * a single {@code binder.decorate(item, editor::setWhatever)} call
+     * — no separate handler, no forgotten forceRender.
+     */
+    private void wireRenderingToggles() {
+        if (editorController == null) return; // deferred until component controllers set up
+        com.excudo.view.rendering.RenderingBinder binder =
+            new com.excudo.view.rendering.RenderingBinder(editorController::forceRerender);
+        binder.decorate(showGridItem,   v -> { editorController.setShowGrid(v);   showStatus("Grid " + (v ? "enabled" : "disabled")); });
+        binder.decorate(showBoundsItem, v -> { editorController.setShowBounds(v); showStatus("Bounds " + (v ? "enabled" : "disabled")); });
+        binder.decorate(showSpidsItem,  v -> { editorController.setShowSpids(v);  showStatus("SPIDs " + (v ? "enabled" : "disabled")); });
+        binder.decorate(debugModeItem,  v -> { editorController.setDebugMode(v);  showStatus("Debug mode " + (v ? "enabled" : "disabled")); });
     }
     
     

@@ -655,23 +655,31 @@ public class SlideEditorController implements Initializable {
     
     // ========== VIEW OPTIONS ==========
     
+    // Pure state writes — no render trigger. The RenderingBinder
+    // Decorator (view/rendering/RenderingBinder.java) wraps the UI
+    // controls that drive these and fires forceRerender() after each
+    // write. Removes the "set state + forget to rerender" drift class.
+
     public void setShowGrid(boolean showGrid) {
         this.showGrid = showGrid;
-        applyRenderingOptions();
     }
 
     public void setShowBounds(boolean showBounds) {
         this.showBounds = showBounds;
-        applyRenderingOptions();
     }
 
     public void setShowSpids(boolean showSpids) {
         this.showSpids = showSpids;
-        applyRenderingOptions();
     }
 
     public void setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
+    }
+
+    /** Rerender with current rendering-option flags. Public entry point
+     *  for the RenderingBinder to invoke after a decorated widget's
+     *  state write. Also called internally by zoom handlers. */
+    public void forceRerender() {
         applyRenderingOptions();
     }
 
