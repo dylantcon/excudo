@@ -16,11 +16,17 @@
    <Label text="Presentation Explorer" />
    <TreeView fx:id="presentationTree" VBox.vgrow="ALWAYS" />
    <Label fx:id="presentationInfo" text="No presentation loaded" wrapText="true" />
+   <!--
+     No Refresh button: the explorer subscribes to
+     SessionManager.addStateListener on construction and auto-refreshes
+     on every mutation (via OrchestrationStateListener). If the tree
+     ever goes stale the fix is the listener, not a user-triggered
+     refresh — that was a symptom-papering button, not a feature.
+   -->
    <FlowPane hgap="5.0" vgap="5.0">
       <Button fx:id="addSlideButton" text="Add" />
       <Button fx:id="deleteSlideButton" text="Delete" />
       <Button fx:id="moveUpButton" text="Up" />
       <Button fx:id="moveDownButton" text="Down" />
-      <Button fx:id="refreshButton" text="Refresh" />
    </FlowPane>
 </VBox>

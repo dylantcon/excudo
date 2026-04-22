@@ -35,7 +35,9 @@ public class PresentationExplorerController implements Initializable, Orchestrat
     
     @FXML private TreeView<String> presentationTree;
     @FXML private Label presentationInfo;
-    @FXML private Button refreshButton;
+    // Refresh button removed (Tier 6.18). The explorer subscribes to
+    // SessionManager.addStateListener and refreshes on every mutation;
+    // a user-visible Refresh was symptom-papering a listener bug.
     @FXML private Button addSlideButton;
     @FXML private Button deleteSlideButton;
     @FXML private Button moveUpButton;
@@ -137,7 +139,6 @@ public class PresentationExplorerController implements Initializable, Orchestrat
         presentationTree.getSelectionModel().selectedItemProperty().addListener(
             (observable, oldValue, newValue) -> handleSlideSelection(newValue)
         );
-        refreshButton.setOnAction(e -> handleRefresh());
         addSlideButton.setOnAction(e -> handleAddSlide());
         deleteSlideButton.setOnAction(e -> handleDeleteSlide());
         moveUpButton.setOnAction(e -> handleMoveSlideUp());
@@ -271,54 +272,56 @@ public class PresentationExplorerController implements Initializable, Orchestrat
     }
     
     @FXML
-    private void handleRefresh() {
-        if (mainController != null) {
-            // Trigger refresh from main controller
-            // mainController.refreshPresentationData();
+    private void handleAddSlide() {
+        if (mainController == null || currentPresentation == null) return;
+        PPTXOrchestrator orchestrator = mainController.getOrchestrator();
+        if (orchestrator == null) {
+            showStatus("Orchestrator not available");
+            return;
+        }
+
+        TreeItem<String> selected = presentationTree.getSelectionModel().getSelectedItem();
+        boolean hasSelection = selected != null && selected != rootItem;
+
+        java.util.Optional<AddSlideDialog.Result> choice =
+            AddSlideDialog.show(orchestrator, hasSelection);
+        if (choice.isEmpty()) return;
+        AddSlideDialog.Result r = choice.get();
+
+        int insertPosition = computeInsertPosition(selected, r.position());
+
+        try {
+            SlideExecutionResult slideResult = orchestrator.createSlide(
+                insertPosition, r.title(), r.layoutId());
+
+            if (slideResult.isSuccess()) {
+                showStatus("Slide created: " + r.title()
+                    + " (layout=" + r.layoutId() + ", pos=" + insertPosition + ")");
+                refreshPresentation();
+            } else {
+                showStatus("Failed to create slide: " + slideResult.getMessage());
+            }
+        } catch (Exception e) {
+            showStatus("Error creating slide: " + e.getMessage());
         }
     }
-    
-    @FXML
-    private void handleAddSlide() {
-        if (mainController != null && currentPresentation != null) {
-            PPTXOrchestrator orchestrator = mainController.getOrchestrator();
-            if (orchestrator == null) {
-                showStatus("Orchestrator not available");
-                return;
-            }
-            
-            // Add new slide after current selection
-            TreeItem<String> selected = presentationTree.getSelectionModel().getSelectedItem();
-            int insertIndex = getSlideInsertIndex(selected);
-            
-            // Prompt for slide title
-            TextInputDialog dialog = new TextInputDialog("New Slide");
-            dialog.setTitle("Add New Slide");
-            dialog.setHeaderText("Create a new slide");
-            dialog.setContentText("Enter slide title:");
-            
-            java.util.Optional<String> result = dialog.showAndWait();
-            if (result.isPresent()) {
-                String title = result.get().trim();
-                if (title.isEmpty()) {
-                    title = "New Slide";
-                }
-                
-                try {
-                    // Create slide through orchestrator (1-based indexing)
-                    SlideExecutionResult slideResult = orchestrator.createSlide(insertIndex + 1, title);
 
-                    if (slideResult.isSuccess()) {
-                        showStatus("Slide created successfully: " + title);
-                        refreshPresentation();
-                    } else {
-                        showStatus("Failed to create slide: " + slideResult.getMessage());
-                    }
-                } catch (Exception e) {
-                    showStatus("Error creating slide: " + e.getMessage());
-                }
-            }
+    /** Translate the dialog's position enum into the 1-based slide
+     *  number the orchestrator expects. AT_END uses the current slide
+     *  count + 1; BEFORE/AFTER are relative to the selected slide, or
+     *  fall back to AT_END when nothing is selected. */
+    private int computeInsertPosition(TreeItem<String> selected, AddSlideDialog.Position position) {
+        int slideCount = currentSlides == null ? 0 : currentSlides.size();
+        if (position == AddSlideDialog.Position.AT_END || selected == null || selected == rootItem) {
+            return slideCount + 1;
         }
+        int selectedIndex = getSlideIndex(selected); // 0-based, -1 if unselectable
+        if (selectedIndex < 0) return slideCount + 1;
+        return switch (position) {
+            case BEFORE_CURRENT -> selectedIndex + 1;       // insert at current slot (pushes current down)
+            case AFTER_CURRENT  -> selectedIndex + 2;       // after current
+            case AT_END         -> slideCount + 1;          // unreachable; exhaustive switch
+        };
     }
     
     @FXML
@@ -476,9 +479,6 @@ public class PresentationExplorerController implements Initializable, Orchestrat
             int slideIndex = hasSelection ? getSlideIndex(presentationTree.getSelectionModel().getSelectedItem()) : -1;
             int maxIndex = currentSlides != null ? currentSlides.size() - 1 : -1;
             moveDownButton.setDisable(slideIndex < 0 || slideIndex >= maxIndex);
-        }
-        if (refreshButton != null) {
-            refreshButton.setDisable(!hasPresentation);
         }
     }
     

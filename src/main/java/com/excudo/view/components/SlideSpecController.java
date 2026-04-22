@@ -108,11 +108,16 @@ public class SlideSpecController {
     // past that, ellipsis beats microscopic text.
     // ==================================================================
 
-    private static final double NATURAL_WIDTH = 360.0;
-    private static final double MIN_WIDTH     = 160.0;
+    // Thresholds sized so that at a standard RHS-aside width (roughly
+    // 25% of a 1440+px display ~= 360px and up) the panel sits at
+    // MAX_SCALE and text renders at the JavaFX default size. Shrinking
+    // only engages when the user actively drags the divider inward to
+    // less than the natural aside width.
+    private static final double NATURAL_WIDTH = 220.0;
+    private static final double MIN_WIDTH     = 120.0;
     private static final double MAX_SCALE     = 1.00;
-    private static final double MIN_SCALE     = 0.65;
-    private static final double BASE_FONT_PT  = 12.0;
+    private static final double MIN_SCALE     = 0.55;
+    private static final double BASE_FONT_PT  = 13.0;
 
     private void installDynamicFontScaling() {
         if (slideSpecPanel == null) return;
