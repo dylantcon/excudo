@@ -8,12 +8,12 @@ import com.excudo.core.results.ExecutionResult;
 
 /**
  * GoF Command for adding new shapes to slides.
- * 
+ *
  * This command leverages the ShapeFactory system to create shapes with proper
  * shape types, geometry, and text content with full undo capability.
  */
 public class AddShapeCommand implements Command {
-    
+
     private final int slideNumber;
     private final SlideShape.ShapeType shapeType;
     private final ShapeGeometry geometry;
@@ -73,10 +73,10 @@ public class AddShapeCommand implements Command {
         this.orchestrator = orchestrator;
         this.displayAdapter = displayAdapter;
     }
-    
+
     /**
      * Execute the add shape command.
-     * 
+     *
      * @throws CommandExecutionException if the operation fails
      */
     @Override
@@ -84,12 +84,12 @@ public class AddShapeCommand implements Command {
         if (executed) {
             throw new CommandExecutionException(getDescription(), "execute", "Command has already been executed");
         }
-        
+
         try {
             // Add shape using orchestrator - this will delegate to SlideXMLWriter which uses ShapeFactory
             ExecutionResult<Integer> result = orchestrator
                 .addShape(slideNumber, shapeType, geometry, text, shapeName, style);
-            
+
             if (result.isSuccess()) {
                 createdSpid = result.getData().orElse(null);
                 if (createdSpid == null) {
@@ -138,27 +138,27 @@ public class AddShapeCommand implements Command {
                 // per-command fire needed here.
             } else {
                 throw new CommandExecutionException(
-                    getDescription(), 
-                    "execute", 
+                    getDescription(),
+                    "execute",
                     "Failed to add shape: " + result.getMessage()
                 );
             }
-            
+
         } catch (CommandExecutionException e) {
             throw e;
         } catch (Exception e) {
             throw new CommandExecutionException(
-                getDescription(), 
-                "execute", 
+                getDescription(),
+                "execute",
                 "Failed to add shape: " + e.getMessage(),
                 e
             );
         }
     }
-    
+
     /**
      * Undo the add shape command by removing the created shape.
-     * 
+     *
      * @throws CommandExecutionException if the undo operation fails
      */
     @Override
@@ -166,119 +166,119 @@ public class AddShapeCommand implements Command {
         if (!executed) {
             throw new CommandExecutionException(getDescription(), "undo", "Command has not been executed");
         }
-        
+
         if (!canUndo()) {
             throw new CommandExecutionException(getDescription(), "undo", "Command cannot be undone");
         }
-        
+
         try {
             // Remove the shape using orchestrator
             ExecutionResult<Void> result = orchestrator
                 .removeShape(slideNumber, createdSpid);
-            
+
             if (result.isSuccess()) {
                 executed = false;
                 createdSpid = null;
             } else {
                 throw new CommandExecutionException(
-                    getDescription(), 
-                    "undo", 
+                    getDescription(),
+                    "undo",
                     "Failed to undo add shape: " + result.getMessage()
                 );
             }
-            
+
         } catch (Exception e) {
             throw new CommandExecutionException(
-                getDescription(), 
-                "undo", 
+                getDescription(),
+                "undo",
                 "Failed to undo add shape: " + e.getMessage(),
                 e
             );
         }
     }
-    
+
     /**
      * Check if this command can be undone.
      * Shape addition can be undone by removing the created shape.
-     * 
+     *
      * @return true if the command can be undone
      */
     @Override
     public boolean canUndo() {
         return executed && createdSpid != null;
     }
-    
+
     /**
      * Get the description of this command.
-     * 
+     *
      * @return description of the add shape operation
      */
     @Override
     public String getDescription() {
-        return String.format("Add %s shape '%s' to slide %d at (%d,%d) size %dx%d", 
-                           shapeType.name(), shapeName, slideNumber, 
-                           geometry.getX(), geometry.getY(), 
+        return String.format("Add %s shape '%s' to slide %d at (%d,%d) size %dx%d",
+                           shapeType.name(), shapeName, slideNumber,
+                           geometry.getX(), geometry.getY(),
                            geometry.getWidth(), geometry.getHeight());
     }
-    
+
     /**
      * Check if this command has been executed.
-     * 
+     *
      * @return true if execute() has been called successfully
      */
     @Override
     public boolean isExecuted() {
         return executed;
     }
-    
+
     /**
      * Get the slide number.
-     * 
+     *
      * @return the slide number
      */
     public int getSlideNumber() {
         return slideNumber;
     }
-    
+
     /**
      * Get the shape type.
-     * 
+     *
      * @return the shape type
      */
     public SlideShape.ShapeType getShapeType() {
         return shapeType;
     }
-    
+
     /**
      * Get the shape geometry.
-     * 
+     *
      * @return the shape geometry
      */
     public ShapeGeometry getGeometry() {
         return geometry;
     }
-    
+
     /**
      * Get the text content.
-     * 
+     *
      * @return the text content
      */
     public String getText() {
         return text;
     }
-    
+
     /**
      * Get the shape name.
-     * 
+     *
      * @return the shape name
      */
     public String getShapeName() {
         return shapeName;
     }
-    
+
     /**
      * Get the created SPID (available after execution).
-     * 
+     *
      * @return the created SPID, or null if not executed
      */
     public Integer getCreatedSpid() {

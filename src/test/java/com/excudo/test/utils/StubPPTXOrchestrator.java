@@ -148,6 +148,33 @@ public class StubPPTXOrchestrator implements PPTXOrchestrator {
     }
 
     @Override
+    public ExecutionResult<Void> updateShapeName(int slideNumber, int spid, String newName) {
+        return null;
+    }
+
+    @Override
+    public ExecutionResult<Void> updateShapeTextBoxFlag(int slideNumber, int spid, boolean flag) {
+        return null;
+    }
+
+    @Override
+    public ExecutionResult<Void> updateRunFormat(int slideNumber, int spid,
+                                                 int paragraphIdx, int runIdx,
+                                                 com.excudo.core.model.TextRun newRun) {
+        return null;
+    }
+
+    @Override
+    public ExecutionResult<Void> addToGroup(int slideNumber, int groupSpid, int childSpid) {
+        return null;
+    }
+
+    @Override
+    public ExecutionResult<Void> detachFromGroup(int slideNumber, int childSpid) {
+        return null;
+    }
+
+    @Override
     public ExecutionResult<Void> reorderShape(int slideNumber, int spid, String operation) {
         return null;
     }

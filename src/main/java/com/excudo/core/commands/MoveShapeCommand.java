@@ -62,7 +62,8 @@ public class MoveShapeCommand implements Command {
         originalGeometry = shape.getGeometry();
 
         ShapeGeometry newGeometry = new ShapeGeometry(newX, newY,
-            originalGeometry.getWidth(), originalGeometry.getHeight());
+            originalGeometry.getWidth(), originalGeometry.getHeight(),
+            originalGeometry.getRotation());
 
         ExecutionResult<Void> moveResult = orchestrator.updateShapeGeometry(slideNumber, spid, newGeometry);
         if (!moveResult.isSuccess()) {

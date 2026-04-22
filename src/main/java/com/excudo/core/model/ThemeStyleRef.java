@@ -63,13 +63,29 @@ public final class ThemeStyleRef {
     }
 
     /**
-     * Custom style with explicit indices and colors.
+     * Custom style with explicit indices and colors (no line shade).
      */
     public static ThemeStyleRef of(int lineRefIdx, String lineColor,
                                     int fillRefIdx, String fillColor,
                                     int effectRefIdx, String effectColor,
                                     String fontRefIdx, String fontColor) {
         return new ThemeStyleRef(lineRefIdx, lineColor, null,
+                                fillRefIdx, fillColor,
+                                effectRefIdx, effectColor,
+                                fontRefIdx, fontColor);
+    }
+
+    /**
+     * Custom style with every field explicitly set, including the line
+     * shade value (the {@code <a:shade val="..."/>} child of the line
+     * color). Used for exact round-trips of serialized refs where the
+     * shade matters (e.g., default style has shade "15000").
+     */
+    public static ThemeStyleRef ofFull(int lineRefIdx, String lineColor, String lineShadeVal,
+                                        int fillRefIdx, String fillColor,
+                                        int effectRefIdx, String effectColor,
+                                        String fontRefIdx, String fontColor) {
+        return new ThemeStyleRef(lineRefIdx, lineColor, lineShadeVal,
                                 fillRefIdx, fillColor,
                                 effectRefIdx, effectColor,
                                 fontRefIdx, fontColor);
@@ -84,4 +100,25 @@ public final class ThemeStyleRef {
     public String getEffectColor() { return effectColor; }
     public String getFontRefIdx() { return fontRefIdx; }
     public String getFontColor() { return fontColor; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ThemeStyleRef that)) return false;
+        return lineRefIdx == that.lineRefIdx
+            && fillRefIdx == that.fillRefIdx
+            && effectRefIdx == that.effectRefIdx
+            && java.util.Objects.equals(lineColor, that.lineColor)
+            && java.util.Objects.equals(lineShadeVal, that.lineShadeVal)
+            && java.util.Objects.equals(fillColor, that.fillColor)
+            && java.util.Objects.equals(effectColor, that.effectColor)
+            && java.util.Objects.equals(fontRefIdx, that.fontRefIdx)
+            && java.util.Objects.equals(fontColor, that.fontColor);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(lineRefIdx, lineColor, lineShadeVal,
+            fillRefIdx, fillColor, effectRefIdx, effectColor, fontRefIdx, fontColor);
+    }
 }

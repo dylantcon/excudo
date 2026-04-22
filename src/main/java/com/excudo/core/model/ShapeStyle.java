@@ -51,4 +51,18 @@ public final class ShapeStyle {
     public ShapeFill getFill() { return fill; }
     public ShapeLine getLine() { return line; }
     public ThemeStyleRef getThemeStyle() { return themeStyle; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ShapeStyle that)) return false;
+        return java.util.Objects.equals(fill, that.fill)
+            && java.util.Objects.equals(line, that.line)
+            && java.util.Objects.equals(themeStyle, that.themeStyle);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(fill, line, themeStyle);
+    }
 }

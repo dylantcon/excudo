@@ -32,4 +32,18 @@ public final class ShapeLine {
     public Integer getWidthEMU() { return widthEMU; }
     public TextColor getColor() { return color; }
     public String getDashStyle() { return dashStyle; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ShapeLine that)) return false;
+        return java.util.Objects.equals(widthEMU, that.widthEMU)
+            && java.util.Objects.equals(color, that.color)
+            && java.util.Objects.equals(dashStyle, that.dashStyle);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(widthEMU, color, dashStyle);
+    }
 }

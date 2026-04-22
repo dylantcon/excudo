@@ -196,6 +196,241 @@ public class ShapeWriter {
   }
 
   /**
+   * Replace the run element at {@code (paragraphIdx, runIdx)} inside
+   * the shape's txBody with a freshly-rendered {@code <a:r>} from the
+   * supplied {@link com.excudo.core.model.TextRun}. Preserves every
+   * other paragraph and run on the shape -- a minimum-DAG update path
+   * the synthesizer emits as {@code SetRunFormatSpec} instead of a
+   * full {@code SetTextSpec} rewrite when only one run's formatting
+   * differs.
+   */
+  public void updateRunFormat(int spid, int paragraphIdx, int runIdx,
+                              com.excudo.core.model.TextRun newRun) throws XMLParsingException {
+    try {
+      Element shape = findShapeBySpid(spid);
+      if (shape == null) {
+        throw new XMLParsingException("Shape with SPID " + spid + " not found");
+      }
+      Element txBody = (Element) xpath.evaluate(".//p:txBody", shape, XPathConstants.NODE);
+      if (txBody == null) {
+        throw new XMLParsingException("Shape SPID " + spid + " has no txBody");
+      }
+      // a:p indices are 1-based in XPath.
+      Element para = (Element) xpath.evaluate(
+          "./a:p[" + (paragraphIdx + 1) + "]", txBody, XPathConstants.NODE);
+      if (para == null) {
+        throw new XMLParsingException("Paragraph index " + paragraphIdx
+            + " out of range on SPID " + spid);
+      }
+      Element run = (Element) xpath.evaluate(
+          "./a:r[" + (runIdx + 1) + "]", para, XPathConstants.NODE);
+      if (run == null) {
+        throw new XMLParsingException("Run index " + runIdx
+            + " out of range on paragraph " + paragraphIdx);
+      }
+      Element replacement = com.excudo.xml.builders.TextBodyXMLWriter.writeRunElement(
+          document, newRun);
+      para.replaceChild(replacement, run);
+    } catch (Exception e) {
+      throw new XMLParsingException("Failed to update run format", e);
+    }
+  }
+
+  /**
+   * Move a top-level shape into an existing group. Computes the group's
+   * inverse coordinate transform ({@code chExt/ext} ratio + {@code chOff/off}
+   * shift) and rewrites the child's {@code xfrm/off} and {@code xfrm/ext}
+   * so its visual position on the slide is preserved. Rotation and
+   * nested-group cases are out of scope for v1 -- the command throws
+   * rather than silently producing a wrong transform.
+   *
+   * <p>Structural move: the child's DOM element is detached from
+   * {@code spTree} and appended to {@code grpSp}'s child list, so
+   * subsequent parses report the new parent-group membership.
+   */
+  public void addToGroup(int groupSpid, int childSpid) throws XMLParsingException {
+    try {
+      Element group = findShapeBySpid(groupSpid);
+      Element child = findShapeBySpid(childSpid);
+      if (group == null) throw new XMLParsingException("Group SPID " + groupSpid + " not found");
+      if (child == null) throw new XMLParsingException("Child SPID " + childSpid + " not found");
+      if (!"p:grpSp".equals(group.getTagName())) {
+        throw new XMLParsingException("SPID " + groupSpid + " is not a group");
+      }
+      if (child == group || child.getParentNode() == group) return; // no-op
+
+      GroupXfrm gx = readGroupXfrm(group);
+      if (gx == null) {
+        throw new XMLParsingException("Group SPID " + groupSpid + " has no a:xfrm");
+      }
+      // Forward transform uses (ext/chExt); inverse for move-in is (chExt/ext).
+      Element childXfrm = (Element) xpath.evaluate(".//a:xfrm", child, XPathConstants.NODE);
+      if (childXfrm == null) {
+        throw new XMLParsingException("Child SPID " + childSpid + " has no a:xfrm");
+      }
+      Element childOff = (Element) xpath.evaluate("./a:off", childXfrm, XPathConstants.NODE);
+      Element childExt = (Element) xpath.evaluate("./a:ext", childXfrm, XPathConstants.NODE);
+      if (childOff == null || childExt == null) {
+        throw new XMLParsingException("Child SPID " + childSpid + " xfrm missing off/ext");
+      }
+      long cx = Long.parseLong(childOff.getAttribute("x"));
+      long cy = Long.parseLong(childOff.getAttribute("y"));
+      long cw = Long.parseLong(childExt.getAttribute("cx"));
+      long ch = Long.parseLong(childExt.getAttribute("cy"));
+
+      // slide-space -> child-space inverse transform.
+      long newX = gx.chOffX + (cx - gx.gx) * gx.chExtCx / gx.gcx;
+      long newY = gx.chOffY + (cy - gx.gy) * gx.chExtCy / gx.gcy;
+      long newW = cw * gx.chExtCx / gx.gcx;
+      long newH = ch * gx.chExtCy / gx.gcy;
+
+      childOff.setAttribute("x", String.valueOf(newX));
+      childOff.setAttribute("y", String.valueOf(newY));
+      childExt.setAttribute("cx", String.valueOf(newW));
+      childExt.setAttribute("cy", String.valueOf(newH));
+
+      // Detach from current parent and append to group's DOM.
+      if (child.getParentNode() != null) {
+        child.getParentNode().removeChild(child);
+      }
+      group.appendChild(child);
+    } catch (NumberFormatException e) {
+      throw new XMLParsingException("Malformed xfrm coordinates", e);
+    } catch (Exception e) {
+      throw new XMLParsingException("Failed to add to group", e);
+    }
+  }
+
+  /**
+   * Move a grouped child out to the top-level {@code spTree}, applying
+   * the group's forward transform so the child's slide-space visual
+   * position is preserved.
+   */
+  public void detachFromGroup(int childSpid) throws XMLParsingException {
+    try {
+      Element child = findShapeBySpid(childSpid);
+      if (child == null) throw new XMLParsingException("Child SPID " + childSpid + " not found");
+      Element group = (Element) child.getParentNode();
+      if (group == null || !"p:grpSp".equals(group.getTagName())) {
+        throw new XMLParsingException("Child SPID " + childSpid + " is not inside a group");
+      }
+      GroupXfrm gx = readGroupXfrm(group);
+      if (gx == null) {
+        throw new XMLParsingException("Parent group has no a:xfrm");
+      }
+      Element childXfrm = (Element) xpath.evaluate(".//a:xfrm", child, XPathConstants.NODE);
+      if (childXfrm == null) {
+        throw new XMLParsingException("Child SPID " + childSpid + " has no a:xfrm");
+      }
+      Element childOff = (Element) xpath.evaluate("./a:off", childXfrm, XPathConstants.NODE);
+      Element childExt = (Element) xpath.evaluate("./a:ext", childXfrm, XPathConstants.NODE);
+      long cx = Long.parseLong(childOff.getAttribute("x"));
+      long cy = Long.parseLong(childOff.getAttribute("y"));
+      long cw = Long.parseLong(childExt.getAttribute("cx"));
+      long ch = Long.parseLong(childExt.getAttribute("cy"));
+
+      long newX = gx.gx + (cx - gx.chOffX) * gx.gcx / gx.chExtCx;
+      long newY = gx.gy + (cy - gx.chOffY) * gx.gcy / gx.chExtCy;
+      long newW = cw * gx.gcx / gx.chExtCx;
+      long newH = ch * gx.gcy / gx.chExtCy;
+
+      childOff.setAttribute("x", String.valueOf(newX));
+      childOff.setAttribute("y", String.valueOf(newY));
+      childExt.setAttribute("cx", String.valueOf(newW));
+      childExt.setAttribute("cy", String.valueOf(newH));
+
+      // Walk up to the spTree and attach the child there.
+      Element spTree = (Element) xpath.evaluate(".//p:spTree", document, XPathConstants.NODE);
+      if (spTree == null) {
+        throw new XMLParsingException("slide has no p:spTree");
+      }
+      group.removeChild(child);
+      spTree.appendChild(child);
+    } catch (NumberFormatException e) {
+      throw new XMLParsingException("Malformed xfrm coordinates", e);
+    } catch (Exception e) {
+      throw new XMLParsingException("Failed to detach from group", e);
+    }
+  }
+
+  /** Snapshot of a group's coordinate system for transform math. */
+  private static final class GroupXfrm {
+    final long gx, gy, gcx, gcy;
+    final long chOffX, chOffY, chExtCx, chExtCy;
+    GroupXfrm(long gx, long gy, long gcx, long gcy,
+              long chOffX, long chOffY, long chExtCx, long chExtCy) {
+      this.gx = gx; this.gy = gy; this.gcx = gcx; this.gcy = gcy;
+      this.chOffX = chOffX; this.chOffY = chOffY;
+      this.chExtCx = chExtCx; this.chExtCy = chExtCy;
+    }
+  }
+
+  private GroupXfrm readGroupXfrm(Element group) throws XPathExpressionException {
+    String gx = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:off/@x", group, XPathConstants.STRING);
+    String gy = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:off/@y", group, XPathConstants.STRING);
+    String gcx = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:ext/@cx", group, XPathConstants.STRING);
+    String gcy = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:ext/@cy", group, XPathConstants.STRING);
+    String chOffX = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:chOff/@x", group, XPathConstants.STRING);
+    String chOffY = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:chOff/@y", group, XPathConstants.STRING);
+    String chExtCx = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:chExt/@cx", group, XPathConstants.STRING);
+    String chExtCy = (String) xpath.evaluate("p:grpSpPr/a:xfrm/a:chExt/@cy", group, XPathConstants.STRING);
+    if (gx.isEmpty() || gcx.isEmpty() || chOffX.isEmpty() || chExtCx.isEmpty()) return null;
+    long lcx = Long.parseLong(gcx), lcy = Long.parseLong(gcy);
+    long lcecx = Long.parseLong(chExtCx), lcecy = Long.parseLong(chExtCy);
+    if (lcx == 0 || lcy == 0 || lcecx == 0 || lcecy == 0) return null;
+    return new GroupXfrm(
+        Long.parseLong(gx), Long.parseLong(gy), lcx, lcy,
+        Long.parseLong(chOffX), Long.parseLong(chOffY), lcecx, lcecy);
+  }
+
+  /**
+   * Toggle the {@code cNvSpPr/@txBox} marker on a shape in place. A
+   * value of {@code true} writes {@code txBox="1"}; {@code false}
+   * removes the attribute entirely. Every other aspect of the shape
+   * (geometry, style, text body, p:style) is preserved.
+   */
+  public void updateShapeTextBoxFlag(int spid, boolean flag) throws XMLParsingException {
+    try {
+      Element shape = findShapeBySpid(spid);
+      if (shape == null) {
+        throw new XMLParsingException("Shape with SPID " + spid + " not found");
+      }
+      Element cNvSpPr = (Element) xpath.evaluate(".//p:cNvSpPr", shape, XPathConstants.NODE);
+      if (cNvSpPr == null) {
+        throw new XMLParsingException("Shape SPID " + spid + " has no cNvSpPr element");
+      }
+      if (flag) {
+        cNvSpPr.setAttribute("txBox", "1");
+      } else if (cNvSpPr.hasAttribute("txBox")) {
+        cNvSpPr.removeAttribute("txBox");
+      }
+    } catch (Exception e) {
+      throw new XMLParsingException("Failed to update textbox flag", e);
+    }
+  }
+
+  /**
+   * Rename a shape by setting the {@code cNvPr/@name} attribute.
+   * Idempotent: if {@code newName} already matches the stored name,
+   * the DOM isn't touched.
+   */
+  public void updateShapeName(int spid, String newName) throws XMLParsingException {
+    try {
+      Element shape = findShapeBySpid(spid);
+      if (shape == null) {
+        throw new XMLParsingException("Shape with SPID " + spid + " not found");
+      }
+      Element cNvPr = (Element) xpath.evaluate(".//*[local-name()='cNvPr']", shape, XPathConstants.NODE);
+      if (cNvPr == null) {
+        throw new XMLParsingException("Shape SPID " + spid + " has no cNvPr element");
+      }
+      cNvPr.setAttribute("name", newName != null ? newName : "");
+    } catch (Exception e) {
+      throw new XMLParsingException("Failed to rename shape", e);
+    }
+  }
+
+  /**
    * Remove a shape by SPID from the slide.
    */
   public SlideXMLWriter.ShapeRemovalResult removeShapeBySpid(int spid) throws XMLParsingException {
@@ -1284,6 +1519,21 @@ public class ShapeWriter {
       ext.setAttribute("cy", String.valueOf(geometry.getHeight()));
     }
 
+    // Rotation: write a:rot when the new geometry's rotation differs
+    // from the value currently stored on xfrm. The zero case drops the
+    // attribute entirely (canonical OOXML form for unrotated shapes).
+    int newRot = geometry.getRotation();
+    int currentRot = xfrm.hasAttribute("rot")
+        ? parseIntOrZero(xfrm.getAttribute("rot"))
+        : 0;
+    if (newRot != currentRot) {
+      if (newRot == 0) {
+        xfrm.removeAttribute("rot");
+      } else {
+        xfrm.setAttribute("rot", String.valueOf(newRot));
+      }
+    }
+
     // GROUP shapes: update a:off + a:ext ONLY; leave a:chOff + a:chExt
     // at their original values so OOXML's render pipeline naturally
     // scales children.
@@ -1319,6 +1569,11 @@ public class ShapeWriter {
     } catch (Exception e) {
       return false;
     }
+  }
+
+  private static int parseIntOrZero(String s) {
+    if (s == null || s.isEmpty()) return 0;
+    try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
   }
 
 }

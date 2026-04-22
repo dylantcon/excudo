@@ -32,26 +32,26 @@ import java.util.Collections;
 /**
  * Implementation of PPTXOrchestrator interface that coordinates between
  * the legacy orchestrator and the modern interface-based architecture.
- * 
+ *
  * This class serves as the primary Controller in the MVC architecture,
  * bridging Model operations with View requirements.
  */
 public class PPTXOrchestratorImpl implements PPTXOrchestrator {
-    
+
     // ========== CORE COMPONENTS ==========
-    
+
     // private final com.excudo.orchestration.PPTXOrchestrator legacyOrchestrator;
     // TransactionManager removed - using Command pattern instead
     private final Map<String, OrchestrationContext> contexts;
     private static final ComponentLogger logger = Logger.getLogger(PPTXOrchestratorImpl.class);
-    
+
     // ========== STATE ==========
-    
+
     private OrchestrationContext currentContext;
     private OrchestratorState currentState;
-    
+
     // ========== OPERATION MANAGERS ==========
-    
+
     private ShapeOrchestrationManager shapeOrchestrationManager;
     private SlideOrchestrationManager slideOrchestrationManager;
     private PresentationOrchestrationManager presentationOrchestrationManager;
@@ -62,19 +62,19 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     private LayoutOrchestrationManager layoutOrchestrationManager;
     private SlideMasterOrchestrationManager slideMasterOrchestrationManager;
     private UtilityOrchestrationManager utilityOrchestrationManager;
-    
+
     public PPTXOrchestratorImpl() throws XMLParsingException {
         // this.legacyOrchestrator = new com.excudo.orchestration.PPTXOrchestrator();
         // TransactionManager removed - using Command pattern instead
         this.contexts = new ConcurrentHashMap<>();
         this.currentState = OrchestratorState.CREATED;
-        
+
         // Initialize operation managers
         // ShapeOrchestrationManager will be initialized when context is available
     }
-    
+
     // ========== INITIALIZATION ==========
-    
+
     /**
      * Initialize from an extracted PPTX directory.
      * Loads the directory into a PPTXDocument and delegates to initialize(PPTXDocument).
@@ -93,7 +93,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             return ExecutionResult.failure("Initialize", "Failed to initialize orchestrator: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * Initialize from a PPTXDocument directly (for from-scratch presentations).
      * Constructs all managers from ParsedPresentationState -- no temp dirs, no disk I/O.
@@ -164,9 +164,9 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     public Optional<OrchestrationContext> getContext() {
         return Optional.ofNullable(currentContext);
     }
-    
+
     // ========== SLIDE OPERATIONS ==========
-    
+
     @Override
     public SlideExecutionResult createSlide(int position, String title) {
         if (currentContext == null) {
@@ -174,7 +174,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return slideOrchestrationManager.createSlide(position, title);
     }
-    
+
     @Override
     public SlideExecutionResult createSlide(int position, String title, String layoutId) {
         if (currentContext == null) {
@@ -182,75 +182,75 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return slideOrchestrationManager.createSlide(position, title, layoutId);
     }
-    
+
     @Override
     public SlideExecutionResult copySlide(int sourceSlide, int targetPosition, String newTitle) {
         if (currentContext == null) {
             return SlideExecutionResult.slideActionFailed("Copy Slide", targetPosition, "Orchestrator not initialized");
         }
-        
+
         try {
             // Implementation would use existing slide copy functionality
             Set<Integer> originalSpids = Set.of(1000 + sourceSlide);
             Set<Integer> newSpids = Set.of(1000 + targetPosition);
-            
+
             return SlideExecutionResult.slideCopied(sourceSlide, targetPosition, originalSpids, newSpids);
         } catch (Exception e) {
             return SlideExecutionResult.slideActionFailed("Copy Slide", targetPosition, e);
         }
     }
-    
+
     @Override
     public SlideExecutionResult deleteSlide(int slideNumber) {
         if (currentContext == null) {
             return SlideExecutionResult.slideActionFailed("Delete Slide", slideNumber, "Orchestrator not initialized");
         }
-        
+
         // Delegate to slide manager for deletion logic
         return slideOrchestrationManager.deleteSlide(slideNumber);
     }
-    
+
     @Override
-    public SlideExecutionResult restoreSlide(int slideNumber, String slideData, 
+    public SlideExecutionResult restoreSlide(int slideNumber, String slideData,
                                            String relationshipData, String notesData) {
         if (currentContext == null) {
             return SlideExecutionResult.slideActionFailed("Restore Slide", slideNumber, "Orchestrator not initialized");
         }
-        
+
         // Delegate to slide manager for restoration logic
         return slideOrchestrationManager.restoreSlide(slideNumber, slideData, relationshipData, notesData);
     }
-    
+
     @Override
     public SlideExecutionResult moveSlide(int fromPosition, int toPosition) {
         if (currentContext == null) {
             return SlideExecutionResult.slideActionFailed("Move Slide", fromPosition, "Orchestrator not initialized");
         }
-        
+
         // Delegate to slide manager for move logic
         return slideOrchestrationManager.moveSlide(fromPosition, toPosition);
     }
-    
+
     // ========== BATCH OPERATIONS ==========
-    
+
     @Override
     public ExecutionResult<BatchExecutionResult> createSlidesInBatch(List<SlideSpecification> slideSpecs) {
         if (currentContext == null) {
             return ExecutionResult.failure("Batch Create Slides", "Orchestrator not initialized");
         }
-        
+
         // Delegate to batch execution manager for slide creation
         return batchExecutionOrchestrationManager.createSlidesInBatch(slideSpecs);
     }
-    
+
     // executeOperationBatch method removed - vestigial Operation semantics replaced by Command pattern
     // Use CommandInvoker.executeCommand() with CompositeCommand for batch operations
-    
+
     // ========== TRANSACTION MANAGEMENT ==========
     // NOTE: Transaction support removed - using Command pattern with CommandInvoker instead
-    
+
     // ========== PRESENTATION MANAGEMENT ==========
-    
+
     @Override
     public ExecutionResult<PresentationMetadata> createNewPresentation(String themeId) {
         try {
@@ -302,7 +302,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             return ExecutionResult.failure("Load Presentation", "Failed to load presentation: " + e.getMessage(), e);
         }
     }
-    
+
     @Override
     public ExecutionResult<File> savePresentation(File outputFile) {
         if (currentContext == null) {
@@ -330,74 +330,74 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         // Fallback to legacy save path
         return presentationOrchestrationManager.savePresentation(outputFile);
     }
-    
+
     @Override
     public ValidationResult validatePresentation() {
         if (currentContext == null) {
             return ValidationResult.failure("No presentation loaded");
         }
-        
+
         // Delegate to validation manager for presentation validation logic
         return validationOrchestrationManager.validatePresentation();
     }
-    
+
     @Override
     public ExecutionResult<FinalizationResult> finalizeOperations() {
         if (currentContext == null) {
             return ExecutionResult.failure("Finalize Operations", "No presentation loaded");
         }
-        
+
         // Delegate to presentation manager for finalization logic
         return presentationOrchestrationManager.finalizeOperations();
     }
-    
+
     // ========== STATE MANAGEMENT ==========
-    
+
     @Override
     public OrchestratorState getState() {
         return currentState;
     }
-    
-    
+
+
     // ========== UTILITY METHODS ==========
-    
+
     private String generateContextId(File directory) {
         return "ctx_" + directory.getName() + "_" + System.currentTimeMillis();
     }
-    
-    
+
+
     // ========== BRIDGE TO LEGACY ORCHESTRATOR ==========
-    
+
     /**
-     * Get access to the legacy orchestrator for operations not yet 
+     * Get access to the legacy orchestrator for operations not yet
      * migrated to the interface
      */
     // public com.excudo.orchestration.PPTXOrchestrator getLegacyOrchestrator() {
     //     return legacyOrchestrator;
     // }
 
-    
+
     // ========== MISSING INTERFACE METHODS ==========
-    
+
     @Override
     public ValidationResult validateSlide(int slideNumber) {
         if (currentContext == null) {
             return ValidationResult.failure("No presentation loaded");
         }
-        
+
         // Delegate to validation manager for slide validation logic
         return validationOrchestrationManager.validateSlide(slideNumber);
     }
-    
+
     // validateOperation method removed - vestigial Operation semantics replaced by Command pattern
     // Use Command constructors with validation or pre-execution checks instead
-    
+
     @Override
     public PresentationMetadata getPresentationMetadata() {
         if (currentContext == null) {
             return new PresentationMetadata(0, "No presentation", Instant.now(), List.of());
         }
-        
+
         // Delegate to presentation manager for metadata logic
         return presentationOrchestrationManager.getPresentationMetadata();
     }
@@ -415,31 +415,31 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         if (currentContext == null) {
             return Optional.empty();
         }
-        
+
         // Delegate to presentation manager for slide metadata logic
         return presentationOrchestrationManager.getSlideMetadata(slideNumber);
     }
-    
+
     @Override
     public List<SlideMetadata> getAllSlideMetadata() {
         if (currentContext == null) {
             return new ArrayList<>();
         }
-        
+
         // Delegate to presentation manager for all slide metadata logic
         return presentationOrchestrationManager.getAllSlideMetadata();
     }
-    
+
     @Override
     public String generateOperationSummary(int operationCount) {
         if (currentContext == null) {
             return "No presentation context available for operation summary";
         }
-        
+
         // Delegate to LLM manager for operation summary generation
         return llmOrchestrationManager.generateOperationSummary(operationCount);
     }
-    
+
     @Override
     public Map<String, Object> getLLMIntegrationData() {
         if (currentContext == null) {
@@ -449,23 +449,23 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             data.put("error", "No presentation context available");
             return data;
         }
-        
+
         // Delegate to LLM manager for integration data collection
         Map<String, Object> data = llmOrchestrationManager.getLLMIntegrationData();
         data.put("state", currentState.toString()); // Add current state
         return data;
     }
-    
+
     @Override
     public ExecutionResult<BatchExecutionResult> applyLLMSuggestions(List<LLMSuggestion> suggestions) {
         if (currentContext == null) {
             return ExecutionResult.failure("Apply LLM Suggestions", "No presentation loaded");
         }
-        
+
         // Delegate to LLM manager for suggestion application
         return llmOrchestrationManager.applyLLMSuggestions(suggestions);
     }
-    
+
     @Override
     public void close() {
         if (currentContext != null) {
@@ -478,11 +478,11 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         this.currentState = OrchestratorState.CLOSED;
     }
-    
-    
+
+
     // ========== SLIDE DELETION HELPERS ==========
-    
-    
+
+
     /**
      * Get the file for a specific slide
      * @param slideNumber The slide number (1-based)
@@ -495,10 +495,10 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return slideOrchestrationManager.getSlideFile(slideNumber);
     }
-    
-    
+
+
     // ========== SHAPE TEXT OPERATIONS ==========
-    
+
     /**
      * Get the current text content of a shape
      * @param slideNumber The slide number (1-based)
@@ -509,7 +509,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     public String getShapeText(int slideNumber, int spid) {
         return shapeOrchestrationManager.getShapeText(slideNumber, spid);
     }
-    
+
     @Override
     public ExecutionResult<ParsedSlideData> getSlideData(int slideNumber) {
         if (currentContext == null) {
@@ -517,7 +517,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return slideOrchestrationManager.getSlideData(slideNumber);
     }
-    
+
     @Override
     public ExecutionResult<ShapeRegistry> getShapeRegistry(int slideNumber) {
         if (currentContext == null) {
@@ -525,7 +525,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return slideOrchestrationManager.getShapeRegistry(slideNumber);
     }
-    
+
     /**
      * Update the text content of a shape
      * @param slideNumber The slide number (1-based)
@@ -551,16 +551,16 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
 
 
     // ========== SMART CONTENT OPERATIONS ==========
-    
+
     /**
      * Inject enhanced content using SmartContentEnhancer.
      */
     @Override
-    public ExecutionResult<List<Integer>> injectEnhancedContent(int slideNumber, String iconKeyword, 
+    public ExecutionResult<List<Integer>> injectEnhancedContent(int slideNumber, String iconKeyword,
                                                                String templateStyle, Map<String, Object> geometry) {
         return shapeOrchestrationManager.injectEnhancedContent(slideNumber, iconKeyword, templateStyle, geometry);
     }
-    
+
     /**
      * Add a new shape to a slide using the ShapeFactory system.
      */
@@ -576,7 +576,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
                                            ShapeStyle style) {
         return shapeOrchestrationManager.addShape(slideNumber, shapeType, geometry, text, shapeName, style);
     }
-    
+
     /**
      * Remove a shape from a slide by SPID using SlideXMLWriter.
      * For pictures, this also handles media relationship and file cleanup.
@@ -589,6 +589,33 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     @Override
     public ExecutionResult<Void> updateShapeGeometry(int slideNumber, int spid, ShapeGeometry newGeometry) {
         return shapeOrchestrationManager.updateShapeGeometry(slideNumber, spid, newGeometry);
+    }
+
+    @Override
+    public ExecutionResult<Void> updateShapeName(int slideNumber, int spid, String newName) {
+        return shapeOrchestrationManager.updateShapeName(slideNumber, spid, newName);
+    }
+
+    @Override
+    public ExecutionResult<Void> updateShapeTextBoxFlag(int slideNumber, int spid, boolean flag) {
+        return shapeOrchestrationManager.updateShapeTextBoxFlag(slideNumber, spid, flag);
+    }
+
+    @Override
+    public ExecutionResult<Void> updateRunFormat(int slideNumber, int spid,
+                                                 int paragraphIdx, int runIdx,
+                                                 com.excudo.core.model.TextRun newRun) {
+        return shapeOrchestrationManager.updateRunFormat(slideNumber, spid, paragraphIdx, runIdx, newRun);
+    }
+
+    @Override
+    public ExecutionResult<Void> addToGroup(int slideNumber, int groupSpid, int childSpid) {
+        return shapeOrchestrationManager.addToGroup(slideNumber, groupSpid, childSpid);
+    }
+
+    @Override
+    public ExecutionResult<Void> detachFromGroup(int slideNumber, int childSpid) {
+        return shapeOrchestrationManager.detachFromGroup(slideNumber, childSpid);
     }
 
     @Override
@@ -649,16 +676,16 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     }
 
     @Override
-    public ExecutionResult<String> addAnimation(int slideNumber, 
+    public ExecutionResult<String> addAnimation(int slideNumber,
                                                com.excudo.core.model.AnimationBinding animationBinding) {
         if (currentContext == null) {
             return ExecutionResult.failure("AddAnimation", "No orchestration context available");
         }
-        
+
         // Delegate to animation manager
         return animationOrchestrationManager.addAnimation(slideNumber, animationBinding);
     }
-    
+
     @Override
     public ExecutionResult<String> addAnimation(int slideNumber,
                                                com.excudo.core.model.AnimationBinding animationBinding,
@@ -686,11 +713,11 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return animationOrchestrationManager.updateAnimation(slideNumber, timingNodeId, properties);
     }
-    
+
     // ========== BULLET POINT OPERATIONS ==========
-    
+
     @Override
-    public ExecutionResult<String> editBulletPoint(int slideNumber, int spid, String operation, 
+    public ExecutionResult<String> editBulletPoint(int slideNumber, int spid, String operation,
                                                   int bulletIndex, String newText, String bulletStyle) {
         return shapeOrchestrationManager.editBulletPoint(slideNumber, spid, operation, bulletIndex, newText, bulletStyle);
     }
@@ -1137,14 +1164,14 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return layoutOrchestrationManager.removePlaceholder(layoutId, idx);
     }
-    
+
     // ========== UTILITY OPERATIONS ==========
-    
+
     @Override
     public List<com.excudo.core.model.AnimationType> getAvailableAnimationTypes() {
         return utilityOrchestrationManager.getAvailableAnimationTypes();
     }
-    
+
     @Override
     public ExecutionResult<String> dumpTimingXML(int slideNumber) {
         if (currentContext == null) {
@@ -1152,7 +1179,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return utilityOrchestrationManager.dumpTimingXML(slideNumber);
     }
-    
+
     @Override
     public ExecutionResult<String> dumpTimingsBulk(String slideRange, boolean writeToFile) {
         if (currentContext == null) {
@@ -1160,7 +1187,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return utilityOrchestrationManager.dumpTimingsBulk(slideRange, writeToFile);
     }
-    
+
     @Override
     public ExecutionResult<String> dumpShapeXML(int slideNumber, int spid) {
         if (currentContext == null) {
@@ -1168,7 +1195,7 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
         }
         return utilityOrchestrationManager.dumpShapeXML(slideNumber, spid);
     }
-    
+
     @Override
     public ExecutionResult<String> dumpShapesBulk(String slideRange, boolean writeToFile) {
         if (currentContext == null) {

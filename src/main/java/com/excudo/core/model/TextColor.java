@@ -26,4 +26,17 @@ public final class TextColor {
     public boolean isScheme() { return schemeVal != null; }
     public String getSchemeVal() { return schemeVal; }
     public String getHexVal() { return hexVal; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TextColor that)) return false;
+        return java.util.Objects.equals(schemeVal, that.schemeVal)
+            && java.util.Objects.equals(hexVal, that.hexVal);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(schemeVal, hexVal);
+    }
 }

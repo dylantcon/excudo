@@ -502,6 +502,17 @@ public class PPTXDocument implements AutoCloseable {
         bumpSlideRevision(slideNumber);
     }
 
+    /**
+     * True when any OPC part carries dirty state since the last
+     * {@link #clearDirty()} (typically called by the save path).
+     * Public accessor for the session-tab UX: the close / switch
+     * prompt needs to know whether unsaved changes exist. Backed by
+     * the private {@code dirtyParts} set so callers can't mutate it.
+     */
+    public boolean hasUnsavedChanges() {
+        return !dirtyParts.isEmpty();
+    }
+
     public int getSlideCount() {
         int count = 0;
         for (String partName : xmlParts.keySet()) {

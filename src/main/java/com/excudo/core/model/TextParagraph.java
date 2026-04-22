@@ -75,6 +75,23 @@ public final class TextParagraph {
     public int getLevel() { return level; }
     public BulletType getBulletType() { return bulletType; }
     public String getBulletChar() { return bulletChar; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TextParagraph that)) return false;
+        return level == that.level
+            && java.util.Objects.equals(runs, that.runs)
+            && java.util.Objects.equals(alignment, that.alignment)
+            && bulletType == that.bulletType
+            && java.util.Objects.equals(bulletChar, that.bulletChar);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(runs, alignment, level, bulletType, bulletChar);
+    }
+
     public String getBulletFont() { return bulletFont; }
     public String getBulletFontPanose() { return bulletFontPanose; }
     public String getBulletFontPitchFamily() { return bulletFontPitchFamily; }

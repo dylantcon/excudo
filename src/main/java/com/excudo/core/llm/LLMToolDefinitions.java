@@ -74,6 +74,34 @@ public class LLMToolDefinitions {
         ));
 
         tools.add(new ToolDefinition(
+            "synthesize_slide_script",
+            "Reverse-engineer the minimum DAG of canonical commands that, applied to a "
+            + "slide's layout baseline, produces the slide's current state. Returns both a "
+            + "numbered human-readable summary and a JSON array of CommandSpecs. PAIR WITH "
+            + "run_slide_script for clone-with-overrides: synthesize slide S, edit specs by "
+            + "index (e.g., swap text/geometry/color on specs 3, 7, 11), send the modified "
+            + "JSON array to run_slide_script targeting a fresh slide. The invariants "
+            + "reproduce exactly -- only the overridden specs differ. This is the fastest "
+            + "way to compose a series of structurally-similar slides.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumber\":{\"type\":\"integer\",\"description\":\"Source slide to synthesize.\"}"
+            + "},\"required\":[\"slideNumber\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "run_slide_script",
+            "Apply a JSON array of CommandSpecs (from synthesize_slide_script, optionally "
+            + "edited) to a target slide. SPID remapping is automatic: AddShapeSpec allocates "
+            + "fresh SPIDs on the target slide, and downstream specs (animation targets, "
+            + "group children, reorder targets) are rewritten to match. Full rollback on any "
+            + "failing spec.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumber\":{\"type\":\"integer\",\"description\":\"Target slide to apply the script to.\"},"
+            + "\"script\":{\"type\":\"string\",\"description\":\"JSON array of CommandSpec objects.\"}"
+            + "},\"required\":[\"slideNumber\",\"script\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
             "fetch_tool_schemas",
             "Retrieve full schemas for additional tools listed in DEFERRED TOOLS. Pass tool names to activate them.",
             "{\"type\":\"object\",\"properties\":{\"tool_names\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Tool names from DEFERRED TOOLS to retrieve\"}},\"required\":[\"tool_names\"]}"
@@ -160,6 +188,68 @@ public class LLMToolDefinitions {
             "inject_icon",
             "Place an icon on a slide by keyword search. Returns SPID of injected image.",
             "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"},\"query\":{\"type\":\"string\"},\"placement\":{\"type\":\"string\",\"description\":\"auto|top-right|top-left|bottom-right|bottom-left\"}},\"required\":[\"slideNumber\",\"query\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "render_slides",
+            "Render multiple slides as a contact sheet PNG (grid of thumbnails). Defaults to "
+            + "all slides, 3 columns, 320x180 thumbnails. Useful for 'show me the deck at a glance' "
+            + "without N separate render_slide calls.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumbers\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"1-indexed slide numbers to include. Omit for all slides.\"},"
+            + "\"thumbWidth\":{\"type\":\"integer\",\"description\":\"Pixel width per thumbnail; default 320\"},"
+            + "\"thumbHeight\":{\"type\":\"integer\",\"description\":\"Pixel height per thumbnail; default 180\"},"
+            + "\"columns\":{\"type\":\"integer\",\"description\":\"Grid columns; default 3\"},"
+            + "\"gutter\":{\"type\":\"integer\",\"description\":\"Pixels of transparent padding between thumbnails; default 8\"},"
+            + "\"output\":{\"type\":\"string\",\"description\":\"Optional absolute path. Falls back to a server-local temp file.\"}"
+            + "},\"required\":[]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "get_shape_style",
+            "Typed style (fill, line, themeStyleRef) for one shape. Returns the shape's "
+            + "own declared overrides -- what the synthesizer would emit as CommandSpecs to "
+            + "reproduce the current styling from the layout baseline.",
+            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"},\"spid\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\",\"spid\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "get_transition",
+            "Effective slide transition, resolved through the slide > layout > master "
+            + "inheritance chain. Reports the type, speed, duration, auto-advance timer, "
+            + "AND which level of the chain declared it (SLIDE override vs. inherited).",
+            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "get_group_bounds",
+            "Slide-space bounding box (x, y, width, height in EMU + rotation in 60000ths of a "
+            + "degree) for a group shape. Reads the parser's post-transform geometry -- cheap, no "
+            + "re-walk of the tree. Use when laying out multi-group compositions without "
+            + "instantiating a full get_slide_shapes call.",
+            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"},\"groupSpid\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\",\"groupSpid\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "get_layout_baseline",
+            "Layout baseline for a slide: the placeholder geometries, master txStyles, "
+            + "color map, and background color that the slide would have if no user edits "
+            + "had been applied. The synthesizer diffs current state against this.",
+            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "list_animation_types",
+            "Available animation effects grouped by category (entrance, emphasis, exit, motion). "
+            + "Use to discover valid effect names before calling add-animation via execute_commands.",
+            "{\"type\":\"object\",\"properties\":{},\"required\":[]}"
+        ));
+
+        tools.add(new ToolDefinition(
+            "list_trigger_types",
+            "Available animation trigger types (on-click, with-previous, after-previous) with their "
+            + "semantics. Use to pick the right sequencing mode when authoring animations.",
+            "{\"type\":\"object\",\"properties\":{},\"required\":[]}"
         ));
 
         return tools;

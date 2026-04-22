@@ -95,6 +95,33 @@ public final class TextRun {
         return new Builder(text);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TextRun that)) return false;
+        return java.util.Objects.equals(text, that.text)
+            && java.util.Objects.equals(fontSize, that.fontSize)
+            && java.util.Objects.equals(bold, that.bold)
+            && java.util.Objects.equals(italic, that.italic)
+            && java.util.Objects.equals(underline, that.underline)
+            && java.util.Objects.equals(strikethrough, that.strikethrough)
+            && java.util.Objects.equals(fontFamily, that.fontFamily)
+            && java.util.Objects.equals(color, that.color)
+            && java.util.Objects.equals(highlight, that.highlight)
+            && java.util.Objects.equals(language, that.language)
+            && java.util.Objects.equals(capitalization, that.capitalization)
+            && java.util.Objects.equals(baseline, that.baseline)
+            && java.util.Objects.equals(characterSpacing, that.characterSpacing)
+            && java.util.Objects.equals(kerningThreshold, that.kerningThreshold);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(text, fontSize, bold, italic, underline, strikethrough,
+            fontFamily, color, highlight, language, capitalization, baseline,
+            characterSpacing, kerningThreshold);
+    }
+
     public static final class Builder {
         private final String text;
         private Integer fontSize;

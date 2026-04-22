@@ -568,6 +568,49 @@ public class ShapeOrchestrationManager {
         });
     }
 
+    /** Rename a shape via the {@code cNvPr/@name} attribute. */
+    public ExecutionResult<Void> updateShapeName(int slideNumber, int spid, String newName) {
+        return performShapeXMLOperation(slideNumber, "UpdateShapeName", (document, writer) -> {
+            writer.updateShapeName(spid, newName);
+            return null;
+        });
+    }
+
+    /** Toggle the {@code cNvSpPr/@txBox} marker on a shape in place. */
+    public ExecutionResult<Void> updateShapeTextBoxFlag(int slideNumber, int spid, boolean flag) {
+        return performShapeXMLOperation(slideNumber, "UpdateShapeTextBoxFlag", (document, writer) -> {
+            writer.updateShapeTextBoxFlag(spid, flag);
+            return null;
+        });
+    }
+
+    /** Replace the run at {@code (paragraphIdx, runIdx)} on a shape. */
+    public ExecutionResult<Void> updateRunFormat(int slideNumber, int spid,
+                                                 int paragraphIdx, int runIdx,
+                                                 com.excudo.core.model.TextRun newRun) {
+        return performShapeXMLOperation(slideNumber, "UpdateRunFormat", (document, writer) -> {
+            writer.updateRunFormat(spid, paragraphIdx, runIdx, newRun);
+            return null;
+        });
+    }
+
+    /** Move an existing top-level shape into a group, preserving its
+     *  slide-space visual position through the inverse coordinate transform. */
+    public ExecutionResult<Void> addToGroup(int slideNumber, int groupSpid, int childSpid) {
+        return performShapeXMLOperation(slideNumber, "AddToGroup", (document, writer) -> {
+            writer.addToGroup(groupSpid, childSpid);
+            return null;
+        });
+    }
+
+    /** Move a grouped child out to top-level, preserving slide-space position. */
+    public ExecutionResult<Void> detachFromGroup(int slideNumber, int childSpid) {
+        return performShapeXMLOperation(slideNumber, "DetachFromGroup", (document, writer) -> {
+            writer.detachFromGroup(childSpid);
+            return null;
+        });
+    }
+
     /**
      * Reorder a shape's z-order position in the slide's shape tree.
      *

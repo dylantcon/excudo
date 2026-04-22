@@ -291,6 +291,34 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         } catch (ClassNotFoundException | NoClassDefFoundError e) {
             // View layer not available (headless build without JavaFX)
         }
+
+        // Register contact-sheet render function via the same reflection trick
+        // so core/llm can composite multiple slides into a grid PNG without
+        // depending on view/rendering at compile time.
+        try {
+            Class<?> rendererClass = Class.forName("com.excudo.view.rendering.HeadlessSlideRenderer");
+            com.excudo.core.commands.UtilityCommandFactory.setContactSheetRenderFunction(
+                (doc, slideNumbers, outFile, thumbW, thumbH, cols, gutter, theme, clrMap, bgFn, masterStyles) -> {
+                    // Allocate renderer at full slide size (1280x720 default); the
+                    // contact-sheet path scales each cached per-slide render down
+                    // to thumbW x thumbH before compositing, so text metrics stay
+                    // consistent with the normal render path.
+                    Object renderer = rendererClass.getConstructor().newInstance();
+                    Object sheet = rendererClass.getMethod("renderContactSheet",
+                        com.excudo.core.model.PPTXDocument.class, int[].class,
+                        int.class, int.class, int.class, int.class,
+                        com.excudo.core.themes.ThemeDefinition.class, java.util.Map.class,
+                        java.util.function.IntFunction.class, java.util.Map.class)
+                        .invoke(renderer, doc, slideNumbers, thumbW, thumbH, cols, gutter,
+                            theme, clrMap, bgFn, masterStyles);
+                    java.awt.image.BufferedImage bi = (java.awt.image.BufferedImage) sheet;
+                    if (outFile.getParentFile() != null) outFile.getParentFile().mkdirs();
+                    javax.imageio.ImageIO.write(bi, "png", outFile);
+                    return new int[]{bi.getWidth(), bi.getHeight()};
+                });
+        } catch (ClassNotFoundException | NoClassDefFoundError e) {
+            // View layer not available (headless build without JavaFX)
+        }
         this.sessionManager = SessionManager.getInstance();
         this.consoleSessionManager = new ConsoleSessionManager(
             sessionManager,

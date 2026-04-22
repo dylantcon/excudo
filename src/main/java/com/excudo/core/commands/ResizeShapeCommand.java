@@ -62,7 +62,7 @@ public class ResizeShapeCommand implements Command {
         originalGeometry = shape.getGeometry();
 
         ShapeGeometry newGeometry = new ShapeGeometry(originalGeometry.getX(), originalGeometry.getY(),
-            newWidth, newHeight);
+            newWidth, newHeight, originalGeometry.getRotation());
 
         ExecutionResult<Void> resizeResult = orchestrator.updateShapeGeometry(slideNumber, spid, newGeometry);
         if (!resizeResult.isSuccess()) {

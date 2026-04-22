@@ -32,4 +32,16 @@ public final class ShapeFill {
 
     public FillType getType() { return type; }
     public TextColor getColor() { return color; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ShapeFill that)) return false;
+        return type == that.type && java.util.Objects.equals(color, that.color);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(type, color);
+    }
 }

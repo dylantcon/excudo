@@ -485,6 +485,40 @@ public interface PPTXOrchestrator {
     ExecutionResult<Void> updateShapeGeometry(int slideNumber, int spid, ShapeGeometry newGeometry);
 
     /**
+     * Rename a shape via the {@code cNvPr/@name} attribute.
+     *
+     * @param slideNumber the slide containing the shape
+     * @param spid        the shape SPID
+     * @param newName     the new name (null treated as empty string)
+     * @return result indicating success / failure
+     */
+    ExecutionResult<Void> updateShapeName(int slideNumber, int spid, String newName);
+
+    /**
+     * Toggle the {@code cNvSpPr/@txBox} marker on a shape in place.
+     * Doesn't touch geometry, style, or text body -- it's a narrow
+     * metadata flip.
+     */
+    ExecutionResult<Void> updateShapeTextBoxFlag(int slideNumber, int spid, boolean flag);
+
+    /**
+     * Replace the run at {@code (paragraphIdx, runIdx)} on a shape's
+     * txBody with a freshly-rendered run from {@code newRun}. Narrower
+     * than {@code setTextBody} -- updates a single run's formatting in
+     * place, preserving every other paragraph and run.
+     */
+    ExecutionResult<Void> updateRunFormat(int slideNumber, int spid,
+                                          int paragraphIdx, int runIdx,
+                                          com.excudo.core.model.TextRun newRun);
+
+    /** Move a top-level shape into an existing group, preserving its
+     *  visual position via the inverse coordinate transform. */
+    ExecutionResult<Void> addToGroup(int slideNumber, int groupSpid, int childSpid);
+
+    /** Move a grouped child out to top-level, preserving visual position. */
+    ExecutionResult<Void> detachFromGroup(int slideNumber, int childSpid);
+
+    /**
      * Reorder a shape's z-order position in the slide's shape tree.
      *
      * @param slideNumber The slide number (1-based)

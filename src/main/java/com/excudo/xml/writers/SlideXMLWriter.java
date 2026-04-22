@@ -92,6 +92,27 @@ public class SlideXMLWriter implements com.excudo.xml.writers.animations.TimingN
     shapeWriter.updateShapeGeometry(spid, newGeometry);
   }
 
+  public void updateShapeName(int spid, String newName) throws XMLParsingException {
+    shapeWriter.updateShapeName(spid, newName);
+  }
+
+  public void updateShapeTextBoxFlag(int spid, boolean flag) throws XMLParsingException {
+    shapeWriter.updateShapeTextBoxFlag(spid, flag);
+  }
+
+  public void updateRunFormat(int spid, int paragraphIdx, int runIdx,
+                              com.excudo.core.model.TextRun newRun) throws XMLParsingException {
+    shapeWriter.updateRunFormat(spid, paragraphIdx, runIdx, newRun);
+  }
+
+  public void addToGroup(int groupSpid, int childSpid) throws XMLParsingException {
+    shapeWriter.addToGroup(groupSpid, childSpid);
+  }
+
+  public void detachFromGroup(int childSpid) throws XMLParsingException {
+    shapeWriter.detachFromGroup(childSpid);
+  }
+
   public void reorderShape(int spid, String operation) throws XMLParsingException {
     shapeWriter.reorderShape(spid, operation);
   }

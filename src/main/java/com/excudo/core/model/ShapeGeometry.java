@@ -44,4 +44,18 @@ public class ShapeGeometry {
     return String.format("Geometry{x=%.1fpt, y=%.1fpt, w=%.1fpt, h=%.1fpt}",
         getXInPoints(), getYInPoints(), getWidthInPoints(), getHeightInPoints());
   }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof ShapeGeometry that)) return false;
+    return x == that.x && y == that.y
+        && width == that.width && height == that.height
+        && rotation == that.rotation;
+  }
+
+  @Override
+  public int hashCode() {
+    return java.util.Objects.hash(x, y, width, height, rotation);
+  }
 }

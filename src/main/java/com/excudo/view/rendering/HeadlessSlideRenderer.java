@@ -135,26 +135,40 @@ public class HeadlessSlideRenderer {
                              String backgroundColorHex,
                              java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
             throws IOException {
+        CachedRender cr = renderPngBytesCached(doc, slideNumber, theme, clrMap, backgroundColorHex, masterStyles);
+        writeBytesToFile(outputFile, cr.bytes());
+        boolean hit = cr == getFromCache(cacheKey(doc, slideNumber)); // best-effort post-check; informational only
+        if (!TIMING_ENABLED) {
+            logger.info("Rendered slide {} to {} ({}x{}, {} bytes)",
+                slideNumber, outputFile.getName(), width, height, cr.bytes().length);
+        }
+        return new RenderReport(cr.bytes(), cr.substitutions(), hit);
+    }
+
+    /**
+     * Cache-aware renderer returning PNG bytes + substitutions without
+     * touching disk. Extracted so both the file-writing path and the
+     * contact-sheet path share the same caching behavior.
+     */
+    private CachedRender renderPngBytesCached(PPTXDocument doc, int slideNumber,
+                             com.excudo.core.themes.ThemeDefinition theme,
+                             java.util.Map<String, String> clrMap,
+                             String backgroundColorHex,
+                             java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
+            throws IOException {
         long t0 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-        // Cache lookup: skip the entire render + encode pipeline on hit.
-        // The revision counter means any mutation since the last cache
-        // put makes this key unreachable.
         String cacheKey = cacheKey(doc, slideNumber);
         CachedRender cached;
         synchronized (CACHE_LOCK) {
             cached = RENDER_CACHE.get(cacheKey);
         }
         if (cached != null) {
-            writeBytesToFile(outputFile, cached.bytes());
             if (TIMING_ENABLED) {
                 logger.info("render-timing slide={} [cache hit] total={}ms",
                     slideNumber, ms(System.nanoTime() - t0));
-            } else {
-                logger.info("Rendered slide {} to {} (cache hit, {} bytes)",
-                    slideNumber, outputFile.getName(), cached.bytes().length);
             }
-            return new RenderReport(cached.bytes(), cached.substitutions(), true);
+            return cached;
         }
 
         Document slideDom = doc.getSlideDocument(slideNumber);
@@ -162,8 +176,6 @@ public class HeadlessSlideRenderer {
             throw new IOException("Slide " + slideNumber + " not found in PPTXDocument");
         }
 
-        // Reset the substitution tracker so we only collect events that
-        // happen during THIS render rather than leftovers from a prior one.
         FontSubstitutionTracker.beginRender();
 
         long t1 = TIMING_ENABLED ? System.nanoTime() : 0;
@@ -171,10 +183,6 @@ public class HeadlessSlideRenderer {
             backgroundColorHex, masterStyles);
         long t2 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-        // Prefer the PPTXDocument's cached ParsedSlideData so SlideRenderer
-        // doesn't re-run SlideXMLParser.parseSlide inside its render path.
-        // Parser is injected because PPTXDocument can't import from
-        // xml/parsers (that package imports core/model).
         com.excudo.core.model.ParsedSlideData parsed = doc.getParsedSlideData(slideNumber,
             (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
         BufferedImage image = parsed != null
@@ -182,33 +190,97 @@ public class HeadlessSlideRenderer {
             : renderToBufferedImage(slideDom, slideContext);
         long t3 = TIMING_ENABLED ? System.nanoTime() : 0;
 
-        // Encode PNG to bytes ONCE, then write to file AND cache the bytes
-        // so the next request for this (revision, slide, w, h) tuple can
-        // skip the whole pipeline above.
         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
         ImageIO.write(image, "png", bos);
         byte[] pngBytes = bos.toByteArray();
 
-        // Drain substitutions now so they're captured alongside the bytes.
-        // Caching them means subsequent cache-hit renders surface the same
-        // warnings (host fonts don't change between renders on one JVM).
         java.util.List<FontSubstitutionTracker.Substitution> substitutions =
             FontSubstitutionTracker.drain();
 
+        CachedRender fresh = new CachedRender(pngBytes, substitutions);
         synchronized (CACHE_LOCK) {
-            RENDER_CACHE.put(cacheKey, new CachedRender(pngBytes, substitutions));
+            RENDER_CACHE.put(cacheKey, fresh);
         }
 
-        writeBytesToFile(outputFile, pngBytes);
         long t4 = TIMING_ENABLED ? System.nanoTime() : 0;
-
         if (TIMING_ENABLED) {
             logger.info("render-timing slide={} context={}ms render+snapshot={}ms encode={}ms total={}ms",
                 slideNumber, ms(t2 - t1), ms(t3 - t2), ms(t4 - t3), ms(t4 - t0));
-        } else {
-            logger.info("Rendered slide {} to {} ({}x{})", slideNumber, outputFile.getName(), width, height);
         }
-        return new RenderReport(pngBytes, substitutions, false);
+        return fresh;
+    }
+
+    private CachedRender getFromCache(String key) {
+        synchronized (CACHE_LOCK) {
+            return RENDER_CACHE.get(key);
+        }
+    }
+
+    /**
+     * Render a subset of slides into a single contact-sheet PNG. Each slide
+     * renders at the instance's (width, height) and is scaled to the
+     * requested thumbnail size before composition, so text metrics and
+     * layout stay faithful to the normal render path. The per-slide cache
+     * applies: calling twice over the same (unmutated) slide list is ~free
+     * after the first pass.
+     *
+     * @param doc             source document
+     * @param slideNumbers    1-indexed slide numbers, in the order they should appear in the grid
+     * @param thumbWidth      pixel width of each thumbnail in the grid
+     * @param thumbHeight     pixel height of each thumbnail in the grid
+     * @param columns         grid columns; rows derived from {@code ceil(slideNumbers.length / columns)}
+     * @param gutter          pixels of transparent padding between thumbnails (0 for flush grid)
+     * @return contact-sheet BufferedImage sized {@code columns*thumbWidth + (columns+1)*gutter} by
+     *         {@code rows*thumbHeight + (rows+1)*gutter}
+     */
+    public BufferedImage renderContactSheet(PPTXDocument doc, int[] slideNumbers,
+                             int thumbWidth, int thumbHeight, int columns, int gutter,
+                             com.excudo.core.themes.ThemeDefinition theme,
+                             java.util.Map<String, String> clrMap,
+                             java.util.function.IntFunction<String> backgroundHexForSlide,
+                             java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
+            throws IOException {
+        if (slideNumbers == null || slideNumbers.length == 0) {
+            throw new IllegalArgumentException("slideNumbers must contain at least one slide");
+        }
+        if (columns < 1) columns = 1;
+        if (thumbWidth < 1 || thumbHeight < 1) {
+            throw new IllegalArgumentException("thumbnail dimensions must be positive");
+        }
+        int rows = (slideNumbers.length + columns - 1) / columns;
+
+        int sheetW = columns * thumbWidth + (columns + 1) * gutter;
+        int sheetH = rows * thumbHeight + (rows + 1) * gutter;
+        BufferedImage sheet = new BufferedImage(sheetW, sheetH, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = sheet.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
+                java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+
+            for (int i = 0; i < slideNumbers.length; i++) {
+                int slideNumber = slideNumbers[i];
+                String bgHex = backgroundHexForSlide != null
+                    ? backgroundHexForSlide.apply(slideNumber) : null;
+                CachedRender cr = renderPngBytesCached(doc, slideNumber, theme, clrMap,
+                    bgHex, masterStyles);
+                BufferedImage full = ImageIO.read(new java.io.ByteArrayInputStream(cr.bytes()));
+                if (full == null) {
+                    throw new IOException("Failed to decode cached PNG for slide " + slideNumber);
+                }
+                int col = i % columns;
+                int row = i / columns;
+                int x = gutter + col * (thumbWidth + gutter);
+                int y = gutter + row * (thumbHeight + gutter);
+                g.drawImage(full, x, y, thumbWidth, thumbHeight, null);
+            }
+        } finally {
+            g.dispose();
+        }
+        logger.info("Rendered contact sheet: {} slide(s) in {}x{} grid, sheet {}x{}",
+            slideNumbers.length, columns, rows, sheetW, sheetH);
+        return sheet;
     }
 
     private String cacheKey(PPTXDocument doc, int slideNumber) {

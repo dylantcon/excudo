@@ -56,6 +56,14 @@ public class AnimationEditCommand implements Command {
     private boolean executed = false;
     private String addedAnimationId = null;
 
+    /** DOM id of the factory-created cTn that serves as the handle for
+     *  {@code removeAnimation} on undo. Captured in {@link #execute()} by
+     *  diffing the set of {@code <p:cTn>} ids present before vs. after
+     *  injection and picking the new one carrying a {@code presetID}
+     *  attribute (the signal that identifies the animation preset root,
+     *  not the intermediate container or bookkeeping nodes). */
+    private Integer undoTimingNodeId = null;
+
     /**
      * Create an AnimationEditCommand with animation group and effectParams.
      *
@@ -127,6 +135,36 @@ public class AnimationEditCommand implements Command {
     public AnimationEditCommand(int slideNumber, int spid, String animationType,
                               String direction, String trigger, PPTXOrchestrator orchestrator) {
         this(slideNumber, spid, animationType, direction, trigger, deriveAnimationGroup(trigger), orchestrator, null, Collections.emptyMap(), null, null);
+    }
+
+    /**
+     * Create an AnimationEditCommand directly from a pre-built
+     * {@link AnimationBinding}. Used by the synthesizer's
+     * {@code AddAnimationSpec} path where the binding has already been
+     * composed and doesn't need to be reassembled from broken-down
+     * strings. Trigger derivation matches the string-param constructor:
+     * {@code clickTrigger} > 0 &rarr; on-click,
+     * {@code clickTrigger} == 0 &rarr; with-previous,
+     * {@code clickTrigger} == -1 &rarr; after-previous.
+     */
+    public static AnimationEditCommand fromBinding(int slideNumber, AnimationBinding binding,
+            PPTXOrchestrator orchestrator,
+            com.excudo.xml.writers.animations.GroupIdManager groupIdManager) {
+        if (binding == null) {
+            throw new IllegalArgumentException("AnimationBinding cannot be null");
+        }
+        String type = binding.getAnimationType().getUserFriendlyName();
+        String direction = binding.isEmphasisAnimation() ? "emphasis"
+            : (binding.isExitAnimation() ? "out" : "in");
+        int ct = binding.getClickTrigger();
+        String trigger = ct == 0 ? "with-previous" : (ct < 0 ? "after-previous" : "on-click");
+        String animGroup = binding.getAnimationGroup() != null ? binding.getAnimationGroup() : trigger;
+        Map<String, String> params = binding.getEffectParams() != null
+            ? binding.getEffectParams() : Collections.emptyMap();
+        Integer pStart = binding.getParagraphStart();
+        Integer pEnd   = binding.getParagraphEnd();
+        return new AnimationEditCommand(slideNumber, binding.getTargetSpid(), type, direction,
+            trigger, animGroup, orchestrator, groupIdManager, params, pStart, pEnd);
     }
     
     /**
@@ -221,14 +259,22 @@ public class AnimationEditCommand implements Command {
 
             AnimationBinding binding = builder.build();
             com.excudo.core.utils.Logger.animation().debug("AnimationEditCommand: Built binding with animationGroup: '" + binding.getAnimationGroup() + "'");
-            
+
+            // Snapshot the set of <p:cTn id=...> ids present BEFORE the
+            // injection so we can identify the new preset-root cTn
+            // afterwards. This is the handle used for undo; the tracking
+            // string from addAnimation is opaque and can't drive removal.
+            java.util.Set<Integer> preIds = captureTimingNodeIds(slideNumber);
+
             // Call the modern orchestrator method with session GroupIdManager
             ExecutionResult<String> result = orchestrator.addAnimation(slideNumber, binding, groupIdManager);
-            
+
             if (result.isSuccess()) {
                 addedAnimationId = result.getData().orElse(null);
+                undoTimingNodeId = findNewPresetCTnId(slideNumber, preIds);
                 executed = true;
-                logger.debug("Successfully added animation with ID: " + addedAnimationId);
+                logger.debug("Successfully added animation with ID: " + addedAnimationId
+                    + " (undo handle cTn id=" + undoTimingNodeId + ")");
             } else {
                 logger.error("Animation addition failed: " + result.getMessage());
                 throw new CommandExecutionException(
@@ -266,21 +312,20 @@ public class AnimationEditCommand implements Command {
         }
 
         try {
-            // Parse timingNodeId from the addedAnimationId (format: slide_spid_type_trigger_timestamp)
-            // The orchestrator's removeAnimation uses a timing node ID.
-            // For now, attempt removal via the stored ID -- the orchestrator
-            // accepts (slideNumber, timingNodeId).
-            if (addedAnimationId != null) {
-                // addedAnimationId is a tracking string, not a direct timing node ID.
-                // Full undo requires the timing node ID which we don't currently capture.
-                // Log the limitation but mark as undone to allow re-execution.
-                logger.debug("Animation undo requested for ID: " + addedAnimationId
-                    + " -- timing node ID tracking not yet captured at creation time");
+            ExecutionResult<Void> result = orchestrator.removeAnimation(slideNumber, undoTimingNodeId);
+            if (!result.isSuccess()) {
+                throw new CommandExecutionException(getDescription(), "undo",
+                    "removeAnimation failed: " + result.getMessage());
             }
+            logger.debug("Undid animation {} on slide {} (cTn id={})",
+                addedAnimationId, slideNumber, undoTimingNodeId);
 
             executed = false;
             addedAnimationId = null;
+            undoTimingNodeId = null;
 
+        } catch (CommandExecutionException e) {
+            throw e;
         } catch (Exception e) {
             throw new CommandExecutionException(
                 getDescription(),
@@ -290,17 +335,81 @@ public class AnimationEditCommand implements Command {
             );
         }
     }
-    
+
     /**
      * Check if this command can be undone.
-     * Animation addition can be undone by removing the added animation.
-     * 
+     * Animation addition is undoable once the preset-root cTn id has
+     * been captured from the post-injection DOM diff.
+     *
      * @return true if the command can be undone
      */
     @Override
     public boolean canUndo() {
-        // Animation addition will be undoable once implemented
-        return executed && addedAnimationId != null;
+        return executed && undoTimingNodeId != null;
+    }
+
+    /** Collect every {@code <p:cTn id="N"/>} id currently present in the
+     *  slide's timing tree. Used as a pre-injection baseline so the
+     *  single new preset-root cTn can be identified after injection. */
+    private java.util.Set<Integer> captureTimingNodeIds(int slide) {
+        java.util.Set<Integer> ids = new java.util.HashSet<>();
+        try {
+            org.w3c.dom.Document dom = getSlideDom(slide);
+            if (dom == null) return ids;
+            org.w3c.dom.NodeList all = dom.getElementsByTagNameNS(
+                com.excudo.core.utils.XMLConstants.Namespaces.PML,
+                com.excudo.core.utils.XMLConstants.Tags.Timing.C_TN);
+            for (int i = 0; i < all.getLength(); i++) {
+                org.w3c.dom.Element e = (org.w3c.dom.Element) all.item(i);
+                String idStr = e.getAttribute(com.excudo.core.utils.XMLConstants.Attrs.Timing.ID);
+                if (idStr != null && !idStr.isEmpty()) {
+                    try { ids.add(Integer.parseInt(idStr)); } catch (NumberFormatException ignored) {}
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("captureTimingNodeIds failed on slide " + slide + ": " + e.getMessage());
+        }
+        return ids;
+    }
+
+    /** Find the single cTn id that is (a) present in the slide's timing
+     *  tree now, (b) was not present before injection, and (c) carries a
+     *  {@code presetID} attribute (distinguishes the animation preset
+     *  root from the intermediate container and bookkeeping cTn nodes).
+     *  Returns {@code null} if no such node is found -- caller falls back
+     *  to a no-op undo and sets {@link #canUndo()} to false. */
+    private Integer findNewPresetCTnId(int slide, java.util.Set<Integer> preIds) {
+        try {
+            org.w3c.dom.Document dom = getSlideDom(slide);
+            if (dom == null) return null;
+            org.w3c.dom.NodeList all = dom.getElementsByTagNameNS(
+                com.excudo.core.utils.XMLConstants.Namespaces.PML,
+                com.excudo.core.utils.XMLConstants.Tags.Timing.C_TN);
+            for (int i = 0; i < all.getLength(); i++) {
+                org.w3c.dom.Element e = (org.w3c.dom.Element) all.item(i);
+                String idStr = e.getAttribute(com.excudo.core.utils.XMLConstants.Attrs.Timing.ID);
+                if (idStr == null || idStr.isEmpty()) continue;
+                int id;
+                try { id = Integer.parseInt(idStr); } catch (NumberFormatException ignored) { continue; }
+                if (preIds.contains(id)) continue;
+                if (!e.hasAttribute(com.excudo.core.utils.XMLConstants.Attrs.Timing.PRESET_ID)) continue;
+                return id;
+            }
+        } catch (Exception e) {
+            logger.debug("findNewPresetCTnId failed on slide " + slide + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** Fetch the current slide DOM through the orchestrator's document
+     *  handle. Null if the orchestrator has no context or the slide does
+     *  not exist in memory. */
+    private org.w3c.dom.Document getSlideDom(int slide) {
+        var ctxOpt = orchestrator.getContext();
+        if (ctxOpt.isEmpty()) return null;
+        com.excudo.core.model.PPTXDocument doc = ctxOpt.get().getDocument();
+        if (doc == null) return null;
+        return doc.getSlideDocument(slide);
     }
     
     /**

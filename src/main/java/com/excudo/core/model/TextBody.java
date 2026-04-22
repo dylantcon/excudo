@@ -43,6 +43,20 @@ public final class TextBody {
     public BodyProperties getBodyProperties() { return bodyProperties; }
     public boolean isPlaceholder() { return placeholder; }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof TextBody that)) return false;
+        return placeholder == that.placeholder
+            && java.util.Objects.equals(paragraphs, that.paragraphs)
+            && java.util.Objects.equals(bodyProperties, that.bodyProperties);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(paragraphs, bodyProperties, placeholder);
+    }
+
     /**
      * Concatenate two TextBodies paragraph-by-paragraph. Used by
      * prepend/append content-edit modes to compose user-supplied

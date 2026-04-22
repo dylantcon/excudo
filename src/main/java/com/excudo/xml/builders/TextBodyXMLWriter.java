@@ -207,6 +207,14 @@ public final class TextBodyXMLWriter {
         }
     }
 
+    /** Render a single {@code <a:r>} element (with nested {@code <a:rPr>}
+     *  and text) from a TextRun. Exposed for the per-run format editor
+     *  path used by {@code UpdateRunFormatCommand}; keep in sync with
+     *  the private paragraph-level writer. */
+    public static Element writeRunElement(Document doc, TextRun run) {
+        return writeRun(doc, run);
+    }
+
     private static Element writeRun(Document doc, TextRun run) {
         Element r = doc.createElementNS(NS, "a:r");
 

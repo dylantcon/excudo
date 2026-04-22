@@ -11,6 +11,91 @@ import java.util.Map;
  */
 public final class XMLConstants {
 
+  /**
+   * Nested, semantically-grouped aliases for the constants below.
+   * Prefer {@code XMLConstants.Namespaces.PML} over the flat
+   * {@code PRESENTATION_NS} in new code: the grouping makes it clear
+   * which symbols belong to which OOXML schema and lets a rename of
+   * any one symbol be a single-file edit. The flat constants are kept
+   * for backward compatibility with the large existing surface that
+   * references them directly.
+   */
+  public static final class Namespaces {
+    private Namespaces() {}
+    /** PresentationML -- {@code p:} prefix. */
+    public static final String PML = "http://schemas.openxmlformats.org/presentationml/2006/main";
+    /** DrawingML -- {@code a:} prefix. */
+    public static final String DML = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    /** OfficeDocument relationships -- {@code r:} prefix. */
+    public static final String REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    /** Package relationships (inside .rels files). */
+    public static final String PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships";
+  }
+
+  public static final class RelTypes {
+    private RelTypes() {}
+    public static final String SLIDE_MASTER =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster";
+    public static final String SLIDE_LAYOUT =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
+    public static final String THEME =
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
+  }
+
+  /** Element local-names (without the p:/a: prefix), grouped by area. */
+  public static final class Tags {
+    private Tags() {}
+    public static final class Timing {
+      private Timing() {}
+      public static final String C_TN = "cTn";
+      public static final String TRANSITION = "transition";
+    }
+    public static final class Shape {
+      private Shape() {}
+      public static final String SP = "sp";
+      public static final String GRP_SP = "grpSp";
+      public static final String PIC = "pic";
+      public static final String C_NV_PR = "cNvPr";
+      public static final String C_NV_SP_PR = "cNvSpPr";
+      public static final String TX_BODY = "txBody";
+      public static final String SP_PR = "spPr";
+      public static final String STYLE = "style";
+    }
+    public static final class Drawing {
+      private Drawing() {}
+      public static final String OFF = "off";
+      public static final String EXT = "ext";
+      public static final String XFRM = "xfrm";
+      public static final String SOLID_FILL = "solidFill";
+      public static final String NO_FILL = "noFill";
+      public static final String LN = "ln";
+      public static final String SCHEME_CLR = "schemeClr";
+      public static final String SRGB_CLR = "srgbClr";
+    }
+  }
+
+  /** Attribute names. */
+  public static final class Attrs {
+    private Attrs() {}
+    public static final class Timing {
+      private Timing() {}
+      public static final String PRESET_ID = "presetID";
+      public static final String PRESET_CLASS = "presetClass";
+      public static final String ID = "id";
+    }
+    public static final class Shape {
+      private Shape() {}
+      public static final String NAME = "name";
+      public static final String TX_BOX = "txBox";
+    }
+    public static final class Rel {
+      private Rel() {}
+      public static final String TYPE = "Type";
+      public static final String TARGET = "Target";
+      public static final String ID = "Id";
+    }
+  }
+
   // PowerPoint XML Namespaces
   public static final String PRESENTATION_NS = "http://schemas.openxmlformats.org/presentationml/2006/main";
   public static final String DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";

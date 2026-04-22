@@ -142,6 +142,15 @@ public class ToolDispatcher {
                 case "create_slide_from_layout"  -> handleCreateSlideFromLayout(toolInput);
                 case "inject_icon"               -> handleInjectIcon(toolInput);
                 case "render_slide"              -> handleRenderSlide(toolInput);
+                case "render_slides"             -> handleRenderSlides(toolInput);
+                case "list_animation_types"      -> handleListAnimationTypes();
+                case "list_trigger_types"        -> handleListTriggerTypes();
+                case "get_shape_style"           -> handleGetShapeStyle(toolInput);
+                case "get_transition"            -> handleGetTransition(toolInput);
+                case "get_layout_baseline"       -> handleGetLayoutBaseline(toolInput);
+                case "get_group_bounds"          -> handleGetGroupBounds(toolInput);
+                case "synthesize_slide_script"   -> handleSynthesizeSlideScript(toolInput);
+                case "run_slide_script"          -> handleRunSlideScript(toolInput);
                 default -> "Unknown tool: " + toolName;
             };
 
@@ -236,6 +245,13 @@ public class ToolDispatcher {
                     sb.append("Slide ").append(slideNum).append(": (error reading)\n");
                 }
             }
+            sb.append('\n');
+            sb.append("TIP: to compose a slide that's structurally similar to an existing one, "
+                + "use synthesize_slide_script(slideNumber=<source>) to get an indexed list of "
+                + "canonical commands + a JSON array, edit the entries that should differ "
+                + "(title text, geometry, animation params, etc), then run_slide_script "
+                + "(slideNumber=<target>, script=<edited JSON>) to apply. Invariants reproduce "
+                + "exactly -- far less agent effort than re-specifying every shape.\n");
             return sb.toString();
         } catch (Exception e) {
             return "Error getting overview: " + e.getMessage();
@@ -553,6 +569,262 @@ public class ToolDispatcher {
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
+    }
+
+    private com.excudo.core.introspection.SlideIntrospector introspector() {
+        return new com.excudo.core.introspection.SlideIntrospector(orchestrator);
+    }
+
+    private String handleGetShapeStyle(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            int spid = JsonHelper.getInt(input, "spid", 0);
+            if (slideNumber <= 0 || spid <= 0) {
+                return "Error: slideNumber and spid are required positive integers.";
+            }
+            com.excudo.core.model.ShapeStyle style = introspector().getShapeStyle(slideNumber, spid);
+            if (style == null) {
+                return "No shape found at slide " + slideNumber + ", SPID " + spid + ".";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Shape style for slide ").append(slideNumber).append(", SPID ").append(spid).append(":\n");
+            sb.append("  fill: ").append(formatFill(style.getFill())).append('\n');
+            sb.append("  line: ").append(formatLine(style.getLine())).append('\n');
+            sb.append("  themeStyle: ").append(formatThemeStyleRef(style.getThemeStyle())).append('\n');
+            return sb.toString();
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handleGetTransition(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required.";
+            }
+            com.excudo.core.introspection.TransitionDescriptor t =
+                introspector().getTransition(slideNumber);
+            if (t == null) {
+                return "Slide " + slideNumber + " has no transition (slide, layout, and master all declare none).";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Transition for slide ").append(slideNumber).append(":\n");
+            sb.append("  type: ").append(t.type().getUserFriendlyName()).append('\n');
+            sb.append("  speed: ").append(t.speed()).append('\n');
+            if (t.durationMs() != null) sb.append("  durationMs: ").append(t.durationMs()).append('\n');
+            if (t.autoAdvanceMs() != null) sb.append("  autoAdvanceMs: ").append(t.autoAdvanceMs()).append('\n');
+            sb.append("  source: ").append(t.source()).append(" (")
+              .append(t.source() == com.excudo.core.introspection.TransitionDescriptor.Source.SLIDE
+                  ? "explicit override on this slide"
+                  : "inherited from " + t.source().name().toLowerCase())
+              .append(")\n");
+            return sb.toString();
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handleGetLayoutBaseline(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required.";
+            }
+            com.excudo.core.introspection.LayoutBaseline baseline =
+                introspector().getLayoutBaseline(slideNumber);
+            if (baseline == null) {
+                return "No layout baseline resolvable for slide " + slideNumber + ".";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Layout baseline for slide ").append(slideNumber).append(":\n");
+            sb.append("  layout: ").append(baseline.layout().getLayoutId())
+              .append(" - ").append(baseline.layout().getName()).append('\n');
+            sb.append("  placeholders: ").append(baseline.layout().getPlaceholderGeometries().size()).append('\n');
+            sb.append("  masterStyles: ").append(baseline.masterStyles().size())
+              .append(" group(s) -- ").append(baseline.masterStyles().keySet()).append('\n');
+            sb.append("  colorMap entries: ").append(baseline.colorMap().size()).append('\n');
+            sb.append("  backgroundHex: ")
+              .append(baseline.backgroundHex() != null ? baseline.backgroundHex() : "(inherited)")
+              .append('\n');
+            return sb.toString();
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handleGetGroupBounds(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            int groupSpid = JsonHelper.getInt(input, "groupSpid", 0);
+            if (slideNumber <= 0 || groupSpid <= 0) {
+                return "Error: slideNumber and groupSpid are required positive integers.";
+            }
+            com.excudo.core.model.ShapeGeometry geom =
+                introspector().getGroupBounds(slideNumber, groupSpid);
+            if (geom == null) {
+                return "No group found at slide " + slideNumber + ", SPID " + groupSpid
+                    + ". Confirm the SPID targets a GROUP-type shape.";
+            }
+            return String.format("Group bounds (slide %d, SPID %d): "
+                    + "x=%d y=%d w=%d h=%d rot=%d (EMU, 60000ths of a degree)",
+                slideNumber, groupSpid,
+                geom.getX(), geom.getY(), geom.getWidth(), geom.getHeight(), geom.getRotation());
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handleSynthesizeSlideScript(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required (positive integer).";
+            }
+            com.excudo.core.commands.SynthesizeSlideScriptCommand cmd =
+                new com.excudo.core.commands.SynthesizeSlideScriptCommand(slideNumber, orchestrator);
+            try {
+                commandInvoker.executeCommand(cmd);
+            } catch (com.excudo.core.commands.CommandExecutionException e) {
+                return "Error synthesizing script: " + e.getMessage();
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Synthesized script for slide ").append(slideNumber)
+              .append(" (").append(cmd.getSpecCount()).append(" command")
+              .append(cmd.getSpecCount() == 1 ? "" : "s").append("):\n");
+            sb.append(cmd.getScriptSummary());
+            if (!cmd.getWarnings().isEmpty()) {
+                sb.append("\nWarnings (deltas the synthesizer couldn't express -- these won't ")
+                  .append("round-trip through run_slide_script):\n");
+                for (String w : cmd.getWarnings()) sb.append("  - ").append(w).append('\n');
+            }
+            sb.append("\nJSON for run_slide_script (copy verbatim or edit specific entries):\n");
+            sb.append(cmd.getScriptJson());
+            sb.append("\n\nWorkflow: to compose a structurally-similar slide, create a fresh ")
+              .append("target slide with the same layout, then call run_slide_script on the ")
+              .append("target after editing the entries that differ (title text, geometry, ")
+              .append("animation params, etc). SPIDs are automatically remapped.");
+            return sb.toString();
+        } catch (Exception e) {
+            return "Error synthesizing script: " + e.getMessage();
+        }
+    }
+
+    private String handleRunSlideScript(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            String scriptJson = JsonHelper.getString(input, "script");
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required (positive integer).";
+            }
+            if (scriptJson == null || scriptJson.isBlank()) {
+                return "Error: script is required (JSON array of CommandSpec objects).";
+            }
+            com.excudo.core.commands.RunSlideScriptCommand cmd =
+                new com.excudo.core.commands.RunSlideScriptCommand(
+                    slideNumber, scriptJson, orchestrator, displayAdapter);
+            try {
+                commandInvoker.executeCommand(cmd);
+            } catch (com.excudo.core.commands.CommandExecutionException e) {
+                return "Script run FAILED on slide " + slideNumber + ": " + e.getMessage();
+            }
+            return "Ran " + cmd.getAppliedSpecCount() + " spec"
+                + (cmd.getAppliedSpecCount() == 1 ? "" : "s")
+                + " on slide " + slideNumber + ". All successful (undoable).";
+        } catch (Exception e) {
+            return "Error running script: " + e.getMessage();
+        }
+    }
+
+    private String formatFill(com.excudo.core.model.ShapeFill fill) {
+        if (fill == null) return "(inherit)";
+        return switch (fill.getType()) {
+            case SOLID -> "solid " + formatColor(fill.getColor());
+            case NO_FILL -> "none";
+            case GRADIENT -> "gradient";
+        };
+    }
+
+    private String formatLine(com.excudo.core.model.ShapeLine line) {
+        if (line == null) return "(inherit)";
+        StringBuilder sb = new StringBuilder();
+        if (line.getWidthEMU() != null && line.getWidthEMU() > 0) {
+            sb.append(line.getWidthEMU()).append(" EMU ");
+        }
+        sb.append(line.getDashStyle() != null ? line.getDashStyle() : "solid");
+        if (line.getColor() != null) {
+            sb.append(' ').append(formatColor(line.getColor()));
+        }
+        return sb.toString();
+    }
+
+    private String formatColor(com.excudo.core.model.TextColor c) {
+        if (c == null) return "(no color)";
+        return c.isScheme() ? "scheme:" + c.getSchemeVal() : "#" + c.getHexVal();
+    }
+
+    private String formatThemeStyleRef(com.excudo.core.model.ThemeStyleRef ref) {
+        if (ref == null) return "(default)";
+        if (ref == com.excudo.core.model.ThemeStyleRef.NONE) return "none (text box)";
+        return String.format("lnRef idx=%d(%s), fillRef idx=%d(%s), effectRef idx=%d(%s), fontRef idx=%s(%s)",
+            ref.getLineRefIdx(), ref.getLineColor(),
+            ref.getFillRefIdx(), ref.getFillColor(),
+            ref.getEffectRefIdx(), ref.getEffectColor(),
+            ref.getFontRefIdx(), ref.getFontColor());
+    }
+
+    private String handleListAnimationTypes() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Animation effects grouped by category. Use these with the `animation-type` ");
+        sb.append("parameter on add-animation.\n\n");
+
+        sb.append("ENTRANCE (reveal content):\n");
+        appendAnimationCategory(sb, AnimationType.getEntranceTypes(), false);
+
+        sb.append("\nEMPHASIS (highlight existing content):\n");
+        appendAnimationCategory(sb, AnimationType.getEmphasisTypes(), false);
+
+        sb.append("\nEXIT (remove content):\n");
+        appendAnimationCategory(sb, AnimationType.getExitTypes(), false);
+
+        sb.append("\nMOTION PATHS (move along a path):\n");
+        AnimationType[] motions = Arrays.stream(AnimationType.values())
+            .filter(AnimationType::isMotionPath)
+            .toArray(AnimationType[]::new);
+        appendAnimationCategory(sb, motions, false);
+
+        return sb.toString();
+    }
+
+    private void appendAnimationCategory(StringBuilder sb, AnimationType[] types, boolean unused) {
+        for (AnimationType type : types) {
+            sb.append("  ").append(type.getUserFriendlyName());
+            String guidance = type.getLlmGuidance();
+            if (guidance != null && !guidance.isEmpty()) {
+                sb.append(" - ").append(guidance);
+            }
+            sb.append('\n');
+        }
+    }
+
+    private String handleListTriggerTypes() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Animation trigger types. Pass one of these as the `trigger` parameter on add-animation.\n\n");
+        sb.append("  on-click        Fires on the next user click. Each on-click animation advances ");
+        sb.append("the click sequence by one. Default for most authored decks.\n");
+        sb.append("  with-previous   Fires simultaneously with the preceding animation. No extra click ");
+        sb.append("needed. Use for bundling coordinated motion (e.g. a title fading in while a subtitle ");
+        sb.append("slides up).\n");
+        sb.append("  after-previous  Fires automatically after the preceding animation completes. No ");
+        sb.append("extra click needed. Use for sequential reveals where the agent wants pacing without ");
+        sb.append("requiring the presenter to click for each step.\n");
+        return sb.toString();
     }
 
     private String handleGetSlideAnimations(String toolInput) {
@@ -1117,6 +1389,78 @@ public class ToolDispatcher {
             return out.toString();
         } catch (Exception e) {
             return "Error rendering slide: " + e.getMessage();
+        }
+    }
+
+    private String handleRenderSlides(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int thumbWidth  = JsonHelper.getInt(input, "thumbWidth",  320);
+            int thumbHeight = JsonHelper.getInt(input, "thumbHeight", 180);
+            int columns     = JsonHelper.getInt(input, "columns",     3);
+            int gutter      = JsonHelper.getInt(input, "gutter",      8);
+            String outputArg = JsonHelper.getString(input, "output");
+
+            var context = orchestrator.getContext()
+                .orElseThrow(() -> new IllegalStateException("No presentation loaded"));
+            com.excudo.core.model.PPTXDocument doc = context.getDocument();
+
+            int[] slideNumbers;
+            if (input.has("slideNumbers") && input.get("slideNumbers").isJsonArray()) {
+                var arr = input.getAsJsonArray("slideNumbers");
+                slideNumbers = new int[arr.size()];
+                for (int i = 0; i < arr.size(); i++) {
+                    slideNumbers[i] = arr.get(i).getAsInt();
+                }
+            } else {
+                int total = doc.getSlideCount();
+                slideNumbers = new int[total];
+                for (int i = 0; i < total; i++) slideNumbers[i] = i + 1;
+            }
+            if (slideNumbers.length == 0) {
+                return "Error: presentation has no slides to render.";
+            }
+
+            com.excudo.core.themes.ThemeDefinition theme = null;
+            String themeId = (String) context.getContextData().get("themeId");
+            if (themeId != null) {
+                try { theme = com.excudo.core.themes.ThemeLoader.get(themeId); } catch (Exception ignored) {}
+            }
+
+            java.io.File outputFile;
+            String displayPath;
+            if (outputArg != null && !outputArg.isBlank()) {
+                outputFile = new java.io.File(outputArg);
+                if (outputFile.getParentFile() != null) outputFile.getParentFile().mkdirs();
+                displayPath = outputArg;
+            } else {
+                outputFile = java.io.File.createTempFile("contact-sheet-", ".png");
+                displayPath = outputFile.getAbsolutePath();
+            }
+
+            java.util.Map<String, String> clrMap = orchestrator.getClrMap();
+            var masterStyles = orchestrator.getMasterStyles();
+            java.util.function.IntFunction<String> bgPerSlide = orchestrator::getBackgroundColorHex;
+
+            com.excudo.core.commands.UtilityCommandFactory.ContactSheetRenderFunction fn =
+                com.excudo.core.commands.UtilityCommandFactory.getContactSheetRenderFunction();
+            if (fn == null) {
+                return "Error: Contact-sheet render function not registered. Start from console to enable rendering.";
+            }
+            int[] dims = fn.render(doc, slideNumbers, outputFile,
+                thumbWidth, thumbHeight, columns, gutter,
+                theme, clrMap, bgPerSlide, masterStyles);
+            lastRenderFile = outputFile;
+
+            int sheetW = dims[0];
+            int sheetH = dims[1];
+            int rows = (slideNumbers.length + Math.max(columns, 1) - 1) / Math.max(columns, 1);
+            return String.format(
+                "Rendered contact sheet to %s (%d slide%s, %dx%d grid, sheet %dx%d, %d bytes)",
+                displayPath, slideNumbers.length, slideNumbers.length == 1 ? "" : "s",
+                Math.max(columns, 1), rows, sheetW, sheetH, outputFile.length());
+        } catch (Exception e) {
+            return "Error rendering contact sheet: " + e.getMessage();
         }
     }
 

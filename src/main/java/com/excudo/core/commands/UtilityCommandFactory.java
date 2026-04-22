@@ -27,6 +27,7 @@ import java.util.HashSet;
 public class UtilityCommandFactory extends AbstractCommandFactory {
 
     private static RenderSlideCommand.SlideRenderFunction slideRenderFunction;
+    private static ContactSheetRenderFunction contactSheetRenderFunction;
 
     /**
      * Register the slide render function from the view layer.
@@ -38,6 +39,45 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
 
     public static RenderSlideCommand.SlideRenderFunction getSlideRenderFunction() {
         return slideRenderFunction;
+    }
+
+    /**
+     * View-supplied function that renders multiple slides into a single
+     * contact-sheet PNG file. Registered from the view layer at boot so
+     * {@code core/*} never imports view/rendering types.
+     */
+    @FunctionalInterface
+    public interface ContactSheetRenderFunction {
+        /**
+         * @param doc          source document
+         * @param slideNumbers 1-indexed slide numbers in grid order
+         * @param outputFile   destination PNG file
+         * @param thumbWidth   pixel width per thumbnail
+         * @param thumbHeight  pixel height per thumbnail
+         * @param columns      grid columns; rows derived from slideNumbers.length/columns
+         * @param gutter       transparent padding between thumbnails
+         * @param theme        resolved theme definition, or null to use the first available
+         * @param clrMap       master color map
+         * @param bgHexForSlide per-slide background hex resolver (may return null)
+         * @param masterStyles master text-level styles by placeholder type
+         * @return {@code int[]}{sheet width, sheet height} on success
+         */
+        int[] render(com.excudo.core.model.PPTXDocument doc, int[] slideNumbers,
+                     java.io.File outputFile,
+                     int thumbWidth, int thumbHeight, int columns, int gutter,
+                     com.excudo.core.themes.ThemeDefinition theme,
+                     java.util.Map<String, String> clrMap,
+                     java.util.function.IntFunction<String> bgHexForSlide,
+                     java.util.Map<String, com.excudo.core.themes.TextLevelStyle[]> masterStyles)
+                throws Exception;
+    }
+
+    public static void setContactSheetRenderFunction(ContactSheetRenderFunction fn) {
+        contactSheetRenderFunction = fn;
+    }
+
+    public static ContactSheetRenderFunction getContactSheetRenderFunction() {
+        return contactSheetRenderFunction;
     }
 
     private static final Set<String> HANDLED_COMMANDS = new HashSet<>();
