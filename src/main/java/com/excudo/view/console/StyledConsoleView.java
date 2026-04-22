@@ -2,7 +2,14 @@ package com.excudo.view.console;
 
 import com.excudo.console.ConsoleStyle;
 import javafx.application.Platform;
+import javafx.scene.Node;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -43,7 +50,68 @@ public class StyledConsoleView {
         if (textFlow != null && scrollPane != null) {
             textFlow.heightProperty().addListener((obs, oldH, newH) ->
                 scrollPane.setVvalue(1.0));
+            installCopySupport();
         }
+    }
+
+    /**
+     * Attach clipboard bindings + right-click menu to the console output.
+     * Selection-aware drag-to-select is a TODO; for now the primary win
+     * is "Copy All" (agent stack traces, error messages) via right-click
+     * or Ctrl+C when the console has focus.
+     */
+    private void installCopySupport() {
+        ContextMenu menu = new ContextMenu();
+        MenuItem copyAll = new MenuItem("Copy All");
+        copyAll.setOnAction(e -> copyAllToClipboard());
+        MenuItem clearMenuItem = new MenuItem("Clear Console");
+        clearMenuItem.setOnAction(e -> clear());
+        menu.getItems().addAll(copyAll, clearMenuItem);
+
+        // Install on both the TextFlow and its ScrollPane -- the hit
+        // target differs depending on whether the user right-clicks on
+        // rendered text or on the empty background below it.
+        textFlow.setOnContextMenuRequested(e -> {
+            menu.show(textFlow, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        scrollPane.setOnContextMenuRequested(e -> {
+            menu.show(scrollPane, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+
+        // Ctrl+C / Cmd+C copies all output. Bound at the ScrollPane
+        // level so it fires regardless of which child has focus.
+        KeyCombination copyShortcut = KeyCombination.keyCombination("Shortcut+C");
+        Node focusHost = scrollPane;
+        focusHost.setFocusTraversable(true);
+        focusHost.setOnKeyPressed(e -> {
+            if (copyShortcut.match(e)) {
+                copyAllToClipboard();
+                e.consume();
+            } else if (e.getCode() == KeyCode.A && e.isShortcutDown()) {
+                // Select-all doesn't apply here (no visible selection UI
+                // yet), but behave like it by copying everything --
+                // matches user intent when muscle-memory fires Ctrl+A
+                // before Ctrl+C.
+                copyAllToClipboard();
+                e.consume();
+            }
+        });
+    }
+
+    /** Concatenate every {@link Text} child into a single string and
+     *  place it on the system clipboard. Text nodes already carry
+     *  trailing newlines from {@link #appendLine}. */
+    public void copyAllToClipboard() {
+        if (textFlow == null) return;
+        StringBuilder sb = new StringBuilder();
+        for (Node n : textFlow.getChildren()) {
+            if (n instanceof Text t) sb.append(t.getText());
+        }
+        ClipboardContent content = new ClipboardContent();
+        content.putString(sb.toString());
+        Clipboard.getSystemClipboard().setContent(content);
     }
 
     /**

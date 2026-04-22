@@ -28,18 +28,19 @@
                <CheckMenuItem fx:id="showSpidsItem" text="Show SPIDs" />
                <SeparatorMenuItem />
                <CheckMenuItem fx:id="debugModeItem" text="Debug Mode" />
+               <SeparatorMenuItem />
+               <Menu text="Zoom">
+                  <MenuItem fx:id="zoomInMenuItem" text="Zoom In" accelerator="Shortcut+Plus" />
+                  <MenuItem fx:id="zoomOutMenuItem" text="Zoom Out" accelerator="Shortcut+Minus" />
+                  <MenuItem fx:id="zoomFitMenuItem" text="Zoom Fit" accelerator="Shortcut+0" />
+                  <MenuItem fx:id="zoom100MenuItem" text="Zoom 100%" accelerator="Shortcut+1" />
+               </Menu>
             </Menu>
             <Menu text="Tools">
                <MenuItem fx:id="validatePresentationItem" text="Validate Presentation" />
                <MenuItem fx:id="regenerateSpidsItem" text="Regenerate SPIDs" />
                <SeparatorMenuItem />
                <MenuItem fx:id="settingsItem" text="Settings..." />
-            </Menu>
-            <Menu text="Help">
-               <MenuItem text="User Guide" />
-               <MenuItem text="API Documentation" />
-               <SeparatorMenuItem />
-               <MenuItem text="About..." />
             </Menu>
          </MenuBar>
          <ToolBar fx:id="toolBar">
@@ -54,7 +55,13 @@
       </VBox>
    </top>
    <center>
-      <SplitPane fx:id="mainSplitPane" dividerPositions="0.2, 0.8">
+      <VBox fx:id="centerStack" spacing="0.0">
+         <!-- Session tabs: one per active presentation, + for new. -->
+         <HBox fx:id="sessionTabBar" spacing="4.0" style="-fx-padding: 4 8; -fx-background-color: #2a2a2a;">
+            <TabPane fx:id="sessionTabPane" tabClosingPolicy="SELECTED_TAB" HBox.hgrow="ALWAYS" minHeight="28.0" />
+            <Button fx:id="newSessionButton" text="+" style="-fx-min-width: 28;" />
+         </HBox>
+      <SplitPane fx:id="mainSplitPane" dividerPositions="0.2" VBox.vgrow="ALWAYS">
          <!-- Left Panel: Presentation Explorer -->
          <VBox fx:id="leftPanel" spacing="5.0">
             <Label text="Presentation Explorer" />
@@ -68,9 +75,9 @@
                <Button fx:id="refreshButton" text="Refresh" />
             </FlowPane>
          </VBox>
-         
-         <!-- Center Panel: Main Content with Bottom Panel -->
-         <SplitPane fx:id="centerRightSplit" dividerPositions="0.6" orientation="VERTICAL">
+
+         <!-- Center Panel: Main Content with Bottom Dock -->
+         <SplitPane fx:id="centerRightSplit" dividerPositions="0.65" orientation="VERTICAL">
             <!-- Center: Slide Preview -->
             <VBox fx:id="centerPanel" spacing="0.0">
                <HBox spacing="8.0" alignment="CENTER_LEFT" style="-fx-padding: 4 8; -fx-background-color: #2d2d2d;">
@@ -83,7 +90,9 @@
                </ScrollPane>
             </VBox>
 
-            <!-- Bottom Panel: Tabs -->
+            <!-- Bottom Dock: Console + Properties side-by-side.
+                 TabPane hosts both; tab switching avoids cramping the
+                 bottom dock vertically when both are visible. -->
             <TabPane fx:id="bottomTabPane" minHeight="150.0">
                <Tab fx:id="consoleTab" closable="false" text="Console">
                   <VBox spacing="5.0">
@@ -96,21 +105,19 @@
                      </HBox>
                   </VBox>
                </Tab>
-               <Tab fx:id="validationTab" closable="false" text="Validation">
-                  <ListView fx:id="validationListView" />
+               <Tab fx:id="propertiesTab" closable="false" text="Properties">
+                  <VBox fx:id="propertiesPanel" spacing="5.0" style="-fx-padding: 5px;">
+                     <Label fx:id="propertiesTitle" text="Properties" style="-fx-font-weight: bold;" />
+                     <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS" />
+                     <HBox spacing="5.0">
+                        <Button fx:id="refreshPropertiesButton" text="Refresh" />
+                     </HBox>
+                  </VBox>
                </Tab>
             </TabPane>
          </SplitPane>
-         
-         <!-- Right Panel: Properties -->
-         <VBox fx:id="rightPanel" minWidth="200.0" spacing="5.0">
-            <Label fx:id="propertiesTitle" text="Properties" style="-fx-font-weight: bold;" />
-            <TableView fx:id="propertiesTable" VBox.vgrow="ALWAYS" />
-            <HBox spacing="5.0">
-               <Button fx:id="refreshPropertiesButton" text="Refresh" />
-            </HBox>
-         </VBox>
       </SplitPane>
+      </VBox>
    </center>
    <bottom>
       <Label fx:id="statusBar" style="-fx-background-color: #f0f0f0; -fx-padding: 5px;" text="Ready" />

@@ -9,7 +9,6 @@ import com.excudo.view.components.PresentationExplorerController;
 import com.excudo.view.components.SlideEditorController;
 import com.excudo.view.components.TechnicalConsoleController;
 import com.excudo.view.components.PropertiesController;
-import com.excudo.view.components.ValidationController;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -72,14 +71,20 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private Button zoomInButton;
     @FXML private Button zoomOutButton;
     @FXML private Button zoomFitButton;
+    @FXML private MenuItem zoomInMenuItem;
+    @FXML private MenuItem zoomOutMenuItem;
+    @FXML private MenuItem zoomFitMenuItem;
+    @FXML private MenuItem zoom100MenuItem;
     
     // Main content areas
     @FXML private SplitPane mainSplitPane;
     @FXML private VBox leftPanel;
     @FXML private VBox centerPanel;
-    @FXML private VBox rightPanel;
     @FXML private TabPane bottomTabPane;
-    
+    @FXML private Tab propertiesTab;
+    @FXML private TabPane sessionTabPane;
+    @FXML private Button newSessionButton;
+
     // Presentation Explorer
     @FXML private TreeView<String> presentationTree;
     @FXML private Label presentationInfo;
@@ -99,10 +104,6 @@ public class MainController implements Initializable, OrchestrationStateListener
     @FXML private TextField commandInput;
     @FXML private Button executeButton;
 
-    // Validation tab
-    @FXML private Tab validationTab;
-    @FXML private ListView validationListView;
-    
     // Properties
     @FXML private TableView propertiesTable;
     @FXML private Label propertiesTitle;
@@ -117,9 +118,9 @@ public class MainController implements Initializable, OrchestrationStateListener
     private SlideEditorController editorController;
     private TechnicalConsoleController consoleController;
     private PropertiesController propertiesController;
-    private ValidationController validationController;
-    
-    
+    private com.excudo.view.components.SessionTabController sessionTabController;
+
+
     // ========== STATE ==========
     
     private File currentWorkingDirectory;
@@ -330,7 +331,29 @@ public class MainController implements Initializable, OrchestrationStateListener
                 }
             });
         }
-        
+
+        // Zoom menu items share the same handlers as their toolbar
+        // siblings + add keyboard shortcuts declared in FXML.
+        if (zoomInMenuItem != null) {
+            zoomInMenuItem.setOnAction(e -> {
+                if (editorController != null) editorController.handleZoomIn();
+            });
+        }
+        if (zoomOutMenuItem != null) {
+            zoomOutMenuItem.setOnAction(e -> {
+                if (editorController != null) editorController.handleZoomOut();
+            });
+        }
+        if (zoomFitMenuItem != null) {
+            zoomFitMenuItem.setOnAction(e -> {
+                if (editorController != null) editorController.handleZoomFit();
+            });
+        }
+        if (zoom100MenuItem != null) {
+            zoom100MenuItem.setOnAction(e -> {
+                if (editorController != null) editorController.handleZoomActualSize();
+            });
+        }
     }
     
     private void setupComponentControllers() {
@@ -359,11 +382,13 @@ public class MainController implements Initializable, OrchestrationStateListener
             propertiesController.setMainController(this);
             propertiesController.setPropertiesTable(propertiesTable);
 
-            // Initialize validation controller and connect to validation list view
-            validationController = new ValidationController();
-            validationController.setValidationListView(validationListView);
-            validationController.initialize();
-            
+            // Session tab bar: drives multi-session switching from the UI.
+            // The controller subscribes to SessionManager internally and
+            // keeps its tab state synchronized.
+            sessionTabController = new com.excudo.view.components.SessionTabController();
+            sessionTabController.setTabPane(sessionTabPane);
+            sessionTabController.setNewSessionButton(newSessionButton);
+
         } catch (Exception e) {
             System.err.println("Failed to initialize component controllers: " + e.getMessage());
         }
@@ -839,10 +864,11 @@ public class MainController implements Initializable, OrchestrationStateListener
             protected void succeeded() {
                 Platform.runLater(() -> {
                     String report = getValue();
-                    if (validationController != null) {
-                        validationController.showValidationReport(report);
-                    }
-                    showStatus("Validation completed");
+                    // Validation tab removed in Tier 6.7; surface the
+                    // report via status/log for the developer path that
+                    // still triggers it from Tools menu.
+                    showStatus("Validation completed: " + (report != null
+                        ? report.lines().count() + " issue(s)" : "clean"));
                 });
             }
 
@@ -952,9 +978,8 @@ public class MainController implements Initializable, OrchestrationStateListener
             protected void succeeded() {
                 Platform.runLater(() -> {
                     String report = getValue();
-                    if (validationController != null) {
-                        validationController.showValidationReport(report);
-                    }
+                    showStatus("Post-regen validation: " + (report != null
+                        ? report.lines().count() + " issue(s)" : "clean"));
 
                     // Mark presentation as modified
                     if (viewManager != null) {
@@ -1108,9 +1133,5 @@ public class MainController implements Initializable, OrchestrationStateListener
     public ViewManager getViewManager() {
         return viewManager;
     }
-    
-    public ValidationController getValidationController() {
-        return validationController;
-    }
-    
+
 }

@@ -148,6 +148,20 @@ public class SlideRenderer {
                     break;
                 }
             }
+            // Post-shape debug overlays: bounds + SPID label. Both
+            // honor the RenderingContext flags internally (no-op when
+            // the corresponding toggle is off), so calling them
+            // unconditionally is correct + lets the View-menu toggles
+            // actually produce visible output.
+            if (shape.getGeometry() != null) {
+                ShapeGeometry g = shape.getGeometry();
+                Rectangle2D debugBounds = renderingContext.getZoomedCoordinateMapper()
+                    .mapToCanvas(g.getX(), g.getY(), g.getWidth(), g.getHeight());
+                renderingContext.drawDebugBounds(debugBounds,
+                    SurfacePaint.Solid.rgb(0, 200, 255));
+                renderingContext.drawSpidLabel(shape.getSpid(),
+                    new javafx.geometry.Point2D(debugBounds.getMinX(), debugBounds.getMinY()));
+            }
         } catch (Exception e) {
             // Draw error indicator at shape position
             if (shape.getGeometry() != null) {

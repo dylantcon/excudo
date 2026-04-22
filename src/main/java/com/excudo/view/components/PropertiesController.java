@@ -103,53 +103,157 @@ public class PropertiesController implements Initializable {
     // ========== PROPERTY DISPLAY ==========
     
     /**
-     * Display properties for a slide
+     * Display properties for a slide. Pulls typed data via the
+     * introspection surface so the panel shows the same information
+     * the agent sees -- no summarization gap between what the model
+     * sees and what the user sees.
      */
     public void displaySlideProperties(SlideMetadata slide) {
         currentSelection = slide;
         properties.clear();
-        
-        if (slide != null) {
-            updateTitle("Slide " + slide.getSlideNumber() + " Properties");
-            
-            // Add slide properties
-            properties.add(new PropertyItem("Slide Number", String.valueOf(slide.getSlideNumber()), false));
-            properties.add(new PropertyItem("Title", slide.getTitle() != null ? slide.getTitle() : "Untitled", true));
-            properties.add(new PropertyItem("Type", slide.getType().toString(), false));
-            properties.add(new PropertyItem("Layout", slide.getLayoutName() != null ? slide.getLayoutName() : "Custom", false));
-            properties.add(new PropertyItem("Shape Count", String.valueOf(slide.getShapeCount()), false));
-            properties.add(new PropertyItem("Animation Count", String.valueOf(slide.getAnimationCount()), false));
-            
-            // Add SPID information
-            if (slide.getSpids() != null && !slide.getSpids().isEmpty()) {
-                properties.add(new PropertyItem("SPIDs", slide.getSpids().toString(), false));
-            }
-        } else {
+
+        if (slide == null) {
             updateTitle("Properties");
+            return;
+        }
+        updateTitle("Slide " + slide.getSlideNumber() + " Properties");
+
+        properties.add(row("Slide Number", String.valueOf(slide.getSlideNumber())));
+        properties.add(row("Title", slide.getTitle() != null ? slide.getTitle() : "Untitled"));
+        properties.add(row("Type", String.valueOf(slide.getType())));
+        properties.add(row("Layout", slide.getLayoutName() != null ? slide.getLayoutName() : "Custom"));
+        properties.add(row("Shape Count", String.valueOf(slide.getShapeCount())));
+        properties.add(row("Animation Count", String.valueOf(slide.getAnimationCount())));
+        if (slide.getSpids() != null && !slide.getSpids().isEmpty()) {
+            properties.add(row("SPIDs", slide.getSpids().toString()));
+        }
+
+        // Augment with introspection-surface data the metadata doesn't
+        // carry: transition (and whether it's an explicit slide
+        // override vs. inherited), plus user-added vs. placeholder
+        // shape breakdown.
+        var orch = mainController != null ? mainController.getCurrentOrchestrator() : null;
+        if (orch != null) {
+            try {
+                var introspector = new com.excudo.core.introspection.SlideIntrospector(orch);
+                var trans = introspector.getTransition(slide.getSlideNumber());
+                if (trans != null) {
+                    properties.add(row("Transition",
+                        trans.type().getUserFriendlyName() + " (" + trans.source().name().toLowerCase() + ")"));
+                    properties.add(row("Transition Speed", trans.speed()));
+                    if (trans.autoAdvanceMs() != null) {
+                        properties.add(row("Auto Advance", trans.autoAdvanceMs() + "ms"));
+                    }
+                } else {
+                    properties.add(row("Transition", "none"));
+                }
+                // User-added shape count (total minus placeholder-flagged).
+                var doc = orch.getContext().isPresent() ? orch.getContext().get().getDocument() : null;
+                if (doc != null) {
+                    var parsed = doc.getParsedSlideData(slide.getSlideNumber(),
+                        (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+                    if (parsed != null) {
+                        long placeholders = parsed.getShapeRegistry().getAllShapes().stream()
+                            .filter(s -> s.getType()
+                                == com.excudo.core.model.SlideShape.ShapeType.PLACEHOLDER).count();
+                        long userAdded = parsed.getShapeRegistry().getAllShapes().size() - placeholders;
+                        properties.add(row("User-added Shapes", String.valueOf(userAdded)));
+                        properties.add(row("Placeholders", String.valueOf(placeholders)));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Tolerate partial failures: the core metadata already
+                // populated above gives the user something useful.
+            }
         }
     }
-    
+
     /**
-     * Display properties for a shape
-     * TODO: Implement when Shape class is available
+     * Display properties for a shape. Uses the shape registry + typed
+     * {@link com.excudo.core.introspection.ShapeStyleReader} so the
+     * panel matches {@code get_shape_detail}'s agent-visible view.
      */
-    public void displayShapeProperties(Object shape) {
-        currentSelection = shape;
+    public void displayShapeProperties(int slideNumber, int spid) {
         properties.clear();
-        
-        if (shape != null) {
-            updateTitle("Shape Properties");
-            
-            // Placeholder for shape properties - will implement when Shape class is ready
-            properties.add(new PropertyItem("Shape ID", "Unknown", false));
-            properties.add(new PropertyItem("Name", "Unknown Shape", true));
-            properties.add(new PropertyItem("Type", "Unknown", false));
-            
-            // TODO: Implement actual shape property extraction
-            
-        } else {
+        var orch = mainController != null ? mainController.getCurrentOrchestrator() : null;
+        if (orch == null) {
             updateTitle("Properties");
+            return;
         }
+        try {
+            var doc = orch.getContext().isPresent() ? orch.getContext().get().getDocument() : null;
+            if (doc == null) {
+                updateTitle("Properties");
+                return;
+            }
+            var parsed = doc.getParsedSlideData(slideNumber,
+                (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+            if (parsed == null) {
+                updateTitle("Properties");
+                return;
+            }
+            var shape = parsed.getShapeRegistry().getShape(spid);
+            if (shape == null) {
+                updateTitle("Properties");
+                return;
+            }
+            currentSelection = shape;
+            updateTitle("SPID " + spid + " (" + shape.getType() + ")");
+            properties.add(row("SPID", String.valueOf(shape.getSpid())));
+            properties.add(row("Name", shape.getName() != null ? shape.getName() : "(unnamed)"));
+            properties.add(row("Type", shape.getType().name()));
+            if (shape.getGeometry() != null) {
+                var g = shape.getGeometry();
+                properties.add(row("Position", String.format("x=%d  y=%d EMU (%.2fin, %.2fin)",
+                    g.getX(), g.getY(),
+                    g.getX() / 914400.0, g.getY() / 914400.0)));
+                properties.add(row("Size", String.format("w=%d  h=%d EMU (%.2fin, %.2fin)",
+                    g.getWidth(), g.getHeight(),
+                    g.getWidth() / 914400.0, g.getHeight() / 914400.0)));
+                if (g.getRotation() != 0) {
+                    properties.add(row("Rotation", String.format("%.2f°", g.getRotationDegrees())));
+                }
+            }
+            int parent = parsed.getShapeRegistry().getParentSpid(spid);
+            if (parent > 0) properties.add(row("Parent Group", String.valueOf(parent)));
+            if (shape.isTextBox()) properties.add(row("TextBox Flag", "true"));
+            if (shape.hasText()) {
+                String text = shape.getTextContent();
+                if (text.length() > 120) text = text.substring(0, 120) + "…";
+                properties.add(row("Text", text));
+            }
+            // Style via introspection surface.
+            var introspector = new com.excudo.core.introspection.SlideIntrospector(orch);
+            var style = introspector.getShapeStyle(slideNumber, spid);
+            if (style != null) {
+                if (style.getFill() != null) {
+                    properties.add(row("Fill", style.getFill().getType()
+                        + (style.getFill().getColor() != null ? " " + colorSummary(style.getFill().getColor()) : "")));
+                }
+                if (style.getLine() != null) {
+                    properties.add(row("Line", (style.getLine().getWidthEMU() != null
+                        ? style.getLine().getWidthEMU() + " EMU " : "")
+                        + (style.getLine().getDashStyle() != null ? style.getLine().getDashStyle() : "solid")
+                        + (style.getLine().getColor() != null ? " " + colorSummary(style.getLine().getColor()) : "")));
+                }
+            }
+            // Animations targeting this SPID.
+            var anims = introspector.listAnimations(slideNumber);
+            long animsOnShape = anims.stream().filter(a -> a.getTargetSpid() == spid).count();
+            if (animsOnShape > 0) {
+                properties.add(row("Animations", String.valueOf(animsOnShape)));
+            }
+        } catch (Exception ignored) {
+            // Best-effort: show whatever got populated before the error.
+        }
+    }
+
+    private static String colorSummary(com.excudo.core.model.TextColor c) {
+        return c.isScheme() ? "scheme:" + c.getSchemeVal() : "#" + c.getHexVal();
+    }
+
+    private static PropertyItem row(String name, String value) {
+        return new PropertyItem(name, value != null ? value : "(null)", false);
     }
     
     /**
@@ -166,12 +270,36 @@ public class PropertiesController implements Initializable {
      */
     @FXML
     private void refreshProperties() {
-        if (currentSelection instanceof SlideMetadata) {
-            displaySlideProperties((SlideMetadata) currentSelection);
-        } else if (currentSelection != null) {
-            // TODO: Check for Shape class when implemented
-            displayShapeProperties(currentSelection);
+        if (currentSelection instanceof SlideMetadata meta) {
+            displaySlideProperties(meta);
+        } else if (currentSelection instanceof com.excudo.core.model.SlideShape shape) {
+            // Re-resolve via orchestrator so the snapshot is fresh
+            // after mutations; the stored instance may be stale.
+            var orch = mainController != null ? mainController.getCurrentOrchestrator() : null;
+            if (orch != null) {
+                // Slide number isn't carried on SlideShape; rely on the
+                // active slide selection indirectly by walking every
+                // slide for the SPID. Cheap because the parse cache is
+                // warm.
+                int slideNum = findSlideForSpid(shape.getSpid());
+                if (slideNum > 0) displayShapeProperties(slideNum, shape.getSpid());
+            }
         }
+    }
+
+    private int findSlideForSpid(int spid) {
+        var orch = mainController != null ? mainController.getCurrentOrchestrator() : null;
+        if (orch == null || orch.getContext().isEmpty()) return -1;
+        var doc = orch.getContext().get().getDocument();
+        if (doc == null) return -1;
+        for (int i : doc.getSlideNumbers()) {
+            var parsed = doc.getParsedSlideData(i,
+                (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+            if (parsed != null && parsed.getShapeRegistry().getShape(spid) != null) {
+                return i;
+            }
+        }
+        return -1;
     }
     
     // ========== PROPERTY EDITING ==========

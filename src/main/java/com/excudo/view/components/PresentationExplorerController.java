@@ -78,6 +78,17 @@ public class PresentationExplorerController implements Initializable, Orchestrat
         Platform.runLater(this::refreshFromActiveSession);
     }
 
+    @Override
+    public void onSlideModified(int slideNumber) {
+        // Per-slide shape / animation / transition mutation. The tree
+        // label for each slide embeds shape + animation counts, so the
+        // labels go stale on any mutation. Re-read metadata. A more
+        // surgical update (touch only the one slide's subtree) is a
+        // future optimization; the full rebuild is negligible at v1
+        // slide counts.
+        Platform.runLater(this::refreshFromActiveSession);
+    }
+
     private void refreshFromActiveSession() {
         PPTXOrchestrator orch = SessionManager.getInstance().getActiveOrchestrator();
         if (orch == null) {
