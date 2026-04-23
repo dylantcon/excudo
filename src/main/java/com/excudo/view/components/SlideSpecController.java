@@ -95,64 +95,42 @@ public class SlideSpecController {
         installDynamicFontScaling();
     }
 
-    // Scaling is measurement-driven, not threshold-driven. At BASE_FONT_PT
-    // we compute the minimum pixel width each toolbar row needs (sum of
-    // button label widths via java.awt.FontMetrics + per-button padding
-    // + HBox spacing), take the widest row, and choose
-    //   scale = availableWidth / requiredWidth
-    // clamped to [MIN_SCALE, MAX_SCALE]. Text width is linear in font
-    // size, so one measurement at base point size covers every scale.
-    // Each button is then sized directly to its label width at the
-    // current pt so shrinkage doesn't depend on CSS cascade into
-    // intrinsic widths.
+    // Font scaling layered on the FlowPane layout. FlowPane wraps items
+    // to new rows when they don't fit; scaling is the soft adjustment
+    // that keeps items on one row longer by shrinking font-size as the
+    // panel narrows. Required width = widest button row at BASE_FONT_PT
+    // measured via JavaFX Text.getLayoutBounds(). scale = avail / req
+    // clamped to [MIN_SCALE, MAX_SCALE]; FlowPane handles any residual
+    // overflow below the floor by wrapping. No per-button sizing — the
+    // cascaded -fx-font-size drives Button's intrinsic width naturally.
     private static final double MAX_SCALE    = 1.00;
-    private static final double MIN_SCALE    = 0.55;
+    private static final double MIN_SCALE    = 0.70;
     private static final double BASE_FONT_PT = 13.0;
 
-    // JavaFX default Button label has ~10px horizontal padding each side
-    // plus a couple of px border. One constant per button; tuned once.
-    private static final double BUTTON_H_PAD = 24.0;
-    private static final double HBOX_SPACING = 5.0;
+    // Modena Button padding: 0.333em 0.667em -> 1.333em horizontal.
+    // 1em(px) = pt * 4/3, so h-pad(px) = 1.778 * pt. Plus 4px border /
+    // focus-ring margin. No hand tuning — derived from Modena defaults.
+    private static final double BUTTON_PAD_PT_COEF = 1.778;
+    private static final double BUTTON_PAD_FIXED   = 4.0;
+    private static final double FLOW_HGAP          = 5.0;
+    private static final double PANEL_PADDING_H    = 10.0;
 
-    private static final String TITLE_TEXT = "SlideSpec (no slide selected)";
-
-    private record ButtonEntry(javafx.scene.control.Button button, String label, int row) {}
-
-    private java.util.List<ButtonEntry> buttonEntries() {
-        return java.util.List.of(
-            new ButtonEntry(slideSpecCopyJsonButton,        "Copy JSON",            1),
-            new ButtonEntry(slideSpecApplyToNewButton,      "Apply to new slide",   1),
-            new ButtonEntry(slideSpecApplyToExistingButton, "Apply to existing...", 1),
-            new ButtonEntry(slideSpecEditButton,            "Edit",                 2),
-            new ButtonEntry(slideSpecDuplicateButton,       "Duplicate",            2),
-            new ButtonEntry(slideSpecDeleteButton,          "Delete",               2),
-            new ButtonEntry(slideSpecMoveUpButton,          "Up",                   2),
-            new ButtonEntry(slideSpecMoveDownButton,        "Down",                 2),
-            new ButtonEntry(slideSpecResetButton,           "Reset to synthesized", 2)
-        );
-    }
+    private static final String   TITLE_TEXT  = "SlideSpec (no slide selected)";
+    private static final String[] ROW1_LABELS = { "Copy JSON", "Apply to new slide", "Apply to existing..." };
+    private static final String[] ROW2_LABELS = { "Edit", "Duplicate", "Delete", "Up", "Down", "Reset to synthesized" };
 
     private Double cachedRequiredWidth;
 
     private void installDynamicFontScaling() {
-        javafx.scene.layout.VBox panel = resolvePanelRoot();
-        if (panel == null) {
+        if (slideSpecPanel == null) {
             System.err.println("[SlideSpec] font scaling DISABLED: "
-                + "could not resolve panel root. slideSpecPanel="
-                + slideSpecPanel + " listView=" + slideSpecListView);
+                + "slideSpecPanel root injection returned null.");
             return;
         }
-        if (slideSpecPanel == null) {
-            System.err.println("[SlideSpec] root fx:id injection returned "
-                + "null; using parent-walk fallback.");
-            slideSpecPanel = panel;
-        }
-
         double required = measuredRequiredWidth();
         System.err.println(String.format(java.util.Locale.ROOT,
-            "[SlideSpec] font scaling ENABLED: required@%.0fpt=%.0fpx (AWT FontMetrics)",
+            "[SlideSpec] font scaling ENABLED: required@%.0fpt=%.0fpx",
             BASE_FONT_PT, required));
-
         slideSpecPanel.widthProperty().addListener((obs, oldW, newW) -> {
             if (newW == null) return;
             applyFontScale(newW.doubleValue());
@@ -160,47 +138,30 @@ public class SlideSpecController {
         applyFontScale(slideSpecPanel.getWidth());
     }
 
-    private javafx.scene.layout.VBox resolvePanelRoot() {
-        if (slideSpecPanel != null) return slideSpecPanel;
-        if (slideSpecListView == null) return null;
-        javafx.scene.Parent p = slideSpecListView.getParent();
-        while (p != null && !(p instanceof javafx.scene.layout.VBox)) {
-            p = p.getParent();
-        }
-        return (javafx.scene.layout.VBox) p;
+    private static double measureTextWidth(String s, double pt, boolean bold) {
+        javafx.scene.text.Font f = javafx.scene.text.Font.font(
+            null,
+            bold ? javafx.scene.text.FontWeight.BOLD : javafx.scene.text.FontWeight.NORMAL,
+            pt);
+        javafx.scene.text.Text t = new javafx.scene.text.Text(s);
+        t.setFont(f);
+        return t.getLayoutBounds().getWidth();
     }
 
-    private static java.awt.FontMetrics fontMetricsAt(double pt, int awtStyle) {
-        try {
-            int size = Math.max(1, (int) Math.round(pt));
-            java.awt.Font f = new java.awt.Font(java.awt.Font.SANS_SERIF, awtStyle, size);
-            return java.awt.Toolkit.getDefaultToolkit().getFontMetrics(f);
-        } catch (java.awt.HeadlessException he) {
-            return null;
-        }
+    private static double rowWidth(String[] labels, double pt) {
+        double pad = BUTTON_PAD_PT_COEF * pt + BUTTON_PAD_FIXED;
+        double total = 0;
+        for (String s : labels) total += measureTextWidth(s, pt, false) + pad;
+        total += Math.max(0, labels.length - 1) * FLOW_HGAP;
+        return total;
     }
 
     private double measuredRequiredWidth() {
         if (cachedRequiredWidth != null) return cachedRequiredWidth;
-        java.awt.FontMetrics fmP = fontMetricsAt(BASE_FONT_PT, java.awt.Font.PLAIN);
-        java.awt.FontMetrics fmB = fontMetricsAt(BASE_FONT_PT, java.awt.Font.BOLD);
-        if (fmP == null || fmB == null) {
-            System.err.println("[SlideSpec] FontMetrics unavailable (headless); "
-                + "scaling will use a conservative default.");
-            cachedRequiredWidth = 500.0;
-            return cachedRequiredWidth;
-        }
-        double row1 = fmB.stringWidth(TITLE_TEXT);
-        double row2 = 0;
-        int row1n = 0, row2n = 0;
-        for (ButtonEntry e : buttonEntries()) {
-            double w = fmP.stringWidth(e.label()) + BUTTON_H_PAD;
-            if (e.row() == 1) { row1 += w; row1n++; }
-            else              { row2 += w; row2n++; }
-        }
-        row1 += row1n * HBOX_SPACING;
-        row2 += Math.max(0, row2n - 1) * HBOX_SPACING;
-        cachedRequiredWidth = Math.max(row1, row2);
+        double title = measureTextWidth(TITLE_TEXT, BASE_FONT_PT, true);
+        double row1  = rowWidth(ROW1_LABELS, BASE_FONT_PT);
+        double row2  = rowWidth(ROW2_LABELS, BASE_FONT_PT);
+        cachedRequiredWidth = Math.max(title, Math.max(row1, row2)) + PANEL_PADDING_H;
         return cachedRequiredWidth;
     }
 
@@ -214,24 +175,12 @@ public class SlideSpecController {
         slideSpecPanel.setStyle(String.format(java.util.Locale.ROOT,
             "-fx-padding: 5px; -fx-font-size: %.2fpt;", pt));
 
-        // Inline -fx-font-weight: bold in the FXML shadows inherited
-        // -fx-font-size on the title node; restate both here in one
-        // style so the weight doesn't block the size cascade.
+        // Title's inline -fx-font-weight: bold blocks cascade of
+        // -fx-font-size; restate both in one style so weight doesn't
+        // shadow the size.
         if (slideSpecTitle != null) {
             slideSpecTitle.setStyle(String.format(java.util.Locale.ROOT,
                 "-fx-font-weight: bold; -fx-font-size: %.2fpt;", pt));
-        }
-
-        // Directly size each button to its label at the current pt.
-        // Don't rely on JavaFX to re-derive intrinsic widths from the
-        // cascaded font-size — some LAF paths cache and don't.
-        java.awt.FontMetrics fm = fontMetricsAt(pt, java.awt.Font.PLAIN);
-        if (fm == null) return;
-        for (ButtonEntry e : buttonEntries()) {
-            if (e.button() == null) continue;
-            double w = fm.stringWidth(e.label()) + BUTTON_H_PAD;
-            e.button().setPrefWidth(w);
-            e.button().setMinWidth(w);
         }
     }
 

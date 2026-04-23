@@ -14,23 +14,21 @@
       fx:controller="com.excudo.view.components.SlideSpecController"
       spacing="5.0"
       style="-fx-padding: 5px;">
-   <HBox spacing="5.0" alignment="CENTER_LEFT">
-      <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
-      <Region HBox.hgrow="ALWAYS" />
+   <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
+   <FlowPane hgap="5.0" vgap="5.0">
       <Button fx:id="slideSpecCopyJsonButton" text="Copy JSON" />
       <Button fx:id="slideSpecApplyToNewButton" text="Apply to new slide" />
       <Button fx:id="slideSpecApplyToExistingButton" text="Apply to existing..." />
-   </HBox>
-   <HBox spacing="5.0" alignment="CENTER_LEFT">
+   </FlowPane>
+   <FlowPane hgap="5.0" vgap="5.0" alignment="CENTER_LEFT">
       <Button fx:id="slideSpecEditButton" text="Edit" />
       <Button fx:id="slideSpecDuplicateButton" text="Duplicate" />
       <Button fx:id="slideSpecDeleteButton" text="Delete" />
       <Button fx:id="slideSpecMoveUpButton" text="Up" />
       <Button fx:id="slideSpecMoveDownButton" text="Down" />
-      <Region HBox.hgrow="ALWAYS" />
       <Label fx:id="slideSpecStagedBadge" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" />
       <Button fx:id="slideSpecResetButton" text="Reset to synthesized" />
-   </HBox>
+   </FlowPane>
    <ListView fx:id="slideSpecListView" VBox.vgrow="ALWAYS" />
    <Label fx:id="slideSpecWarnings" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" wrapText="true" />
 </VBox>
