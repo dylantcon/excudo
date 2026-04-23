@@ -121,6 +121,11 @@ public class SlideSpecController {
 
     private Double cachedRequiredWidth;
 
+    // Per-button auto-scale: minimum pt before the button label gives
+    // up and ellipsizes. Below this, we stop shrinking to keep text
+    // readable — FlowPane's wrap is the next line of defence.
+    private static final double BUTTON_MIN_PT = 6.0;
+
     private void installDynamicFontScaling() {
         if (slideSpecPanel == null) {
             System.err.println("[SlideSpec] font scaling DISABLED: "
@@ -136,6 +141,63 @@ public class SlideSpecController {
             applyFontScale(newW.doubleValue());
         });
         applyFontScale(slideSpecPanel.getWidth());
+
+        // Per-button auto-scale: independent of the panel-wide scale.
+        // Buttons with longer labels shrink first; "Up" / "Down" keep
+        // their base size until the panel is genuinely crowded.
+        bindButtonAutoScale(slideSpecCopyJsonButton);
+        bindButtonAutoScale(slideSpecApplyToNewButton);
+        bindButtonAutoScale(slideSpecApplyToExistingButton);
+        bindButtonAutoScale(slideSpecEditButton);
+        bindButtonAutoScale(slideSpecDuplicateButton);
+        bindButtonAutoScale(slideSpecDeleteButton);
+        bindButtonAutoScale(slideSpecMoveUpButton);
+        bindButtonAutoScale(slideSpecMoveDownButton);
+        bindButtonAutoScale(slideSpecResetButton);
+    }
+
+    private void bindButtonAutoScale(Button b) {
+        if (b == null) return;
+        b.widthProperty().addListener((obs, oldW, newW) -> scaleButtonToFit(b));
+        scaleButtonToFit(b);
+    }
+
+    /** Listener body. Measure button's label at BASE_FONT_PT, compare
+     *  to allocated width, shrink font to fit. Snap pt to 0.25-pt
+     *  steps + idempotent setStyle to prevent layout-feedback oscillation. */
+    private void scaleButtonToFit(Button b) {
+        double allocated = b.getWidth();
+        if (allocated <= 0) return;
+        String label = b.getText();
+        if (label == null || label.isEmpty()) return;
+        double textAtBase = measureTextWidth(label, BASE_FONT_PT, false);
+        double padAtBase  = BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED;
+        double reqAtBase  = textAtBase + padAtBase;
+        double scale = allocated / reqAtBase;
+        if (scale > 1.0) scale = 1.0;
+        double minScale = BUTTON_MIN_PT / BASE_FONT_PT;
+        if (scale < minScale) scale = minScale;
+        double pt = Math.floor(BASE_FONT_PT * scale * 4.0) / 4.0;  // 0.25-pt quantization
+        String newStyle = String.format(java.util.Locale.ROOT,
+            "-fx-font-size: %.2fpt;", pt);
+        if (!newStyle.equals(b.getStyle())) b.setStyle(newStyle);
+    }
+
+    /** Systematic ellipsis detection. True when the label's text at
+     *  its current font needs more horizontal room than the widget has
+     *  allocated for it. No private API, no dependency on rendered
+     *  state — just measurement. Works for any Labeled (Button, Label). */
+    public static boolean isEllipsized(javafx.scene.control.Labeled lab) {
+        if (lab == null) return false;
+        double alloc = lab.getWidth();
+        if (alloc <= 0) return false;
+        String s = lab.getText();
+        if (s == null || s.isEmpty()) return false;
+        javafx.scene.text.Text probe = new javafx.scene.text.Text(s);
+        probe.setFont(lab.getFont());
+        double textW = probe.getLayoutBounds().getWidth();
+        double padH = lab.getPadding().getLeft() + lab.getPadding().getRight();
+        return textW + padH > alloc + 1.0;  // 1px tolerance for sub-pixel rounding
     }
 
     private static double measureTextWidth(String s, double pt, boolean bold) {
