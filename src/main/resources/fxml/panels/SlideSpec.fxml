@@ -15,12 +15,12 @@
       spacing="5.0"
       style="-fx-padding: 5px;">
    <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
-   <FlowPane hgap="5.0" vgap="5.0">
+   <FlowPane fx:id="slideSpecRow1Flow" hgap="5.0" vgap="5.0">
       <Button fx:id="slideSpecCopyJsonButton" text="Copy JSON" />
       <Button fx:id="slideSpecApplyToNewButton" text="Apply to new slide" />
-      <Button fx:id="slideSpecApplyToExistingButton" text="Apply to existing..." />
+      <Button fx:id="slideSpecApplyToExistingButton" text="Apply to existing slide" />
    </FlowPane>
-   <FlowPane hgap="5.0" vgap="5.0" alignment="CENTER_LEFT">
+   <FlowPane fx:id="slideSpecRow2Flow" hgap="5.0" vgap="5.0" alignment="CENTER_LEFT">
       <Button fx:id="slideSpecEditButton" text="Edit" />
       <Button fx:id="slideSpecDuplicateButton" text="Duplicate" />
       <Button fx:id="slideSpecDeleteButton" text="Delete" />

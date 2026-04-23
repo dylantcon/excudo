@@ -37,6 +37,8 @@ public class SlideSpecController {
 
     // @FXML-injected from panels/SlideSpec.fxml.
     @FXML private javafx.scene.layout.VBox slideSpecPanel;
+    @FXML private javafx.scene.layout.FlowPane slideSpecRow1Flow;
+    @FXML private javafx.scene.layout.FlowPane slideSpecRow2Flow;
     @FXML private ListView<String> slideSpecListView;
     @FXML private Label slideSpecTitle;
     @FXML private Label slideSpecWarnings;
@@ -50,6 +52,12 @@ public class SlideSpecController {
     @FXML private Button slideSpecMoveUpButton;
     @FXML private Button slideSpecMoveDownButton;
     @FXML private Button slideSpecResetButton;
+
+    /** Required provider for the active session's CommandInvoker.
+     *  Every mutation goes through the invoker — no exceptions, no
+     *  silent bypass. If this isn't wired before an apply call runs,
+     *  that's an architectural bug and we throw so the caller sees it. */
+    private java.util.function.Supplier<com.excudo.core.commands.CommandInvoker> invokerProvider;
 
     private final ObservableList<String> rowLabels = FXCollections.observableArrayList();
     private ReactiveSynthesizer reactive;
@@ -116,7 +124,7 @@ public class SlideSpecController {
     private static final double PANEL_PADDING_H    = 10.0;
 
     private static final String   TITLE_TEXT  = "SlideSpec (no slide selected)";
-    private static final String[] ROW1_LABELS = { "Copy JSON", "Apply to new slide", "Apply to existing..." };
+    private static final String[] ROW1_LABELS = { "Copy JSON", "Apply to new slide", "Apply to existing slide" };
     private static final String[] ROW2_LABELS = { "Edit", "Duplicate", "Delete", "Up", "Down", "Reset to synthesized" };
 
     private Double cachedRequiredWidth;
@@ -154,6 +162,80 @@ public class SlideSpecController {
         bindButtonAutoScale(slideSpecMoveUpButton);
         bindButtonAutoScale(slideSpecMoveDownButton);
         bindButtonAutoScale(slideSpecResetButton);
+
+        // Proportional fill: when the FlowPane has excess horizontal
+        // space beyond the sum of button minimum widths, distribute
+        // the excess equally across buttons so they expand to occupy
+        // the row instead of leaving dead space on the right.
+        bindProportionalFill(slideSpecRow1Flow, java.util.List.of(
+            slideSpecCopyJsonButton,
+            slideSpecApplyToNewButton,
+            slideSpecApplyToExistingButton));
+        bindProportionalFill(slideSpecRow2Flow, java.util.List.of(
+            slideSpecEditButton,
+            slideSpecDuplicateButton,
+            slideSpecDeleteButton,
+            slideSpecMoveUpButton,
+            slideSpecMoveDownButton,
+            slideSpecResetButton));
+    }
+
+    private void bindProportionalFill(javafx.scene.layout.FlowPane flow,
+                                      java.util.List<Button> buttons) {
+        if (flow == null) return;
+        Runnable redistribute = () -> distributeFill(flow, buttons);
+        flow.widthProperty().addListener((obs, oldW, newW) -> redistribute.run());
+        redistribute.run();
+    }
+
+    /** Fair-share allocation: each button gets at least its text-needed
+     *  width; any leftover in the FlowPane is split evenly across all
+     *  buttons so they expand symmetrically rather than leaving a gap.
+     *  If the FlowPane is too narrow for the sum of minimums, we clear
+     *  the pref/min overrides and let FlowPane wrap via each button's
+     *  intrinsic size. */
+    private void distributeFill(javafx.scene.layout.FlowPane flow,
+                                java.util.List<Button> buttons) {
+        double flowW = flow.getWidth();
+        if (flowW <= 0 || buttons.isEmpty()) return;
+        int n = 0;
+        double sumMin = 0;
+        double[] mins = new double[buttons.size()];
+        for (int i = 0; i < buttons.size(); i++) {
+            Button b = buttons.get(i);
+            if (b == null) { mins[i] = 0; continue; }
+            String label = b.getText();
+            if (label == null) label = "";
+            double textW = measureTextWidth(label, BASE_FONT_PT, false);
+            double pad   = BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED;
+            mins[i] = Math.ceil(textW + pad);
+            sumMin += mins[i];
+            n++;
+        }
+        if (n == 0) return;
+        double gapsTotal = (n - 1) * FLOW_HGAP;
+        double available = flowW - gapsTotal;
+        if (available < sumMin) {
+            // Not enough room for even the minimums — let FlowPane wrap
+            // naturally. Clear our overrides so the buttons size by
+            // their own intrinsic computations.
+            for (Button b : buttons) {
+                if (b == null) continue;
+                b.setPrefWidth(Button.USE_COMPUTED_SIZE);
+                b.setMinWidth(Button.USE_COMPUTED_SIZE);
+            }
+            return;
+        }
+        double excessPer = (available - sumMin) / n;
+        for (int i = 0; i < buttons.size(); i++) {
+            Button b = buttons.get(i);
+            if (b == null) continue;
+            double w = mins[i] + excessPer;
+            if (Math.abs(b.getPrefWidth() - w) > 0.5) {
+                b.setPrefWidth(w);
+                b.setMinWidth(w);
+            }
+        }
     }
 
     private void bindButtonAutoScale(Button b) {
@@ -244,6 +326,14 @@ public class SlideSpecController {
             slideSpecTitle.setStyle(String.format(java.util.Locale.ROOT,
                 "-fx-font-weight: bold; -fx-font-size: %.2fpt;", pt));
         }
+    }
+
+    /** Wire the provider for the active session's CommandInvoker.
+     *  Every apply-to-slide runs goes through this — the method is
+     *  part of the panel's required setup. */
+    public void bindInvokerProvider(
+            java.util.function.Supplier<com.excudo.core.commands.CommandInvoker> provider) {
+        this.invokerProvider = provider;
     }
 
     /** Attach this controller to the given orchestrator. Pulls the
@@ -480,6 +570,7 @@ public class SlideSpecController {
             showInfo("Nothing to apply.");
             return;
         }
+        com.excudo.core.commands.CommandInvoker invoker = requireInvoker();
         // Create a new slide after the active one, same layout, then
         // run the script on it. Default label "Untitled" — user can
         // rename later via the canvas or properties pane.
@@ -496,7 +587,7 @@ public class SlideSpecController {
             String json = CommandSpecJson.toJsonArray(currentSpecs());
             RunSlideScriptCommand cmd = new RunSlideScriptCommand(
                 newSlide, json, currentOrchestrator, null);
-            cmd.execute();
+            invoker.executeCommand(cmd);
             showInfo("Applied " + cmd.getAppliedSpecCount() + " spec(s) to new slide " + newSlide + ".");
         } catch (Exception ex) {
             showError("Apply failed: " + ex.getMessage());
@@ -530,15 +621,36 @@ public class SlideSpecController {
             Optional<javafx.scene.control.ButtonType> r = warn.showAndWait();
             if (r.isEmpty() || r.get() != javafx.scene.control.ButtonType.OK) return;
         }
+        com.excudo.core.commands.CommandInvoker invoker = requireInvoker();
         try {
             String json = CommandSpecJson.toJsonArray(currentSpecs());
             RunSlideScriptCommand cmd = new RunSlideScriptCommand(
                 target, json, currentOrchestrator, null);
-            cmd.execute();
+            invoker.executeCommand(cmd);
             showInfo("Applied " + cmd.getAppliedSpecCount() + " spec(s) to slide " + target + ".");
         } catch (Exception ex) {
             showError("Apply failed: " + ex.getMessage());
         }
+    }
+
+    /** Hard contract: apply-to-slide must go through the invoker so the
+     *  mutation lands on the undo stack. If the provider isn't wired
+     *  (MainController didn't call bindInvokerProvider) or returns null
+     *  (no active session), throw — silent fallback to cmd.execute()
+     *  would break undo for the whole action, which is the kind of
+     *  correctness gap that hides until someone hits Ctrl+Z. */
+    private com.excudo.core.commands.CommandInvoker requireInvoker() {
+        if (invokerProvider == null) {
+            throw new IllegalStateException(
+                "SlideSpecController.invokerProvider not wired — "
+                + "MainController must call bindInvokerProvider before apply.");
+        }
+        com.excudo.core.commands.CommandInvoker inv = invokerProvider.get();
+        if (inv == null) {
+            throw new IllegalStateException(
+                "No active CommandInvoker — can't apply without a live session.");
+        }
+        return inv;
     }
 
     // ========== Helpers ==========

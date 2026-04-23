@@ -383,6 +383,10 @@ public class MainController implements Initializable, OrchestrationStateListener
             // slide-selection events, but widget wiring happens inside
             // the sub-controller's @FXML initialize().
             slideSpecController = slideSpecIncludeController;
+            // Required: wire the invoker provider so apply-to-slide
+            // runs land on the session's undo stack (not a silent
+            // direct-execute bypass).
+            slideSpecController.bindInvokerProvider(this::getCurrentCommandInvoker);
             // Bind to the active orchestrator on session changes.
             SessionManager.getInstance().addStateListener(
                 new com.excudo.core.orchestration.OrchestrationStateListener() {
