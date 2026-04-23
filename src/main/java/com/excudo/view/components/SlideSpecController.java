@@ -105,7 +105,7 @@ public class SlideSpecController {
     // cascaded -fx-font-size drives Button's intrinsic width naturally.
     private static final double MAX_SCALE    = 1.00;
     private static final double MIN_SCALE    = 0.70;
-    private static final double BASE_FONT_PT = 13.0;
+    private static final double BASE_FONT_PT = 10.0;
 
     // Modena Button padding: 0.333em 0.667em -> 1.333em horizontal.
     // 1em(px) = pt * 4/3, so h-pad(px) = 1.778 * pt. Plus 4px border /
