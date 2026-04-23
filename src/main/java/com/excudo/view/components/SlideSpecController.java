@@ -95,56 +95,85 @@ public class SlideSpecController {
         installDynamicFontScaling();
     }
 
-    // ==================================================================
-    // Dynamic font scaling — the SlideSpec aside can narrow past the
-    // default button widths. Stock JavaFX then ellipsizes button text to
-    // "Apply t..." / "Apply to ex...". We scale font size (and via
-    // inheritance, button padding/widths) down to a floor so buttons
-    // shrink gracefully rather than ellipsizing.
-    //
-    // Scale curve: at >= NATURAL_WIDTH, scale=1.0 (base 12pt); at
-    // <= MIN_WIDTH, scale=0.65 (clamp floor). Linear interpolation in
-    // between. The floor is the smallest readable-at-arms-length size;
-    // past that, ellipsis beats microscopic text.
-    // ==================================================================
+    // NATURAL_WIDTH is derived at runtime from the real screen width
+    // times the RHS-aside's default SplitPane fraction (25%, from the
+    // mainSplitPane divider at 0.75). MIN_WIDTH is 1/3 of that — past
+    // it, scale clamps to MIN_SCALE; ellipsis beats microscopic text.
+    private static final double DEFAULT_ASIDE_FRACTION = 0.25;
+    private static final double MIN_WIDTH_FRACTION     = 1.0 / 3.0;
+    private static final double MAX_SCALE              = 1.00;
+    private static final double MIN_SCALE              = 0.55;
+    private static final double BASE_FONT_PT           = 13.0;
 
-    // Thresholds sized so that at a standard RHS-aside width (roughly
-    // 25% of a 1440+px display ~= 360px and up) the panel sits at
-    // MAX_SCALE and text renders at the JavaFX default size. Shrinking
-    // only engages when the user actively drags the divider inward to
-    // less than the natural aside width.
-    private static final double NATURAL_WIDTH = 220.0;
-    private static final double MIN_WIDTH     = 120.0;
-    private static final double MAX_SCALE     = 1.00;
-    private static final double MIN_SCALE     = 0.55;
-    private static final double BASE_FONT_PT  = 13.0;
+    private double naturalWidth;
+    private double minWidth;
 
     private void installDynamicFontScaling() {
-        if (slideSpecPanel == null) return;
+        javafx.scene.layout.VBox panel = resolvePanelRoot();
+        if (panel == null) {
+            System.err.println("[SlideSpec] font scaling DISABLED: "
+                + "could not resolve panel root. slideSpecPanel="
+                + slideSpecPanel + " listView=" + slideSpecListView);
+            return;
+        }
+        if (slideSpecPanel == null) {
+            System.err.println("[SlideSpec] root fx:id injection returned "
+                + "null; using parent-walk fallback.");
+            slideSpecPanel = panel;
+        }
+
+        double screenW = detectScreenWidth();
+        naturalWidth = screenW * DEFAULT_ASIDE_FRACTION;
+        minWidth     = naturalWidth * MIN_WIDTH_FRACTION;
+        System.err.println(String.format(java.util.Locale.ROOT,
+            "[SlideSpec] font scaling ENABLED: screenW=%.0f naturalW=%.0f minW=%.0f",
+            screenW, naturalWidth, minWidth));
+
         slideSpecPanel.widthProperty().addListener((obs, oldW, newW) -> {
             if (newW == null) return;
             applyFontScale(newW.doubleValue());
         });
-        // Apply once at install time so the layout doesn't flash at
-        // the default size before the first width event.
         applyFontScale(slideSpecPanel.getWidth());
+    }
+
+    private javafx.scene.layout.VBox resolvePanelRoot() {
+        if (slideSpecPanel != null) return slideSpecPanel;
+        if (slideSpecListView == null) return null;
+        javafx.scene.Parent p = slideSpecListView.getParent();
+        while (p != null && !(p instanceof javafx.scene.layout.VBox)) {
+            p = p.getParent();
+        }
+        return (javafx.scene.layout.VBox) p;
+    }
+
+    private static double detectScreenWidth() {
+        try {
+            double w = java.awt.Toolkit.getDefaultToolkit().getScreenSize().getWidth();
+            if (w > 0) return w;
+        } catch (java.awt.HeadlessException he) {
+            // Headless test run — fall through to JavaFX Screen.
+        }
+        try {
+            return javafx.stage.Screen.getPrimary().getBounds().getWidth();
+        } catch (Throwable t) {
+            System.err.println("[SlideSpec] screen-width detection failed: "
+                + t + " — falling back to 1440.");
+            return 1440.0;
+        }
     }
 
     private void applyFontScale(double width) {
         if (width <= 0) return;
         double scale;
-        if (width >= NATURAL_WIDTH) {
+        if (width >= naturalWidth) {
             scale = MAX_SCALE;
-        } else if (width <= MIN_WIDTH) {
+        } else if (width <= minWidth) {
             scale = MIN_SCALE;
         } else {
-            double t = (width - MIN_WIDTH) / (NATURAL_WIDTH - MIN_WIDTH);
+            double t = (width - minWidth) / (naturalWidth - minWidth);
             scale = MIN_SCALE + t * (MAX_SCALE - MIN_SCALE);
         }
         double pt = BASE_FONT_PT * scale;
-        // Inline font-size cascades through the Scene graph to every
-        // child control, so buttons shrink text + intrinsic widths
-        // together. One listener, one style write, whole panel scales.
         slideSpecPanel.setStyle(String.format(
             java.util.Locale.ROOT,
             "-fx-padding: 5px; -fx-font-size: %.2fpt;",
