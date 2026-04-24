@@ -208,8 +208,32 @@ public class SlideShape {
   public int getSpid() { return spid; }
   public String getName() { return name; }
   public ShapeType getType() { return type; }
-  public String getTextContent() { return textContent; }
-  public String getText() { return textContent; }  // Alias for Commands
+
+  /**
+   * Full concatenated text of this shape, paragraphs separated by '\n'.
+   *
+   * <p>The {@code textContent} field is populated from an XPath that
+   * matches only the FIRST {@code <a:t>} text node under the shape
+   * (JAXP STRING-mode evaluation). For shapes with multiple runs or
+   * paragraphs (e.g. bulleted lists), that captures only the first
+   * bullet / first run. When paragraph metadata was parsed for this
+   * shape, join its per-paragraph content with newlines so callers
+   * get the complete text.
+   */
+  public String getTextContent() {
+    if (paragraphMetadata != null && paragraphMetadata.getParagraphCount() > 0) {
+      StringBuilder sb = new StringBuilder();
+      for (int i = 0; i < paragraphMetadata.getParagraphCount(); i++) {
+        if (i > 0) sb.append('\n');
+        String c = paragraphMetadata.getParagraphContent(i);
+        if (c != null) sb.append(c);
+      }
+      return sb.toString();
+    }
+    return textContent;
+  }
+
+  public String getText() { return getTextContent(); }  // Alias for Commands
   /** True iff the parsed cNvSpPr carried the OOXML txBox="1" marker. */
   public boolean isTextBox() { return isTextBox; }
   public ShapeGeometry getGeometry() { return geometry; }

@@ -8,8 +8,8 @@ import com.excudo.core.commands.CommandSessionContext;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.model.ShapeRegistry;
+import com.excudo.core.model.ShapeTextWriter;
 import com.excudo.core.model.SlideShape;
-import com.excudo.core.model.ParagraphMetadata;
 import java.util.Optional;
 
 /**
@@ -105,21 +105,14 @@ public class ShowShapeCommand implements Command {
                 display.displayMessage("  Geometry: <unavailable>");
             }
             
-            ParagraphMetadata meta = shape.getParagraphMetadata();
-            if (meta != null && meta.getParagraphCount() > 0) {
+            String rendered = ShapeTextWriter.render(shape, "    ");
+            if (!rendered.isEmpty()) {
                 display.displayMessage("  Content:");
-                for (int i = 0; i < meta.getParagraphCount(); i++) {
-                    String content = meta.getParagraphContent(i);
-                    if (content == null || content.trim().isEmpty()) continue;
-                    if (meta.isParagraphBullet(i)) {
-                        String marker = meta.getBulletMarker(i);
-                        display.displayMessage(String.format("    %s %s", marker != null ? marker : "-", content));
-                    } else {
-                        display.displayMessage("    " + content);
-                    }
+                // ShapeTextWriter emits trailing '\n' per line; strip the
+                // last one so displayMessage doesn't double-space.
+                for (String line : rendered.split("\\n", -1)) {
+                    if (!line.isEmpty()) display.displayMessage(line);
                 }
-            } else if (shape.getText() != null && !shape.getText().trim().isEmpty()) {
-                display.displayMessage("  Text: \"" + shape.getText() + "\"");
             }
             
             executed = true;

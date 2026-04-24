@@ -7,7 +7,6 @@ import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.SlideMetadata;
 import com.excudo.core.model.SlideShape;
-import com.excudo.core.model.ParagraphMetadata;
 import com.excudo.core.inspection.SlideInspector;
 import java.util.List;
 import java.util.Optional;
@@ -154,23 +153,9 @@ public class ShowSlideCommand implements Command {
     }
 
     private void displayShapeText(SlideShape shape) {
-        ParagraphMetadata meta = shape.getParagraphMetadata();
-        if (meta != null && meta.getParagraphCount() > 0) {
-            for (int i = 0; i < meta.getParagraphCount(); i++) {
-                String content = meta.getParagraphContent(i);
-                if (content == null || content.trim().isEmpty()) continue;
-                if (meta.isParagraphBullet(i)) {
-                    String marker = meta.getBulletMarker(i);
-                    display.displayMessage(String.format("    %s %s", marker != null ? marker : "-", content));
-                } else {
-                    display.displayMessage(String.format("    \"%s\"", content));
-                }
-            }
-        } else if (shape.getTextContent() != null && !shape.getTextContent().trim().isEmpty()) {
-            String preview = shape.getTextContent().length() > 80
-                ? shape.getTextContent().substring(0, 77) + "..."
-                : shape.getTextContent();
-            display.displayMessage(String.format("    Text: \"%s\"", preview));
+        String rendered = com.excudo.core.model.ShapeTextWriter.render(shape, "    ");
+        for (String line : rendered.split("\\n", -1)) {
+            if (!line.isEmpty()) display.displayMessage(line);
         }
     }
 }

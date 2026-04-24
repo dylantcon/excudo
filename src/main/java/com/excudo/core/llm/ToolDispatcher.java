@@ -280,12 +280,15 @@ public class ToolDispatcher {
                 // structurally RECTANGLE in the model.
                 sb.append(shape.isTextBox() ? "TEXT_BOX" : shape.getType().toString());
                 if (shape.getName() != null) sb.append(" \"").append(shape.getName()).append("\"");
-                if (shape.hasText()) {
-                    String text = shape.getTextContent();
-                    sb.append(": ")
-                      .append(text.length() > 50 ? text.substring(0, 47) + "..." : text);
-                }
                 sb.append("\n");
+                // Full paragraph-aware text (bullets and all), indented
+                // under the shape's one-liner. Routed through the single
+                // ShapeTextWriter so this view doesn't silently diverge
+                // from show-slide / show-shape like it used to.
+                if (shape.hasText()) {
+                    String nested = (depth <= 0) ? "    " : "    ".repeat(depth + 1);
+                    com.excudo.core.model.ShapeTextWriter.writeTo(shape, sb, nested);
+                }
             }
             return sb.toString();
         } catch (Exception e) {
@@ -312,7 +315,10 @@ public class ToolDispatcher {
                 sb.append("Position: x=").append(g.getX()).append(" y=").append(g.getY()).append("\n");
                 sb.append("Size: cx=").append(g.getWidth()).append(" cy=").append(g.getHeight()).append("\n");
             }
-            if (shape.hasText()) sb.append("Text: ").append(shape.getTextContent()).append("\n");
+            if (shape.hasText()) {
+                sb.append("Text:\n");
+                com.excudo.core.model.ShapeTextWriter.writeTo(shape, sb, "  ");
+            }
 
             ContextService.AnimationContext animCtx = getContextService().getAnimationContext(slideNumber);
             for (AnimationBinding binding : animCtx.getAnimationBindings()) {
