@@ -88,8 +88,14 @@ public final class ShapeStyleExtractor {
             }
         }
 
-        throw new IllegalStateException("No fill resolved for shape '"
-            + shape.getName() + "' (type=" + shape.getType() + "): no spPr fill, no p:style fillRef");
+        // No explicit fill and no p:style fillRef: per ECMA-376, the fill
+        // choice under spPr is optional, and a shape with neither is
+        // spec-valid. PowerPoint renders such shapes (canonical example:
+        // a cNvSpPr/@txBox="1" plain text box with no spPr fill) as
+        // transparent -- just the text. Previously this threw and the
+        // renderer's catch block painted an empty red error rectangle,
+        // suppressing text rendering entirely.
+        return SurfacePaint.Transparent.INSTANCE;
     }
 
     /**

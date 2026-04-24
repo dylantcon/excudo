@@ -221,6 +221,35 @@ public class ShapeStyleExtractorTest {
             s.alpha() >= 126 && s.alpha() <= 128);
     }
 
+    /**
+     * A plain text box (cNvSpPr/@txBox="1") with no spPr fill and no p:style
+     * is spec-valid. ECMA-376 makes the fill choice under spPr optional, and
+     * PowerPoint renders such shapes with just their text over the slide
+     * background. The resolver must return Transparent, not throw.
+     */
+    @Test
+    public void resolveFillColor_plainTextBoxNoStyle() throws Exception {
+        String xml = """
+            <p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <p:nvSpPr>
+                    <p:cNvPr id="3" name="object 3"/>
+                    <p:cNvSpPr txBox="1"/>
+                    <p:nvPr/>
+                </p:nvSpPr>
+                <p:spPr>
+                    <a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="50"/></a:xfrm>
+                    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </p:spPr>
+            </p:sp>
+            """;
+
+        SlideShape shape = parseShape(xml, SlideShape.ShapeType.RECTANGLE);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, null);
+
+        assertSame(SurfacePaint.Transparent.INSTANCE, fill);
+    }
+
     // ========== HELPERS ==========
 
     private SlideShape parseShape(String xml, SlideShape.ShapeType type) throws Exception {
