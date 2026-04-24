@@ -187,13 +187,13 @@ public class SlideSpecController {
                 + "— fx:id injection failed. Falling back to no fill.");
             return;
         }
-        System.err.println(String.format(java.util.Locale.ROOT,
-            "[SlideSpec] bindProportionalFill: wired flow=%s (w=%.0f) buttons=%d",
-            flow == slideSpecRow1Flow ? "Row1" : "Row2",
-            flow.getWidth(), buttons.size()));
         Runnable redistribute = () -> distributeFill(flow, buttons);
         flow.widthProperty().addListener((obs, oldW, newW) -> redistribute.run());
         redistribute.run();
+        // Safety net: if the widthProperty doesn't fire on the initial
+        // layout pulse (e.g. scene laid out before we wired the listener),
+        // runLater catches us on the next FX tick with a populated width.
+        javafx.application.Platform.runLater(redistribute);
     }
 
     // Safety buffer: leave a few px unused so fractional rounding on
@@ -440,6 +440,14 @@ public class SlideSpecController {
     public void setActiveSlide(int slideNumber) {
         if (slideNumber == activeSlide) return;
         activeSlide = slideNumber;
+        // Staged edits were scoped to the previous slide's baseline —
+        // carrying them onto a different slide doesn't make sense.
+        // Clear so render() doesn't early-return and leave stale content
+        // on screen. User must apply before switching to preserve.
+        if (stagedSpecs != null) {
+            stagedSpecs = null;
+            if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("");
+        }
         if (reactive == null || slideNumber <= 0) {
             clearView();
             return;

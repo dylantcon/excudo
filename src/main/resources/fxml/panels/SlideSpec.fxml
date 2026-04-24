@@ -14,7 +14,11 @@
       fx:controller="com.excudo.view.components.SlideSpecController"
       spacing="5.0"
       style="-fx-padding: 5px;">
-   <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
+   <HBox spacing="5.0" alignment="CENTER_LEFT">
+      <Label fx:id="slideSpecTitle" text="SlideSpec (no slide selected)" style="-fx-font-weight: bold;" />
+      <Region HBox.hgrow="ALWAYS" />
+      <Label fx:id="slideSpecStagedBadge" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" />
+   </HBox>
    <FlowPane fx:id="slideSpecRow1Flow" hgap="5.0" vgap="5.0">
       <Button fx:id="slideSpecCopyJsonButton" text="Copy JSON" />
       <Button fx:id="slideSpecApplyToNewButton" text="Apply to new slide" />
@@ -26,7 +30,6 @@
       <Button fx:id="slideSpecDeleteButton" text="Delete" />
       <Button fx:id="slideSpecMoveUpButton" text="Up" />
       <Button fx:id="slideSpecMoveDownButton" text="Down" />
-      <Label fx:id="slideSpecStagedBadge" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" />
       <Button fx:id="slideSpecResetButton" text="Reset to synthesized" />
    </FlowPane>
    <ListView fx:id="slideSpecListView" VBox.vgrow="ALWAYS" />
