@@ -182,11 +182,21 @@ public class SlideSpecController {
 
     private void bindProportionalFill(javafx.scene.layout.FlowPane flow,
                                       java.util.List<Button> buttons) {
-        if (flow == null) return;
+        if (flow == null) {
+            System.err.println("[SlideSpec] bindProportionalFill: flow is null "
+                + "— fx:id injection failed. Falling back to no fill.");
+            return;
+        }
+        System.err.println(String.format(java.util.Locale.ROOT,
+            "[SlideSpec] bindProportionalFill: wired flow=%s (w=%.0f) buttons=%d",
+            flow == slideSpecRow1Flow ? "Row1" : "Row2",
+            flow.getWidth(), buttons.size()));
         Runnable redistribute = () -> distributeFill(flow, buttons);
         flow.widthProperty().addListener((obs, oldW, newW) -> redistribute.run());
         redistribute.run();
     }
+
+    private int distributeDebugLogs = 0;
 
     /** Fair-share allocation: each button gets at least its text-needed
      *  width; any leftover in the FlowPane is split evenly across all
@@ -198,6 +208,7 @@ public class SlideSpecController {
                                 java.util.List<Button> buttons) {
         double flowW = flow.getWidth();
         if (flowW <= 0 || buttons.isEmpty()) return;
+        boolean doLog = distributeDebugLogs < 6;
         int n = 0;
         double sumMin = 0;
         double[] mins = new double[buttons.size()];
@@ -227,15 +238,27 @@ public class SlideSpecController {
             return;
         }
         double excessPer = (available - sumMin) / n;
+        if (doLog) {
+            System.err.println(String.format(java.util.Locale.ROOT,
+                "[SlideSpec] distributeFill flow=%s flowW=%.0f n=%d sumMin=%.0f available=%.0f excessPer=%.1f",
+                flow == slideSpecRow1Flow ? "Row1" : "Row2",
+                flowW, n, sumMin, available, excessPer));
+        }
         for (int i = 0; i < buttons.size(); i++) {
             Button b = buttons.get(i);
             if (b == null) continue;
             double w = mins[i] + excessPer;
+            if (doLog) {
+                System.err.println(String.format(java.util.Locale.ROOT,
+                    "[SlideSpec]   '%s' min=%.0f -> pref=%.1f (was %.1f, actualW=%.1f)",
+                    b.getText(), mins[i], w, b.getPrefWidth(), b.getWidth()));
+            }
             if (Math.abs(b.getPrefWidth() - w) > 0.5) {
                 b.setPrefWidth(w);
                 b.setMinWidth(w);
             }
         }
+        if (doLog) distributeDebugLogs++;
     }
 
     private void bindButtonAutoScale(Button b) {
