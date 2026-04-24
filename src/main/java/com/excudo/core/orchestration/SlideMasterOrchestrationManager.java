@@ -329,7 +329,9 @@ public class SlideMasterOrchestrationManager {
                     String colorName = scheme.getAttribute("val");
                     Map<String, String> clrMap = getClrMap();
                     String resolved = clrMap.getOrDefault(colorName, colorName);
-                    return "#" + com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
+                    // ThemeManager.getThemeColor already returns hex
+                    // prefixed with '#'; don't prepend again.
+                    return com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
                 }
             }
         }
