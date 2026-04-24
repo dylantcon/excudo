@@ -201,6 +201,52 @@ public class SlideSpecController {
     // an unwanted FlowPane wrap.
     private static final double FLOW_SAFETY = 4.0;
 
+    // Per-button cache of the button's own reported intrinsic pref
+    // width at BASE_FONT_PT. We ask JavaFX via Button.prefWidth(-1)
+    // rather than approximating text+padding — the approximation
+    // underestimates by enough to truncate ('Copy JSON' needs 96 but
+    // textW+pad comes out 72). JavaFX's own number accounts for the
+    // actual font family, Modena padding + insets + border, etc.
+    private final java.util.Map<Button, Double> intrinsicCache =
+        new java.util.IdentityHashMap<>();
+
+    /** Get the button's intrinsic pref width at BASE_FONT_PT, asking
+     *  JavaFX for it on first call and caching. Temporarily clears
+     *  our inline style/pref/min so prefWidth(-1) returns the real
+     *  computed value; restores before returning. Called only once
+     *  per button on the cold path. */
+    private double intrinsicAtBase(Button b) {
+        Double cached = intrinsicCache.get(b);
+        if (cached != null) return cached;
+        String savedStyle = b.getStyle();
+        double savedPref  = b.getPrefWidth();
+        double savedMin   = b.getMinWidth();
+        double result;
+        try {
+            b.setStyle(String.format(java.util.Locale.ROOT,
+                "-fx-font-size: %.2fpt;", BASE_FONT_PT));
+            b.setPrefWidth(Button.USE_COMPUTED_SIZE);
+            b.setMinWidth(Button.USE_COMPUTED_SIZE);
+            b.applyCss();
+            double pw = b.prefWidth(-1);
+            if (pw > 0 && pw < 10000) {
+                result = Math.ceil(pw);
+            } else {
+                // Fallback to approximation if JavaFX didn't give a
+                // sensible number (e.g. button not in scene yet).
+                String label = b.getText() != null ? b.getText() : "";
+                result = Math.ceil(measureTextWidth(label, BASE_FONT_PT, false)
+                    + BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED);
+            }
+        } finally {
+            b.setStyle(savedStyle);
+            b.setPrefWidth(savedPref);
+            b.setMinWidth(savedMin);
+        }
+        intrinsicCache.put(b, result);
+        return result;
+    }
+
     /** Fair-share allocation with wrap awareness. Simulates FlowPane's
      *  greedy left-to-right packing to assign buttons to rows, then
      *  for each row distributes that row's leftover space evenly among
@@ -216,11 +262,7 @@ public class SlideSpecController {
         for (int i = 0; i < sz; i++) {
             Button b = buttons.get(i);
             if (b == null) continue;
-            String label = b.getText();
-            if (label == null) label = "";
-            double textW = measureTextWidth(label, BASE_FONT_PT, false);
-            double pad   = BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED;
-            mins[i] = Math.ceil(textW + pad);
+            mins[i] = intrinsicAtBase(b);
             valid[i] = true;
         }
 
@@ -283,22 +325,21 @@ public class SlideSpecController {
         scaleButtonToFit(b);
     }
 
-    /** Listener body. Measure button's label at BASE_FONT_PT, compare
-     *  to allocated width, shrink font to fit. Snap pt to 0.25-pt
-     *  steps + idempotent setStyle to prevent layout-feedback oscillation. */
+    /** Listener body. Measure button's intrinsic pref via JavaFX's own
+     *  calculation (not our approximation — they disagree), compare to
+     *  allocated width, shrink font to fit. Snap pt to 0.25-pt steps
+     *  + idempotent setStyle to prevent layout-feedback oscillation. */
     private void scaleButtonToFit(Button b) {
         double allocated = b.getWidth();
         if (allocated <= 0) return;
         String label = b.getText();
         if (label == null || label.isEmpty()) return;
-        double textAtBase = measureTextWidth(label, BASE_FONT_PT, false);
-        double padAtBase  = BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED;
-        double reqAtBase  = textAtBase + padAtBase;
+        double reqAtBase = intrinsicAtBase(b);
         double scale = allocated / reqAtBase;
         if (scale > 1.0) scale = 1.0;
         double minScale = BUTTON_MIN_PT / BASE_FONT_PT;
         if (scale < minScale) scale = minScale;
-        double pt = Math.floor(BASE_FONT_PT * scale * 4.0) / 4.0;  // 0.25-pt quantization
+        double pt = Math.floor(BASE_FONT_PT * scale * 4.0) / 4.0;
         String newStyle = String.format(java.util.Locale.ROOT,
             "-fx-font-size: %.2fpt;", pt);
         if (!newStyle.equals(b.getStyle())) b.setStyle(newStyle);
