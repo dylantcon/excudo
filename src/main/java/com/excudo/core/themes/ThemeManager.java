@@ -79,10 +79,10 @@ public class ThemeManager {
         }
     }
     
-    /**
-     * Get theme color by name (returns hex string)
-     */
-    public static String getThemeColor(String colorName) {
+    /** Get theme color by name as a typed {@link HexColor}. Consumers
+     *  call {@code .withHash()} or {@code .bare()} explicitly — the
+     *  Adapter prevents the double-prepend family of bugs. */
+    public static HexColor getThemeColor(String colorName) {
         if (defaultTheme == null) {
             throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
         }

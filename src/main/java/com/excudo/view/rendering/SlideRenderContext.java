@@ -176,10 +176,7 @@ public class SlideRenderContext {
         String resolved = clrMap.getOrDefault(colorName, colorName);
 
         if (ThemeManager.isThemeLoaded()) {
-            String hex = ThemeManager.getThemeColor(resolved);
-            if (hex != null && !hex.isEmpty()) {
-                return hex.startsWith("#") ? hex : "#" + hex;
-            }
+            return ThemeManager.getThemeColor(resolved).withHash();
         }
 
         throw new IllegalStateException("No theme color for '" + colorName

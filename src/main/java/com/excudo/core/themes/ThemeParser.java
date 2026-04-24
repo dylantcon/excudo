@@ -23,12 +23,12 @@ public class ThemeParser {
     private static final ComponentLogger logger = Logger.theme();
 
     private final XPath xpath;
-    private Map<String, String> colorScheme;
+    private Map<String, HexColor> colorScheme;
     private Map<String, String> fontScheme;
     private String themeName;
     private FmtSchemeResolver fmtSchemeResolver;
-    
-    
+
+
     public ThemeParser() {
         this.xpath = XMLFactoryProvider.createXPath();
         this.colorScheme = new HashMap<>();
@@ -118,20 +118,18 @@ public class ThemeParser {
         // Look for sRGB color value
         Element srgbClr = (Element) xpath.evaluate("a:srgbClr", colorElement, XPathConstants.NODE);
         if (srgbClr != null && srgbClr.hasAttribute("val")) {
-            String colorVal = srgbClr.getAttribute("val");
-            String hexColor = "#" + colorVal;
-            this.colorScheme.put(colorName, hexColor);
+            // OOXML's val attribute is bare (no '#'); HexColor's constructor
+            // validates + stores in bare form.
+            this.colorScheme.put(colorName, new HexColor(srgbClr.getAttribute("val")));
             return;
         }
-        
+
         // Look for system color (sysClr)
         Element sysClr = (Element) xpath.evaluate("a:sysClr", colorElement, XPathConstants.NODE);
         if (sysClr != null) {
-            String sysColorName = sysClr.getAttribute("val");
             String lastClr = sysClr.getAttribute("lastClr");
             if (lastClr != null && !lastClr.isEmpty()) {
-                String hexColor = "#" + lastClr;
-                this.colorScheme.put(colorName, hexColor);
+                this.colorScheme.put(colorName, new HexColor(lastClr));
             }
         }
     }
@@ -162,11 +160,11 @@ public class ThemeParser {
         }
     }
     
-    /**
-     * Get theme color by name (returns hex string)
-     */
-    public String getThemeColor(String colorName) {
-        String themeColor = colorScheme.get(colorName);
+    /** Get theme color by name as a typed {@link HexColor}. Consumers
+     *  pick {@code .withHash()} or {@code .bare()} at the boundary —
+     *  no more String-concat ambiguity. */
+    public HexColor getThemeColor(String colorName) {
+        HexColor themeColor = colorScheme.get(colorName);
         if (themeColor != null) {
             return themeColor;
         }
@@ -201,10 +199,16 @@ public class ThemeParser {
     }
     
     /**
-     * Get all available theme colors (for debugging)
+     * Get all available theme colors as display-form (#RRGGBB) strings.
+     * Existing callers (serializers, display commands) expect the
+     * '#'-prefixed form — convert once here at the boundary.
      */
     public Map<String, String> getColorScheme() {
-        return new HashMap<>(colorScheme);
+        Map<String, String> out = new HashMap<>();
+        for (Map.Entry<String, HexColor> e : colorScheme.entrySet()) {
+            out.put(e.getKey(), e.getValue().withHash());
+        }
+        return out;
     }
     
     /**

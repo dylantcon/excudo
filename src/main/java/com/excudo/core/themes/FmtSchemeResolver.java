@@ -168,9 +168,9 @@ public class FmtSchemeResolver {
             case FmtSchemeModel.SrgbColor s -> applyMods(s.hex(), s.modifiers());
             case FmtSchemeModel.SchemeColor sc ->
                 // Non-phClr scheme colors resolve through ThemeManager.
-                // getThemeColor returns hex already prefixed with '#'
-                // (stored that way in ThemeParser.parseColorDefinition).
-                applyMods(ThemeManager.getThemeColor(sc.val()), sc.modifiers());
+                // HexColor's .withHash() is the explicit adapter — no
+                // String-concat ambiguity.
+                applyMods(ThemeManager.getThemeColor(sc.val()).withHash(), sc.modifiers());
             case FmtSchemeModel.PlaceholderColor p ->
                 applyMods(
                     phColorHex.startsWith("#") ? phColorHex : "#" + phColorHex,

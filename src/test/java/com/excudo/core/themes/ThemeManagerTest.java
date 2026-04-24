@@ -38,9 +38,10 @@ public class ThemeManagerTest {
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
-        String accent1 = ThemeManager.getThemeColor("accent1");
+        com.excudo.core.themes.HexColor accent1 = ThemeManager.getThemeColor("accent1");
         assertNotNull(accent1);
-        assertEquals("#569CD6", accent1);
+        assertEquals("#569CD6", accent1.withHash());
+        assertEquals("569CD6", accent1.bare());
     }
 
     @Test

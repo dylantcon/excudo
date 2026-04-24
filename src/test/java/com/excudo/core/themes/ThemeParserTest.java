@@ -34,9 +34,10 @@ public class ThemeParserTest {
         assertTrue("parseTheme should succeed", parser.parseTheme(themeDom));
         assertTrue("Theme should be loaded", parser.isThemeLoaded());
 
-        // Verify known colors from the generalist test file
-        // ThemeParser returns hex with '#' prefix
-        assertEquals("#569CD6", parser.getThemeColor("accent1"));
+        // Verify known colors from the generalist test file. ThemeParser
+        // now returns typed HexColor; both adapter forms work.
+        assertEquals("#569CD6", parser.getThemeColor("accent1").withHash());
+        assertEquals("569CD6", parser.getThemeColor("accent1").bare());
         assertNotNull(parser.getThemeColor("dk1"));
         assertNotNull(parser.getThemeColor("lt1"));
         assertNotNull(parser.getThemeColor("dk2"));

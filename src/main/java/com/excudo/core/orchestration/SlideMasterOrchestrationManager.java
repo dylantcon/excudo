@@ -329,9 +329,7 @@ public class SlideMasterOrchestrationManager {
                     String colorName = scheme.getAttribute("val");
                     Map<String, String> clrMap = getClrMap();
                     String resolved = clrMap.getOrDefault(colorName, colorName);
-                    // ThemeManager.getThemeColor already returns hex
-                    // prefixed with '#'; don't prepend again.
-                    return com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
+                    return com.excudo.core.themes.ThemeManager.getThemeColor(resolved).withHash();
                 }
             }
         }
@@ -349,11 +347,12 @@ public class SlideMasterOrchestrationManager {
                 String colorName = scheme.getAttribute("val");
                 Map<String, String> clrMap = getClrMap();
                 String resolved = clrMap.getOrDefault(colorName, colorName);
-                String phColorHex = com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
+                com.excudo.core.themes.HexColor phColor =
+                    com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
 
                 if (idx > 0 && com.excudo.core.themes.ThemeManager.isThemeLoaded()) {
                     com.excudo.core.themes.ResolvedFill fill =
-                        com.excudo.core.themes.ThemeManager.resolveFillStyle(idx, phColorHex);
+                        com.excudo.core.themes.ThemeManager.resolveFillStyle(idx, phColor.withHash());
 
                     if (fill instanceof com.excudo.core.themes.ResolvedFill.SolidFill solid) {
                         return solid.hex();
@@ -364,7 +363,7 @@ public class SlideMasterOrchestrationManager {
                     }
                 }
 
-                return "#" + phColorHex;
+                return phColor.withHash();
             }
         }
 
