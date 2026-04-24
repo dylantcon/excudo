@@ -196,70 +196,86 @@ public class SlideSpecController {
         redistribute.run();
     }
 
-    private int distributeDebugLogs = 0;
+    // Safety buffer: leave a few px unused so fractional rounding on
+    // individual button widths can't push sum past flowW and trigger
+    // an unwanted FlowPane wrap.
+    private static final double FLOW_SAFETY = 4.0;
 
-    /** Fair-share allocation: each button gets at least its text-needed
-     *  width; any leftover in the FlowPane is split evenly across all
-     *  buttons so they expand symmetrically rather than leaving a gap.
-     *  If the FlowPane is too narrow for the sum of minimums, we clear
-     *  the pref/min overrides and let FlowPane wrap via each button's
-     *  intrinsic size. */
+    /** Fair-share allocation with wrap awareness. Simulates FlowPane's
+     *  greedy left-to-right packing to assign buttons to rows, then
+     *  for each row distributes that row's leftover space evenly among
+     *  its own buttons. This means a 2-row wrap has each row filled
+     *  proportionally instead of packed-left with dead space on the right. */
     private void distributeFill(javafx.scene.layout.FlowPane flow,
                                 java.util.List<Button> buttons) {
         double flowW = flow.getWidth();
         if (flowW <= 0 || buttons.isEmpty()) return;
-        boolean doLog = distributeDebugLogs < 6;
-        int n = 0;
-        double sumMin = 0;
-        double[] mins = new double[buttons.size()];
-        for (int i = 0; i < buttons.size(); i++) {
+        int sz = buttons.size();
+        double[] mins = new double[sz];
+        boolean[] valid = new boolean[sz];
+        for (int i = 0; i < sz; i++) {
             Button b = buttons.get(i);
-            if (b == null) { mins[i] = 0; continue; }
+            if (b == null) continue;
             String label = b.getText();
             if (label == null) label = "";
             double textW = measureTextWidth(label, BASE_FONT_PT, false);
             double pad   = BUTTON_PAD_PT_COEF * BASE_FONT_PT + BUTTON_PAD_FIXED;
             mins[i] = Math.ceil(textW + pad);
-            sumMin += mins[i];
-            n++;
+            valid[i] = true;
         }
-        if (n == 0) return;
-        double gapsTotal = (n - 1) * FLOW_HGAP;
-        double available = flowW - gapsTotal;
-        if (available < sumMin) {
-            // Not enough room for even the minimums — let FlowPane wrap
-            // naturally. Clear our overrides so the buttons size by
-            // their own intrinsic computations.
-            for (Button b : buttons) {
-                if (b == null) continue;
-                b.setPrefWidth(Button.USE_COMPUTED_SIZE);
-                b.setMinWidth(Button.USE_COMPUTED_SIZE);
+
+        // Greedy row packing — mirrors FlowPane's own wrap algorithm so
+        // our per-row allocation matches its layout output.
+        double capacity = flowW - FLOW_SAFETY;
+        java.util.List<java.util.List<Integer>> rows = new java.util.ArrayList<>();
+        java.util.List<Integer> current = new java.util.ArrayList<>();
+        double currentSum = 0;
+        for (int i = 0; i < sz; i++) {
+            if (!valid[i]) continue;
+            double add = (current.isEmpty() ? 0 : FLOW_HGAP) + mins[i];
+            if (currentSum + add > capacity && !current.isEmpty()) {
+                rows.add(current);
+                current = new java.util.ArrayList<>();
+                currentSum = 0;
+                add = mins[i];
             }
-            return;
+            current.add(i);
+            currentSum += add;
         }
-        double excessPer = (available - sumMin) / n;
+        if (!current.isEmpty()) rows.add(current);
+
+        boolean doLog = distributeDebugLogs < 4;
         if (doLog) {
             System.err.println(String.format(java.util.Locale.ROOT,
-                "[SlideSpec] distributeFill flow=%s flowW=%.0f n=%d sumMin=%.0f available=%.0f excessPer=%.1f",
-                flow == slideSpecRow1Flow ? "Row1" : "Row2",
-                flowW, n, sumMin, available, excessPer));
+                "[SlideSpec] distributeFill flow=%s flowW=%.0f rows=%d",
+                flow == slideSpecRow1Flow ? "Row1" : "Row2", flowW, rows.size()));
         }
-        for (int i = 0; i < buttons.size(); i++) {
-            Button b = buttons.get(i);
-            if (b == null) continue;
-            double w = mins[i] + excessPer;
-            if (doLog) {
-                System.err.println(String.format(java.util.Locale.ROOT,
-                    "[SlideSpec]   '%s' min=%.0f -> pref=%.1f (was %.1f, actualW=%.1f)",
-                    b.getText(), mins[i], w, b.getPrefWidth(), b.getWidth()));
-            }
-            if (Math.abs(b.getPrefWidth() - w) > 0.5) {
-                b.setPrefWidth(w);
-                b.setMinWidth(w);
+
+        for (var row : rows) {
+            int rn = row.size();
+            double rowMin = 0;
+            for (int idx : row) rowMin += mins[idx];
+            double gaps = (rn - 1) * FLOW_HGAP;
+            double rowAvail = capacity - gaps;
+            double excessPer = Math.max(0, (rowAvail - rowMin) / rn);
+            for (int idx : row) {
+                Button b = buttons.get(idx);
+                double w = Math.floor(mins[idx] + excessPer);
+                if (doLog) {
+                    System.err.println(String.format(java.util.Locale.ROOT,
+                        "[SlideSpec]   row=%d '%s' min=%.0f -> pref=%.0f",
+                        rows.indexOf(row) + 1, b.getText(), mins[idx], w));
+                }
+                if (Math.abs(b.getPrefWidth() - w) >= 1.0) {
+                    b.setPrefWidth(w);
+                    b.setMinWidth(w);
+                }
             }
         }
         if (doLog) distributeDebugLogs++;
     }
+
+    private int distributeDebugLogs = 0;
 
     private void bindButtonAutoScale(Button b) {
         if (b == null) return;
