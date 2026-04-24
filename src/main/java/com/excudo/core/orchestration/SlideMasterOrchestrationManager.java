@@ -1,6 +1,9 @@
 package com.excudo.core.orchestration;
 
+import com.excudo.core.model.MediaElement;
+import com.excudo.core.model.SlideBackground;
 import com.excudo.core.results.ExecutionResult;
+import com.excudo.core.themes.ResolvedFill;
 import com.excudo.core.themes.TextLevelStyle;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
@@ -368,6 +371,23 @@ public class SlideMasterOrchestrationManager {
         }
 
         return null;
+    }
+
+    // ========== TYPED BACKGROUND (covers blipFill + duotone) ==========
+
+    /**
+     * Resolve the slide's effective background as a typed descriptor.
+     * Delegates to {@link com.excudo.core.model.SlideBackgroundResolver}
+     * so the render pipeline can produce the same descriptor without
+     * holding an orchestrator reference. Returns a
+     * {@link SlideBackground.Solid} for solid/gradient fills and a
+     * {@link SlideBackground.BlipImage} for theme wallpaper backgrounds
+     * (with duotone info populated when present). Returns null when no
+     * background is defined anywhere in the chain.
+     */
+    public SlideBackground getSlideBackground(int slideNumber) {
+        return com.excudo.core.rendering.SlideBackgroundResolver.resolve(
+            context.getDocument(), slideNumber, getClrMap());
     }
 
     // ========== OBJECT DEFAULTS (THEME-LEVEL) ==========

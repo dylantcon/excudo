@@ -1097,6 +1097,12 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     }
 
     @Override
+    public com.excudo.core.model.SlideBackground getSlideBackground(int slideNumber) {
+        if (slideMasterOrchestrationManager == null) return null;
+        return slideMasterOrchestrationManager.getSlideBackground(slideNumber);
+    }
+
+    @Override
     public ExecutionResult<Void> setMasterBackground(int fillIndex, String schemeColor) {
         if (currentContext == null) {
             return ExecutionResult.failure("SetMasterBg", "No orchestration context available");

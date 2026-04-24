@@ -3,6 +3,7 @@ package com.excudo.view.rendering;
 import com.excudo.core.model.LayoutInfo;
 import com.excudo.core.model.PlaceholderGeometry;
 import com.excudo.core.model.PPTXDocument;
+import com.excudo.core.model.SlideBackground;
 import com.excudo.core.themes.ThemeDefinition;
 import com.excudo.core.themes.ThemeManager;
 import com.excudo.core.themes.TextLevelStyle;
@@ -29,6 +30,14 @@ public class SlideRenderContext {
     private final String backgroundColorHex;
     private final TextLevelStyle[] masterTitleStyles;
     private final TextLevelStyle[] masterBodyStyles;
+
+    // Lazy-resolved typed background. Sentinel NOT_RESOLVED separates
+    // "not computed yet" from "computed to null" (no bg). Computed once
+    // per context; SlideRenderContext is per-render so the cost is paid
+    // at most once per slide render.
+    private static final SlideBackground NOT_RESOLVED =
+        new SlideBackground.Solid("#__NOT_RESOLVED__");
+    private volatile SlideBackground slideBackgroundCache = NOT_RESOLVED;
 
     public SlideRenderContext(ThemeDefinition theme, LayoutInfo layoutInfo,
                               PPTXDocument document, int slideNumber,
@@ -63,6 +72,23 @@ public class SlideRenderContext {
             throw new IllegalStateException("No background color provided for slide " + slideNumber);
         }
         return backgroundColorHex;
+    }
+
+    /**
+     * Typed slide background descriptor, or null when no bg is defined.
+     * Resolved lazily via {@link com.excudo.core.model.SlideBackgroundResolver}
+     * — the walk is idempotent and cheap (small DOM, cached parsed theme),
+     * so doing it once per render context is fine. Renderers that can
+     * render image fills should prefer this over the hex-only path.
+     */
+    public SlideBackground getSlideBackground() {
+        SlideBackground cached = slideBackgroundCache;
+        if (cached == NOT_RESOLVED) {
+            cached = com.excudo.core.rendering.SlideBackgroundResolver.resolve(
+                document, slideNumber, clrMap);
+            slideBackgroundCache = cached;
+        }
+        return cached;
     }
 
     /**

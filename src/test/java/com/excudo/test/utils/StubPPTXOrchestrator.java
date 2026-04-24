@@ -316,6 +316,11 @@ public class StubPPTXOrchestrator implements PPTXOrchestrator {
     }
 
     @Override
+    public com.excudo.core.model.SlideBackground getSlideBackground(int slideNumber) {
+        return null;
+    }
+
+    @Override
     public ExecutionResult<Void> setMasterBackground(int fillIndex, String schemeColor) {
         return null;
     }

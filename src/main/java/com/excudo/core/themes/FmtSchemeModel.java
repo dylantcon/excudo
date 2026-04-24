@@ -57,9 +57,24 @@ public record FmtSchemeModel(
 
     /** a:blipFill — raster/image fill. {@code embedRelId} is set when the
      *  blip carries {@code r:embed}; {@code linkRelId} when it carries
-     *  {@code r:link}. Both nullable. Resolvers that can't render images
-     *  fall back to the caller's placeholder color. */
-    public record BlipFillDef(String embedRelId, String linkRelId) implements FillDef {}
+     *  {@code r:link}. Both nullable. {@code duotoneColors} is empty for
+     *  straight image fills and two-entry when the blip applies a duotone
+     *  recolor (shadow color first, highlight color second, per ECMA-376
+     *  §20.1.8.23). Resolvers that can't render images fall back to the
+     *  caller's placeholder color. */
+    public record BlipFillDef(
+            String embedRelId,
+            String linkRelId,
+            List<ColorSpec> duotoneColors) implements FillDef {
+        public BlipFillDef {
+            duotoneColors = List.copyOf(duotoneColors);
+        }
+
+        /** Back-compat constructor for callers that don't care about duotone. */
+        public BlipFillDef(String embedRelId, String linkRelId) {
+            this(embedRelId, linkRelId, List.of());
+        }
+    }
 
     /** a:pattFill — preset two-color pattern (hash, dot, etc.). Stored
      *  as a raw preset name + foreground/background colors. Uncommon in

@@ -566,6 +566,15 @@ public interface PPTXOrchestrator {
     String getBackgroundColorHex(int slideNumber);
 
     /**
+     * Resolve the slide's effective background as a typed descriptor.
+     * Returns a {@link com.excudo.core.model.SlideBackground.BlipImage}
+     * for theme wallpaper-style backgrounds (with duotone info populated
+     * when present), {@link com.excudo.core.model.SlideBackground.Solid}
+     * for flat color backgrounds, or null when none is defined.
+     */
+    com.excudo.core.model.SlideBackground getSlideBackground(int slideNumber);
+
+    /**
      * Set the slide master background.
      * @param fillIndex bgRef idx value
      * @param schemeColor scheme color ref

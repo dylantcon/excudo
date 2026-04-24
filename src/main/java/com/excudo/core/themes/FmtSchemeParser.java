@@ -117,11 +117,47 @@ public final class FmtSchemeParser {
         Element blip = directChild(blipFillEl, "a:blip");
         String embedRelId = null;
         String linkRelId = null;
+        List<FmtSchemeModel.ColorSpec> duotone = List.of();
         if (blip != null) {
             if (blip.hasAttribute("r:embed")) embedRelId = blip.getAttribute("r:embed");
             if (blip.hasAttribute("r:link"))  linkRelId  = blip.getAttribute("r:link");
+
+            // a:duotone carries two color children (shadow + highlight)
+            // that remap the source image's luminance range.
+            Element duotoneEl = directChild(blip, "a:duotone");
+            if (duotoneEl != null) {
+                List<FmtSchemeModel.ColorSpec> colors = new ArrayList<>(2);
+                for (Node n = duotoneEl.getFirstChild(); n != null; n = n.getNextSibling()) {
+                    if (!(n instanceof Element el)) continue;
+                    String tag = el.getTagName();
+                    if ("a:srgbClr".equals(tag) || "a:schemeClr".equals(tag)) {
+                        // parseColorChild expects a PARENT whose child is
+                        // srgbClr/schemeClr. Here the children ARE those,
+                        // so wrap by calling a dedicated leaf parser.
+                        colors.add(parseLeafColor(el));
+                    }
+                }
+                if (!colors.isEmpty()) duotone = colors;
+            }
         }
-        return new FmtSchemeModel.BlipFillDef(embedRelId, linkRelId);
+        return new FmtSchemeModel.BlipFillDef(embedRelId, linkRelId, duotone);
+    }
+
+    /** Parse a color element itself (not its child). Used for a:duotone
+     *  whose children are direct color elements rather than wrappers. */
+    private static FmtSchemeModel.ColorSpec parseLeafColor(Element colorEl) {
+        String tag = colorEl.getTagName();
+        List<ColorModifierUtils.ColorModifier> mods = extractModifiers(colorEl);
+        if ("a:srgbClr".equals(tag) && colorEl.hasAttribute("val")) {
+            return new FmtSchemeModel.SrgbColor("#" + colorEl.getAttribute("val"), mods);
+        }
+        if ("a:schemeClr".equals(tag) && colorEl.hasAttribute("val")) {
+            String val = colorEl.getAttribute("val");
+            return "phClr".equals(val)
+                ? new FmtSchemeModel.PlaceholderColor(mods)
+                : new FmtSchemeModel.SchemeColor(val, mods);
+        }
+        return new FmtSchemeModel.PlaceholderColor(List.of());
     }
 
     private static FmtSchemeModel.PatternFillDef parsePatternFill(Element pattFillEl) {

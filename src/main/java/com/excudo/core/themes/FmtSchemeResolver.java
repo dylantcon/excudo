@@ -85,8 +85,14 @@ public class FmtSchemeResolver {
             }
             case FmtSchemeModel.GradientFillDef g -> resolveGradient(g, phColorHex);
             case FmtSchemeModel.NoFillDef n -> new ResolvedFill.NoFill();
-            case FmtSchemeModel.BlipFillDef b ->
-                new ResolvedFill.BlipFill(b.embedRelId() != null ? b.embedRelId() : b.linkRelId());
+            case FmtSchemeModel.BlipFillDef b -> {
+                String relId = b.embedRelId() != null ? b.embedRelId() : b.linkRelId();
+                List<String> duotone = new ArrayList<>(b.duotoneColors().size());
+                for (FmtSchemeModel.ColorSpec c : b.duotoneColors()) {
+                    duotone.add(resolveColor(c, phColorHex).hex());
+                }
+                yield new ResolvedFill.BlipFill(relId, duotone);
+            }
             // Pattern fills and group fills aren't yet rendered; expose
             // them as NoFill so downstream rendering falls back to the
             // caller's phClr or the shape's own default rather than

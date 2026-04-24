@@ -183,15 +183,53 @@ public class SlideRenderer {
     private void renderBackground() {
         renderingContext.saveState();
         try {
-            String bgHex = (slideContext != null) ? slideContext.getBackgroundColorHex() : "#FFFFFF";
             RenderSurface surface = renderingContext.getSurface();
-            surface.setFill(SurfacePaint.Solid.fromHex(bgHex));
-
             Rectangle2D slideBounds = renderingContext.getZoomedCoordinateMapper().getSlideBounds();
+
+            // Prefer typed background: image fills (theme wallpaper via
+            // bgFillStyleLst blipFill) need to decode + draw the embedded
+            // picture, not paint a solid approximation of its phClr.
+            com.excudo.core.model.SlideBackground typed = slideContext != null
+                ? slideContext.getSlideBackground() : null;
+            if (typed instanceof com.excudo.core.model.SlideBackground.BlipImage img
+                    && drawBlipBackground(surface, img, slideBounds)) {
+                return;
+            }
+
+            String bgHex = (slideContext != null) ? slideContext.getBackgroundColorHex() : "#FFFFFF";
+            surface.setFill(SurfacePaint.Solid.fromHex(bgHex));
             surface.fillRect(slideBounds.getMinX(), slideBounds.getMinY(),
                              slideBounds.getWidth(), slideBounds.getHeight());
         } finally {
             renderingContext.restoreState();
+        }
+    }
+
+    /**
+     * Decode the theme's blipFill image, apply duotone recolor when the
+     * theme specifies one, and stretch the result over the slide bounds.
+     * Returns false on decode / recolor failure so the caller falls back
+     * to the solid-hex path rather than leaving the slide background
+     * blank.
+     */
+    private boolean drawBlipBackground(RenderSurface surface,
+                                        com.excudo.core.model.SlideBackground.BlipImage img,
+                                        Rectangle2D slideBounds) {
+        try {
+            byte[] bytes = img.imageBytes();
+            if (img.hasDuotone()) {
+                bytes = com.excudo.core.rendering.DuotoneRecolor.apply(
+                    bytes, img.duotoneShadowHex(), img.duotoneHighlightHex());
+            }
+            com.excudo.core.rendering.surface.SurfaceImage decoded =
+                surface.decodeImage(bytes, img.mimeType());
+            if (decoded == null) return false;
+            surface.drawImage(decoded,
+                slideBounds.getMinX(), slideBounds.getMinY(),
+                slideBounds.getWidth(), slideBounds.getHeight());
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 
