@@ -114,8 +114,16 @@ public final class TextPainter {
             }
         }
 
-        // Vertical alignment: offset startY for center/bottom anchors
+        // Vertical alignment: offset startY for center/bottom anchors.
+        // When the shape's own bodyPr omits the anchor attribute, ECMA-376
+        // (MS-OI29500 section 2.1.1379) requires walking layout -> master
+        // to inherit it. Without this, title placeholders authored with
+        // negative-Y offsets render clipped against the slide's top edge
+        // because the master's anchor="ctr" is ignored.
         String vAlign = bp != null ? bp.getVerticalAlignment() : null;
+        if (vAlign == null && placeholderType != null && slideCtx != null) {
+            vAlign = slideCtx.resolveInheritedBodyPrAnchor(placeholderType, null);
+        }
         if ("ctr".equals(vAlign) || "b".equals(vAlign)) {
             double totalTextHeightPx = emuToPixels(measured.getTotalHeightEmu()) * zoom;
             double availableHeight = boundsPixels.getHeight() - topInsetPx - bottomInsetPx;
