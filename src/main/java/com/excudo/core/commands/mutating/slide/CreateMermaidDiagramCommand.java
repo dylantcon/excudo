@@ -246,6 +246,12 @@ public class CreateMermaidDiagramCommand implements Command {
             // Mermaid syntax errors: nothing was allocated yet, no rollback needed.
             throw new CommandExecutionException(getDescription(), "execute",
                 "Error parsing mermaid syntax: " + parseEx.getMessage(), parseEx);
+        } catch (IllegalArgumentException detectEx) {
+            // DiagramDetector throws when it can't classify the input as
+            // flowchart vs sequence. Same shape as a syntax error from the
+            // perspective of a caller -- rethrow as command exec failure.
+            throw new CommandExecutionException(getDescription(), "execute",
+                "Error parsing mermaid syntax: " + detectEx.getMessage(), detectEx);
         } catch (RuntimeException e) {
             rollbackChildren();
             allocatedSpids.clear();

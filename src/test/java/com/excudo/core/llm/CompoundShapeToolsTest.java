@@ -1,7 +1,8 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.CommandExecutionException;
+import com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand;
 import com.excudo.core.model.*;
-import com.excudo.core.orchestration.*;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.test.utils.StubPPTXOrchestrator;
 
@@ -11,6 +12,16 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Pins the behavior of the code-box compound primitive.
+ *
+ * <p>Pre-2026-04-24 this exercised {@code CompoundShapeTools.createCodeBox(json)},
+ * a JSON-input adapter that no longer exists. The orchestration is
+ * now {@link CreateCodeBoxCommand}; tests construct it directly with
+ * typed args. The token-color and Prism4j tokenizer cases below still
+ * cover the static helpers on {@link CompoundShapeTools} (the only
+ * thing left in that class).
+ */
 public class CompoundShapeToolsTest {
 
     static class RecordingOrchestrator extends StubPPTXOrchestrator {
@@ -86,19 +97,16 @@ public class CompoundShapeToolsTest {
         }
     }
 
-    private CompoundShapeTools createTools(RecordingOrchestrator orch) {
-        return new CompoundShapeTools(orch);
+    /** Construct a CreateCodeBoxCommand with default geometry. */
+    private static CreateCodeBoxCommand cmd(RecordingOrchestrator orch, String code, String language) {
+        return new CreateCodeBoxCommand(1, code, language, 838200L, 1825625L, null, null, orch);
     }
 
     @Test
     public void createCodeBox_producesCorrectShapeCount() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
+        cmd(orch, "print('hello')\nprint('world')", "python").execute();
 
-        String input = "{\"slideNumber\":1,\"code\":\"print('hello')\\nprint('world')\",\"language\":\"python\"}";
-        String result = tools.createCodeBox(input);
-
-        assertFalse("Should not return error", result.startsWith("Error"));
         assertEquals("Should create 2 shapes (line nums + code)", 2, orch.addShapeCalls.size());
         assertEquals("Should set 2 text bodies", 2, orch.setTextBodyCalls.size());
     }
@@ -106,17 +114,12 @@ public class CompoundShapeToolsTest {
     @Test
     public void createCodeBox_appliesSyntaxColoring() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
+        cmd(orch, "def foo():\n    return 42", "python").execute();
 
-        String input = "{\"slideNumber\":1,\"code\":\"def foo():\\n    return 42\",\"language\":\"python\"}";
-        tools.createCodeBox(input);
-
-        // Code panel is the second setTextBody call (first is line numbers)
         TextBody codeBody = orch.setTextBodyCalls.get(1).textBody();
         assertNotNull(codeBody);
         assertTrue("Should have paragraphs", codeBody.getParagraphs().size() >= 2);
 
-        // Collect all unique hex colors in the code body
         java.util.Set<String> colors = new java.util.HashSet<>();
         for (TextParagraph para : codeBody.getParagraphs()) {
             for (TextRun run : para.getRuns()) {
@@ -132,10 +135,7 @@ public class CompoundShapeToolsTest {
     @Test
     public void createCodeBox_usesMonospaceFont() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
-
-        String input = "{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"python\"}";
-        tools.createCodeBox(input);
+        cmd(orch, "x = 1", "python").execute();
 
         for (RecordingOrchestrator.SetTextBodyCall call : orch.setTextBodyCalls) {
             for (TextParagraph para : call.textBody().getParagraphs()) {
@@ -149,10 +149,7 @@ public class CompoundShapeToolsTest {
     @Test
     public void createCodeBox_appliesDarkFill() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
-
-        String input = "{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"text\"}";
-        tools.createCodeBox(input);
+        cmd(orch, "x = 1", "text").execute();
 
         for (RecordingOrchestrator.AddShapeCall call : orch.addShapeCalls) {
             assertNotNull("Shape style should not be null", call.style());
@@ -165,10 +162,7 @@ public class CompoundShapeToolsTest {
     @Test
     public void createCodeBox_lineNumbersRightAligned() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
-
-        String input = "{\"slideNumber\":1,\"code\":\"line1\\nline2\\nline3\",\"language\":\"text\"}";
-        tools.createCodeBox(input);
+        cmd(orch, "line1\nline2\nline3", "text").execute();
 
         TextBody lineNumBody = orch.setTextBodyCalls.get(0).textBody();
         assertEquals("Should have 3 line number paragraphs", 3, lineNumBody.getParagraphs().size());
@@ -315,18 +309,18 @@ public class CompoundShapeToolsTest {
         RecordingOrchestrator orch = new RecordingOrchestrator();
         // Allow the first addShape (line numbers), reject the second (code panel).
         orch.failAddShapeAfterCalls = 1;
-        CompoundShapeTools tools = createTools(orch);
 
-        String input = "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\",\"language\":\"python\"}";
-        String result = tools.createCodeBox(input);
-
-        assertTrue("must surface error", result.startsWith("Error"));
-        // Line-numbers panel was created -- it MUST be removed.
-        assertEquals("rollback removeShape called once for line-numbers SPID",
-            1, orch.removeShapeCalls.size());
-        assertEquals(1, orch.removeShapeCalls.get(0).slideNumber());
-        // SPID 100 is the first allocated by RecordingOrchestrator.
-        assertEquals(100, orch.removeShapeCalls.get(0).spid());
+        try {
+            cmd(orch, "x = 1\ny = 2", "python").execute();
+            fail("must surface error");
+        } catch (CommandExecutionException expected) {
+            // Line-numbers panel was created -- it MUST be removed.
+            assertEquals("rollback removeShape called once for line-numbers SPID",
+                1, orch.removeShapeCalls.size());
+            assertEquals(1, orch.removeShapeCalls.get(0).slideNumber());
+            // SPID 100 is the first allocated by RecordingOrchestrator.
+            assertEquals(100, orch.removeShapeCalls.get(0).spid());
+        }
     }
 
     @Test
@@ -334,17 +328,17 @@ public class CompoundShapeToolsTest {
         RecordingOrchestrator orch = new RecordingOrchestrator();
         // Allow the line-numbers setTextBody, reject the code one.
         orch.failSetTextBodyAfterCalls = 1;
-        CompoundShapeTools tools = createTools(orch);
 
-        String input = "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\",\"language\":\"python\"}";
-        String result = tools.createCodeBox(input);
-
-        assertTrue("must surface error", result.startsWith("Error"));
-        // Both panels were created before the failure -- both MUST be removed.
-        assertEquals("rollback removes both SPIDs", 2, orch.removeShapeCalls.size());
-        // Order: code panel first (LIFO removal preserves spTree integrity).
-        assertEquals(101, orch.removeShapeCalls.get(0).spid());
-        assertEquals(100, orch.removeShapeCalls.get(1).spid());
+        try {
+            cmd(orch, "x = 1\ny = 2", "python").execute();
+            fail("must surface error");
+        } catch (CommandExecutionException expected) {
+            // Both panels were created before the failure -- both MUST be removed.
+            assertEquals("rollback removes both SPIDs", 2, orch.removeShapeCalls.size());
+            // Order: code panel first (LIFO removal preserves spTree integrity).
+            assertEquals(101, orch.removeShapeCalls.get(0).spid());
+            assertEquals(100, orch.removeShapeCalls.get(1).spid());
+        }
     }
 
     @Test
@@ -354,13 +348,11 @@ public class CompoundShapeToolsTest {
         // affordance failed -- just communicate the partial result.
         RecordingOrchestrator orch = new RecordingOrchestrator();
         orch.groupShapesShouldFail = true;
-        CompoundShapeTools tools = createTools(orch);
 
-        String input = "{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"python\"}";
-        String result = tools.createCodeBox(input);
+        CreateCodeBoxCommand command = cmd(orch, "x = 1", "python");
+        command.execute();
 
-        assertFalse("response is not an error -- panels still exist",
-            result.startsWith("Error"));
+        assertNull("group SPID null when grouping failed", command.getGroupSpid());
         assertEquals("no rollback on grouping failure",
             0, orch.removeShapeCalls.size());
     }
@@ -369,10 +361,25 @@ public class CompoundShapeToolsTest {
     public void createCodeBox_succeedsWithoutAnyRollback() {
         // Sanity: the happy path does not call removeShape.
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        CompoundShapeTools tools = createTools(orch);
-
-        tools.createCodeBox("{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"python\"}");
+        cmd(orch, "x = 1", "python").execute();
 
         assertEquals(0, orch.removeShapeCalls.size());
+    }
+
+    @Test
+    public void createCodeBox_undoRemovesGroupAndChildren() {
+        // The Command-pattern win that the old wrapper couldn't deliver:
+        // user-initiated undo after a successful create_code_box removes
+        // every SPID the command allocated, not just the group.
+        RecordingOrchestrator orch = new RecordingOrchestrator();
+        CreateCodeBoxCommand command = cmd(orch, "x = 1", "python");
+        command.execute();
+        assertNotNull("group SPID set on success", command.getGroupSpid());
+
+        command.undo();
+
+        // 3 SPIDs allocated: line-num panel, code panel, group.
+        // Undo removes group first, then panels in reverse.
+        assertEquals(3, orch.removeShapeCalls.size());
     }
 }

@@ -1,8 +1,6 @@
 package com.excudo.core.llm;
 
-import com.excudo.core.commands.CommandFactory;
-import com.excudo.core.commands.CommandInvoker;
-import com.excudo.core.metrics.TextBodyExtractor;
+import com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.model.ParsedSlideData;
 import com.excudo.core.model.ShapeGeometry;
@@ -24,7 +22,6 @@ import static org.junit.Assert.*;
  */
 public class CompoundShapeToolsCodeBoxWidthTest {
 
-    private CompoundShapeTools tools;
     private PPTXOrchestratorImpl orchestrator;
     private static final long EMU_PER_INCH = 914400L;
 
@@ -34,36 +31,29 @@ public class CompoundShapeToolsCodeBoxWidthTest {
         orchestrator = new PPTXOrchestratorImpl();
         orchestrator.initialize(doc);
         orchestrator.createSlide(1, "Code Test", "slideLayout2");
-        tools = new CompoundShapeTools(orchestrator);
+    }
+
+    private CreateCodeBoxCommand cmd(String code, Long widthOrNull) {
+        return new CreateCodeBoxCommand(1, code, "python",
+            838200L, 1825625L, widthOrNull, null, orchestrator);
     }
 
     @Test
     public void autoWidthShrinkWrapsToContent() {
         // Default behavior: no width passed, code box auto-sizes to content.
-        // Two-line short snippet should produce a narrow box (well under 6 inches).
-        String result = tools.createCodeBox(
-            "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\",\"language\":\"python\"}");
-        assertTrue("Creation should succeed: " + result,
-            result.toLowerCase().startsWith("created code box"));
+        cmd("x = 1\ny = 2", null).execute();
 
         long groupWidth = totalCodeBoxWidth(1);
-        // Short snippet should be visibly narrower than a typical layout column.
         assertTrue("Auto-size on short content should produce a narrow box, got " + groupWidth + " EMU",
             groupWidth < 4 * EMU_PER_INCH);
     }
 
     @Test
     public void explicitWidthOverridesAutoSize() {
-        // Pass an explicit 8-inch width to widen a short snippet.
         long explicitWidth = 8L * EMU_PER_INCH;
-        String result = tools.createCodeBox(
-            "{\"slideNumber\":1,\"code\":\"hi\",\"language\":\"python\",\"width\":" + explicitWidth + "}");
-        assertTrue("Creation should succeed: " + result,
-            result.toLowerCase().startsWith("created code box"));
+        cmd("hi", explicitWidth).execute();
 
         long groupWidth = totalCodeBoxWidth(1);
-        // The total width (line numbers + code panel) should match the
-        // explicit value within a small tolerance for inset rounding.
         assertEquals("Explicit width should be honored", explicitWidth, groupWidth);
     }
 
@@ -71,12 +61,8 @@ public class CompoundShapeToolsCodeBoxWidthTest {
     public void absurdlySmallExplicitWidthFallsBackToAutoSize() {
         // If the requested width can't fit the line-number gutter plus
         // any code, the implementation falls back to auto-size to avoid
-        // negative-width children. Specify a width smaller than the
-        // gutter.
-        String result = tools.createCodeBox(
-            "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\\nz = 3\",\"language\":\"python\",\"width\":1000}");
-        assertTrue("Creation should still succeed (fall back to auto): " + result,
-            result.toLowerCase().startsWith("created code box"));
+        // negative-width children.
+        cmd("x = 1\ny = 2\nz = 3", 1000L).execute();
 
         long groupWidth = totalCodeBoxWidth(1);
         assertTrue("Fallback width should be at least the line-number gutter, got " + groupWidth,

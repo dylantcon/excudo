@@ -43,8 +43,6 @@ public class ToolDispatcher {
     private CommandFactory commandFactory;
     private final CommandInvoker commandInvoker;
     private CommandDisplay displayAdapter;
-    private CompoundShapeTools compoundShapeTools;
-    private MermaidDiagramTool mermaidDiagramTool;
     private boolean presentationCreated = false;
 
     /**
@@ -66,8 +64,6 @@ public class ToolDispatcher {
         this.orchestrator = orchestrator;
         this.commandFactory = commandFactory;
         this.commandInvoker = commandInvoker;
-        this.compoundShapeTools = new CompoundShapeTools(orchestrator);
-        this.mermaidDiagramTool = new MermaidDiagramTool(orchestrator);
     }
 
     public void setDisplayAdapter(CommandDisplay adapter) {
@@ -81,8 +77,6 @@ public class ToolDispatcher {
         // this, commands that snapshot the orchestrator in their ctors
         // (RenderSlideCommand, many others) keep the stale pre-load ref.
         this.commandFactory = new CommandFactory(newOrch);
-        this.compoundShapeTools = new CompoundShapeTools(newOrch);
-        this.mermaidDiagramTool = new MermaidDiagramTool(newOrch);
     }
 
     /**

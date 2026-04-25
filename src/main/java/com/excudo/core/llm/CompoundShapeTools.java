@@ -1,29 +1,25 @@
 package com.excudo.core.llm;
 
 import com.excudo.core.llm.prism.ExcudoGrammarLocator;
-import com.excudo.core.metrics.FontData;
-import com.excudo.core.metrics.FontResolver;
-import com.excudo.core.metrics.TrueTypeFontParser;
 import com.excudo.core.model.*;
-import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.results.ExecutionResult;
-import com.excudo.core.utils.Logger;
-import com.excudo.core.utils.ComponentLogger;
 import io.noties.prism4j.Prism4j;
 
-import java.nio.file.Path;
-
 import java.util.*;
-import com.excudo.core.utils.JsonHelper;
-import com.google.gson.JsonObject;
 
 /**
- * High-level compound shape tools for the agentic LLM pipeline.
- * Each method produces multi-shape compositions via direct orchestrator calls.
+ * Static helpers for the code-box compound primitive: token color
+ * palette, syntax tokenizer, and the two text-body builders the
+ * {@link com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand}
+ * consumes during {@code execute()}.
+ *
+ * <p>Pre-2026-04-24 this was an instance class with a JSON-input
+ * {@code createCodeBox(String)} method that did its own orchestration
+ * + hand-rolled rollback. The orchestration moved into
+ * {@link com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand}
+ * (Command-pattern citizen, free undo via CommandInvoker). What's left
+ * here is what was always genuinely shared: pure rendering helpers.
  */
-public class CompoundShapeTools {
-
-    private static final ComponentLogger logger = Logger.llm();
+public final class CompoundShapeTools {
 
     // Syntax coloring palette (Zenburn-inspired dark theme)
     private static final String COLOR_KEYWORD    = "DFC47D"; // yellow
@@ -31,7 +27,6 @@ public class CompoundShapeTools {
     private static final String COLOR_COMMENT    = "7F9F7F"; // green-gray
     private static final String COLOR_DEFAULT    = "DCDCCC"; // warm white
     private static final String COLOR_LINE_NUM   = "858585"; // dim gray
-    private static final String COLOR_BG         = "3F3F3F"; // dark background
     private static final String COLOR_NUMBER     = "8CD0D3"; // cyan
     private static final String COLOR_FUNCTION   = "93E0E3"; // bright cyan
     private static final String COLOR_OPERATOR   = "F0DFAF"; // gold
@@ -48,62 +43,7 @@ public class CompoundShapeTools {
     private static final String FONT_MONO = "Consolas";
     private static final int FONT_SIZE_CODE = 1200; // 12pt in hundredths
 
-    private final PPTXOrchestrator orchestrator;
-
-    public CompoundShapeTools(PPTXOrchestrator orchestrator) {
-        this.orchestrator = orchestrator;
-    }
-
-    /**
-     * @deprecated The orchestration logic moved into
-     * {@link com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand}
-     * so it could participate in the GoF Command pipeline (rollback on
-     * partial failure + free user-initiated undo via CommandInvoker).
-     * The MCP {@code create_code_box} tool now dispatches the Command
-     * directly via {@code ToolDispatcher.handleCreateCodeBox}; this
-     * thin adapter stays only for any direct callers and forwards to
-     * the same path. New callers should construct the Command themselves.
-     */
-    @Deprecated
-    public String createCodeBox(String toolInput) {
-        // Thin adapter: parse JSON, build the Command, run it through
-        // the standard CommandInvoker so undo/redo and rollback come
-        // for free from the GoF pipeline. New code should construct
-        // CreateCodeBoxCommand directly.
-        try {
-            int slideNumber = extractInt(toolInput, "slideNumber");
-            String code = extractString(toolInput, "code");
-            String language = extractString(toolInput, "language");
-            if (code == null || code.isEmpty()) return "Error: 'code' is required";
-            long x = extractLong(toolInput, "x", 838200);
-            long y = extractLong(toolInput, "y", 1825625);
-            Long widthOrNull = jsonHasKey(toolInput, "width")
-                ? extractLong(toolInput, "width", 0L) : null;
-            Long heightOrNull = jsonHasKey(toolInput, "height")
-                ? extractLong(toolInput, "height", 0L) : null;
-
-            com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand cmd =
-                new com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand(
-                    slideNumber, code, language, x, y, widthOrNull, heightOrNull, orchestrator);
-            cmd.execute();
-
-            Integer groupSpid = cmd.getGroupSpid();
-            int lc = cmd.getLineCount();
-            String lang = cmd.getLanguage();
-            if (groupSpid != null) {
-                return "Created code box on slide " + slideNumber
-                    + " (group SPID " + groupSpid + "). Language: " + lang
-                    + ", " + lc + " lines. Use SPID " + groupSpid
-                    + " to move or resize the entire code box.";
-            }
-            java.util.List<Integer> spids = cmd.getAllocatedSpids();
-            return "Created code box on slide " + slideNumber
-                + ": line numbers (SPID " + spids.get(0) + ") + code (SPID " + spids.get(1) + ")."
-                + " Language: " + lang + ", " + lc + " lines.";
-        } catch (Exception e) {
-            return "Error creating code box: " + e.getMessage();
-        }
-    }
+    private CompoundShapeTools() {}
 
     // ------------------------------------------------------------------
     // Code body builders
@@ -253,48 +193,4 @@ public class CompoundShapeTools {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Font metrics
-    // ------------------------------------------------------------------
-
-    private static FontData resolveMonoFont() {
-        try {
-            Path fontPath = FontResolver.resolve(FONT_MONO, false, false);
-            if (fontPath != null) {
-                return TrueTypeFontParser.parse(fontPath);
-            }
-        } catch (Exception ignored) {}
-        return null;
-    }
-
-    // ------------------------------------------------------------------
-    // JSON parsing helpers
-    // ------------------------------------------------------------------
-
-    int extractInt(String json, String key) {
-        try {
-            JsonObject obj = JsonHelper.parseObject(json);
-            return JsonHelper.getInt(obj, key, 1);
-        } catch (Exception e) { return 1; }
-    }
-
-    long extractLong(String json, String key, long defaultValue) {
-        try {
-            JsonObject obj = JsonHelper.parseObject(json);
-            return JsonHelper.getLong(obj, key, defaultValue);
-        } catch (Exception e) { return defaultValue; }
-    }
-
-    String extractString(String json, String key) {
-        try {
-            JsonObject obj = JsonHelper.parseObject(json);
-            return JsonHelper.getString(obj, key);
-        } catch (Exception e) { return null; }
-    }
-
-    private static boolean jsonHasKey(String json, String key) {
-        try {
-            return JsonHelper.parseObject(json).has(key);
-        } catch (Exception e) { return false; }
-    }
 }

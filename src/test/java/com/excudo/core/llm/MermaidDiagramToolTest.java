@@ -1,9 +1,10 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.CommandExecutionException;
+import com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;
 import com.excudo.core.model.SlideShape;
-import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.test.utils.StubPPTXOrchestrator;
 import org.junit.Test;
@@ -12,6 +13,14 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Pins the behavior of the mermaid diagram compound primitive.
+ *
+ * <p>Pre-2026-04-24 this exercised {@code MermaidDiagramTool.createMermaidDiagram(json)}
+ * — a JSON-input adapter that no longer exists. The orchestration is
+ * now {@link CreateMermaidDiagramCommand}; tests construct it directly
+ * with typed args.
+ */
 public class MermaidDiagramToolTest {
 
     static class RecordingOrchestrator extends StubPPTXOrchestrator {
@@ -48,13 +57,24 @@ public class MermaidDiagramToolTest {
         }
     }
 
+    /** Run a diagram on slide N with default geometry. Returns the
+     *  command's result summary string for tests that assert on it. */
+    private static String run(RecordingOrchestrator orch, int slide, String mermaid) {
+        return run(orch, slide, mermaid, null, null, null, null);
+    }
+
+    private static String run(RecordingOrchestrator orch, int slide, String mermaid,
+                               Long x, Long y, Long w, Long h) {
+        CreateMermaidDiagramCommand cmd = new CreateMermaidDiagramCommand(
+            slide, mermaid, x, y, w, h, orch);
+        cmd.execute();
+        return cmd.getResultSummary();
+    }
+
     @Test
     public void testSimpleDiagram() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA[Start]-->B[End]\"}";
-        String result = tool.createMermaidDiagram(input);
+        String result = run(orch, 1, "graph TD\nA[Start]-->B[End]");
 
         assertTrue("Should report shapes created", result.contains("2 shapes"));
         assertTrue("Should report connectors created", result.contains("1 connectors"));
@@ -66,14 +86,10 @@ public class MermaidDiagramToolTest {
     @Test
     public void testShapeTypesUsed() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA[Rect]-->B{Decision}-->C((Circle))\"}";
-        String result = tool.createMermaidDiagram(input);
+        run(orch, 1, "graph TD\nA[Rect]-->B{Decision}-->C((Circle))");
 
         assertEquals(3, orch.addShapeCalls.size());
 
-        // Find each shape call by name
         RecordingOrchestrator.AddShapeCall rectCall = orch.addShapeCalls.stream()
             .filter(c -> c.name().contains("A")).findFirst().orElseThrow();
         RecordingOrchestrator.AddShapeCall diamondCall = orch.addShapeCalls.stream()
@@ -81,7 +97,7 @@ public class MermaidDiagramToolTest {
         RecordingOrchestrator.AddShapeCall circleCall = orch.addShapeCalls.stream()
             .filter(c -> c.name().contains("C")).findFirst().orElseThrow();
 
-        assertTrue("Rect shape type", rectCall.shapeType().getOoxmlPreset().equals("rect"));
+        assertTrue("Rectangle shape type", rectCall.shapeType().getOoxmlPreset().equals("rect"));
         assertTrue("Diamond shape type", diamondCall.shapeType().getOoxmlPreset().equals("flowChartDecision"));
         assertTrue("Circle shape type", circleCall.shapeType().getOoxmlPreset().equals("ellipse"));
     }
@@ -89,16 +105,12 @@ public class MermaidDiagramToolTest {
     @Test
     public void testConnectorSPIDBinding() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA-->B-->C\"}";
-        tool.createMermaidDiagram(input);
+        run(orch, 1, "graph TD\nA-->B-->C");
 
         assertEquals(3, orch.addShapeCalls.size());
         assertEquals(2, orch.addConnectorCalls.size());
 
-        // SPIDs should start at 100 (nextSpid)
-        // A=100, B=101, C=102
+        // SPIDs should start at 100 (nextSpid). A=100, B=101, C=102.
         RecordingOrchestrator.AddConnectorCall conn1 = orch.addConnectorCalls.get(0);
         assertEquals(Integer.valueOf(100), conn1.startSpid());
         assertEquals(Integer.valueOf(101), conn1.endSpid());
@@ -111,10 +123,7 @@ public class MermaidDiagramToolTest {
     @Test
     public void testConnectionIndicesTB() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA-->B\"}";
-        tool.createMermaidDiagram(input);
+        run(orch, 1, "graph TD\nA-->B");
 
         RecordingOrchestrator.AddConnectorCall conn = orch.addConnectorCalls.get(0);
         assertEquals("Source exit: bottom", Integer.valueOf(2), conn.startIdx());
@@ -124,13 +133,9 @@ public class MermaidDiagramToolTest {
     @Test
     public void testCustomBoundingBox() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":2,\"mermaid\":\"graph TD\\nA-->B\",\"x\":100000,\"y\":200000,\"width\":5000000,\"height\":3000000}";
-        tool.createMermaidDiagram(input);
+        run(orch, 2, "graph TD\nA-->B", 100000L, 200000L, 5000000L, 3000000L);
 
         assertEquals(2, orch.addShapeCalls.size());
-        // Shapes should be positioned within the specified bounding box
         for (RecordingOrchestrator.AddShapeCall call : orch.addShapeCalls) {
             assertTrue("x >= 100000", call.geometry().getX() >= 100000);
             assertTrue("y >= 200000", call.geometry().getY() >= 200000);
@@ -138,36 +143,32 @@ public class MermaidDiagramToolTest {
     }
 
     @Test
-    public void testMissingMermaidField() {
+    public void testMissingMermaidFieldRejectedAtConstructionTime() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1}";
-        String result = tool.createMermaidDiagram(input);
-
-        assertTrue("Should report error", result.startsWith("Error"));
-        assertEquals(0, orch.addShapeCalls.size());
+        try {
+            new CreateMermaidDiagramCommand(1, "", null, null, null, null, orch);
+            fail("empty mermaid text must reject");
+        } catch (IllegalArgumentException expected) {
+            assertEquals(0, orch.addShapeCalls.size());
+        }
     }
 
     @Test
     public void testInvalidMermaidSyntax() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"not valid mermaid\"}";
-        String result = tool.createMermaidDiagram(input);
-
-        assertTrue("Should report parsing error", result.contains("Error"));
-        assertEquals(0, orch.addShapeCalls.size());
+        try {
+            run(orch, 1, "not valid mermaid");
+            fail("invalid mermaid must throw");
+        } catch (CommandExecutionException expected) {
+            assertTrue(expected.getMessage().contains("Error parsing mermaid syntax"));
+            assertEquals(0, orch.addShapeCalls.size());
+        }
     }
 
     @Test
     public void testSlideNumberPassedThrough() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":3,\"mermaid\":\"graph TD\\nA-->B\"}";
-        tool.createMermaidDiagram(input);
+        run(orch, 3, "graph TD\nA-->B");
 
         for (RecordingOrchestrator.AddShapeCall call : orch.addShapeCalls) {
             assertEquals(3, call.slideNumber());
@@ -180,11 +181,10 @@ public class MermaidDiagramToolTest {
     @Test
     public void testArrowHeadTypes() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
+        run(orch, 1, "graph TD\nA-->B");
 
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA-->B\"}";
-        tool.createMermaidDiagram(input);
-
+        // OOXML connector convention: head=none, tail=triangle
+        // (mermaid arrows point at the *target*, which OOXML calls the tail end).
         RecordingOrchestrator.AddConnectorCall conn = orch.addConnectorCalls.get(0);
         assertEquals("none", conn.headEnd());
         assertEquals("triangle", conn.tailEnd());
@@ -193,10 +193,7 @@ public class MermaidDiagramToolTest {
     @Test
     public void testEdgeLabelProducesTextShape() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA-->|Yes|B\"}";
-        String result = tool.createMermaidDiagram(input);
+        String result = run(orch, 1, "graph TD\nA-->|Yes|B");
 
         // 2 node shapes + 1 label shape = 3 shapes total
         assertEquals("Should create 3 shapes (2 nodes + 1 label)", 3, orch.addShapeCalls.size());
@@ -212,15 +209,10 @@ public class MermaidDiagramToolTest {
     @Test
     public void testSubgraphProducesBoundingBox() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
+        String result = run(orch, 1, "graph TD\nsubgraph cluster1\nA-->B\nend\nC-->A");
 
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nsubgraph cluster1\\nA-->B\\nend\\nC-->A\"}";
-        String result = tool.createMermaidDiagram(input);
-
-        // 1 subgraph shape + 3 node shapes + 0 label shapes = 4 shapes
         assertTrue("Should report subgraph(s)", result.contains("1 subgraph"));
 
-        // Find the subgraph shape
         boolean foundSubgraph = orch.addShapeCalls.stream()
             .anyMatch(c -> c.name().contains("subgraph_"));
         assertTrue("Should create subgraph bounding box shape", foundSubgraph);
@@ -229,23 +221,16 @@ public class MermaidDiagramToolTest {
     @Test
     public void testHyphenatedNodeId() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
+        run(orch, 1, "graph TD\nprocess-start[Start]-->process-end[End]");
 
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nprocess-start[Start]-->process-end[End]\"}";
-        String result = tool.createMermaidDiagram(input);
-
-        assertFalse("Should not error", result.startsWith("Error"));
         assertEquals("Should create 2 shapes", 2, orch.addShapeCalls.size());
     }
 
     @Test
     public void testExplicitPositionNoDefaultWarning() {
         RecordingOrchestrator orch = new RecordingOrchestrator();
-        MermaidDiagramTool tool = new MermaidDiagramTool(orch);
-
-        String input = "{\"slideNumber\":1,\"mermaid\":\"graph TD\\nA-->B\","
-            + "\"x\":100000,\"y\":200000,\"width\":5000000,\"height\":3000000}";
-        String result = tool.createMermaidDiagram(input);
+        String result = run(orch, 1, "graph TD\nA-->B",
+            100000L, 200000L, 5000000L, 3000000L);
 
         assertFalse("Should not mention defaults when all positions specified",
             result.contains("using default"));
