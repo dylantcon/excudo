@@ -821,7 +821,7 @@ public class ToolDispatcher {
 
     private String handleListTriggerTypes() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Animation trigger types. Pass one of these as the `trigger` parameter on add-animation.\n\n");
+        sb.append("Animation trigger types. Pass one of these as the `animationGroup` parameter on add-animation.\n\n");
         sb.append("  on-click        Fires on the next user click. Each on-click animation advances ");
         sb.append("the click sequence by one. Default for most authored decks.\n");
         sb.append("  with-previous   Fires simultaneously with the preceding animation. No extra click ");
@@ -916,6 +916,19 @@ public class ToolDispatcher {
                         details.append("FAILED: ").append(actionType)
                                .append(" - No presentation loaded. Call 'new' to create a fresh deck ")
                                .append("or 'load' to open an existing .pptx file.\n");
+                        continue;
+                    }
+
+                    // Strict-keys validation: reject unknown command type,
+                    // non-LLM-enabled commands, and unknown parameter keys.
+                    // Catches the silent-accept bug class where
+                    // `{"type": "show-shape"}` or `move targetSpid=…` (wrong
+                    // alias) used to come back OK and no-op.
+                    String strictError = validateActionStrictly(action, bridge);
+                    if (strictError != null) {
+                        failed++;
+                        details.append("FAILED: ").append(actionType)
+                               .append(" - ").append(strictError).append("\n");
                         continue;
                     }
 
@@ -1038,6 +1051,95 @@ public class ToolDispatcher {
      * Validate an action's parameter values against schema constraints (e.g., validValues).
      * Returns an error message if validation fails, or null if the action is valid.
      */
+    /**
+     * Strict input validation: reject unknown command types, non-LLM-enabled
+     * commands, and unknown parameter keys. Returns an error string with a
+     * fuzzy-match suggestion when applicable, or null if the action is well-
+     * formed enough to bridge.
+     *
+     * <p>This catches the silent-accept bug class documented in the 2026-04-22
+     * beta findings: `{"type":"show-shape"}` and `move {"targetSpid":N}`
+     * used to return OK and no-op because show-shape is registered (just not
+     * llmEnabled) and unknown keys were passed through to the factory which
+     * then read the canonical name and got null.
+     */
+    static String validateActionStrictly(RequestSchema.ActionRequest action, LLMRequestBridge bridge) {
+        String actionType = action.getType();
+        if (actionType == null || actionType.isBlank()) {
+            return "Missing 'type' field on command.";
+        }
+
+        // Resolve to canonical command name. The bridge throws on truly
+        // unknown types; catch it and add a fuzzy "did you mean" suggestion.
+        String commandName;
+        try {
+            commandName = bridge.resolveCommandName(actionType);
+        } catch (IllegalArgumentException e) {
+            String closest = com.excudo.utils.FuzzyMatcher.findClosestMatch(
+                actionType, bridge.getLLMEnabledCommandNames(), 4);
+            return "Unknown command type '" + actionType + "'."
+                + (closest != null ? " Did you mean '" + closest + "'?" : "")
+                + " Use list_commands to see available commands.";
+        }
+
+        com.excudo.core.parsing.CommandSchema schema =
+            com.excudo.core.parsing.CommandRegistry.getSchema(commandName);
+        if (schema == null) {
+            return "Internal error: schema for '" + commandName + "' not found.";
+        }
+
+        // Reject REPL-only commands. show-shape, show, list, etc. are
+        // registered in CommandRegistry for the REPL but aren't llmEnabled,
+        // so they shouldn't be callable via execute_commands.
+        if (!schema.isLlmEnabled()) {
+            return "'" + commandName + "' is a REPL/internal command and is not callable from execute_commands. "
+                + "Use a dedicated MCP tool or get_command_schemas to find an LLM-callable equivalent.";
+        }
+
+        // Build the set of accepted parameter keys: canonical names + llmName
+        // aliases + any nested-wrapper keys the bridge knows how to flatten
+        // for this action type.
+        Set<String> accepted = new HashSet<>();
+        for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
+            accepted.add(p.getName());
+            if (p.getLlmName() != null) accepted.add(p.getLlmName());
+        }
+        // Hardcoded translations applied at bridge time.
+        accepted.add("clickTrigger");
+        accepted.add("animationType");
+        // Legacy nested-wrapper top-level keys (e.g. shapeData, animationData,
+        // geometry). These are accepted as the LLM-facing entry point even
+        // though the bridge flattens them out before reaching the factory.
+        for (String wrapper : List.of("shapeData", "animationData", "geometry")) {
+            accepted.add(wrapper);
+        }
+
+        Map<String, Object> params = action.getParameters();
+        if (params == null || params.isEmpty()) return null;
+
+        List<String> unknownKeys = new ArrayList<>();
+        for (String key : params.keySet()) {
+            if (!accepted.contains(key)) unknownKeys.add(key);
+        }
+        if (unknownKeys.isEmpty()) return null;
+
+        StringBuilder msg = new StringBuilder("Unknown parameter(s) for '")
+            .append(commandName).append("':");
+        for (String u : unknownKeys) {
+            String closest = com.excudo.utils.FuzzyMatcher.findClosestMatch(u, accepted, 3);
+            msg.append(" '").append(u).append("'");
+            if (closest != null) msg.append(" (did you mean '").append(closest).append("'?)");
+            msg.append(",");
+        }
+        // strip trailing comma
+        if (msg.charAt(msg.length() - 1) == ',') msg.setLength(msg.length() - 1);
+        msg.append(". Valid keys: ");
+        List<String> sorted = new ArrayList<>(accepted);
+        Collections.sort(sorted);
+        msg.append(String.join(", ", sorted));
+        return msg.toString();
+    }
+
     private String validateActionParameters(RequestSchema.ActionRequest action, LLMRequestBridge bridge) {
         try {
             String commandName = bridge.resolveCommandName(action.getType());
