@@ -137,7 +137,7 @@ public class ToolDispatcher {
                 case "execute_commands"          -> handleExecuteCommands(toolInput);
                 case "validate_layout"           -> handleValidateLayout(toolInput);
                 case "create_code_box"           -> handleCreateCodeBox(toolInput);
-                case "create_diagram"            -> mermaidDiagramTool.createMermaidDiagram(toolInput);
+                case "create_diagram"            -> handleCreateDiagram(toolInput);
                 case "suggest_layout"            -> handleSuggestLayout(toolInput);
                 case "create_slide_from_layout"  -> handleCreateSlideFromLayout(toolInput);
                 case "inject_icon"               -> handleInjectIcon(toolInput);
@@ -718,6 +718,36 @@ public class ToolDispatcher {
             return sb.toString();
         } catch (Exception e) {
             return "Error synthesizing script: " + e.getMessage();
+        }
+    }
+
+    private String handleCreateDiagram(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            String mermaid = JsonHelper.getString(input, "mermaid");
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required (positive integer).";
+            }
+            if (mermaid == null || mermaid.isBlank()) {
+                return "Error: 'mermaid' field is required and must contain valid mermaid syntax";
+            }
+            Long xOrNull = input.has("x") ? JsonHelper.getLong(input, "x", 0L) : null;
+            Long yOrNull = input.has("y") ? JsonHelper.getLong(input, "y", 0L) : null;
+            Long wOrNull = input.has("width")  ? JsonHelper.getLong(input, "width",  0L) : null;
+            Long hOrNull = input.has("height") ? JsonHelper.getLong(input, "height", 0L) : null;
+
+            com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand cmd =
+                new com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand(
+                    slideNumber, mermaid, xOrNull, yOrNull, wOrNull, hOrNull, orchestrator);
+            try {
+                commandInvoker.executeCommand(cmd);
+            } catch (com.excudo.core.commands.CommandExecutionException e) {
+                return "Error creating mermaid diagram: " + e.getMessage();
+            }
+            return cmd.getResultSummary();
+        } catch (Exception e) {
+            return "Error creating mermaid diagram: " + e.getMessage();
         }
     }
 
