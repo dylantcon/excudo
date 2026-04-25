@@ -55,203 +55,61 @@ public class CompoundShapeTools {
     }
 
     /**
-     * Create a code box: line number panel (left) + code panel (right).
-     * Width AND height are computed from font metrics + line count so the
-     * box fits its content exactly. Callers can still pass explicit x/y/width/height
-     * if they want manual placement or sizing.
-     * Input JSON: {"slideNumber":N, "code":"...", "language":"python", "x":EMU, "y":EMU, "width":EMU, "height":EMU}
-     *
-     * Width auto-sizes from the longest code line + the line-number gutter at
-     * the configured monospace font size. Pass an explicit `width` when the
-     * code is short but you want the box to fill a layout column. The
-     * line-number gutter still autosizes from the line count; the remainder
-     * of the requested width goes to the code panel.
+     * @deprecated The orchestration logic moved into
+     * {@link com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand}
+     * so it could participate in the GoF Command pipeline (rollback on
+     * partial failure + free user-initiated undo via CommandInvoker).
+     * The MCP {@code create_code_box} tool now dispatches the Command
+     * directly via {@code ToolDispatcher.handleCreateCodeBox}; this
+     * thin adapter stays only for any direct callers and forwards to
+     * the same path. New callers should construct the Command themselves.
      */
+    @Deprecated
     public String createCodeBox(String toolInput) {
-        // SPIDs allocated during this call. On any failure path we roll
-        // them back via removeShape so the slide is left in the same
-        // state it would have been if the call had been rejected outright.
-        // The 2026-04-22 beta logs flagged "error returned + partial
-        // shapes persisted" as the worst-case API shape -- LLM's world
-        // model diverges from reality and downstream calls compose around
-        // shapes that don't exist (or DO exist but the agent doesn't know).
-        List<Integer> created = new ArrayList<>();
-        Integer slideForRollback = null;
+        // Thin adapter: parse JSON, build the Command, run it through
+        // the standard CommandInvoker so undo/redo and rollback come
+        // for free from the GoF pipeline. New code should construct
+        // CreateCodeBoxCommand directly.
         try {
             int slideNumber = extractInt(toolInput, "slideNumber");
-            slideForRollback = slideNumber;
             String code = extractString(toolInput, "code");
             String language = extractString(toolInput, "language");
-            if (code == null || code.isEmpty()) {
-                return "Error: 'code' is required";
-            }
-            if (language == null) language = "text";
-
+            if (code == null || code.isEmpty()) return "Error: 'code' is required";
             long x = extractLong(toolInput, "x", 838200);
             long y = extractLong(toolInput, "y", 1825625);
+            Long widthOrNull = jsonHasKey(toolInput, "width")
+                ? extractLong(toolInput, "width", 0L) : null;
+            Long heightOrNull = jsonHasKey(toolInput, "height")
+                ? extractLong(toolInput, "height", 0L) : null;
 
-            String[] lines = code.split("\n");
+            com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand cmd =
+                new com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand(
+                    slideNumber, code, language, x, y, widthOrNull, heightOrNull, orchestrator);
+            cmd.execute();
 
-            int inset = 45720; // ~0.05 inch padding per side
-
-            // Measure exact widths using font metrics
-            FontData monoFont = resolveMonoFont();
-            String widestLineNum = String.valueOf(lines.length);
-            long lineNumTextWidth = monoFont != null
-                ? monoFont.measureStringWidthEmu(widestLineNum, FONT_SIZE_CODE)
-                : widestLineNum.length() * 76200L; // fallback ~0.6" per char at 12pt
-            long lineNumWidth = lineNumTextWidth + 2 * inset;
-
-            long longestCodeLine = 0;
-            for (String line : lines) {
-                long lineWidth = monoFont != null
-                    ? monoFont.measureStringWidthEmu(line, FONT_SIZE_CODE)
-                    : line.length() * 76200L;
-                longestCodeLine = Math.max(longestCodeLine, lineWidth);
-            }
-            long autoCodeWidth = longestCodeLine + 2 * inset;
-            long autoTotalWidth = lineNumWidth + autoCodeWidth;
-
-            // Honor explicit width when caller provides one (typical when
-            // they want the code box to fill a layout column rather than
-            // shrink-wrap content). The line-number gutter stays at its
-            // measured size; the remainder goes to the code panel. If the
-            // requested width is too small to fit even the line-number
-            // column plus minimal padding, fall back to the auto width
-            // so the box doesn't render with negative-width children.
-            long requestedTotalWidth = extractLong(toolInput, "width", autoTotalWidth);
-            long minTotalWidth = lineNumWidth + (long) inset * 2;
-            long totalWidth = requestedTotalWidth >= minTotalWidth
-                ? requestedTotalWidth
-                : autoTotalWidth;
-            long codeWidth = totalWidth - lineNumWidth;
-
-            // Auto-compute height from line count. The previous fixed default
-            // (3.2M EMU ~= 3.5 inches) made short snippets look broken by
-            // reserving a tall empty box below the code. Callers can still
-            // override 'height' explicitly if they want extra room.
-            long lineHeightEmu = monoFont != null
-                ? monoFont.calculateLineHeightEmu(FONT_SIZE_CODE)
-                : 182880L; // fallback: 12pt * 1.2 spacing
-            long autoHeight = (long) lines.length * lineHeightEmu + 2L * inset;
-            long height = extractLong(toolInput, "height", autoHeight);
-
-            // Dark fill style, no theme p:style
-            ShapeStyle darkStyle = ShapeStyle.of(
-                ShapeFill.solid(COLOR_BG), null, ThemeStyleRef.NONE);
-
-            BodyProperties codeBodyProps = BodyProperties.builder()
-                .wrap("square")
-                .autofit(AutofitType.NONE)
-                .leftInset(inset)
-                .topInset(inset)
-                .rightInset(inset)
-                .bottomInset(inset)
-                .build();
-
-            // -- Line number panel --
-            TextBody lineNumBody = buildLineNumberBody(lines.length, codeBodyProps);
-            ShapeGeometry lineNumGeom = new ShapeGeometry(x, y, lineNumWidth, height);
-
-            ExecutionResult<Integer> lineNumResult = orchestrator.addShape(
-                slideNumber, SlideShape.ShapeType.RECTANGLE,
-                lineNumGeom, "", "LineNumbers", darkStyle);
-
-            if (lineNumResult == null || lineNumResult.getData().isEmpty()) {
-                return "Error: Failed to create line number panel";
-            }
-            int lineNumSpid = lineNumResult.getData().get();
-            created.add(lineNumSpid);
-            ExecutionResult<Void> lineNumTextResult =
-                orchestrator.setTextBody(slideNumber, lineNumSpid, lineNumBody);
-            if (lineNumTextResult == null || !lineNumTextResult.isSuccess()) {
-                rollbackCreated(slideForRollback, created);
-                return "Error: Failed to set line number text body: "
-                    + (lineNumTextResult != null ? lineNumTextResult.getMessage() : "null result");
-            }
-
-            // -- Code panel --
-            TextBody codeBody = buildCodeBody(lines, language, codeBodyProps);
-            ShapeGeometry codeGeom = new ShapeGeometry(x + lineNumWidth, y, codeWidth, height);
-
-            ExecutionResult<Integer> codeResult = orchestrator.addShape(
-                slideNumber, SlideShape.ShapeType.RECTANGLE,
-                codeGeom, "", "Code", darkStyle);
-
-            if (codeResult == null || codeResult.getData().isEmpty()) {
-                rollbackCreated(slideForRollback, created);
-                return "Error: Failed to create code panel";
-            }
-            int codeSpid = codeResult.getData().get();
-            created.add(codeSpid);
-            ExecutionResult<Void> codeTextResult =
-                orchestrator.setTextBody(slideNumber, codeSpid, codeBody);
-            if (codeTextResult == null || !codeTextResult.isSuccess()) {
-                rollbackCreated(slideForRollback, created);
-                return "Error: Failed to set code text body: "
-                    + (codeTextResult != null ? codeTextResult.getMessage() : "null result");
-            }
-
-            // Group the two panels so the LLM can move/resize the code box as one unit
-            ExecutionResult<Integer> groupResult = orchestrator.groupShapes(
-                slideNumber, List.of(lineNumSpid, codeSpid));
-            if (groupResult != null && groupResult.getData().isPresent()) {
-                int groupSpid = groupResult.getData().get();
-                // Group succeeded -- we no longer roll the children back
-                // (they're tracked transitively via the group). The group
-                // SPID is the user-visible handle either way.
-                created.clear();
+            Integer groupSpid = cmd.getGroupSpid();
+            int lc = cmd.getLineCount();
+            String lang = cmd.getLanguage();
+            if (groupSpid != null) {
                 return "Created code box on slide " + slideNumber
-                    + " (group SPID " + groupSpid + ")."
-                    + " Language: " + language + ", " + lines.length + " lines."
-                    + " Use SPID " + groupSpid + " to move or resize the entire code box.";
+                    + " (group SPID " + groupSpid + "). Language: " + lang
+                    + ", " + lc + " lines. Use SPID " + groupSpid
+                    + " to move or resize the entire code box.";
             }
-
-            // Grouping failed but the panels exist as siblings -- accept
-            // the partial-success since the caller can still position
-            // them individually. Don't roll back: the call DID create
-            // useful output, just without the group affordance.
-            created.clear();
+            java.util.List<Integer> spids = cmd.getAllocatedSpids();
             return "Created code box on slide " + slideNumber
-                + ": line numbers (SPID " + lineNumSpid + ") + code (SPID " + codeSpid + ")."
-                + " Language: " + language + ", " + lines.length + " lines.";
-
+                + ": line numbers (SPID " + spids.get(0) + ") + code (SPID " + spids.get(1) + ")."
+                + " Language: " + lang + ", " + lc + " lines.";
         } catch (Exception e) {
-            rollbackCreated(slideForRollback, created);
             return "Error creating code box: " + e.getMessage();
         }
-    }
-
-    /**
-     * Best-effort rollback: remove every SPID we allocated during a
-     * failed createCodeBox call. Errors during rollback are swallowed
-     * so the caller still sees the original failure message rather
-     * than a confusing rollback error -- but we log them so the next
-     * person debugging knows the slide may have leaked a shape.
-     */
-    private void rollbackCreated(Integer slideNumber, List<Integer> spids) {
-        if (slideNumber == null || spids.isEmpty()) return;
-        for (int i = spids.size() - 1; i >= 0; i--) {
-            int spid = spids.get(i);
-            try {
-                ExecutionResult<Void> r = orchestrator.removeShape(slideNumber, spid);
-                if (r != null && !r.isSuccess()) {
-                    System.err.println("[CompoundShapeTools] rollback removeShape failed for SPID "
-                        + spid + ": " + r.getMessage());
-                }
-            } catch (Exception rollbackEx) {
-                System.err.println("[CompoundShapeTools] rollback threw for SPID "
-                    + spid + ": " + rollbackEx.getMessage());
-            }
-        }
-        spids.clear();
     }
 
     // ------------------------------------------------------------------
     // Code body builders
     // ------------------------------------------------------------------
 
-    private TextBody buildLineNumberBody(int lineCount, BodyProperties bodyProps) {
+    public static TextBody buildLineNumberBody(int lineCount, BodyProperties bodyProps) {
         TextBody.Builder builder = TextBody.builder().bodyProperties(bodyProps);
         for (int i = 1; i <= lineCount; i++) {
             builder.addParagraph(TextParagraph.builder()
@@ -266,7 +124,7 @@ public class CompoundShapeTools {
         return builder.build();
     }
 
-    private TextBody buildCodeBody(String[] lines, String language, BodyProperties bodyProps) {
+    public static TextBody buildCodeBody(String[] lines, String language, BodyProperties bodyProps) {
         TextBody.Builder builder = TextBody.builder().bodyProperties(bodyProps);
         List<List<Token>> tokenizedLines = CodeTokenizer.tokenize(
             String.join("\n", lines), language);
@@ -432,5 +290,11 @@ public class CompoundShapeTools {
             JsonObject obj = JsonHelper.parseObject(json);
             return JsonHelper.getString(obj, key);
         } catch (Exception e) { return null; }
+    }
+
+    private static boolean jsonHasKey(String json, String key) {
+        try {
+            return JsonHelper.parseObject(json).has(key);
+        } catch (Exception e) { return false; }
     }
 }

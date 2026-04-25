@@ -136,7 +136,7 @@ public class ToolDispatcher {
                 case "get_slide_animations"      -> handleGetSlideAnimations(toolInput);
                 case "execute_commands"          -> handleExecuteCommands(toolInput);
                 case "validate_layout"           -> handleValidateLayout(toolInput);
-                case "create_code_box"           -> compoundShapeTools.createCodeBox(toolInput);
+                case "create_code_box"           -> handleCreateCodeBox(toolInput);
                 case "create_diagram"            -> mermaidDiagramTool.createMermaidDiagram(toolInput);
                 case "suggest_layout"            -> handleSuggestLayout(toolInput);
                 case "create_slide_from_layout"  -> handleCreateSlideFromLayout(toolInput);
@@ -718,6 +718,51 @@ public class ToolDispatcher {
             return sb.toString();
         } catch (Exception e) {
             return "Error synthesizing script: " + e.getMessage();
+        }
+    }
+
+    private String handleCreateCodeBox(String toolInput) {
+        try {
+            JsonObject input = JsonHelper.parseObject(toolInput);
+            int slideNumber = JsonHelper.getInt(input, "slideNumber", 0);
+            String code = JsonHelper.getString(input, "code");
+            String language = JsonHelper.getString(input, "language");
+            if (slideNumber <= 0) {
+                return "Error: slideNumber is required (positive integer).";
+            }
+            if (code == null || code.isEmpty()) {
+                return "Error: 'code' is required";
+            }
+            long x = JsonHelper.getLong(input, "x", 838200L);
+            long y = JsonHelper.getLong(input, "y", 1825625L);
+            Long widthOrNull = input.has("width") ? JsonHelper.getLong(input, "width", 0L) : null;
+            Long heightOrNull = input.has("height") ? JsonHelper.getLong(input, "height", 0L) : null;
+
+            com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand cmd =
+                new com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand(
+                    slideNumber, code, language, x, y, widthOrNull, heightOrNull, orchestrator);
+            try {
+                commandInvoker.executeCommand(cmd);
+            } catch (com.excudo.core.commands.CommandExecutionException e) {
+                return "Error creating code box: " + e.getMessage();
+            }
+
+            Integer groupSpid = cmd.getGroupSpid();
+            String langDesc = cmd.getLanguage();
+            int lineCount = cmd.getLineCount();
+            if (groupSpid != null) {
+                return "Created code box on slide " + slideNumber
+                    + " (group SPID " + groupSpid + ")."
+                    + " Language: " + langDesc + ", " + lineCount + " lines."
+                    + " Use SPID " + groupSpid + " to move or resize the entire code box.";
+            }
+            // Grouping failed but the panels exist as siblings.
+            java.util.List<Integer> spids = cmd.getAllocatedSpids();
+            return "Created code box on slide " + slideNumber
+                + ": line numbers (SPID " + spids.get(0) + ") + code (SPID " + spids.get(1) + ")."
+                + " Language: " + langDesc + ", " + lineCount + " lines.";
+        } catch (Exception e) {
+            return "Error creating code box: " + e.getMessage();
         }
     }
 
