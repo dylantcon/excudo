@@ -242,8 +242,7 @@ public class CommandFactory extends AbstractCommandFactory {
             throw new IllegalArgumentException("LLM request and actions cannot be null");
         }
 
-        LLMRequestBridge bridge = new LLMRequestBridge();
-        List<ParsedCommand> parsedCommands = bridge.bridgeAll(request);
+        List<ParsedCommand> parsedCommands = LLMRequestBridge.bridgeAll(request);
 
         List<Command> commands = new ArrayList<>();
         for (ParsedCommand parsedCommand : parsedCommands) {

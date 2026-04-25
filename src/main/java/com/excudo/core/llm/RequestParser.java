@@ -33,7 +33,6 @@ public class RequestParser {
     // below doesn't escape apostrophes to \u0027 (see ToolDispatcher for the
     // same rationale).
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final LLMRequestBridge BRIDGE = new LLMRequestBridge();
 
     /** Schema-driven parameter registry: every parameter name any LLM-enabled command accepts, mapped to its type. */
     private static final Map<String, ParameterType> ALL_LLM_PARAMS = buildAllLlmParams();
@@ -363,9 +362,9 @@ public class RequestParser {
         if (operation.getType() == null || operation.getType().trim().isEmpty()) {
             builder.addError(prefix + "Missing operation type");
         } else {
-            if (!BRIDGE.isRecognizedActionType(operation.getType())) {
+            if (!LLMRequestBridge.isRecognizedActionType(operation.getType())) {
                 builder.addError(prefix + "Invalid operation type: " + operation.getType()
-                    + ". Valid types: " + String.join(", ", BRIDGE.getLLMEnabledCommandNames()));
+                    + ". Valid types: " + String.join(", ", LLMRequestBridge.getLLMEnabledCommandNames()));
             }
         }
 
@@ -393,7 +392,7 @@ public class RequestParser {
         // and current (create) type names hit the right validation branch
         String resolvedType;
         try {
-            resolvedType = BRIDGE.resolveCommandName(operation.getType());
+            resolvedType = LLMRequestBridge.resolveCommandName(operation.getType());
         } catch (IllegalArgumentException e) {
             return builder.build();
         }

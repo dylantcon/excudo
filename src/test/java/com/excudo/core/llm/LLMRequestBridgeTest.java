@@ -13,16 +13,14 @@ import java.util.*;
  */
 public class LLMRequestBridgeTest {
 
-    private final LLMRequestBridge bridge = new LLMRequestBridge();
-
     // ========== ACTION TYPE RESOLUTION ==========
 
     @Test
     public void testResolveCanonicalCommandName() {
         // Direct command name should work
-        assertEquals("create", bridge.resolveCommandName("create"));
-        assertEquals("delete", bridge.resolveCommandName("delete"));
-        assertEquals("edit-content", bridge.resolveCommandName("edit-content"));
+        assertEquals("create", LLMRequestBridge.resolveCommandName("create"));
+        assertEquals("delete", LLMRequestBridge.resolveCommandName("delete"));
+        assertEquals("edit-content", LLMRequestBridge.resolveCommandName("edit-content"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -32,22 +30,22 @@ public class LLMRequestBridgeTest {
         // shape-addition, slide-creation, slide-deletion, slide-copy,
         // enhanced-content, bullet-point-edit) no longer resolve --
         // payloads using them now fail loudly via this exception.
-        bridge.resolveCommandName("animation-edit");
+        LLMRequestBridge.resolveCommandName("animation-edit");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testResolveUnknownActionType() {
-        bridge.resolveCommandName("nonexistent-action");
+        LLMRequestBridge.resolveCommandName("nonexistent-action");
     }
 
     @Test
     public void testIsRecognizedActionType() {
-        assertTrue(bridge.isRecognizedActionType("create"));
-        assertTrue(bridge.isRecognizedActionType("edit-content"));
+        assertTrue(LLMRequestBridge.isRecognizedActionType("create"));
+        assertTrue(LLMRequestBridge.isRecognizedActionType("edit-content"));
         // Legacy alias names are no longer recognized.
-        assertFalse(bridge.isRecognizedActionType("slide-creation"));
-        assertFalse(bridge.isRecognizedActionType("content-edit"));
-        assertFalse(bridge.isRecognizedActionType("totally-unknown"));
+        assertFalse(LLMRequestBridge.isRecognizedActionType("slide-creation"));
+        assertFalse(LLMRequestBridge.isRecognizedActionType("content-edit"));
+        assertFalse(LLMRequestBridge.isRecognizedActionType("totally-unknown"));
     }
 
     // ========== PARAMETER NAME MAPPING (CANONICAL NAMES ONLY) ==========
@@ -60,7 +58,7 @@ public class LLMRequestBridgeTest {
             "Create a slide", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("create", cmd.getCommandName());
         assertEquals("3", cmd.getString("position"));
         assertEquals("My Slide", cmd.getString("title"));
@@ -76,7 +74,7 @@ public class LLMRequestBridgeTest {
             "Edit text", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("edit-content", cmd.getCommandName());
         // slideNumber -> slide, targetSpid -> spid, newText -> text
         assertEquals("1", cmd.getString("slide"));
@@ -92,7 +90,7 @@ public class LLMRequestBridgeTest {
             "Delete slide", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("delete", cmd.getCommandName());
         assertEquals("3", cmd.getString("slide"));
     }
@@ -105,7 +103,7 @@ public class LLMRequestBridgeTest {
             "Copy slide", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("copy", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("5", cmd.getString("position"));
@@ -123,7 +121,7 @@ public class LLMRequestBridgeTest {
             "Edit content", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("edit-content", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("7", cmd.getString("spid"));
@@ -138,7 +136,7 @@ public class LLMRequestBridgeTest {
             "Apply theme", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("apply-theme", cmd.getCommandName());
         assertEquals("corporate", cmd.getString("themeId"));
     }
@@ -151,7 +149,7 @@ public class LLMRequestBridgeTest {
             "Move shape", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("move", cmd.getCommandName());
         assertEquals("1", cmd.getString("slide"));
         assertEquals("5", cmd.getString("spid"));
@@ -167,7 +165,7 @@ public class LLMRequestBridgeTest {
             "Align shapes", null
         );
 
-        ParsedCommand cmd = bridge.bridge(action);
+        ParsedCommand cmd = LLMRequestBridge.bridge(action);
         assertEquals("arrange", cmd.getCommandName());
         assertEquals("1", cmd.getString("slide"));
         assertEquals("align-left", cmd.getString("operation"));
@@ -189,7 +187,7 @@ public class LLMRequestBridgeTest {
             null
         );
 
-        List<ParsedCommand> commands = bridge.bridgeAll(request);
+        List<ParsedCommand> commands = LLMRequestBridge.bridgeAll(request);
         assertEquals(2, commands.size());
         assertEquals("create", commands.get(0).getCommandName());
         assertEquals("edit-content", commands.get(1).getCommandName());
@@ -222,7 +220,7 @@ public class LLMRequestBridgeTest {
 
     @Test
     public void testGetLLMEnabledCommandNames() {
-        List<String> names = bridge.getLLMEnabledCommandNames();
+        List<String> names = LLMRequestBridge.getLLMEnabledCommandNames();
         assertFalse(names.isEmpty());
         assertTrue(names.contains("create"));
         assertTrue(names.contains("edit-content"));

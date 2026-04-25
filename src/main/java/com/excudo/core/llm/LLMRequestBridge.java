@@ -11,33 +11,34 @@ import java.util.*;
  * Adapts LLM {@link RequestSchema.ActionRequest}s to {@link ParsedCommand}s
  * using {@link CommandSchema} as the single source of truth.
  *
- * <p>Handles only what the schema can't express implicitly:
+ * <p>Static utility class (formerly an instance type with a fake instance
+ * cache). All state — the per-command llmName → canonical map — is now a
+ * lazy static built once from {@link CommandRegistry}, since the registry
+ * itself is static. The 4 callers that used to {@code new LLMRequestBridge()}
+ * now just call the static methods directly; no allocation, no map rebuilds.
+ *
+ * <p>Two things still live here, both irreducible:
  * <ul>
- *   <li>Per-command parameter name mapping ({@code llmName} → canonical),
- *       built once from each schema's parameter list.</li>
+ *   <li>Per-command parameter name mapping ({@code llmName} → canonical).</li>
  *   <li>Type coercion (the JSON-side Number/Boolean values are stringified
  *       to fit {@link ParsedCommand}'s string-only payload).</li>
  * </ul>
  *
- * <p>Everything else used to live here — a parallel {@code llmAlias}
- * registry that mapped legacy action-type names ({@code animation-edit},
- * {@code shape-addition}, ...) to canonical commands, hardcoded
- * {@code clickTrigger}/{@code animationType} renames, and 200 lines of
- * nested-object flattening rules for old LLM payload shapes. None of it
- * was earning its keep: the alias names duplicated the canonical names
- * the schema already declared, and the flatten rules existed only because
- * the legacy aliases used different parameter shapes. Deleted in the
- * 2026-04-24 seam-collapse pass.
+ * <p>Everything else got deleted in the 2026-04-24 seam-collapse pass —
+ * the {@code llmAlias} registry, hardcoded {@code clickTrigger}/{@code animationType}
+ * renames, 200 lines of nested-object flattening rules. None of it was
+ * earning its keep.
  */
-public class LLMRequestBridge {
+public final class LLMRequestBridge {
 
-    // Per-command: LLM param name -> canonical param name. Built once from
-    // each schema's parameter list at construction time.
-    private final Map<String, Map<String, String>> commandParamMappings;
+    private LLMRequestBridge() {}
 
-    public LLMRequestBridge() {
-        this.commandParamMappings = buildParamMappings();
-    }
+    // Per-command: LLM param name -> canonical param name. Built lazily on
+    // first use from each schema's parameter list. CommandRegistry is static
+    // and immutable post-init, so this map is too -- there's no reason for
+    // it to be per-instance state.
+    private static final java.util.concurrent.atomic.AtomicReference<Map<String, Map<String, String>>>
+        PARAM_MAPPINGS_CACHE = new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
      * Convert an LLM ActionRequest into a ParsedCommand.
@@ -46,14 +47,14 @@ public class LLMRequestBridge {
      * @return ParsedCommand ready for the command factory
      * @throws IllegalArgumentException if the action type is unknown
      */
-    public ParsedCommand bridge(RequestSchema.ActionRequest actionRequest) {
+    public static ParsedCommand bridge(RequestSchema.ActionRequest actionRequest) {
         String actionType = actionRequest.getType();
         Map<String, Object> params = actionRequest.getParameters();
         if (params == null) params = Collections.emptyMap();
 
         String commandName = resolveCommandName(actionType);
 
-        Map<String, String> paramMapping = commandParamMappings.getOrDefault(
+        Map<String, String> paramMapping = paramMappings().getOrDefault(
             commandName, Collections.emptyMap());
         Map<String, String> canonicalParams = new HashMap<>();
         for (Map.Entry<String, Object> entry : params.entrySet()) {
@@ -65,10 +66,8 @@ public class LLMRequestBridge {
         return new ParsedCommand(commandName, canonicalParams);
     }
 
-    /**
-     * Convert an entire LLM request into a list of ParsedCommands.
-     */
-    public List<ParsedCommand> bridgeAll(RequestSchema.LLMRequest request) {
+    /** Convert an entire LLM request into a list of ParsedCommands. */
+    public static List<ParsedCommand> bridgeAll(RequestSchema.LLMRequest request) {
         if (request == null || request.getActions() == null) {
             return Collections.emptyList();
         }
@@ -83,7 +82,7 @@ public class LLMRequestBridge {
      * Resolve an action type to its canonical command name. Direct lookup
      * only — there is no longer any legacy-alias machinery.
      */
-    public String resolveCommandName(String actionType) {
+    public static String resolveCommandName(String actionType) {
         if (CommandRegistry.getSchema(actionType) != null) {
             return actionType;
         }
@@ -93,12 +92,12 @@ public class LLMRequestBridge {
     }
 
     /** Check if an action type matches a registered LLM-enabled command. */
-    public boolean isRecognizedActionType(String actionType) {
+    public static boolean isRecognizedActionType(String actionType) {
         return CommandRegistry.getSchema(actionType) != null;
     }
 
     /** All LLM-enabled command names, sorted (for system-prompt + error msgs). */
-    public List<String> getLLMEnabledCommandNames() {
+    public static List<String> getLLMEnabledCommandNames() {
         List<String> names = new ArrayList<>();
         for (CommandSchema schema : CommandRegistry.getAllSchemas().values()) {
             if (schema.isLlmEnabled()) {
@@ -111,18 +110,20 @@ public class LLMRequestBridge {
 
     // ========== PRIVATE HELPERS ==========
 
-    /**
-     * Build per-command parameter name mappings from CommandSchema.
-     */
-    private static Map<String, Map<String, String>> buildParamMappings() {
-        Map<String, Map<String, String>> result = new HashMap<>();
+    /** Lazy-init the per-command param mapping cache. Atomic-CAS ensures
+     *  the map is built at most once across threads. */
+    private static Map<String, Map<String, String>> paramMappings() {
+        Map<String, Map<String, String>> cached = PARAM_MAPPINGS_CACHE.get();
+        if (cached != null) return cached;
+        Map<String, Map<String, String>> built = new HashMap<>();
         for (CommandSchema schema : CommandRegistry.getAllSchemas().values()) {
             if (schema.isLlmEnabled()) {
-                Map<String, String> paramMap = schema.buildLlmToCanonicalParamMap();
-                result.put(schema.getName(), paramMap);
+                built.put(schema.getName(), schema.buildLlmToCanonicalParamMap());
             }
         }
-        return result;
+        // CAS-or-discard: if another thread won, use theirs.
+        PARAM_MAPPINGS_CACHE.compareAndSet(null, built);
+        return PARAM_MAPPINGS_CACHE.get();
     }
 
     /**

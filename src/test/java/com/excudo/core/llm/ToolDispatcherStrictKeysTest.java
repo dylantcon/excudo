@@ -26,15 +26,13 @@ import static org.junit.Assert.*;
  */
 public class ToolDispatcherStrictKeysTest {
 
-    private final LLMRequestBridge bridge = new LLMRequestBridge();
-
     @Test
     public void unknownActionTypeIsRejectedWithFuzzyMatch() {
         RequestSchema.ActionRequest action = action("ad-shape", Map.of(
             "slideNumber", "1",
             "shapeType", "RECTANGLE"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNotNull("unknown action type must reject", err);
         assertTrue(err, err.contains("Unknown command type 'ad-shape'"));
@@ -51,7 +49,7 @@ public class ToolDispatcherStrictKeysTest {
             "slide", "1",
             "spid", "2"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNotNull("REPL-only commands must reject", err);
         assertTrue(err, err.contains("REPL/internal command"));
@@ -65,7 +63,7 @@ public class ToolDispatcherStrictKeysTest {
             "targetSpd", "2",          // typo
             "fontFamily", "Arial"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNotNull("typo'd key must reject", err);
         assertTrue(err, err.contains("Unknown parameter"));
@@ -86,7 +84,7 @@ public class ToolDispatcherStrictKeysTest {
             "x", "100pt",
             "y", "200pt"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNull("move targetSpid must validate after backfill", err);
     }
@@ -99,7 +97,7 @@ public class ToolDispatcherStrictKeysTest {
             "width", "400pt",
             "height", "300pt"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNull(err);
     }
@@ -111,7 +109,7 @@ public class ToolDispatcherStrictKeysTest {
             "targetSpid", "2",
             "direction", "front"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNull(err);
     }
@@ -127,7 +125,7 @@ public class ToolDispatcherStrictKeysTest {
             "fillColor", "#FF5733",
             "lineColor", "accent1"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNull(err);
     }
@@ -143,7 +141,7 @@ public class ToolDispatcherStrictKeysTest {
             "x", "100pt",
             "y", "200pt"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNull(err);
     }
@@ -152,7 +150,7 @@ public class ToolDispatcherStrictKeysTest {
     public void missingTypeFieldRejectsCleanly() {
         RequestSchema.ActionRequest action = action(null, Map.of("slideNumber", "1"));
 
-        String err = ToolDispatcher.validateActionStrictly(action, bridge);
+        String err = ToolDispatcher.validateActionStrictly(action);
 
         assertNotNull(err);
         assertTrue(err, err.contains("Missing 'type' field"));

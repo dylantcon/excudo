@@ -958,7 +958,6 @@ public class ToolDispatcher {
                 return "Error: No valid commands parsed from JSON";
             }
 
-            LLMRequestBridge bridge = new LLMRequestBridge();
             boolean hasContext = orchestrator.getContext().isPresent();
 
             int succeeded = 0;
@@ -999,7 +998,7 @@ public class ToolDispatcher {
                     // Catches the silent-accept bug class where
                     // `{"type": "show-shape"}` or `move targetSpid=…` (wrong
                     // alias) used to come back OK and no-op.
-                    String strictError = validateActionStrictly(action, bridge);
+                    String strictError = validateActionStrictly(action);
                     if (strictError != null) {
                         failed++;
                         details.append("FAILED: ").append(actionType)
@@ -1008,7 +1007,7 @@ public class ToolDispatcher {
                     }
 
                     // Pre-validate parameter values against schema constraints
-                    String validationError = validateActionParameters(action, bridge);
+                    String validationError = validateActionParameters(action);
                     if (validationError != null) {
                         failed++;
                         details.append("FAILED: ").append(actionType)
@@ -1016,7 +1015,7 @@ public class ToolDispatcher {
                         continue;
                     }
 
-                    com.excudo.core.parsing.ParsedCommand parsed = bridge.bridge(action);
+                    com.excudo.core.parsing.ParsedCommand parsed = LLMRequestBridge.bridge(action);
                     Command command = commandFactory.createCommand(parsed, displayAdapter);
                     commandInvoker.executeCommand(command);
                     succeeded++;
@@ -1138,7 +1137,7 @@ public class ToolDispatcher {
      * llmEnabled) and unknown keys were passed through to the factory which
      * then read the canonical name and got null.
      */
-    static String validateActionStrictly(RequestSchema.ActionRequest action, LLMRequestBridge bridge) {
+    static String validateActionStrictly(RequestSchema.ActionRequest action) {
         String actionType = action.getType();
         if (actionType == null || actionType.isBlank()) {
             return "Missing 'type' field on command.";
@@ -1148,10 +1147,10 @@ public class ToolDispatcher {
         // unknown types; catch it and add a fuzzy "did you mean" suggestion.
         String commandName;
         try {
-            commandName = bridge.resolveCommandName(actionType);
+            commandName = LLMRequestBridge.resolveCommandName(actionType);
         } catch (IllegalArgumentException e) {
             String closest = com.excudo.utils.FuzzyMatcher.findClosestMatch(
-                actionType, bridge.getLLMEnabledCommandNames(), 4);
+                actionType, LLMRequestBridge.getLLMEnabledCommandNames(), 4);
             return "Unknown command type '" + actionType + "'."
                 + (closest != null ? " Did you mean '" + closest + "'?" : "")
                 + " Use list_commands to see available commands.";
@@ -1206,9 +1205,9 @@ public class ToolDispatcher {
         return msg.toString();
     }
 
-    private String validateActionParameters(RequestSchema.ActionRequest action, LLMRequestBridge bridge) {
+    private String validateActionParameters(RequestSchema.ActionRequest action) {
         try {
-            String commandName = bridge.resolveCommandName(action.getType());
+            String commandName = LLMRequestBridge.resolveCommandName(action.getType());
             com.excudo.core.parsing.CommandSchema schema =
                 com.excudo.core.parsing.CommandRegistry.getSchema(commandName);
             if (schema == null) return null;
