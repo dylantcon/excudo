@@ -127,15 +127,6 @@ public class CommandSchemaTest {
     }
 
     @Test
-    public void getLlmAliasReflectsBuilderSetting() {
-        CommandSchema schema = CommandSchema.builder("cmd")
-                .llmAlias("legacy-alias")
-                .build();
-
-        assertEquals("legacy-alias", schema.getLlmAlias());
-    }
-
-    @Test
     public void parseWithCorrectPositionalArgsReturnsParsedCommand() throws CommandParseException {
         CommandSchema schema = CommandSchema.builder("greet")
                 .parameter(requiredStringParam("name", "Recipient name"))

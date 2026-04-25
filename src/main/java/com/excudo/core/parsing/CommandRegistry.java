@@ -95,7 +95,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("add-animation")
             .description("Add animation to a shape")
             .llmEnabled(true)
-            .llmAlias("animation-edit")
             .llmDescription("Add animation to a shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -168,7 +167,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("create")
             .description("Create a new slide")
             .llmEnabled(true)
-            .llmAlias("slide-creation")
             .llmDescription("Create slide with title and content. ALWAYS pass content as a JSON array of markdown strings, one per placeholder.")
             .parameter(Parameter.builder("position")
                 .description("Position to insert slide (1-based)")
@@ -203,7 +201,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("delete")
             .description("Delete a slide")
             .llmEnabled(true)
-            .llmAlias("slide-deletion")
             .parameter(Parameter.builder("slide")
                 .description("Slide number to delete")
                 .type(ParameterType.SLIDE_NUMBER)
@@ -241,7 +238,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("edit-content")
             .description("Edit text content of a shape. Default mode is REPLACE: the passed string (including empty string) replaces the shape's content. --prepend / --append opt into additive modes.")
             .llmEnabled(true)
-            .llmAlias("content-edit")
             .llmDescription("Edit text content of a shape. Default: replace. Flags --prepend and --append opt into additive modes; the absence of both means the passed string replaces the shape's content (empty string clears).")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -290,7 +286,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("add-shape")
             .description("Add a shape to a slide")
             .llmEnabled(true)
-            .llmAlias("shape-addition")
             .llmDescription("Add a new shape to a slide.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -697,7 +692,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("enhance")
             .description("Enhance slide content with smart features")
             .llmEnabled(true)
-            .llmAlias("enhanced-content")
             .llmDescription("Add icon to a slide by keyword.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -853,22 +847,6 @@ public class CommandRegistry {
         return Collections.unmodifiableMap(schemas);
     }
 
-    /**
-     * Resolve an LLM action type to its canonical command name.
-     * Checks both direct command names and legacy llmAlias mappings.
-     */
-    public static String resolveActionType(String actionType) {
-        // Direct match
-        if (schemas.containsKey(actionType)) return actionType;
-        // Search by llmAlias
-        for (CommandSchema schema : schemas.values()) {
-            if (actionType.equals(schema.getLlmAlias())) {
-                return schema.getName();
-            }
-        }
-        return null;
-    }
-    
     private static void registerApplyThemeCommand() {
         CommandSchema schema = CommandSchema.builder("apply-theme")
             .description("Apply a bundled theme to the presentation")
@@ -899,7 +877,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("new")
             .description("Create a new presentation from scratch")
             .llmEnabled(true)
-            .llmAlias("new-presentation")
             .llmDescription("DESTRUCTIVE: Reset and create a blank presentation with a theme. Destroys all current slides. Only use when explicitly asked to start over.")
             .parameter(Parameter.builder("themeId")
                 .description("Theme ID")
@@ -1018,7 +995,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("edit-bullet")
             .description("Edit bullet points in a shape")
             .llmEnabled(true)
-            .llmAlias("bullet-point-edit")
             .llmDescription("Bullet point operations on a text shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1265,7 +1241,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("copy")
             .description("Copy a slide to a new position")
             .llmEnabled(true)
-            .llmAlias("slide-copy")
             .parameter(Parameter.builder("slide")
                 .description("Source slide number")
                 .type(ParameterType.SLIDE_NUMBER)
@@ -1402,7 +1377,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("move")
             .description("Move a shape to a new position")
             .llmEnabled(true)
-            .llmAlias("shape-move")
             .llmDescription("Move a shape to a position.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1434,7 +1408,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("resize")
             .description("Resize a shape")
             .llmEnabled(true)
-            .llmAlias("shape-resize")
             .llmDescription("Resize a shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1466,7 +1439,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("arrange")
             .description("Arrange shapes on a slide (align, distribute, match, center, snap)")
             .llmEnabled(true)
-            .llmAlias("shape-arrange")
             .llmDescription("Arrange shapes: align, distribute, match, center, snap.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1502,7 +1474,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("reorder")
             .description("Change z-order of a shape")
             .llmEnabled(true)
-            .llmAlias("shape-reorder")
             .llmDescription("Change z-order of a shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1531,7 +1502,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("duplicate-layout")
             .description("Duplicate an existing slide layout with a new name")
             .llmEnabled(true)
-            .llmAlias("duplicate-layout")
             .llmDescription("Duplicate a slide layout. Use to create custom layouts before creating slides.")
             .parameter(Parameter.builder("sourceLayoutId")
                 .description("Source layout ID (e.g., slideLayout2)")
@@ -1551,7 +1521,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("add-layout")
             .description("Create a new layout from scratch")
             .llmEnabled(true)
-            .llmAlias("add-layout")
             .llmDescription("Create a layout by duplicating the closest existing layout type.")
             .parameter(Parameter.builder("name")
                 .description("Display name for the layout")
@@ -1575,7 +1544,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("delete-layout")
             .description("Delete a slide layout (fails if in use)")
             .llmEnabled(true)
-            .llmAlias("delete-layout")
             .llmDescription("Delete a layout. Fails if any slides use it.")
             .parameter(Parameter.builder("layoutId")
                 .description("Layout ID to delete (e.g., slideLayout11)")
@@ -1591,7 +1559,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("rename-layout")
             .description("Rename a layout's display name")
             .llmEnabled(true)
-            .llmAlias("rename-layout")
             .llmDescription("Rename a layout.")
             .parameter(Parameter.builder("layoutId")
                 .description("Layout ID to rename")
@@ -1611,7 +1578,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("add-placeholder")
             .description("Add a placeholder to an existing layout")
             .llmEnabled(true)
-            .llmAlias("add-placeholder")
             .llmDescription("Add a placeholder shape to a layout.")
             .parameter(Parameter.builder("layoutId")
                 .description("Layout ID (e.g., slideLayout11)")
@@ -1656,7 +1622,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("remove-placeholder")
             .description("Remove a placeholder from a layout by idx")
             .llmEnabled(true)
-            .llmAlias("remove-placeholder")
             .llmDescription("Remove a placeholder shape from a layout.")
             .parameter(Parameter.builder("layoutId")
                 .description("Layout ID (e.g., slideLayout11)")
@@ -1685,7 +1650,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("set-font")
             .description("Set font properties on a shape's text")
             .llmEnabled(true)
-            .llmAlias("shape-set-font")
             .llmDescription("Set font properties on a shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1740,7 +1704,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("set-style")
             .description("Set fill and line style on an existing shape")
             .llmEnabled(true)
-            .llmAlias("shape-set-style")
             .llmDescription("Set fill and line style on a shape.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1777,7 +1740,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("duplicate")
             .description("Duplicate a shape on the same slide")
             .llmEnabled(true)
-            .llmAlias("shape-duplicate")
             .llmDescription("Duplicate a shape on the same slide.")
             .parameter(Parameter.builder("slide")
                 .description("Slide number")
@@ -1936,7 +1898,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("edit-master-style")
             .description("Edit text style levels on the slide master")
             .llmEnabled(true)
-            .llmAlias("edit-master-style")
             .llmDescription("Edit slide master text styles (titleStyle, bodyStyle, otherStyle) per level.")
             .parameter(Parameter.builder("target")
                 .description("Style target: title, body, or other")
@@ -1995,7 +1956,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("edit-master-clrmap")
             .description("Change the slide master color mapping (dark/light switch)")
             .llmEnabled(true)
-            .llmAlias("edit-master-clrmap")
             .llmDescription("Edit the slide master clrMap to switch between dark and light backgrounds.")
             .parameter(Parameter.builder("bg1")
                 .description("Theme color for bg1 (e.g., dk1 for dark, lt1 for light)")
@@ -2027,7 +1987,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("edit-master-bg")
             .description("Change slide master background")
             .llmEnabled(true)
-            .llmAlias("edit-master-bg")
             .llmDescription("Set the slide master background fill index and scheme color.")
             .parameter(Parameter.builder("fill-idx")
                 .description("Background fill index (e.g., 1001)")
@@ -2049,7 +2008,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("show-master")
             .description("Display current slide master state")
             .llmEnabled(true)
-            .llmAlias("show-master")
             .llmDescription("Display clrMap, txStyles, background, placeholders, and object defaults.")
             .example("show-master")
             .build();
@@ -2061,7 +2019,6 @@ public class CommandRegistry {
         CommandSchema schema = CommandSchema.builder("set-object-defaults")
             .description("Populate theme objectDefaults for consistent shape styling")
             .llmEnabled(true)
-            .llmAlias("set-object-defaults")
             .llmDescription("Set a:objectDefaults in theme XML so non-placeholder shapes inherit theme-consistent styling.")
             .parameter(Parameter.builder("font-color")
                 .description("Scheme color for default shape text (e.g., tx1)")

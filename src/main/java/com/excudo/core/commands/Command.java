@@ -49,8 +49,46 @@ public interface Command {
     
     /**
      * Check if this command has been executed.
-     * 
+     *
      * @return true if execute() has been called, false otherwise
      */
     boolean isExecuted();
+
+    /**
+     * Canonical name of this command, derived from the class name by
+     * stripping a trailing {@code Command} suffix and converting the
+     * remaining PascalCase to kebab-case. {@code AddShapeCommand} →
+     * {@code add-shape}, {@code CreateCodeBoxCommand} → {@code create-code-box}.
+     *
+     * <p>Implementations whose canonical name doesn't follow this
+     * convention can override this method (e.g. anonymous batch wrappers
+     * or composites with non-trivial human-readable names). Most won't
+     * need to.
+     *
+     * <p>Centralizing the name here removes the magic-string registration
+     * pattern at every {@code CommandSchema.builder("...")} call site
+     * and makes a class rename the only edit needed to rename the
+     * command across REPL + MCP surfaces.
+     */
+    default String getCommandName() {
+        String simple = getClass().getSimpleName();
+        String stripped = simple.endsWith("Command")
+            ? simple.substring(0, simple.length() - "Command".length())
+            : simple;
+        return toKebabCase(stripped);
+    }
+
+    /** {@code AddShape} → {@code add-shape}; {@code SetURL} → {@code set-u-r-l}.
+     *  Acronym handling is intentionally simple: callers that want different
+     *  output override {@link #getCommandName()} directly. */
+    private static String toKebabCase(String pascal) {
+        if (pascal == null || pascal.isEmpty()) return pascal;
+        StringBuilder sb = new StringBuilder(pascal.length() + 4);
+        for (int i = 0; i < pascal.length(); i++) {
+            char c = pascal.charAt(i);
+            if (i > 0 && Character.isUpperCase(c)) sb.append('-');
+            sb.append(Character.toLowerCase(c));
+        }
+        return sb.toString();
+    }
 }

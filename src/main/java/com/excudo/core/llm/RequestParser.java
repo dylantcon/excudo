@@ -429,11 +429,11 @@ public class RequestParser {
         }
 
         // Command-specific validation that can't be derived from schema
-        if ("bullet-point-edit".equals(resolvedType) && params.containsKey("editType")) {
+        if ("edit-bullet".equals(resolvedType) && params.containsKey("editType")) {
             String editType = (String) params.get("editType");
             validateBulletPointEditOperation(editType, params, builder);
         }
-        if ("enhanced-content".equals(resolvedType) && params.containsKey("geometry")) {
+        if ("enhance".equals(resolvedType) && params.containsKey("geometry")) {
             Map<?, ?> geometry = (Map<?, ?>) params.get("geometry");
             validateGeometry(geometry, builder);
         }

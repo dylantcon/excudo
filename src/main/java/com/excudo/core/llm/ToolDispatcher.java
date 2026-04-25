@@ -1104,15 +1104,6 @@ public class ToolDispatcher {
             accepted.add(p.getName());
             if (p.getLlmName() != null) accepted.add(p.getLlmName());
         }
-        // Hardcoded translations applied at bridge time.
-        accepted.add("clickTrigger");
-        accepted.add("animationType");
-        // Legacy nested-wrapper top-level keys (e.g. shapeData, animationData,
-        // geometry). These are accepted as the LLM-facing entry point even
-        // though the bridge flattens them out before reaching the factory.
-        for (String wrapper : List.of("shapeData", "animationData", "geometry")) {
-            accepted.add(wrapper);
-        }
 
         Map<String, Object> params = action.getParameters();
         if (params == null || params.isEmpty()) return null;

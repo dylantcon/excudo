@@ -25,18 +25,14 @@ public class LLMRequestBridgeTest {
         assertEquals("edit-content", bridge.resolveCommandName("edit-content"));
     }
 
-    @Test
-    public void testResolveLegacyAlias() {
-        // Legacy LLM action types should map to canonical names
-        assertEquals("create", bridge.resolveCommandName("slide-creation"));
-        assertEquals("delete", bridge.resolveCommandName("slide-deletion"));
-        assertEquals("edit-content", bridge.resolveCommandName("content-edit"));
-        assertEquals("add-shape", bridge.resolveCommandName("shape-addition"));
-        assertEquals("add-animation", bridge.resolveCommandName("animation-edit"));
-        assertEquals("enhance", bridge.resolveCommandName("enhanced-content"));
-        assertEquals("copy", bridge.resolveCommandName("slide-copy"));
-        assertEquals("apply-theme", bridge.resolveCommandName("apply-theme"));
-        assertEquals("new", bridge.resolveCommandName("new-presentation"));
+    @Test(expected = IllegalArgumentException.class)
+    public void testResolveLegacyAliasIsNoLongerSupported() {
+        // The 2026-04-24 seam-collapse pass deleted the legacy alias path.
+        // Old action-type names (animation-edit, content-edit,
+        // shape-addition, slide-creation, slide-deletion, slide-copy,
+        // enhanced-content, bullet-point-edit) no longer resolve --
+        // payloads using them now fail loudly via this exception.
+        bridge.resolveCommandName("animation-edit");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -47,17 +43,19 @@ public class LLMRequestBridgeTest {
     @Test
     public void testIsRecognizedActionType() {
         assertTrue(bridge.isRecognizedActionType("create"));
-        assertTrue(bridge.isRecognizedActionType("slide-creation"));
-        assertTrue(bridge.isRecognizedActionType("content-edit"));
+        assertTrue(bridge.isRecognizedActionType("edit-content"));
+        // Legacy alias names are no longer recognized.
+        assertFalse(bridge.isRecognizedActionType("slide-creation"));
+        assertFalse(bridge.isRecognizedActionType("content-edit"));
         assertFalse(bridge.isRecognizedActionType("totally-unknown"));
     }
 
-    // ========== PARAMETER NAME MAPPING ==========
+    // ========== PARAMETER NAME MAPPING (CANONICAL NAMES ONLY) ==========
 
     @Test
-    public void testBridgeSlideCreation() {
+    public void testBridgeCreate() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "slide-creation",
+            "create",
             Map.of("position", 3, "title", "My Slide", "layoutId", "slideLayout2"),
             "Create a slide", null
         );
@@ -66,14 +64,14 @@ public class LLMRequestBridgeTest {
         assertEquals("create", cmd.getCommandName());
         assertEquals("3", cmd.getString("position"));
         assertEquals("My Slide", cmd.getString("title"));
-        // layoutId -> layout (via llmName mapping)
+        // layoutId -> layout (via llmName mapping on the schema parameter)
         assertEquals("slideLayout2", cmd.getString("layout"));
     }
 
     @Test
-    public void testBridgeContentEdit() {
+    public void testBridgeEditContent() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "content-edit",
+            "edit-content",
             Map.of("slideNumber", 1, "targetSpid", 5, "newText", "Hello World"),
             "Edit text", null
         );
@@ -87,9 +85,9 @@ public class LLMRequestBridgeTest {
     }
 
     @Test
-    public void testBridgeSlideDeletion() {
+    public void testBridgeDelete() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "slide-deletion",
+            "delete",
             Map.of("slideNumber", 3),
             "Delete slide", null
         );
@@ -100,9 +98,9 @@ public class LLMRequestBridgeTest {
     }
 
     @Test
-    public void testBridgeSlideCopy() {
+    public void testBridgeCopy() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "slide-copy",
+            "copy",
             Map.of("sourceSlide", 2, "targetPosition", 5, "newTitle", "Copy"),
             "Copy slide", null
         );
@@ -112,34 +110,6 @@ public class LLMRequestBridgeTest {
         assertEquals("2", cmd.getString("slide"));
         assertEquals("5", cmd.getString("position"));
         assertEquals("Copy", cmd.getString("title"));
-    }
-
-    // ========== NESTED OBJECT FLATTENING ==========
-
-    @Test
-    public void testBridgeAnimationEditWithNestedData() {
-        Map<String, Object> animData = new HashMap<>();
-        animData.put("animationType", "fade");
-        animData.put("direction", "in");
-        animData.put("clickTrigger", 1);
-
-        Map<String, Object> params = new HashMap<>();
-        params.put("slideNumber", 1);
-        params.put("targetSpid", 5);
-        params.put("animationData", animData);
-
-        RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "animation-edit", params, "Add fade", null
-        );
-
-        ParsedCommand cmd = bridge.bridge(action);
-        assertEquals("add-animation", cmd.getCommandName());
-        assertEquals("1", cmd.getString("slide"));
-        assertEquals("5", cmd.getString("spid"));
-        assertEquals("fade", cmd.getString("type"));
-        assertEquals("in", cmd.getString("direction"));
-        // clickTrigger -> trigger
-        assertEquals("1", cmd.getString("trigger"));
     }
 
     // ========== DIRECT COMMAND NAMES (NEW FORMAT) ==========
@@ -174,10 +144,10 @@ public class LLMRequestBridgeTest {
     }
 
     @Test
-    public void testBridgeShapeMove() {
+    public void testBridgeMove() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "shape-move",
-            Map.of("slideNumber", 1, "spid", 5, "x", "100pt", "y", "200pt"),
+            "move",
+            Map.of("slideNumber", 1, "targetSpid", 5, "x", "100pt", "y", "200pt"),
             "Move shape", null
         );
 
@@ -190,9 +160,9 @@ public class LLMRequestBridgeTest {
     }
 
     @Test
-    public void testBridgeShapeArrange() {
+    public void testBridgeArrange() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "shape-arrange",
+            "arrange",
             Map.of("slideNumber", 1, "operation", "align-left", "targets", "all"),
             "Align shapes", null
         );
@@ -211,9 +181,9 @@ public class LLMRequestBridgeTest {
         RequestSchema.LLMRequest request = new RequestSchema.LLMRequest(
             "1.0",
             List.of(
-                new RequestSchema.ActionRequest("slide-creation",
+                new RequestSchema.ActionRequest("create",
                     Map.of("position", 1, "title", "Intro"), "Create", null),
-                new RequestSchema.ActionRequest("content-edit",
+                new RequestSchema.ActionRequest("edit-content",
                     Map.of("slideNumber", 1, "targetSpid", 2, "newText", "Hello"), "Edit", null)
             ),
             null

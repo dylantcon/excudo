@@ -175,7 +175,7 @@ public class SlideContentContext {
     }
     
     /**
-     * Determine if a shape is an editable content area that should be targeted for content-edit operations
+     * Determine if a shape is an editable content area that should be targeted for edit-content operations
      */
     private boolean isEditableContentArea(SlideShape shape) {
         // Placeholders are designed to be edited
@@ -206,15 +206,15 @@ public class SlideContentContext {
         if (shape.getType() == SlideShape.ShapeType.PLACEHOLDER) {
             String name = shape.getName().toLowerCase();
             if (name.contains("title")) {
-                return "title placeholder - edit with content-edit operation";
+                return "title placeholder - edit with edit-content operation";
             } else if (name.contains("content") || name.contains("body")) {
-                return "content placeholder - edit with content-edit operation";
+                return "content placeholder - edit with edit-content operation";
             }
-            return "placeholder - edit with content-edit operation";
+            return "placeholder - edit with edit-content operation";
         }
         
         if (shape.hasText()) {
-            return "text shape - edit with content-edit operation instead of creating new shapes";
+            return "text shape - edit with edit-content operation instead of creating new shapes";
         }
         
         return "editable content area";

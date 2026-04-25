@@ -13,24 +13,28 @@ public class TextFormattingPreservationTest {
     
     @Test
     public void testMarkdownBulletPreservation() {
+        // Modern flat-payload form. Pre-2026-04-24 this test passed
+        // because the LLMRequestBridge had a "shapeData" flatten rule
+        // that hoisted the nested keys to top-level. The flatten rule
+        // (and the legacy "shape-addition" action-type alias) was
+        // deleted when the seam collapse landed; the test now exercises
+        // the same JSON-level escape-sequence preservation it always
+        // intended to, just through the canonical schema shape.
         String jsonWithBullets = """
         {
           "schemaVersion": "1.0",
           "operations": [
             {
-              "type": "shape-addition",
+              "type": "add-shape",
               "parameters": {
                 "slideNumber": 1,
-                "shapeData": {
-                  "name": "Test Shape",
-                  "text": "Java Programming Language\\n- Platform independent\\n  - Write once, run anywhere\\n  - JVM handles platform differences\\n- Object-oriented programming",
-                  "geometry": {
-                    "x": 838200,
-                    "y": 1825625,
-                    "width": 3800000,
-                    "height": 4000000
-                  }
-                }
+                "shapeType": "RECTANGLE",
+                "name": "Test Shape",
+                "text": "Java Programming Language\\n- Platform independent\\n  - Write once, run anywhere\\n  - JVM handles platform differences\\n- Object-oriented programming",
+                "x": 838200,
+                "y": 1825625,
+                "width": 3800000,
+                "height": 4000000
               },
               "description": "Test markdown bullet preservation"
             }
@@ -43,35 +47,30 @@ public class TextFormattingPreservationTest {
           }
         }
         """;
-        
+
         RequestParser parser = new RequestParser();
         ExecutionResult<RequestSchema.LLMRequest> result = parser.parseRequest(jsonWithBullets);
-        
+
         assertTrue("Parsing should succeed", result.isSuccess());
         RequestSchema.LLMRequest request = result.getData().get();
         assertNotNull("Request should not be null", request);
-        
+
         assertEquals("Should have 1 operation", 1, request.getActions().size());
-        
+
         RequestSchema.ActionRequest operation = request.getActions().get(0);
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> shapeData = (java.util.Map<String, Object>) operation.getParameters().get("shapeData");
-        String text = (String) shapeData.get("text");
-        
+        String text = (String) operation.getParameters().get("text");
+
         assertNotNull("Text should not be null", text);
-        
+
         // Check that newlines are preserved
         assertTrue("Text should contain actual newlines", text.contains("\n"));
-        
+
         // Check that markdown bullets are preserved
         assertTrue("Text should contain markdown bullets", text.contains("- Platform independent"));
         assertTrue("Text should contain indented bullets", text.contains("  - Write once"));
-        
+
         // Check that backslash-n is converted to actual newlines
         assertFalse("Text should not contain literal \\n", text.contains("\\n"));
-        
-        System.out.println("Preserved text content:");
-        System.out.println(text);
     }
     
     @Test
@@ -81,19 +80,16 @@ public class TextFormattingPreservationTest {
           "schemaVersion": "1.0",
           "operations": [
             {
-              "type": "shape-addition",
+              "type": "add-shape",
               "parameters": {
                 "slideNumber": 1,
-                "shapeData": {
-                  "name": "Code Example",
-                  "text": "public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\"Hello, Java!\\");\\n    }\\n}",
-                  "geometry": {
-                    "x": 5000000,
-                    "y": 2000000,
-                    "width": 3500000,
-                    "height": 2000000
-                  }
-                }
+                "shapeType": "RECTANGLE",
+                "name": "Code Example",
+                "text": "public class HelloWorld {\\n    public static void main(String[] args) {\\n        System.out.println(\\"Hello, Java!\\");\\n    }\\n}",
+                "x": 5000000,
+                "y": 2000000,
+                "width": 3500000,
+                "height": 2000000
               },
               "description": "Test multiline code preservation"
             }
@@ -106,24 +102,18 @@ public class TextFormattingPreservationTest {
           }
         }
         """;
-        
+
         RequestParser parser = new RequestParser();
         ExecutionResult<RequestSchema.LLMRequest> result = parser.parseRequest(jsonWithMultiline);
-        
+
         assertTrue("Parsing should succeed", result.isSuccess());
         RequestSchema.LLMRequest request = result.getData().get();
-        
+
         RequestSchema.ActionRequest operation = request.getActions().get(0);
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> shapeData = (java.util.Map<String, Object>) operation.getParameters().get("shapeData");
-        String text = (String) shapeData.get("text");
-        
-        // Check that code formatting is preserved
+        String text = (String) operation.getParameters().get("text");
+
         assertTrue("Code should contain actual newlines", text.contains("\n"));
         assertTrue("Code should contain indentation", text.contains("    public static"));
         assertFalse("Code should not contain literal \\n", text.contains("\\n"));
-        
-        System.out.println("Preserved code content:");
-        System.out.println(text);
     }
 }

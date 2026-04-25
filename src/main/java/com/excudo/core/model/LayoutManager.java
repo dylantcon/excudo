@@ -186,14 +186,14 @@ public class LayoutManager {
         context.append("- SPID 1: Group shape (always present, structural)\n");
         context.append("- SPID 2: Title placeholder (if layout has title)\n"); 
         context.append("- SPID 3+: Content placeholders (sequential order)\n");
-        context.append("- Use predicted SPIDs for content-edit and animation-edit operations\n");
+        context.append("- Use predicted SPIDs for edit-content and add-animation operations\n");
         context.append("- Target existing placeholders instead of creating new shapes\n\n");
-        
+
         context.append("PRECOGNIZANT WORKFLOW EXAMPLE:\n");
         context.append("1. Choose layoutId → Know exact SPID allocation\n");
-        context.append("2. slide-creation → Creates predictable placeholder structure\n");
-        context.append("3. content-edit → Target predicted SPIDs directly\n");
-        context.append("4. animation-edit → Animate predicted SPIDs in sequence\n");
+        context.append("2. create → Creates predictable placeholder structure\n");
+        context.append("3. edit-content → Target predicted SPIDs directly\n");
+        context.append("4. add-animation → Animate predicted SPIDs in sequence\n");
         
         return context.toString();
     }

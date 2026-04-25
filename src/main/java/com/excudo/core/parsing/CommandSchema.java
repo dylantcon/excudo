@@ -23,7 +23,6 @@ public class CommandSchema {
     private final boolean allowsNamedParameters;
     private final boolean llmEnabled;
     private final String llmDescription;
-    private final String llmAlias;
 
     private CommandSchema(Builder builder) {
         this.name = builder.name;
@@ -35,7 +34,6 @@ public class CommandSchema {
         this.allowsNamedParameters = builder.allowsNamedParameters;
         this.llmEnabled = builder.llmEnabled;
         this.llmDescription = builder.llmDescription;
-        this.llmAlias = builder.llmAlias;
     }
     
     /**
@@ -124,10 +122,6 @@ public class CommandSchema {
 
     public String getLlmDescription() {
         return llmDescription != null ? llmDescription : description;
-    }
-
-    public String getLlmAlias() {
-        return llmAlias;
     }
 
     public String getName() {
@@ -444,7 +438,6 @@ public class CommandSchema {
         private boolean allowsNamedParameters = true;
         private boolean llmEnabled = false;
         private String llmDescription;
-        private String llmAlias;
 
         public Builder(String name) {
             this.name = name;
@@ -483,15 +476,6 @@ public class CommandSchema {
          */
         public Builder llmDescription(String desc) {
             this.llmDescription = desc;
-            return this;
-        }
-
-        /**
-         * Set a legacy LLM action type alias for backward compatibility.
-         * The bridge will recognize requests using this old name.
-         */
-        public Builder llmAlias(String alias) {
-            this.llmAlias = alias;
             return this;
         }
 

@@ -524,7 +524,7 @@ public class LLMIntegrationService {
             
             if (context == null) {
                 logger.error("CRITICAL: No presentation context available for Command pattern");
-                logger.error("This will cause all content-edit, animation-edit, and enhanced-content commands to fail");
+                logger.error("This will cause all edit-content, add-animation, and enhance commands to fail");
                 return new BatchExecutionResult(0, 0, 1, 
                     Collections.emptyList(),
                     Collections.singletonMap("error", "No presentation context available"));

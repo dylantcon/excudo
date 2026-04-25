@@ -8,41 +8,42 @@ import com.excudo.core.parsing.ParsedCommand;
 import java.util.*;
 
 /**
- * Bridges LLM ActionRequests to ParsedCommands using CommandSchema as the single source of truth.
+ * Adapts LLM {@link RequestSchema.ActionRequest}s to {@link ParsedCommand}s
+ * using {@link CommandSchema} as the single source of truth.
  *
- * This class eliminates the dual dispatch pattern (createFromParsedCommand vs createFromActionRequest)
- * by converting LLM requests into the same ParsedCommand format used by the console.
+ * <p>Handles only what the schema can't express implicitly:
+ * <ul>
+ *   <li>Per-command parameter name mapping ({@code llmName} → canonical),
+ *       built once from each schema's parameter list.</li>
+ *   <li>Type coercion (the JSON-side Number/Boolean values are stringified
+ *       to fit {@link ParsedCommand}'s string-only payload).</li>
+ * </ul>
  *
- * Handles:
- * - Action type name mapping (old LLM names -> canonical console names)
- * - Parameter name mapping (e.g. "slideNumber" -> "slide", "targetSpid" -> "spid")
- * - Nested object flattening (e.g. animationData.animationType -> type)
- * - Type coercion (Number -> String for ParsedCommand compatibility)
+ * <p>Everything else used to live here — a parallel {@code llmAlias}
+ * registry that mapped legacy action-type names ({@code animation-edit},
+ * {@code shape-addition}, ...) to canonical commands, hardcoded
+ * {@code clickTrigger}/{@code animationType} renames, and 200 lines of
+ * nested-object flattening rules for old LLM payload shapes. None of it
+ * was earning its keep: the alias names duplicated the canonical names
+ * the schema already declared, and the flatten rules existed only because
+ * the legacy aliases used different parameter shapes. Deleted in the
+ * 2026-04-24 seam-collapse pass.
  */
 public class LLMRequestBridge {
 
-    // Legacy action type -> canonical command name mappings
-    // Built dynamically from CommandRegistry's llmAlias fields
-    private final Map<String, String> actionTypeToCommandName;
-
-    // Per-command: LLM param name -> canonical param name
-    // Built dynamically from CommandSchema's parameter llmName fields
+    // Per-command: LLM param name -> canonical param name. Built once from
+    // each schema's parameter list at construction time.
     private final Map<String, Map<String, String>> commandParamMappings;
 
-    // Nested object flattening rules: actionType -> { nestedKey -> list of sub-params to extract }
-    private final Map<String, Map<String, List<String>>> flatteningRules;
-
     public LLMRequestBridge() {
-        this.actionTypeToCommandName = buildActionTypeMap();
         this.commandParamMappings = buildParamMappings();
-        this.flatteningRules = buildFlatteningRules();
     }
 
     /**
      * Convert an LLM ActionRequest into a ParsedCommand.
      *
      * @param actionRequest the LLM action request
-     * @return ParsedCommand ready for createFromParsedCommand()
+     * @return ParsedCommand ready for the command factory
      * @throws IllegalArgumentException if the action type is unknown
      */
     public ParsedCommand bridge(RequestSchema.ActionRequest actionRequest) {
@@ -50,26 +51,17 @@ public class LLMRequestBridge {
         Map<String, Object> params = actionRequest.getParameters();
         if (params == null) params = Collections.emptyMap();
 
-        // Resolve canonical command name
         String commandName = resolveCommandName(actionType);
 
-        // Flatten nested objects first
-        Map<String, Object> flatParams = flattenParams(actionType, params);
-
-        // Map LLM parameter names to canonical names
-        Map<String, String> paramMapping = commandParamMappings.getOrDefault(commandName, Collections.emptyMap());
+        Map<String, String> paramMapping = commandParamMappings.getOrDefault(
+            commandName, Collections.emptyMap());
         Map<String, String> canonicalParams = new HashMap<>();
-
-        for (Map.Entry<String, Object> entry : flatParams.entrySet()) {
-            String llmKey = entry.getKey();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
             Object value = entry.getValue();
             if (value == null) continue;
-
-            // Find canonical parameter name
-            String canonicalKey = paramMapping.getOrDefault(llmKey, llmKey);
+            String canonicalKey = paramMapping.getOrDefault(entry.getKey(), entry.getKey());
             canonicalParams.put(canonicalKey, String.valueOf(value));
         }
-
         return new ParsedCommand(commandName, canonicalParams);
     }
 
@@ -88,34 +80,24 @@ public class LLMRequestBridge {
     }
 
     /**
-     * Resolve a (possibly legacy) action type to its canonical command name.
+     * Resolve an action type to its canonical command name. Direct lookup
+     * only — there is no longer any legacy-alias machinery.
      */
     public String resolveCommandName(String actionType) {
-        // Direct match: action type IS a registered command name
         if (CommandRegistry.getSchema(actionType) != null) {
             return actionType;
-        }
-        // Legacy alias match
-        String mapped = actionTypeToCommandName.get(actionType);
-        if (mapped != null) {
-            return mapped;
         }
         throw new IllegalArgumentException(
             "Unknown LLM action type: '" + actionType + "'. " +
             "Known commands: " + String.join(", ", getLLMEnabledCommandNames()));
     }
 
-    /**
-     * Check if a given action type (or its alias) is recognized.
-     */
+    /** Check if an action type matches a registered LLM-enabled command. */
     public boolean isRecognizedActionType(String actionType) {
-        return CommandRegistry.getSchema(actionType) != null
-            || actionTypeToCommandName.containsKey(actionType);
+        return CommandRegistry.getSchema(actionType) != null;
     }
 
-    /**
-     * Get all LLM-enabled command names (for system prompt generation).
-     */
+    /** All LLM-enabled command names, sorted (for system-prompt + error msgs). */
     public List<String> getLLMEnabledCommandNames() {
         List<String> names = new ArrayList<>();
         for (CommandSchema schema : CommandRegistry.getAllSchemas().values()) {
@@ -130,19 +112,6 @@ public class LLMRequestBridge {
     // ========== PRIVATE HELPERS ==========
 
     /**
-     * Build action type -> command name mapping from CommandRegistry.
-     */
-    private static Map<String, String> buildActionTypeMap() {
-        Map<String, String> map = new HashMap<>();
-        for (CommandSchema schema : CommandRegistry.getAllSchemas().values()) {
-            if (schema.getLlmAlias() != null) {
-                map.put(schema.getLlmAlias(), schema.getName());
-            }
-        }
-        return map;
-    }
-
-    /**
      * Build per-command parameter name mappings from CommandSchema.
      */
     private static Map<String, Map<String, String>> buildParamMappings() {
@@ -153,99 +122,6 @@ public class LLMRequestBridge {
                 result.put(schema.getName(), paramMap);
             }
         }
-        return result;
-    }
-
-    /**
-     * Define rules for flattening nested objects in legacy LLM requests.
-     * Key = legacy action type, value = map of nested object key -> sub-param names.
-     */
-    private static Map<String, Map<String, List<String>>> buildFlatteningRules() {
-        Map<String, Map<String, List<String>>> rules = new HashMap<>();
-
-        // animation-edit: flatten animationData -> top-level params
-        Map<String, List<String>> animRules = new HashMap<>();
-        animRules.put("animationData", List.of(
-            "animationType", "direction", "clickTrigger", "trigger",
-            "animationGroup", "duration", "path", "accel", "decel",
-            "rotationDegrees", "scalePercent", "color", "opacity", "intensity"
-        ));
-        rules.put("animation-edit", animRules);
-
-        // shape-addition: flatten shapeData and shapeData.geometry -> top-level
-        Map<String, List<String>> shapeRules = new HashMap<>();
-        shapeRules.put("shapeData", List.of("name", "text"));
-        shapeRules.put("shapeData.geometry", List.of("x", "y", "width", "height"));
-        rules.put("shape-addition", shapeRules);
-
-        // content-edit: flatten shapeData.geometry if present
-        Map<String, List<String>> contentRules = new HashMap<>();
-        contentRules.put("shapeData", List.of("name", "text"));
-        contentRules.put("shapeData.geometry", List.of("x", "y", "width", "height"));
-        rules.put("content-edit", contentRules);
-
-        // enhanced-content: flatten geometry
-        Map<String, List<String>> enhanceRules = new HashMap<>();
-        enhanceRules.put("geometry", List.of("x", "y", "width", "height"));
-        rules.put("enhanced-content", enhanceRules);
-
-        // bullet-point-edit: flatten animationData
-        Map<String, List<String>> bulletRules = new HashMap<>();
-        bulletRules.put("animationData", List.of("animationType", "transition", "clickTrigger", "duration"));
-        rules.put("bullet-point-edit", bulletRules);
-
-        return rules;
-    }
-
-    /**
-     * Flatten nested objects in the parameter map according to flattening rules.
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> flattenParams(String actionType, Map<String, Object> params) {
-        Map<String, Object> result = new LinkedHashMap<>(params);
-        Map<String, List<String>> rules = flatteningRules.get(actionType);
-        if (rules == null) return result;
-
-        for (Map.Entry<String, List<String>> rule : rules.entrySet()) {
-            String path = rule.getKey();
-            List<String> subKeys = rule.getValue();
-
-            // Handle dotted paths (e.g. "shapeData.geometry")
-            String[] parts = path.split("\\.");
-            Object nested = result.get(parts[0]);
-            for (int i = 1; i < parts.length && nested instanceof Map; i++) {
-                nested = ((Map<String, Object>) nested).get(parts[i]);
-            }
-
-            if (nested instanceof Map) {
-                Map<String, Object> nestedMap = (Map<String, Object>) nested;
-                for (String subKey : subKeys) {
-                    Object val = nestedMap.get(subKey);
-                    if (val != null && !result.containsKey(subKey)) {
-                        result.put(subKey, val);
-                    }
-                }
-            }
-        }
-
-        // Remove the nested objects themselves (they've been flattened)
-        for (String path : rules.keySet()) {
-            String topKey = path.split("\\.")[0];
-            result.remove(topKey);
-        }
-
-        // Handle clickTrigger -> trigger mapping (animation-specific normalization)
-        if (result.containsKey("clickTrigger") && !result.containsKey("trigger")) {
-            result.put("trigger", String.valueOf(result.get("clickTrigger")));
-            result.remove("clickTrigger");
-        }
-
-        // Handle animationType -> type mapping
-        if (result.containsKey("animationType") && !result.containsKey("type")) {
-            result.put("type", result.get("animationType"));
-            result.remove("animationType");
-        }
-
         return result;
     }
 
