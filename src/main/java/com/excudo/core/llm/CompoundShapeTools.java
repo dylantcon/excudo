@@ -68,8 +68,18 @@ public class CompoundShapeTools {
      * of the requested width goes to the code panel.
      */
     public String createCodeBox(String toolInput) {
+        // SPIDs allocated during this call. On any failure path we roll
+        // them back via removeShape so the slide is left in the same
+        // state it would have been if the call had been rejected outright.
+        // The 2026-04-22 beta logs flagged "error returned + partial
+        // shapes persisted" as the worst-case API shape -- LLM's world
+        // model diverges from reality and downstream calls compose around
+        // shapes that don't exist (or DO exist but the agent doesn't know).
+        List<Integer> created = new ArrayList<>();
+        Integer slideForRollback = null;
         try {
             int slideNumber = extractInt(toolInput, "slideNumber");
+            slideForRollback = slideNumber;
             String code = extractString(toolInput, "code");
             String language = extractString(toolInput, "language");
             if (code == null || code.isEmpty()) {
@@ -151,7 +161,14 @@ public class CompoundShapeTools {
                 return "Error: Failed to create line number panel";
             }
             int lineNumSpid = lineNumResult.getData().get();
-            orchestrator.setTextBody(slideNumber, lineNumSpid, lineNumBody);
+            created.add(lineNumSpid);
+            ExecutionResult<Void> lineNumTextResult =
+                orchestrator.setTextBody(slideNumber, lineNumSpid, lineNumBody);
+            if (lineNumTextResult == null || !lineNumTextResult.isSuccess()) {
+                rollbackCreated(slideForRollback, created);
+                return "Error: Failed to set line number text body: "
+                    + (lineNumTextResult != null ? lineNumTextResult.getMessage() : "null result");
+            }
 
             // -- Code panel --
             TextBody codeBody = buildCodeBody(lines, language, codeBodyProps);
@@ -162,29 +179,72 @@ public class CompoundShapeTools {
                 codeGeom, "", "Code", darkStyle);
 
             if (codeResult == null || codeResult.getData().isEmpty()) {
+                rollbackCreated(slideForRollback, created);
                 return "Error: Failed to create code panel";
             }
             int codeSpid = codeResult.getData().get();
-            orchestrator.setTextBody(slideNumber, codeSpid, codeBody);
+            created.add(codeSpid);
+            ExecutionResult<Void> codeTextResult =
+                orchestrator.setTextBody(slideNumber, codeSpid, codeBody);
+            if (codeTextResult == null || !codeTextResult.isSuccess()) {
+                rollbackCreated(slideForRollback, created);
+                return "Error: Failed to set code text body: "
+                    + (codeTextResult != null ? codeTextResult.getMessage() : "null result");
+            }
 
             // Group the two panels so the LLM can move/resize the code box as one unit
             ExecutionResult<Integer> groupResult = orchestrator.groupShapes(
                 slideNumber, List.of(lineNumSpid, codeSpid));
             if (groupResult != null && groupResult.getData().isPresent()) {
                 int groupSpid = groupResult.getData().get();
+                // Group succeeded -- we no longer roll the children back
+                // (they're tracked transitively via the group). The group
+                // SPID is the user-visible handle either way.
+                created.clear();
                 return "Created code box on slide " + slideNumber
                     + " (group SPID " + groupSpid + ")."
                     + " Language: " + language + ", " + lines.length + " lines."
                     + " Use SPID " + groupSpid + " to move or resize the entire code box.";
             }
 
+            // Grouping failed but the panels exist as siblings -- accept
+            // the partial-success since the caller can still position
+            // them individually. Don't roll back: the call DID create
+            // useful output, just without the group affordance.
+            created.clear();
             return "Created code box on slide " + slideNumber
                 + ": line numbers (SPID " + lineNumSpid + ") + code (SPID " + codeSpid + ")."
                 + " Language: " + language + ", " + lines.length + " lines.";
 
         } catch (Exception e) {
+            rollbackCreated(slideForRollback, created);
             return "Error creating code box: " + e.getMessage();
         }
+    }
+
+    /**
+     * Best-effort rollback: remove every SPID we allocated during a
+     * failed createCodeBox call. Errors during rollback are swallowed
+     * so the caller still sees the original failure message rather
+     * than a confusing rollback error -- but we log them so the next
+     * person debugging knows the slide may have leaked a shape.
+     */
+    private void rollbackCreated(Integer slideNumber, List<Integer> spids) {
+        if (slideNumber == null || spids.isEmpty()) return;
+        for (int i = spids.size() - 1; i >= 0; i--) {
+            int spid = spids.get(i);
+            try {
+                ExecutionResult<Void> r = orchestrator.removeShape(slideNumber, spid);
+                if (r != null && !r.isSuccess()) {
+                    System.err.println("[CompoundShapeTools] rollback removeShape failed for SPID "
+                        + spid + ": " + r.getMessage());
+                }
+            } catch (Exception rollbackEx) {
+                System.err.println("[CompoundShapeTools] rollback threw for SPID "
+                    + spid + ": " + rollbackEx.getMessage());
+            }
+        }
+        spids.clear();
     }
 
     // ------------------------------------------------------------------

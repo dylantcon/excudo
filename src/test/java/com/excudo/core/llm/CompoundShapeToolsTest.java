@@ -20,14 +20,25 @@ public class CompoundShapeToolsTest {
                             ShapeGeometry geometry, String text, String name, ShapeStyle style) {}
         record SetTextBodyCall(int slideNumber, int spid, TextBody textBody) {}
         record SetStyleCall(int slideNumber, int spid, ShapeStyle style) {}
+        record RemoveShapeCall(int slideNumber, int spid) {}
 
         final List<AddShapeCall> addShapeCalls = new ArrayList<>();
         final List<SetTextBodyCall> setTextBodyCalls = new ArrayList<>();
         final List<SetStyleCall> setStyleCalls = new ArrayList<>();
+        final List<RemoveShapeCall> removeShapeCalls = new ArrayList<>();
+
+        // Failure injection knobs for transactional-safety testing.
+        int failAddShapeAfterCalls = -1;        // -1 = never fail
+        int failSetTextBodyAfterCalls = -1;     // -1 = never fail
+        boolean groupShapesShouldFail = false;
 
         @Override
         public ExecutionResult<Integer> addShape(int slideNumber, SlideShape.ShapeType shapeType,
                                                   ShapeGeometry geometry, String text, String shapeName) {
+            if (failAddShapeAfterCalls >= 0 && addShapeCalls.size() >= failAddShapeAfterCalls) {
+                addShapeCalls.add(new AddShapeCall(slideNumber, shapeType, geometry, text, shapeName, null));
+                return ExecutionResult.failure("AddShape", "injected failure");
+            }
             addShapeCalls.add(new AddShapeCall(slideNumber, shapeType, geometry, text, shapeName, null));
             return ExecutionResult.success("AddShape", nextSpid++);
         }
@@ -36,12 +47,20 @@ public class CompoundShapeToolsTest {
         public ExecutionResult<Integer> addShape(int slideNumber, SlideShape.ShapeType shapeType,
                                                   ShapeGeometry geometry, String text, String shapeName,
                                                   ShapeStyle style) {
+            if (failAddShapeAfterCalls >= 0 && addShapeCalls.size() >= failAddShapeAfterCalls) {
+                addShapeCalls.add(new AddShapeCall(slideNumber, shapeType, geometry, text, shapeName, style));
+                return ExecutionResult.failure("AddShape", "injected failure");
+            }
             addShapeCalls.add(new AddShapeCall(slideNumber, shapeType, geometry, text, shapeName, style));
             return ExecutionResult.success("AddShape", nextSpid++);
         }
 
         @Override
         public ExecutionResult<Void> setTextBody(int slideNumber, int spid, TextBody textBody) {
+            if (failSetTextBodyAfterCalls >= 0 && setTextBodyCalls.size() >= failSetTextBodyAfterCalls) {
+                setTextBodyCalls.add(new SetTextBodyCall(slideNumber, spid, textBody));
+                return ExecutionResult.failure("SetTextBody", "injected failure");
+            }
             setTextBodyCalls.add(new SetTextBodyCall(slideNumber, spid, textBody));
             return ExecutionResult.success("SetTextBody", null);
         }
@@ -50,6 +69,20 @@ public class CompoundShapeToolsTest {
         public ExecutionResult<Void> updateShapeStyle(int slideNumber, int spid, ShapeStyle style) {
             setStyleCalls.add(new SetStyleCall(slideNumber, spid, style));
             return ExecutionResult.success("UpdateShapeStyle", null);
+        }
+
+        @Override
+        public ExecutionResult<Void> removeShape(int slideNumber, int spid) {
+            removeShapeCalls.add(new RemoveShapeCall(slideNumber, spid));
+            return ExecutionResult.success("RemoveShape", null);
+        }
+
+        @Override
+        public ExecutionResult<Integer> groupShapes(int slideNumber, java.util.List<Integer> spids) {
+            if (groupShapesShouldFail) {
+                return ExecutionResult.failure("GroupShapes", "injected failure");
+            }
+            return ExecutionResult.success("GroupShapes", nextSpid++);
         }
     }
 
@@ -264,5 +297,82 @@ public class CompoundShapeToolsTest {
             CompoundShapeTools.tokenColor("number"));
         assertNotEquals(CompoundShapeTools.tokenColor(null),
             CompoundShapeTools.tokenColor("function"));
+    }
+
+    // ===== Transactional safety on partial failure =====
+
+    /**
+     * The 2026-04-22 beta logs documented the worst-case API shape: an
+     * error returned + partial state persisted. Agents had no way to
+     * detect the divergence between the response shape ("Error: ...")
+     * and the slide actually carrying a leaked LineNumbers panel. The
+     * fix tracks every SPID we allocated and rolls them back on any
+     * failure path so the slide is left exactly as it would have been
+     * had the call been rejected outright.
+     */
+    @Test
+    public void createCodeBox_rollsBackLineNumberPanelWhenCodePanelAddFails() {
+        RecordingOrchestrator orch = new RecordingOrchestrator();
+        // Allow the first addShape (line numbers), reject the second (code panel).
+        orch.failAddShapeAfterCalls = 1;
+        CompoundShapeTools tools = createTools(orch);
+
+        String input = "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\",\"language\":\"python\"}";
+        String result = tools.createCodeBox(input);
+
+        assertTrue("must surface error", result.startsWith("Error"));
+        // Line-numbers panel was created -- it MUST be removed.
+        assertEquals("rollback removeShape called once for line-numbers SPID",
+            1, orch.removeShapeCalls.size());
+        assertEquals(1, orch.removeShapeCalls.get(0).slideNumber());
+        // SPID 100 is the first allocated by RecordingOrchestrator.
+        assertEquals(100, orch.removeShapeCalls.get(0).spid());
+    }
+
+    @Test
+    public void createCodeBox_rollsBackBothPanelsWhenCodeTextBodyFails() {
+        RecordingOrchestrator orch = new RecordingOrchestrator();
+        // Allow the line-numbers setTextBody, reject the code one.
+        orch.failSetTextBodyAfterCalls = 1;
+        CompoundShapeTools tools = createTools(orch);
+
+        String input = "{\"slideNumber\":1,\"code\":\"x = 1\\ny = 2\",\"language\":\"python\"}";
+        String result = tools.createCodeBox(input);
+
+        assertTrue("must surface error", result.startsWith("Error"));
+        // Both panels were created before the failure -- both MUST be removed.
+        assertEquals("rollback removes both SPIDs", 2, orch.removeShapeCalls.size());
+        // Order: code panel first (LIFO removal preserves spTree integrity).
+        assertEquals(101, orch.removeShapeCalls.get(0).spid());
+        assertEquals(100, orch.removeShapeCalls.get(1).spid());
+    }
+
+    @Test
+    public void createCodeBox_doesNotRollBackOnGroupingFailure() {
+        // Partial-success: the panels exist as siblings. The user can
+        // still position them. Don't undo useful work because the group
+        // affordance failed -- just communicate the partial result.
+        RecordingOrchestrator orch = new RecordingOrchestrator();
+        orch.groupShapesShouldFail = true;
+        CompoundShapeTools tools = createTools(orch);
+
+        String input = "{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"python\"}";
+        String result = tools.createCodeBox(input);
+
+        assertFalse("response is not an error -- panels still exist",
+            result.startsWith("Error"));
+        assertEquals("no rollback on grouping failure",
+            0, orch.removeShapeCalls.size());
+    }
+
+    @Test
+    public void createCodeBox_succeedsWithoutAnyRollback() {
+        // Sanity: the happy path does not call removeShape.
+        RecordingOrchestrator orch = new RecordingOrchestrator();
+        CompoundShapeTools tools = createTools(orch);
+
+        tools.createCodeBox("{\"slideNumber\":1,\"code\":\"x = 1\",\"language\":\"python\"}");
+
+        assertEquals(0, orch.removeShapeCalls.size());
     }
 }

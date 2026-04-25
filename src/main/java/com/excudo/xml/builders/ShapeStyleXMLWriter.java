@@ -33,17 +33,39 @@ public final class ShapeStyleXMLWriter {
             style = ShapeStyle.defaultStyle();
         }
 
-        // Find spPr to inject fill/line
+        // Find spPr to inject fill/line. Per ECMA-376 §20.1.8.x, the EG_FillProperties
+        // choice under spPr is single-valued -- one fill child max. Likewise EG_LineProperties
+        // permits one a:ln. Before this clear, applyStyle simply appended new children, so
+        // a set-style call layered the new color over whatever the shape was created with;
+        // the OLDER fill (first child) won at every read, and set-style returned OK while
+        // the visual stayed unchanged. The 2026-04-22 beta logs documented this as silent-accept
+        // on color overrides.
         Element spPr = findChild(shapeElem, "p:spPr");
         if (spPr != null) {
+            if (style.getFill() != null) {
+                removeFillChildren(spPr);
+            }
+            if (style.getLine() != null) {
+                removeChildrenByTagName(spPr, "a:ln");
+            }
             writeFill(doc, spPr, style.getFill());
             writeLine(doc, spPr, style.getLine());
         }
 
+        // Replace any pre-existing p:style siblings (idempotent re-style). Without this,
+        // every set-style call accumulated another <p:style> with a fillRef/lnRef,
+        // bloating the part and producing inconsistent renders downstream when the
+        // multiple-children resolver picks a stale ref.
+        removeChildrenByTagName(shapeElem, "p:style");
+
         // Create and insert p:style after spPr, before txBody.
-        // Skip entirely when ThemeStyleRef.NONE is set (text box pattern: no p:style).
+        // Skip entirely when:
+        //   - ThemeStyleRef.NONE is set (text box pattern: no p:style)
+        //   - explicit fill is set (the spPr fill is the user's intent; competing fillRef
+        //     from a default theme ref would be redundant at best, conflicting at worst).
         ThemeStyleRef effectiveTheme = style.getThemeStyle();
-        if (effectiveTheme != ThemeStyleRef.NONE) {
+        boolean explicitColorOverride = style.getFill() != null || style.getLine() != null;
+        if (effectiveTheme != ThemeStyleRef.NONE && !explicitColorOverride) {
             Element styleElem = writeThemeStyleRef(doc, effectiveTheme, hasText);
             Element txBody = findChild(shapeElem, "p:txBody");
             if (txBody != null) {
@@ -52,6 +74,29 @@ public final class ShapeStyleXMLWriter {
                 shapeElem.appendChild(styleElem);
             }
         }
+    }
+
+    /** Remove any direct-child fill element ({@code a:solidFill / a:gradFill /
+     *  a:noFill / a:blipFill / a:pattFill / a:grpFill}). */
+    private static void removeFillChildren(Element parent) {
+        for (String tag : new String[] {
+                "a:solidFill", "a:gradFill", "a:noFill", "a:blipFill", "a:pattFill", "a:grpFill"}) {
+            removeChildrenByTagName(parent, tag);
+        }
+    }
+
+    /** Remove every direct-child element matching the given prefixed tag name. */
+    private static void removeChildrenByTagName(Element parent, String tagName) {
+        NodeList kids = parent.getChildNodes();
+        java.util.List<Element> toRemove = new java.util.ArrayList<>();
+        for (int i = 0; i < kids.getLength(); i++) {
+            if (kids.item(i) instanceof Element el) {
+                if (el.getTagName().equals(tagName)) {
+                    toRemove.add(el);
+                }
+            }
+        }
+        for (Element el : toRemove) parent.removeChild(el);
     }
 
     /**
