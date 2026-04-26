@@ -64,7 +64,8 @@ public sealed interface CommandSpec permits
         CommandSpec.UngroupSpec,
         CommandSpec.AddToGroupSpec,
         CommandSpec.DetachFromGroupSpec,
-        CommandSpec.CreateCodeBoxSpec {
+        CommandSpec.CreateCodeBoxSpec,
+        CommandSpec.CreateDiagramSpec {
 
     /** Slide number this spec targets. Every spec carries it, so the
      *  DAG's node-to-slide mapping is self-contained. */
@@ -395,6 +396,40 @@ public sealed interface CommandSpec permits
                 throw new IllegalArgumentException("code cannot be empty");
             }
             if (language == null || language.isBlank()) language = "text";
+        }
+    }
+
+    /**
+     * Re-create a mermaid diagram (flowchart or sequence) as a single
+     * high-level spec. Synthesizer emits this when it sees a GROUP shape
+     * tagged with {@code excudo:diagram_v1:<base64-source>} -- without
+     * it, a diagram decomposes into dozens of AddShape specs (one per
+     * node + one per connector + one per label). Editing the diagram
+     * topology would require the LLM to redo the layout math by hand.
+     *
+     * <p>{@code mermaidSource} is the original mermaid text. {@code x},
+     * {@code y}, {@code width}, {@code height} are nullable for the
+     * runtime command's default-content-area behaviour.
+     *
+     * <p>{@code sourceSpidHint} mirrors {@link CreateCodeBoxSpec}'s --
+     * the source-slide group SPID gets remapped to the freshly allocated
+     * SPID on execute so downstream specs that target the diagram
+     * (animations, reorders) continue to work post-replay.
+     */
+    record CreateDiagramSpec(
+            int slideNumber,
+            String mermaidSource,
+            Long x,
+            Long y,
+            Long width,
+            Long height,
+            Integer sourceSpidHint) implements CommandSpec {
+        public CreateDiagramSpec {
+            validateSlide(slideNumber);
+            Objects.requireNonNull(mermaidSource, "mermaidSource");
+            if (mermaidSource.isBlank()) {
+                throw new IllegalArgumentException("mermaidSource cannot be blank");
+            }
         }
     }
 

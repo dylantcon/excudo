@@ -101,43 +101,98 @@ public final class ScriptSynthesizer {
             ShapeSnapshot s = added.shape();
             if (s.type() != com.excudo.core.model.SlideShape.ShapeType.GROUP) continue;
 
+            // Code box?
             String language = com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand
                 .languageFromTag(s.name());
-            if (language == null) continue;
-
-            // Find children of this group in the added set.
-            ShapeSnapshot codePanel = null;
-            java.util.List<Integer> childSpids = new java.util.ArrayList<>();
-            for (SlideStateDiff.ShapeAdded a : diff.added()) {
-                ShapeSnapshot child = a.shape();
-                if (child.parentGroupSpid() != null && child.parentGroupSpid() == s.spid()) {
-                    childSpids.add(child.spid());
-                    if ("Code".equals(child.name())) codePanel = child;
-                }
-            }
-
-            if (codePanel == null || codePanel.textBody() == null) {
-                warnings.add("Code box group SPID " + s.spid()
-                    + " has tag '" + s.name() + "' but no Code child with a text body; "
-                    + "falling back to AddShape decomposition.");
+            if (language != null) {
+                emitCodeBoxFromTag(s, language, slideNumber, diff,
+                    addedBySpid, builder, consumedSpids, warnings);
                 continue;
             }
 
-            String code = extractPlainCode(codePanel.textBody());
-            String lineNumberColor = extractLineNumberColor(addedBySpid, childSpids);
-
-            CommandSpec.CreateCodeBoxSpec spec = new CommandSpec.CreateCodeBoxSpec(
-                slideNumber, language, code,
-                s.geometry().getX(), s.geometry().getY(),
-                s.geometry().getWidth(), s.geometry().getHeight(),
-                lineNumberColor, s.spid());
-            builder.add(spec);
-
-            // Consume the group and every child of the group, plus any
-            // GroupDelta keyed on this group SPID.
-            consumedSpids.add(s.spid());
-            consumedSpids.addAll(childSpids);
+            // Mermaid diagram?
+            String mermaidSource = com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand
+                .sourceFromTag(s.name());
+            if (mermaidSource != null) {
+                emitDiagramFromTag(s, mermaidSource, slideNumber, diff,
+                    builder, consumedSpids);
+                continue;
+            }
         }
+    }
+
+    private static void emitCodeBoxFromTag(ShapeSnapshot s, String language, int slideNumber,
+            SlideStateDiff diff, Map<Integer, ShapeSnapshot> addedBySpid,
+            CommandScript.Builder builder, Set<Integer> consumedSpids,
+            java.util.List<String> warnings) {
+        ShapeSnapshot codePanel = null;
+        java.util.List<Integer> childSpids = new java.util.ArrayList<>();
+        for (SlideStateDiff.ShapeAdded a : diff.added()) {
+            ShapeSnapshot child = a.shape();
+            if (child.parentGroupSpid() != null && child.parentGroupSpid() == s.spid()) {
+                childSpids.add(child.spid());
+                if ("Code".equals(child.name())) codePanel = child;
+            }
+        }
+
+        if (codePanel == null || codePanel.textBody() == null) {
+            warnings.add("Code box group SPID " + s.spid()
+                + " has tag '" + s.name() + "' but no Code child with a text body; "
+                + "falling back to AddShape decomposition.");
+            return;
+        }
+
+        String code = extractPlainCode(codePanel.textBody());
+        String lineNumberColor = extractLineNumberColor(addedBySpid, childSpids);
+
+        CommandSpec.CreateCodeBoxSpec spec = new CommandSpec.CreateCodeBoxSpec(
+            slideNumber, language, code,
+            s.geometry().getX(), s.geometry().getY(),
+            s.geometry().getWidth(), s.geometry().getHeight(),
+            lineNumberColor, s.spid());
+        builder.add(spec);
+
+        // Consume the group and every child of the group; emitGroupDeltas
+        // also skips the GroupDelta keyed on this group's SPID.
+        consumedSpids.add(s.spid());
+        consumedSpids.addAll(childSpids);
+    }
+
+    private static void emitDiagramFromTag(ShapeSnapshot s, String mermaidSource, int slideNumber,
+            SlideStateDiff diff, CommandScript.Builder builder, Set<Integer> consumedSpids) {
+        // Diagrams have many descendant shapes (nodes, connectors, labels);
+        // consume every shape whose parent chain includes this group.
+        java.util.List<Integer> descendants = new java.util.ArrayList<>();
+        for (SlideStateDiff.ShapeAdded a : diff.added()) {
+            ShapeSnapshot child = a.shape();
+            Integer parent = child.parentGroupSpid();
+            // Walk up the parent chain via the addedBySpid index.
+            while (parent != null) {
+                if (parent == s.spid()) {
+                    descendants.add(child.spid());
+                    break;
+                }
+                ShapeSnapshot ancestor = findInDiff(diff, parent);
+                parent = ancestor != null ? ancestor.parentGroupSpid() : null;
+            }
+        }
+
+        CommandSpec.CreateDiagramSpec spec = new CommandSpec.CreateDiagramSpec(
+            slideNumber, mermaidSource,
+            s.geometry().getX(), s.geometry().getY(),
+            s.geometry().getWidth(), s.geometry().getHeight(),
+            s.spid());
+        builder.add(spec);
+
+        consumedSpids.add(s.spid());
+        consumedSpids.addAll(descendants);
+    }
+
+    private static ShapeSnapshot findInDiff(SlideStateDiff diff, int spid) {
+        for (SlideStateDiff.ShapeAdded a : diff.added()) {
+            if (a.shape().spid() == spid) return a.shape();
+        }
+        return null;
     }
 
     /** Concatenate every run's text in document order, splitting paragraphs

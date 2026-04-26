@@ -105,6 +105,44 @@ public class CodeBoxRoundTripTest {
     }
 
     @Test
+    public void diagramGroupCarriesCompoundMarkerAndRoundTrips() throws Exception {
+        // Author a small flowchart on slide 1. The group must carry the
+        // mermaid source encoded in its name so the synthesizer can
+        // reconstruct it as a single CreateDiagramSpec.
+        String mermaid = "graph TD\\n  A --> B\\n  B --> C";
+        String result = dispatcher.dispatch("create_diagram",
+            "{\"slideNumber\":1,\"mermaid\":\"" + mermaid + "\"}");
+        assertFalse("create_diagram must succeed: " + result, result.startsWith("Error"));
+
+        SlideShape group = orchestrator.getSlideData(1).getData().orElseThrow()
+            .getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.GROUP)
+            .findFirst().orElseThrow();
+        assertTrue("Diagram group must carry the compound marker: " + group.getName(),
+            group.getName() != null
+                && group.getName().startsWith("excudo:diagram_v1:"));
+        // Source must round-trip via the marker decoder.
+        String recovered = com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand
+            .sourceFromTag(group.getName());
+        assertNotNull("Source must decode out of the marker", recovered);
+        assertTrue("Decoded source must contain the original arrows: " + recovered,
+            recovered.contains("A --> B") && recovered.contains("B --> C"));
+
+        // Synthesizer emits one CreateDiagramSpec, no AddShape per node.
+        SlideStateBuilder builder = new SlideStateBuilder(orchestrator);
+        var diff = SlideStateDiffer.diff(builder.baseline(1), builder.current(1));
+        var specs = ScriptSynthesizer.synthesize(diff, 1).script().topologicalOrder();
+        long diagramSpecs = specs.stream()
+            .filter(s -> s instanceof CommandSpec.CreateDiagramSpec).count();
+        assertEquals("Synthesizer must emit a single CreateDiagramSpec: " + specs,
+            1, diagramSpecs);
+        long addShapeCount = specs.stream()
+            .filter(s -> s instanceof CommandSpec.AddShapeSpec).count();
+        assertEquals("Per-node AddShapeSpecs must be consumed: " + specs,
+            0, addShapeCount);
+    }
+
+    @Test
     public void scriptRunnerReinstantiatesCodeBoxOnFreshSlide() throws Exception {
         // Source slide carries a code box.
         dispatcher.dispatch("create_code_box",

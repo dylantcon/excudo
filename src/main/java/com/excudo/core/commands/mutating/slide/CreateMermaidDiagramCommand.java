@@ -76,6 +76,40 @@ public class CreateMermaidDiagramCommand implements Command {
     private Integer groupSpid = null;
     private String resultSummary = null;
 
+    /**
+     * Sentinel prefix for the group's {@code cNvPr/@name}. Lets the
+     * synthesizer recognise this compound primitive on parse-back and
+     * emit a single {@code CreateDiagramSpec} instead of the dozens of
+     * AddShape + connector specs the diagram decomposes into.
+     *
+     * <p>The mermaid source is base64-encoded (URL-safe alphabet, no
+     * padding) and appended after the prefix: {@code excudo:diagram_v1:<base64>}.
+     * Encoding is necessary because raw mermaid is multi-line; the
+     * cNvPr/@name attribute can't carry newlines.
+     */
+    public static final String GROUP_TAG_PREFIX = "excudo:diagram_v1:";
+
+    /** Build the group-tag name for a given mermaid source. */
+    public static String tagFor(String mermaidSource) {
+        if (mermaidSource == null) return GROUP_TAG_PREFIX;
+        String b64 = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(mermaidSource.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return GROUP_TAG_PREFIX + b64;
+    }
+
+    /** Recover the mermaid source from a tag-shaped name, or null if
+     *  the name doesn't carry the prefix or the payload is malformed. */
+    public static String sourceFromTag(String name) {
+        if (name == null || !name.startsWith(GROUP_TAG_PREFIX)) return null;
+        try {
+            byte[] decoded = java.util.Base64.getUrlDecoder()
+                .decode(name.substring(GROUP_TAG_PREFIX.length()));
+            return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public CreateMermaidDiagramCommand(int slideNumber, String mermaidText,
                                         Long xOrNull, Long yOrNull,
                                         Long wOrNull, Long hOrNull,
@@ -235,6 +269,20 @@ public class CreateMermaidDiagramCommand implements Command {
                     orchestrator.groupShapes(slideNumber, diagramSpids);
                 if (groupResult != null && groupResult.getData().isPresent()) {
                     this.groupSpid = groupResult.getData().get();
+                    // Tag the group with the mermaid source so
+                    // synthesize_slide_script can round-trip the diagram
+                    // as a single spec instead of decomposing into dozens
+                    // of AddShape + connector specs. Failure is non-fatal:
+                    // an un-tagged diagram still works visually, it just
+                    // won't round-trip via the synthesizer.
+                    try {
+                        orchestrator.updateShapeName(slideNumber, groupSpid, tagFor(mermaidText));
+                    } catch (Exception e) {
+                        java.util.logging.Logger.getLogger(CreateMermaidDiagramCommand.class.getName())
+                            .warning("Failed to tag diagram group " + groupSpid
+                                + " (compound shape will not round-trip via synthesizer): "
+                                + e.getMessage());
+                    }
                 }
             }
 

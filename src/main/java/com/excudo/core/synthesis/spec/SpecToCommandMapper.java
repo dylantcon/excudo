@@ -90,6 +90,10 @@ public final class SpecToCommandMapper {
                                                         s.slideNumber(), s.code(), s.language(),
                                                         s.x(), s.y(), s.width(), s.height(),
                                                         s.lineNumberColor(), orchestrator);
+            case CommandSpec.CreateDiagramSpec s -> new com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand(
+                                                        s.slideNumber(), s.mermaidSource(),
+                                                        s.x(), s.y(), s.width(), s.height(),
+                                                        orchestrator);
         };
     }
 

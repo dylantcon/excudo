@@ -78,6 +78,7 @@ public final class SpecRewriter {
                                                         id -> new CommandSpec.DetachFromGroupSpec(s.slideNumber(), id),
                                                         s.childSpid());
             case CommandSpec.CreateCodeBoxSpec s -> s; // creates SPIDs, doesn't reference any
+            case CommandSpec.CreateDiagramSpec s -> s; // creates SPIDs, doesn't reference any
         };
     }
 

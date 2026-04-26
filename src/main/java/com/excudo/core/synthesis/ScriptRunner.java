@@ -92,6 +92,15 @@ public final class ScriptRunner {
                         spidMap.put(source, allocatedGroup);
                     }
                 }
+                // CreateDiagramSpec: same SPID-mapping needs as code box.
+                if (rewritten instanceof CommandSpec.CreateDiagramSpec cdSpec
+                        && cmd instanceof com.excudo.core.commands.mutating.slide.CreateMermaidDiagramCommand cdCmd) {
+                    Integer allocatedGroup = cdCmd.getGroupSpid();
+                    Integer source = cdSpec.sourceSpidHint();
+                    if (allocatedGroup != null && source != null) {
+                        spidMap.put(source, allocatedGroup);
+                    }
+                }
             }
             return ExecutionResult.success("ScriptRunner", null);
         } catch (CommandExecutionException e) {

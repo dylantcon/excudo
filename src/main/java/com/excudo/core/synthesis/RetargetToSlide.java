@@ -63,6 +63,9 @@ public final class RetargetToSlide {
             case CommandSpec.CreateCodeBoxSpec s -> new CommandSpec.CreateCodeBoxSpec(
                 targetSlide, s.language(), s.code(), s.x(), s.y(),
                 s.width(), s.height(), s.lineNumberColor(), s.sourceSpidHint());
+            case CommandSpec.CreateDiagramSpec s -> new CommandSpec.CreateDiagramSpec(
+                targetSlide, s.mermaidSource(), s.x(), s.y(),
+                s.width(), s.height(), s.sourceSpidHint());
         };
     }
 }
