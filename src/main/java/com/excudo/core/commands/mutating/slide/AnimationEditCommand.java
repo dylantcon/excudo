@@ -199,12 +199,25 @@ public class AnimationEditCommand implements Command {
             // Parse trigger using improved parsing logic
             int triggerValue = parseAnimationTrigger(trigger);
             
-            // Build AnimationBinding using builder pattern
+            // Build AnimationBinding using builder pattern. Duration defaults
+            // to 500ms but can be overridden via the durationMs effectParam --
+            // the schema declares it under add-animation's own `duration` key
+            // (CommandFactory threads it into effectParams so we don't need
+            // another constructor overload).
+            int effectiveDuration = parseIntOrDefault(
+                effectParams.get(AnimationBinding.PARAM_DURATION_MS), 500);
             AnimationBinding.Builder builder = AnimationBinding.builder()
                 .target(spid)
                 .type(animationType)
                 .clickTrigger(triggerValue)
-                .durationMs(500); // 500ms default
+                .durationMs(effectiveDuration);
+
+            // Optional pre-start delay. Honors the schema's `delay` parameter
+            // (llmName: delayMs). Used with with-previous to stagger effects.
+            String delayValue = effectParams.get(AnimationBinding.PARAM_DELAY_MS);
+            if (delayValue != null && !delayValue.isBlank()) {
+                builder.delayMs(parseIntOrDefault(delayValue, 0));
+            }
             
             // Set animation direction/type
             switch (direction) {

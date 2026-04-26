@@ -382,7 +382,10 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 int styleSpid = styleSpidStr != null ? Integer.parseInt(styleSpidStr) : 0;
                 String styleFillColor = parameters.getString("fill-color");
                 String styleLineColor = parameters.getString("line-color");
-                ShapeStyle parsedNewStyle = parseShapeStyle(styleFillColor, styleLineColor);
+                Integer styleFillAlpha = parameters.getInteger("fill-alpha");
+                Integer styleLineAlpha = parameters.getInteger("line-alpha");
+                ShapeStyle parsedNewStyle = parseShapeStyle(
+                    styleFillColor, styleLineColor, styleFillAlpha, styleLineAlpha);
                 if (parsedNewStyle == null) parsedNewStyle = ShapeStyle.defaultStyle();
                 return new SetStyleCommand(styleSlide != null ? styleSlide : 1, styleSpid,
                     parsedNewStyle, orchestrator);
@@ -662,6 +665,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
     }
 
     public static ShapeStyle parseShapeStyle(String fillColor, String lineColor) {
+        return parseShapeStyle(fillColor, lineColor, null, null);
+    }
+
+    /**
+     * Build a ShapeStyle from explicit color + opacity params. Alpha values
+     * are percentages 0-100; null leaves the channel fully opaque (no
+     * a:alpha emitted).
+     */
+    public static ShapeStyle parseShapeStyle(String fillColor, String lineColor,
+                                             Integer fillAlphaPercent, Integer lineAlphaPercent) {
         ShapeFill fill = null;
         ShapeLine line = null;
 
@@ -669,6 +682,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             fill = isSchemeColor(fillColor)
                 ? ShapeFill.scheme(fillColor)
                 : ShapeFill.solid(fillColor);
+            if (fillAlphaPercent != null) fill = fill.withAlphaPercent(fillAlphaPercent);
         }
 
         if (lineColor != null && !lineColor.isEmpty()) {
@@ -676,6 +690,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 ? TextColor.scheme(lineColor)
                 : TextColor.hex(lineColor);
             line = ShapeLine.solid(12700, lc); // 1pt default width
+            if (lineAlphaPercent != null) line = line.withAlphaPercent(lineAlphaPercent);
         }
 
         if (fill == null && line == null) return null;

@@ -21,6 +21,10 @@ public class AnimationBinding {
   public static final String PARAM_OPACITY = "opacity";
   public static final String PARAM_INTENSITY = "intensity";
   public static final String PARAM_MOTION_PATH = "motionPath";
+  /** Delay in milliseconds before the animation starts. */
+  public static final String PARAM_DELAY_MS = "delayMs";
+  /** Override duration in milliseconds (default 500). */
+  public static final String PARAM_DURATION_MS = "durationMs";
   // ========== OOXML IDENTITY ==========
 
   /**

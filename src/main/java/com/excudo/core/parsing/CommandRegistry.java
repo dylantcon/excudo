@@ -182,6 +182,16 @@ public class CommandRegistry {
                 .llmName("durationMs")
                 .defaultValue("500")
                 .build())
+            .parameter(Parameter.builder("delay")
+                .description("Delay before this animation starts, in milliseconds. Used with "
+                    + "with-previous to stagger effects (e.g. three shapes fading together with "
+                    + "delays 0/200/400 produces a wave instead of a simultaneous appear). "
+                    + "Default 0.")
+                .type(ParameterType.INTEGER)
+                .llmName("delayMs")
+                .defaultValue("0")
+                .required(false)
+                .build())
             .parameter(Parameter.builder("path")
                 .description("SVG-like motion path for motion-custom (e.g. 'M 0 0 L 0.25 0.25')")
                 .required(false)
@@ -1705,8 +1715,23 @@ public class CommandRegistry {
                 .llmName("lineColor")
                 .required(false)
                 .build())
+            .parameter(Parameter.builder("fill-alpha")
+                .description("Fill opacity, 0-100 (percent). 100 = fully opaque (default if "
+                    + "fill-color is set), 0 = fully transparent. Use to author muted fills "
+                    + "without picking a paler hex.")
+                .type(ParameterType.INTEGER)
+                .llmName("fillAlpha")
+                .required(false)
+                .build())
+            .parameter(Parameter.builder("line-alpha")
+                .description("Line opacity, 0-100 (percent). Same semantics as fill-alpha.")
+                .type(ParameterType.INTEGER)
+                .llmName("lineAlpha")
+                .required(false)
+                .build())
             .example("set-style 1 3 --fill-color FF5733")
             .example("set-style 1 3 --fill-color accent2 --line-color dk1")
+            .example("set-style 1 3 --fill-color 5B9BD5 --fill-alpha 40  (muted fill)")
             .build();
 
         schemas.put("set-style", schema);

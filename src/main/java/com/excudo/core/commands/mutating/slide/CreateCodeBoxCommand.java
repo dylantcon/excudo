@@ -64,6 +64,8 @@ public class CreateCodeBoxCommand implements Command {
     private final long requestedY;
     private final Long requestedWidthOrNull;
     private final Long requestedHeightOrNull;
+    /** Hex color (no leading #) for the line-number gutter. Null = default dim gray. */
+    private final String lineNumberColor;
     private final PPTXOrchestrator orchestrator;
 
     // State captured during execute() for both result-shape reporting
@@ -79,6 +81,14 @@ public class CreateCodeBoxCommand implements Command {
                                 long x, long y,
                                 Long widthOrNull, Long heightOrNull,
                                 PPTXOrchestrator orchestrator) {
+        this(slideNumber, code, language, x, y, widthOrNull, heightOrNull, null, orchestrator);
+    }
+
+    public CreateCodeBoxCommand(int slideNumber, String code, String language,
+                                long x, long y,
+                                Long widthOrNull, Long heightOrNull,
+                                String lineNumberColor,
+                                PPTXOrchestrator orchestrator) {
         if (orchestrator == null) throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         if (slideNumber <= 0) throw new IllegalArgumentException("Slide number must be positive");
         if (code == null || code.isEmpty()) throw new IllegalArgumentException("code cannot be empty");
@@ -89,6 +99,7 @@ public class CreateCodeBoxCommand implements Command {
         this.requestedY = y;
         this.requestedWidthOrNull = widthOrNull;
         this.requestedHeightOrNull = heightOrNull;
+        this.lineNumberColor = lineNumberColor;
         this.orchestrator = orchestrator;
     }
 
@@ -154,7 +165,7 @@ public class CreateCodeBoxCommand implements Command {
 
             // ---- line-number panel
             TextBody lineNumBody = CompoundShapeTools.buildLineNumberBody(
-                lines.length, bodyProps);
+                lines.length, bodyProps, lineNumberColor);
             ShapeGeometry lineNumGeom = new ShapeGeometry(
                 requestedX, requestedY, lineNumWidth, height);
             int lineNumSpid = addShapeOrFail(lineNumGeom, "LineNumbers", darkStyle);

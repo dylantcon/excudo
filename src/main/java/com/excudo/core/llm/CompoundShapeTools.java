@@ -50,6 +50,18 @@ public final class CompoundShapeTools {
     // ------------------------------------------------------------------
 
     public static TextBody buildLineNumberBody(int lineCount, BodyProperties bodyProps) {
+        return buildLineNumberBody(lineCount, bodyProps, null);
+    }
+
+    /**
+     * Build the line-number gutter text body, optionally with a caller-
+     * supplied color (hex without leading #). When {@code overrideColor}
+     * is null, falls back to the default {@link #COLOR_LINE_NUM} (dim gray).
+     */
+    public static TextBody buildLineNumberBody(int lineCount, BodyProperties bodyProps,
+                                               String overrideColor) {
+        String color = overrideColor != null && !overrideColor.isBlank()
+            ? overrideColor : COLOR_LINE_NUM;
         TextBody.Builder builder = TextBody.builder().bodyProperties(bodyProps);
         for (int i = 1; i <= lineCount; i++) {
             builder.addParagraph(TextParagraph.builder()
@@ -57,7 +69,7 @@ public final class CompoundShapeTools {
                 .addRun(TextRun.builder(String.valueOf(i))
                     .fontSize(FONT_SIZE_CODE)
                     .fontFamily(FONT_MONO)
-                    .hexColor(COLOR_LINE_NUM)
+                    .hexColor(color)
                     .build())
                 .build());
         }

@@ -152,7 +152,7 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "create_code_box",
-            "Syntax-highlighted code box with line numbers and dark background. Width and height auto-size from content (longest line + line count) by default; pass explicit width/height EMU to fill a layout column or reserve space for future content.",
+            "Syntax-highlighted code box with line numbers and dark background. Width and height auto-size from content (longest line + line count) by default; pass explicit width/height EMU to fill a layout column or reserve space for future content. Pass lineNumberColor to recolor the gutter to match a theme accent.",
             "{\"type\":\"object\",\"properties\":"
             + "{\"slideNumber\":{\"type\":\"integer\"},"
             + "\"code\":{\"type\":\"string\"},"
@@ -160,7 +160,8 @@ public class LLMToolDefinitions {
             + "\"x\":{\"type\":\"integer\",\"description\":\"X position in EMU; default 838200\"},"
             + "\"y\":{\"type\":\"integer\",\"description\":\"Y position in EMU; default 1825625\"},"
             + "\"width\":{\"type\":\"integer\",\"description\":\"Optional total width in EMU. Default: auto-sized from longest code line + line-number gutter. Pass explicitly to fill a layout column when content is short.\"},"
-            + "\"height\":{\"type\":\"integer\",\"description\":\"Optional height in EMU. Default: auto-sized from line count.\"}"
+            + "\"height\":{\"type\":\"integer\",\"description\":\"Optional height in EMU. Default: auto-sized from line count.\"},"
+            + "\"lineNumberColor\":{\"type\":\"string\",\"description\":\"Optional hex color (no leading #) for the line-number gutter. Default: 858585 (dim gray).\"}"
             + "},\"required\":[\"slideNumber\",\"code\"]}"
         ));
 

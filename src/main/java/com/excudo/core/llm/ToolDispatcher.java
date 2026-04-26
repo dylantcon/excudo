@@ -804,10 +804,12 @@ public class ToolDispatcher {
             long y = JsonHelper.getLong(input, "y", 1825625L);
             Long widthOrNull = input.has("width") ? JsonHelper.getLong(input, "width", 0L) : null;
             Long heightOrNull = input.has("height") ? JsonHelper.getLong(input, "height", 0L) : null;
+            String lineNumberColor = JsonHelper.getString(input, "lineNumberColor");
 
             com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand cmd =
                 new com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand(
-                    slideNumber, code, language, x, y, widthOrNull, heightOrNull, orchestrator);
+                    slideNumber, code, language, x, y, widthOrNull, heightOrNull,
+                    lineNumberColor, orchestrator);
             try {
                 commandInvoker.executeCommand(cmd);
             } catch (com.excudo.core.commands.CommandExecutionException e) {

@@ -108,7 +108,7 @@ public final class ShapeStyleXMLWriter {
         switch (fill.getType()) {
             case SOLID -> {
                 Element solidFill = doc.createElementNS(XMLConstants.DRAWING_NS, "a:solidFill");
-                appendColorElement(doc, solidFill, fill.getColor());
+                appendColorElement(doc, solidFill, fill.getColor(), fill.getAlphaPercent());
                 spPr.appendChild(solidFill);
             }
             case NO_FILL -> {
@@ -134,7 +134,7 @@ public final class ShapeStyleXMLWriter {
 
         if (line.getColor() != null) {
             Element solidFill = doc.createElementNS(XMLConstants.DRAWING_NS, "a:solidFill");
-            appendColorElement(doc, solidFill, line.getColor());
+            appendColorElement(doc, solidFill, line.getColor(), line.getAlphaPercent());
             ln.appendChild(solidFill);
         }
 
@@ -199,16 +199,37 @@ public final class ShapeStyleXMLWriter {
     }
 
     private static void appendColorElement(Document doc, Element parent, TextColor color) {
+        appendColorElement(doc, parent, color, null);
+    }
+
+    /**
+     * Append the color element ({@code a:srgbClr} or {@code a:schemeClr}),
+     * optionally with an {@code a:alpha} child carrying the supplied opacity.
+     *
+     * <p>OOXML's {@code a:alpha/@val} uses positive-fixed-percent encoding:
+     * an integer 0..100000 representing 0%..100%. Caller passes percent
+     * 0..100; this multiplies by 1000 internally. Values outside the range
+     * are clamped silently rather than failing -- alpha overflow on render
+     * is not load-bearing.
+     */
+    private static void appendColorElement(Document doc, Element parent, TextColor color,
+                                           Integer alphaPercent) {
         if (color == null) return;
+        Element clr;
         if (color.isScheme()) {
-            Element clr = doc.createElementNS(XMLConstants.DRAWING_NS, "a:schemeClr");
+            clr = doc.createElementNS(XMLConstants.DRAWING_NS, "a:schemeClr");
             clr.setAttribute("val", color.getSchemeVal());
-            parent.appendChild(clr);
         } else {
-            Element clr = doc.createElementNS(XMLConstants.DRAWING_NS, "a:srgbClr");
+            clr = doc.createElementNS(XMLConstants.DRAWING_NS, "a:srgbClr");
             clr.setAttribute("val", color.getHexVal());
-            parent.appendChild(clr);
         }
+        if (alphaPercent != null) {
+            int clamped = Math.max(0, Math.min(100, alphaPercent));
+            Element alpha = doc.createElementNS(XMLConstants.DRAWING_NS, "a:alpha");
+            alpha.setAttribute("val", String.valueOf(clamped * 1000));
+            clr.appendChild(alpha);
+        }
+        parent.appendChild(clr);
     }
 
     private static Element findChild(Element parent, String tagName) {

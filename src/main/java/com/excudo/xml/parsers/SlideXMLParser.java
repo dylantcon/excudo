@@ -479,9 +479,24 @@ public class SlideXMLParser {
     if (spidStr.isEmpty()) return null;
     int targetSpid = Integer.parseInt(spidStr);
 
-    // Extract timing information from cTn element
-    String duration = (String) xpath.evaluate("./p:stCondLst/p:cond/@delay", cTnElement, XPathConstants.STRING);
-    String delay = duration; // In our structure, delay is stored in the condition
+    // Extract timing information. The animation's running time lives on
+    // the cBhvr/cTn/@dur of the actual effect element (animEffect, anim,
+    // animScale) -- not on the sibling p:set's cBhvr/cTn (which is the
+    // 1ms visibility flip the oracle prepends to entrance animations).
+    // Skip the p:set path or duration reads back as "1".
+    String duration = (String) xpath.evaluate(
+        ".//*[self::p:animEffect or self::p:anim or self::p:animScale or self::p:animMotion or self::p:animClr or self::p:animRot]"
+        + "/p:cBhvr/p:cTn/@dur",
+        parElement, XPathConstants.STRING);
+    if (duration == null || duration.isEmpty()) {
+        // Fall back to any cBhvr/cTn/@dur if the effect wrapper isn't one
+        // of the recognised forms (e.g. composite custom effects).
+        duration = (String) xpath.evaluate(
+            ".//p:cBhvr/p:cTn/@dur", parElement, XPathConstants.STRING);
+    }
+    // Delay comes from the par-level click-trigger condition.
+    String delay = (String) xpath.evaluate(
+        "./p:stCondLst/p:cond/@delay", cTnElement, XPathConstants.STRING);
 
     // Extract click trigger by finding the parent click trigger node
     int clickTrigger = extractClickTriggerFromContext(parElement);

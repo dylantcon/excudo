@@ -189,6 +189,22 @@ public class CommandFactory extends AbstractCommandFactory {
                                        orchestrator, sessionGroupIdManager, Collections.emptyMap(),
                                        paragraphStart, paragraphEnd);
     }
+
+    /**
+     * Create an animation edit command with both effect parameters and
+     * paragraph-level targeting. Used when a caller passes e.g. delayMs
+     * AND a paragraphStart/paragraphEnd range -- the older two-arg
+     * overloads would silently drop one of them.
+     */
+    public AnimationEditCommand createAnimationEdit(int slideNumber, int spid, String animationType,
+                                                   String direction, String trigger, String animationGroup,
+                                                   Map<String, String> effectParams,
+                                                   Integer paragraphStart, Integer paragraphEnd) {
+        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
+                                       orchestrator, sessionGroupIdManager,
+                                       effectParams != null ? effectParams : Collections.emptyMap(),
+                                       paragraphStart, paragraphEnd);
+    }
     
     /**
      * Create a bullet point edit command.
@@ -516,12 +532,17 @@ public class CommandFactory extends AbstractCommandFactory {
                 Integer paragraphEnd = parameters.getInteger("paragraphEnd");
                 String motionPath = parameters.getString("path");
                 Integer opacity = parameters.getInteger("opacity");
+                Integer delayMs = parameters.getInteger("delay");
+                Integer durationMs = parameters.getInteger("duration");
                 int animSpid = animSpidStr != null ? Integer.parseInt(animSpidStr) : 0;
                 // Use proper animation grouping logic instead of hardcoded "default-group"
                 String cleanTrigger = normalizeAnimationTrigger(trigger != null ? trigger : "on-click");
                 String animationGroup = determineAnimationGroup(cleanTrigger);
 
-                // Build effectParams map
+                // Build effectParams map. Duration / delay flow through here
+                // so AnimationEditCommand can apply them on the builder
+                // without growing another constructor overload -- the synthesizer
+                // already round-trips them as effectParams keys.
                 Map<String, String> animEffectParams = new HashMap<>();
                 if (motionPath != null && !motionPath.isBlank()) {
                     animEffectParams.put(AnimationBinding.PARAM_MOTION_PATH, motionPath);
@@ -529,17 +550,25 @@ public class CommandFactory extends AbstractCommandFactory {
                 if (opacity != null) {
                     animEffectParams.put(AnimationBinding.PARAM_OPACITY, String.valueOf(opacity));
                 }
+                if (delayMs != null) {
+                    animEffectParams.put(AnimationBinding.PARAM_DELAY_MS, String.valueOf(delayMs));
+                }
+                if (durationMs != null) {
+                    animEffectParams.put(AnimationBinding.PARAM_DURATION_MS, String.valueOf(durationMs));
+                }
 
-                if (paragraphStart != null && paragraphEnd != null) {
+                // One unified factory call so the four optional axes
+                // (effectParams, paragraphRange) compose correctly. The
+                // older split branches dropped delay/duration silently
+                // when paragraphRange was also set.
+                boolean hasParagraphRange = paragraphStart != null && paragraphEnd != null;
+                if (!animEffectParams.isEmpty() || hasParagraphRange) {
                     return createAnimationEdit(animSlideNum != null ? animSlideNum : 1, animSpid,
                                              animType, direction != null ? direction : "in",
                                              cleanTrigger, animationGroup,
-                                             paragraphStart, paragraphEnd);
-                }
-                if (!animEffectParams.isEmpty()) {
-                    return createAnimationEdit(animSlideNum != null ? animSlideNum : 1, animSpid,
-                                             animType, direction != null ? direction : "in",
-                                             cleanTrigger, animationGroup, animEffectParams);
+                                             animEffectParams,
+                                             hasParagraphRange ? paragraphStart : null,
+                                             hasParagraphRange ? paragraphEnd : null);
                 }
                 return createAnimationEdit(animSlideNum != null ? animSlideNum : 1, animSpid,
                                          animType, direction != null ? direction : "in",

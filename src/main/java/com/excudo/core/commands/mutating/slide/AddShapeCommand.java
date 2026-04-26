@@ -86,6 +86,19 @@ public class AddShapeCommand implements Command {
             .llmName("lineColor")
             .required(false)
             .build())
+        .parameter(Parameter.builder("fill-alpha")
+            .description("Fill opacity, 0-100 (percent). 100 = fully opaque, 0 = fully "
+                + "transparent. Use to author muted fills without picking a paler hex.")
+            .type(ParameterType.INTEGER)
+            .llmName("fillAlpha")
+            .required(false)
+            .build())
+        .parameter(Parameter.builder("line-alpha")
+            .description("Line opacity, 0-100 (percent). Same semantics as fill-alpha.")
+            .type(ParameterType.INTEGER)
+            .llmName("lineAlpha")
+            .required(false)
+            .build())
         .parameter(Parameter.builder("align")
             .description("Paragraph horizontal alignment for the shape's text. "
                 + "Values: l/left, ctr/center, r/right, just/justify. "
@@ -137,9 +150,11 @@ public class AddShapeCommand implements Command {
 
         String fillColor = p.optString("fill-color").orElse(null);
         String lineColor = p.optString("line-color").orElse(null);
+        Integer fillAlpha = p.optInt("fill-alpha").isPresent() ? p.optInt("fill-alpha").getAsInt() : null;
+        Integer lineAlpha = p.optInt("line-alpha").isPresent() ? p.optInt("line-alpha").getAsInt() : null;
         ShapeStyle style = isTextBoxAlias
             ? ShapeStyle.textBox()
-            : ShapeCommandFactory.parseShapeStyle(fillColor, lineColor);
+            : ShapeCommandFactory.parseShapeStyle(fillColor, lineColor, fillAlpha, lineAlpha);
 
         String alignment = ShapeCommandFactory.normalizeAlignment(
             p.optString("align").orElse(null));
