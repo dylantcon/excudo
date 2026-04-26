@@ -179,15 +179,17 @@ public class LLMToolDefinitionsTest {
     void buildToolsJsonEmptyActiveSetContainsOnlyCore() {
         String json = LLMToolDefinitions.buildToolsJson(new LinkedHashSet<>());
 
-        // Core tools should be present
+        // Match the JSON name binding specifically -- a tool name can also
+        // appear inside another tool's description text (e.g. get_slide_shapes
+        // mentions render_slide as a hint), and a substring-only check would
+        // false-match on that.
         for (LLMToolDefinitions.ToolDefinition tool : LLMToolDefinitions.getCoreTools()) {
-            assertTrue(json.contains(tool.name()),
+            assertTrue(json.contains("\"name\":\"" + tool.name() + "\""),
                 "Core tool should be present: " + tool.name());
         }
 
-        // Deferred tools should NOT be present
         for (LLMToolDefinitions.ToolDefinition tool : LLMToolDefinitions.getDeferredTools()) {
-            assertFalse(json.contains(tool.name()),
+            assertFalse(json.contains("\"name\":\"" + tool.name() + "\""),
                 "Deferred tool should NOT be present without discovery: " + tool.name());
         }
     }
@@ -209,9 +211,11 @@ public class LLMToolDefinitionsTest {
         assertTrue(json.contains("create_diagram"));
         assertTrue(json.contains("validate_layout"));
 
-        // Non-discovered deferred tools absent
-        assertFalse(json.contains("inject_icon"));
-        assertFalse(json.contains("create_code_box"));
+        // Non-discovered deferred tools absent. Match the JSON name binding
+        // specifically so a passing reference inside another tool's
+        // description doesn't false-match.
+        assertFalse(json.contains("\"name\":\"inject_icon\""));
+        assertFalse(json.contains("\"name\":\"create_code_box\""));
     }
 
     // ========== getToolByName ==========

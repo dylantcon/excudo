@@ -256,38 +256,60 @@ public class ToolDispatcher {
         if (getContextService() == null) {
             return "No presentation loaded. Create one first with the 'new' command.";
         }
-        int slideNumber = getToolInputInt(toolInput, "slideNumber");
+        List<Integer> slideNumbers;
         try {
-            ContextService.SlideContext slideCtx = getContextService().getSlideContext(slideNumber);
-            var registry = slideCtx.getSlideData().getShapeRegistry();
-            StringBuilder sb = new StringBuilder();
-            sb.append("Slide ").append(slideNumber).append(":\n");
-            for (SlideShape shape : registry.getAllShapes()) {
-                int depth = registry.getNestingDepth(shape.getSpid());
-                sb.append("  ");
-                for (int i = 0; i < depth; i++) sb.append("  ");
-                sb.append(shape.getSpid()).append(" ");
-                // Display "TEXT_BOX" when the OOXML cNvSpPr/@txBox marker
-                // is set -- preserves the authorial-intent distinction
-                // between a Text Box (Insert -> Text Box) and a styled
-                // rectangle that happens to contain text. Both are
-                // structurally RECTANGLE in the model.
-                sb.append(shape.isTextBox() ? "TEXT_BOX" : shape.getType().toString());
-                if (shape.getName() != null) sb.append(" \"").append(shape.getName()).append("\"");
-                sb.append("\n");
-                // Full paragraph-aware text (bullets and all), indented
-                // under the shape's one-liner. Routed through the single
-                // ShapeTextWriter so this view doesn't silently diverge
-                // from show-slide / show-shape like it used to.
-                if (shape.hasText()) {
-                    String nested = (depth <= 0) ? "    " : "    ".repeat(depth + 1);
-                    com.excudo.core.model.ShapeTextWriter.writeTo(shape, sb, nested);
-                }
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return "Error getting shapes for slide " + slideNumber + ": " + e.getMessage();
+            slideNumbers = resolveSlideNumbers(toolInput);
+        } catch (IllegalArgumentException e) {
+            return "Error: " + e.getMessage();
         }
+        if (slideNumbers.isEmpty()) {
+            return "Error: pass either 'slideNumber' (integer) or 'slideNumbers' "
+                + "(array of integers, or the string \"all\").";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int slideNumber : slideNumbers) {
+            try {
+                ContextService.SlideContext slideCtx = getContextService().getSlideContext(slideNumber);
+                var registry = slideCtx.getSlideData().getShapeRegistry();
+                sb.append("Slide ").append(slideNumber).append(":\n");
+                for (SlideShape shape : registry.getAllShapes()) {
+                    int depth = registry.getNestingDepth(shape.getSpid());
+                    sb.append("  ");
+                    for (int i = 0; i < depth; i++) sb.append("  ");
+                    sb.append(shape.getSpid()).append(" ");
+                    // Display "TEXT_BOX" when the OOXML cNvSpPr/@txBox marker
+                    // is set -- preserves the authorial-intent distinction
+                    // between a Text Box (Insert -> Text Box) and a styled
+                    // rectangle that happens to contain text. Both are
+                    // structurally RECTANGLE in the model.
+                    sb.append(shape.isTextBox() ? "TEXT_BOX" : shape.getType().toString());
+                    if (shape.getName() != null) sb.append(" \"").append(shape.getName()).append("\"");
+                    sb.append("\n");
+                    // Full paragraph-aware text (bullets and all), indented
+                    // under the shape's one-liner. Routed through the single
+                    // ShapeTextWriter so this view doesn't silently diverge
+                    // from show-slide / show-shape like it used to.
+                    if (shape.hasText()) {
+                        String nested = (depth <= 0) ? "    " : "    ".repeat(depth + 1);
+                        com.excudo.core.model.ShapeTextWriter.writeTo(shape, sb, nested);
+                    }
+                }
+                // Hint that the dump cannot convey: pictorial content. The
+                // text-only listing flattens images to "PICTURE" entries with
+                // no visual cue; agents have been guessing about theme
+                // problems when the missing context was just an image. Tag
+                // the slide so the agent knows to call render_slide.
+                if (slideHasImageContent(registry)) {
+                    sb.append("  NOTE: slide contains image content -- ")
+                      .append("call render_slide to see the visual.\n");
+                }
+            } catch (Exception e) {
+                sb.append("Slide ").append(slideNumber).append(":\n");
+                sb.append("  Error: ").append(e.getMessage()).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     private String handleGetShapeDetail(String toolInput) {
@@ -903,28 +925,181 @@ public class ToolDispatcher {
     }
 
     private String handleGetSlideAnimations(String toolInput) {
-        int slideNumber = getToolInputInt(toolInput, "slideNumber");
+        List<Integer> slideNumbers;
         try {
-            ContextService.AnimationContext animCtx = getContextService().getAnimationContext(slideNumber);
-            StringBuilder sb = new StringBuilder();
-            sb.append("Animations on slide ").append(slideNumber).append(":\n");
-            if (animCtx.getAnimationBindings().isEmpty()) {
-                sb.append("  (none)\n");
-            } else {
-                for (AnimationBinding binding : animCtx.getAnimationBindings()) {
-                    sb.append("  Target SPID ").append(binding.getTargetSpid());
-                    sb.append(" | ").append(binding.getAnimationType());
-                    sb.append(" | ").append(binding.getAnimationTypeName());
-                    if (binding.getDuration() != null) {
-                        sb.append(" | Duration: ").append(binding.getDuration());
-                    }
-                    sb.append("\n");
-                }
-            }
-            return sb.toString();
-        } catch (Exception e) {
+            slideNumbers = resolveSlideNumbers(toolInput);
+        } catch (IllegalArgumentException e) {
             return "Error: " + e.getMessage();
         }
+        if (slideNumbers.isEmpty()) {
+            return "Error: pass either 'slideNumber' (integer) or 'slideNumbers' "
+                + "(array of integers, or the string \"all\").";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int slideNumber : slideNumbers) {
+            try {
+                ContextService.AnimationContext animCtx = getContextService().getAnimationContext(slideNumber);
+                sb.append("Animations on slide ").append(slideNumber).append(":\n");
+                if (animCtx.getAnimationBindings().isEmpty()) {
+                    sb.append("  (none)\n");
+                } else {
+                    // Format: Target SPID <n> | <type> | <trigger> | <duration>ms
+                    // Trigger comes from animationGroup ("on-click"/"with-previous"/"after-previous").
+                    // Duration is appended with an explicit "ms" suffix so agents can plan
+                    // staggered effects without re-reading the schema.
+                    for (AnimationBinding binding : animCtx.getAnimationBindings()) {
+                        sb.append("  Target SPID ").append(binding.getTargetSpid());
+                        sb.append(" | ").append(binding.getAnimationType());
+                        sb.append(" | ").append(binding.getAnimationGroup());
+                        String dur = binding.getDuration();
+                        sb.append(" | ").append(dur != null ? dur : "0").append("ms");
+                        sb.append("\n");
+                    }
+                }
+            } catch (Exception e) {
+                sb.append("Animations on slide ").append(slideNumber).append(":\n");
+                sb.append("  Error: ").append(e.getMessage()).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Resolve a slide-set argument from tool input. Accepts:
+     * <ul>
+     *   <li>{@code slideNumber}: a single integer</li>
+     *   <li>{@code slideNumbers}: a JSON array of integers</li>
+     *   <li>{@code slideNumbers}: a string in any of these forms:
+     *     <ul>
+     *       <li>{@code "all"} — every slide in the presentation</li>
+     *       <li>{@code "1-10"} — inclusive range</li>
+     *       <li>{@code "1,3,5-9,12"} — comma-separated mix of singles and ranges</li>
+     *     </ul>
+     *   </li>
+     * </ul>
+     * Returns the resolved slide numbers in caller order (document order for
+     * {@code "all"}, range-expanded order otherwise). Empty list when neither
+     * key is present.
+     *
+     * @throws IllegalArgumentException when {@code slideNumbers} is present
+     *         but malformed (not an array/string, contains non-integers,
+     *         range endpoints reversed or non-numeric, etc).
+     */
+    private List<Integer> resolveSlideNumbers(String toolInput) {
+        JsonObject obj;
+        try {
+            obj = JsonHelper.parseObject(toolInput);
+        } catch (IllegalArgumentException e) {
+            return Collections.emptyList();
+        }
+        JsonElement numbersEl = obj.get("slideNumbers");
+        if (numbersEl != null && !numbersEl.isJsonNull()) {
+            if (numbersEl.isJsonPrimitive() && numbersEl.getAsJsonPrimitive().isString()) {
+                return parseSlideNumberString(numbersEl.getAsString());
+            }
+            if (!numbersEl.isJsonArray()) {
+                throw new IllegalArgumentException(
+                    "'slideNumbers' must be an array of integers or a string "
+                    + "(\"all\", \"1-10\", or \"1,3,5-9\").");
+            }
+            List<Integer> result = new ArrayList<>();
+            for (JsonElement el : numbersEl.getAsJsonArray()) {
+                try {
+                    result.add(el.getAsInt());
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(
+                        "'slideNumbers' entries must be integers, got: " + el);
+                }
+            }
+            return result;
+        }
+        JsonElement singleEl = obj.get("slideNumber");
+        if (singleEl != null && !singleEl.isJsonNull()) {
+            try {
+                return List.of(singleEl.getAsInt());
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    "'slideNumber' must be an integer, got: " + singleEl);
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Parse a string slide-set: {@code "all"}, a single number, an inclusive
+     * range like {@code "5-9"}, or a comma-separated mix like
+     * {@code "1,3,5-9,12"}. Whitespace tolerated.
+     *
+     * @throws IllegalArgumentException on any malformed segment so the agent
+     *         gets a precise complaint rather than a silent dropped slide.
+     */
+    private List<Integer> parseSlideNumberString(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException(
+                "'slideNumbers' string cannot be empty.");
+        }
+        String trimmed = raw.trim();
+        if ("all".equalsIgnoreCase(trimmed)) {
+            return orchestrator.getContext()
+                .map(c -> new ArrayList<>(c.getDocument().getSlideNumbers()))
+                .orElseGet(ArrayList::new);
+        }
+        List<Integer> out = new ArrayList<>();
+        for (String segment : trimmed.split(",")) {
+            String s = segment.trim();
+            if (s.isEmpty()) continue;
+            int dash = s.indexOf('-');
+            if (dash < 0) {
+                try {
+                    out.add(Integer.parseInt(s));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "'slideNumbers' segment must be an integer, got: '" + s + "'");
+                }
+            } else {
+                String startStr = s.substring(0, dash).trim();
+                String endStr = s.substring(dash + 1).trim();
+                int start, end;
+                try {
+                    start = Integer.parseInt(startStr);
+                    end = Integer.parseInt(endStr);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "'slideNumbers' range endpoints must be integers, got: '" + s + "'");
+                }
+                if (end < start) {
+                    throw new IllegalArgumentException(
+                        "'slideNumbers' range end must be >= start, got: '" + s + "'");
+                }
+                for (int i = start; i <= end; i++) out.add(i);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * True iff the slide carries any pictorial content the agent can't see
+     * from the text-only {@code get_slide_shapes} dump. Catches both
+     * standalone {@code p:pic} pictures and any shape that uses
+     * {@code <a:blipFill>} as its fill (image-filled rectangles, etc).
+     *
+     * <p>Surface this as a hint so the agent calls {@code render_slide} when
+     * it needs to reason about the visual — agents have been suspecting
+     * theme breakage when the real issue was an unrendered image.
+     */
+    private static boolean slideHasImageContent(
+            com.excudo.core.model.ShapeRegistry registry) {
+        for (SlideShape shape : registry.getAllShapes()) {
+            if (shape.getType() == SlideShape.ShapeType.PICTURE) return true;
+            org.w3c.dom.Element el = shape.getXmlElement();
+            if (el != null && el.getElementsByTagNameNS(
+                    "http://schemas.openxmlformats.org/drawingml/2006/main",
+                    "blipFill").getLength() > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------

@@ -141,12 +141,14 @@ public class MCPProtocolHandler {
             logger.info("Tool result: {}", result != null && result.length() > 200
                 ? result.substring(0, 200) + "..." : result);
 
-            // render_slide's real payload is binary -- inline the PNG bytes as
-            // an MCP image content block so clients sandboxed away from the
-            // server's filesystem (Claude Desktop via mcp-remote is the
+            // render_slide / render_slides emit a PNG -- inline the bytes
+            // as an MCP image content block so clients sandboxed away from
+            // the server's filesystem (Claude Desktop via mcp-remote is the
             // canonical case) can actually see the render without having to
-            // read a path that doesn't exist on their side.
-            if ("render_slide".equals(toolName)) {
+            // read a path that doesn't exist on their side. The contact
+            // sheet from render_slides is what an agent actually wants for
+            // a deck overview, so it has to round-trip the bytes too.
+            if ("render_slide".equals(toolName) || "render_slides".equals(toolName)) {
                 byte[] bytes = toolDispatcher.getLastRenderBytes();
                 if (bytes != null && bytes.length > 0) {
                     return buildToolResultWithImage(id, result, bytes, "image/png");

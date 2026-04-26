@@ -41,8 +41,16 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "get_slide_shapes",
-            "All shapes on a slide: SPID, type, name, position, text.",
-            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
+            "All shapes on one or more slides: SPID, type, name, position, text. "
+            + "Pass slideNumber for a single slide, or slideNumbers for a batch -- "
+            + "either as an array ([1,3,7]), a range string (\"1-10\"), a "
+            + "comma-separated mix (\"1,3,5-9,12\"), or \"all\" for the whole deck. "
+            + "When a slide contains image content the response appends a NOTE so "
+            + "the agent knows to call render_slide for visual context.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumber\":{\"type\":\"integer\",\"description\":\"Single-slide form.\"},"
+            + "\"slideNumbers\":{\"description\":\"Batch form: integer array, range string \\\"1-10\\\", comma-separated \\\"1,3,5-9\\\", or \\\"all\\\".\"}"
+            + "},\"required\":[]}"
         ));
 
         tools.add(new ToolDefinition(
@@ -127,8 +135,13 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "get_slide_animations",
-            "Animation bindings on a slide: targets, types, sequences.",
-            "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
+            "Animation bindings on one or more slides. Each row: target SPID, "
+            + "animation type, trigger (on-click/with-previous/after-previous), "
+            + "duration in ms. Same slideNumber/slideNumbers shape as get_slide_shapes.",
+            "{\"type\":\"object\",\"properties\":{"
+            + "\"slideNumber\":{\"type\":\"integer\",\"description\":\"Single-slide form.\"},"
+            + "\"slideNumbers\":{\"description\":\"Batch form: integer array, range string \\\"1-10\\\", comma-separated \\\"1,3,5-9\\\", or \\\"all\\\".\"}"
+            + "},\"required\":[]}"
         ));
 
         tools.add(new ToolDefinition(
