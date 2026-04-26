@@ -265,6 +265,14 @@ public class LLMToolDefinitions {
             "{\"type\":\"object\",\"properties\":{},\"required\":[]}"
         ));
 
+        tools.add(new ToolDefinition(
+            "list_shape_types",
+            "Every value of the SlideShape.ShapeType enum, grouped by category, valid as the "
+            + "shape-type / shapeType parameter on add-shape. Use to discover available autoshape "
+            + "presets without guessing names like OVAL (which is ELLIPSE).",
+            "{\"type\":\"object\",\"properties\":{},\"required\":[]}"
+        ));
+
         return tools;
     }
 

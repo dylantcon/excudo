@@ -139,6 +139,7 @@ public class ToolDispatcher {
                 case "render_slides"             -> handleRenderSlides(toolInput);
                 case "list_animation_types"      -> handleListAnimationTypes();
                 case "list_trigger_types"        -> handleListTriggerTypes();
+                case "list_shape_types"          -> handleListShapeTypes();
                 case "get_shape_style"           -> handleGetShapeStyle(toolInput);
                 case "get_transition"            -> handleGetTransition(toolInput);
                 case "get_layout_baseline"       -> handleGetLayoutBaseline(toolInput);
@@ -525,6 +526,16 @@ public class ToolDispatcher {
                 Set<String> unmatched = new java.util.LinkedHashSet<>(requested);
                 unmatched.removeAll(matched);
                 if (!unmatched.isEmpty()) {
+                    // A name the agent asks about may actually be a top-level
+                    // MCP tool (create_code_box, create_diagram, render_slide,
+                    // etc.) rather than an execute_commands subcommand. The
+                    // beta logs show the agent stuck in a loop when this
+                    // distinction was opaque -- explain it explicitly so the
+                    // agent knows to call the tool directly.
+                    Set<String> topLevelToolNames = new java.util.HashSet<>();
+                    for (var t : LLMToolDefinitions.getCoreTools()) topLevelToolNames.add(t.name());
+                    for (var t : LLMToolDefinitions.getDeferredTools()) topLevelToolNames.add(t.name());
+
                     List<String> allLlmNames = schemas.stream()
                         .filter(com.excudo.core.parsing.CommandSchema::isLlmEnabled)
                         .map(com.excudo.core.parsing.CommandSchema::getName)
@@ -532,6 +543,16 @@ public class ToolDispatcher {
                     sb.append("\nNo commands matched: ")
                       .append(String.join(", ", unmatched)).append("\n");
                     for (String name : unmatched) {
+                        // Top-level MCP tool names are spelled with underscores
+                        // (create_code_box) but agents sometimes ask in either
+                        // form -- normalise dashes to underscores for the lookup.
+                        String normalized = name.replace('-', '_');
+                        if (topLevelToolNames.contains(normalized)) {
+                            sb.append("  '").append(name).append("' is a top-level MCP tool, ")
+                              .append("not an execute_commands subcommand. Call ")
+                              .append("excudo:").append(normalized).append(" directly.\n");
+                            continue;
+                        }
                         List<String> suggestions =
                             com.excudo.utils.FuzzyMatcher.findTopMatches(name, allLlmNames, 3, 4);
                         if (!suggestions.isEmpty()) {
@@ -888,6 +909,13 @@ public class ToolDispatcher {
         appendAnimationCategory(sb, AnimationType.getEmphasisTypes(), false);
 
         sb.append("\nEXIT (remove content):\n");
+        // Excudo doesn't carry separate FADE_OUT / FLY_OUT enum values --
+        // the same effect type is reused with `direction=out` on add-animation.
+        // Make that explicit so agents don't read the entrance description
+        // and assume the effect always reveals.
+        sb.append("  (Same effect names as ENTRANCE; pass direction=out on add-animation ");
+        sb.append("to use them as exit animations. The descriptions below apply to the ");
+        sb.append("MOTION SHAPE -- direction governs whether the shape reveals or hides.)\n");
         appendAnimationCategory(sb, AnimationType.getExitTypes(), false);
 
         sb.append("\nMOTION PATHS (move along a path):\n");
@@ -908,6 +936,69 @@ public class ToolDispatcher {
             }
             sb.append('\n');
         }
+    }
+
+    private String handleListShapeTypes() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Shape types valid as the `shape-type` / `shapeType` parameter on add-shape. ");
+        sb.append("Each row: enum name -> OOXML preset (or '-' for meta types). ");
+        sb.append("TEXT_BOX / TEXTBOX are accepted aliases for a plain RECTANGLE with no fill/line.\n\n");
+
+        // Group by the comments in the SlideShape.ShapeType enum so the
+        // listing matches the way agents reason about shape categories
+        // (basic shapes, rectangle variants, arrows, flowchart, etc).
+        // Keys are stable category labels; values are predicates over the
+        // enum constant name.
+        java.util.LinkedHashMap<String, java.util.function.Predicate<String>> groups =
+            new java.util.LinkedHashMap<>();
+        groups.put("Meta", n ->
+            n.equals("PLACEHOLDER") || n.equals("PICTURE") || n.equals("GROUP")
+                || n.equals("CONNECTION") || n.equals("CUSTOM_GEOMETRY"));
+        groups.put("Flowchart", n -> n.startsWith("FLOWCHART_"));
+        groups.put("Action buttons", n -> n.startsWith("ACTION_BUTTON_"));
+        groups.put("Stars and explosions", n -> n.startsWith("STAR_") || n.startsWith("EXPLOSION_"));
+        groups.put("Arrow callouts", n -> n.contains("ARROW_CALLOUT"));
+        groups.put("Arrows", n -> n.contains("ARROW"));
+        groups.put("Other callouts", n -> n.contains("CALLOUT"));
+        groups.put("Connectors", n -> n.contains("CONNECTOR"));
+        groups.put("Brackets and braces", n -> n.contains("BRACKET") || n.contains("BRACE"));
+        groups.put("Math symbols", n -> n.equals("PLUS") || n.equals("MINUS") || n.equals("MULTIPLY")
+            || n.equals("DIVIDE") || n.equals("EQUAL") || n.equals("NOT_EQUAL"));
+
+        java.util.Set<SlideShape.ShapeType> categorized = new java.util.HashSet<>();
+        for (var entry : groups.entrySet()) {
+            java.util.List<SlideShape.ShapeType> hits =
+                Arrays.stream(SlideShape.ShapeType.values())
+                    .filter(t -> entry.getValue().test(t.name()))
+                    .filter(t -> !categorized.contains(t))
+                    .toList();
+            if (hits.isEmpty()) continue;
+            sb.append(entry.getKey()).append(":\n");
+            for (SlideShape.ShapeType t : hits) {
+                appendShapeTypeRow(sb, t);
+                categorized.add(t);
+            }
+            sb.append('\n');
+        }
+
+        // Anything not pulled into a named group lands in "Basic / other".
+        java.util.List<SlideShape.ShapeType> rest =
+            Arrays.stream(SlideShape.ShapeType.values())
+                .filter(t -> !categorized.contains(t))
+                .toList();
+        if (!rest.isEmpty()) {
+            sb.append("Basic shapes / other:\n");
+            for (SlideShape.ShapeType t : rest) appendShapeTypeRow(sb, t);
+        }
+
+        return sb.toString();
+    }
+
+    private static void appendShapeTypeRow(StringBuilder sb, SlideShape.ShapeType t) {
+        sb.append("  ").append(t.name());
+        String preset = t.getOoxmlPreset();
+        sb.append(" -> ").append(preset != null ? preset : "-");
+        sb.append('\n');
     }
 
     private String handleListTriggerTypes() {
