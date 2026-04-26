@@ -7,13 +7,13 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /**
- * Tests ParsedCommand construction, builder, and parameter access.
+ * Tests CommandParameters construction, builder, and parameter access.
  */
-public class ParsedCommandTest {
+public class CommandParametersTest {
 
     @Test
     public void basicConstruction() {
-        ParsedCommand cmd = new ParsedCommand("add-shape",
+        CommandParameters cmd = new CommandParameters("add-shape",
             Map.of("type", "rect", "slide", "1"));
 
         assertEquals("add-shape", cmd.getCommandName());
@@ -23,7 +23,7 @@ public class ParsedCommandTest {
 
     @Test
     public void builderCreatesCommand() {
-        ParsedCommand cmd = ParsedCommand.builder("edit-text")
+        CommandParameters cmd = CommandParameters.builder("edit-text")
             .addParam("slide", 1)
             .addParam("spid", 3)
             .addParam("text", "Hello World")
@@ -37,7 +37,7 @@ public class ParsedCommandTest {
 
     @Test
     public void getStringWithDefault() {
-        ParsedCommand cmd = ParsedCommand.builder("test").build();
+        CommandParameters cmd = CommandParameters.builder("test").build();
 
         assertNull(cmd.getString("missing"));
         assertEquals("fallback", cmd.getString("missing", "fallback"));
@@ -45,7 +45,7 @@ public class ParsedCommandTest {
 
     @Test
     public void getIntegerParsesNumbers() {
-        ParsedCommand cmd = ParsedCommand.builder("move-shape")
+        CommandParameters cmd = CommandParameters.builder("move-shape")
             .addParam("x", 914400)
             .addParam("y", 457200)
             .build();
@@ -57,7 +57,7 @@ public class ParsedCommandTest {
 
     @Test
     public void getBooleanParsesValues() {
-        ParsedCommand cmd = ParsedCommand.builder("config")
+        CommandParameters cmd = CommandParameters.builder("config")
             .addParam("enabled", true)
             .addParam("verbose", false)
             .build();
@@ -68,7 +68,7 @@ public class ParsedCommandTest {
 
     @Test
     public void addParamWithDifferentTypes() {
-        ParsedCommand cmd = ParsedCommand.builder("multi-type")
+        CommandParameters cmd = CommandParameters.builder("multi-type")
             .addParam("string", "text")
             .addParam("int", 42)
             .addParam("double", 3.14)
@@ -85,13 +85,13 @@ public class ParsedCommandTest {
 
     @Test
     public void commandNamePreserved() {
-        ParsedCommand cmd = ParsedCommand.builder("add-animation").build();
+        CommandParameters cmd = CommandParameters.builder("add-animation").build();
         assertEquals("add-animation", cmd.getCommandName());
     }
 
     @Test
     public void emptyParameters() {
-        ParsedCommand cmd = ParsedCommand.builder("help").build();
+        CommandParameters cmd = CommandParameters.builder("help").build();
         assertNull(cmd.getString("anything"));
         assertNull(cmd.getInteger("anything"));
     }
@@ -101,7 +101,7 @@ public class ParsedCommandTest {
         Map<String, String> params = new java.util.LinkedHashMap<>();
         params.put("slide", "2");
         params.put("spid", "5");
-        ParsedCommand cmd = new ParsedCommand("show-shape", params);
+        CommandParameters cmd = new CommandParameters("show-shape", params);
 
         assertEquals("show-shape", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));

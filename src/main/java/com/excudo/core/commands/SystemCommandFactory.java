@@ -6,7 +6,7 @@ import com.excudo.core.commands.readonly.HelpCommand;
 import com.excudo.core.commands.readonly.HistoryCommand;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -57,13 +57,13 @@ public class SystemCommandFactory extends AbstractCommandFactory {
     }
     
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        String commandName = parameters.getCommandName();
         
         switch (commandName) {
             case "help":
             case "?":
-                return createHelp(parsedCommand, displayAdapter);
+                return createHelp(parameters, displayAdapter);
                 
             case "undo":
                 return createUndo(displayAdapter);
@@ -84,9 +84,9 @@ public class SystemCommandFactory extends AbstractCommandFactory {
     /**
      * Create a help command.
      */
-    private Command createHelp(ParsedCommand parsedCommand, Object displayAdapter) {
+    private Command createHelp(CommandParameters parameters, Object displayAdapter) {
         CommandDisplay display = (CommandDisplay) displayAdapter;
-        String topic = parsedCommand.getString("topic");
+        String topic = parameters.getString("topic");
         
         if (topic != null) {
             return new HelpCommand(display, topic);

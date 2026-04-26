@@ -127,13 +127,13 @@ public class CommandSchemaTest {
     }
 
     @Test
-    public void parseWithCorrectPositionalArgsReturnsParsedCommand() throws CommandParseException {
+    public void parseWithCorrectPositionalArgsReturnsCommandParameters() throws CommandParseException {
         CommandSchema schema = CommandSchema.builder("greet")
                 .parameter(requiredStringParam("name", "Recipient name"))
                 .allowsNamedParameters(false)
                 .build();
 
-        ParsedCommand result = schema.parse(new String[]{"Alice"});
+        CommandParameters result = schema.parse(new String[]{"Alice"});
 
         assertEquals("greet", result.getCommandName());
         assertEquals("Alice", result.getString("name"));

@@ -10,7 +10,7 @@ import com.excudo.core.commands.meta.SessionListCommand;
 import com.excudo.core.commands.meta.SessionSwitchCommand;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -61,22 +61,22 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     }
     
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        String commandName = parameters.getCommandName();
         
         switch (commandName) {
             case "load":
             case "open":
-                return createLoad(parsedCommand, displayAdapter);
+                return createLoad(parameters, displayAdapter);
                 
             case "save":
-                return createSave(parsedCommand, displayAdapter);
+                return createSave(parameters, displayAdapter);
 
             case "new":
-                return createNew(parsedCommand, displayAdapter);
+                return createNew(parameters, displayAdapter);
 
             case "session":
-                return createSession(parsedCommand, displayAdapter);
+                return createSession(parameters, displayAdapter);
                 
             default:
                 return null;
@@ -88,8 +88,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a load command.
      */
-    private Command createLoad(ParsedCommand parsedCommand, Object displayAdapter) {
-        String filename = parsedCommand.getString("filename");
+    private Command createLoad(CommandParameters parameters, Object displayAdapter) {
+        String filename = parameters.getString("filename");
         return new LoadCommand(
             (CommandSessionManager) displayAdapter, 
             (CommandSessionContext) displayAdapter, 
@@ -100,8 +100,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a save command.
      */
-    private Command createSave(ParsedCommand parsedCommand, Object displayAdapter) {
-        String saveFilename = parsedCommand.getString("filename");
+    private Command createSave(CommandParameters parameters, Object displayAdapter) {
+        String saveFilename = parameters.getString("filename");
         return new SaveCommand(
             (CommandSessionContext) displayAdapter, 
             (CommandDisplay) displayAdapter, 
@@ -111,8 +111,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a new-presentation command.
      */
-    private Command createNew(ParsedCommand parsedCommand, Object displayAdapter) {
-        String themeId = parsedCommand.getString("themeId");
+    private Command createNew(CommandParameters parameters, Object displayAdapter) {
+        String themeId = parameters.getString("themeId");
         if (themeId == null) themeId = "minimal";
         return new NewPresentationCommand(
             (CommandSessionManager) displayAdapter,
@@ -126,27 +126,27 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a session management command.
      */
-    private Command createSession(ParsedCommand parsedCommand, Object displayAdapter) {
-        String sessionSubcommand = parsedCommand.getString("operation");
+    private Command createSession(CommandParameters parameters, Object displayAdapter) {
+        String sessionSubcommand = parameters.getString("operation");
         if (sessionSubcommand == null) {
             throw new IllegalArgumentException("Session command requires subcommand: create, list, info, close, switch");
         }
 
         switch (sessionSubcommand) {
             case "create":
-                return createSessionCreate(parsedCommand, displayAdapter);
+                return createSessionCreate(parameters, displayAdapter);
                 
             case "list":
                 return createSessionList(displayAdapter);
                 
             case "info":
-                return createSessionInfo(parsedCommand, displayAdapter);
+                return createSessionInfo(parameters, displayAdapter);
                 
             case "close":
-                return createSessionClose(parsedCommand, displayAdapter);
+                return createSessionClose(parameters, displayAdapter);
                 
             case "switch":
-                return createSessionSwitch(parsedCommand, displayAdapter);
+                return createSessionSwitch(parameters, displayAdapter);
                 
             default:
                 throw new IllegalArgumentException("Unknown session subcommand: " + sessionSubcommand);
@@ -156,8 +156,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a session create command.
      */
-    private Command createSessionCreate(ParsedCommand parsedCommand, Object displayAdapter) {
-        String sessionFilename = parsedCommand.getString("args");
+    private Command createSessionCreate(CommandParameters parameters, Object displayAdapter) {
+        String sessionFilename = parameters.getString("args");
         return new SessionCreateCommand(
             (CommandSessionManager) displayAdapter,
             (CommandSessionContext) displayAdapter,
@@ -177,8 +177,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a session info command.
      */
-    private Command createSessionInfo(ParsedCommand parsedCommand, Object displayAdapter) {
-        String infoSessionId = parsedCommand.getString("args");
+    private Command createSessionInfo(CommandParameters parameters, Object displayAdapter) {
+        String infoSessionId = parameters.getString("args");
         return new SessionInfoCommand(
             (CommandSessionManager) displayAdapter,
             (CommandDisplay) displayAdapter,
@@ -188,8 +188,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a session close command.
      */
-    private Command createSessionClose(ParsedCommand parsedCommand, Object displayAdapter) {
-        String closeSessionId = parsedCommand.getString("args");
+    private Command createSessionClose(CommandParameters parameters, Object displayAdapter) {
+        String closeSessionId = parameters.getString("args");
         return new SessionCloseCommand(
             (CommandSessionManager) displayAdapter,
             (CommandSessionContext) displayAdapter,
@@ -200,8 +200,8 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     /**
      * Create a session switch command.
      */
-    private Command createSessionSwitch(ParsedCommand parsedCommand, Object displayAdapter) {
-        String switchSessionId = parsedCommand.getString("args");
+    private Command createSessionSwitch(CommandParameters parameters, Object displayAdapter) {
+        String switchSessionId = parameters.getString("args");
         return new SessionSwitchCommand(
             (CommandSessionManager) displayAdapter,
             (CommandSessionContext) displayAdapter,

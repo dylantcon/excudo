@@ -192,7 +192,7 @@ public class ContentEditCommand implements Command {
      * actually happened (replaced / cleared / prepended / appended +
      * length delta) so silent success no longer looks like silent
      * failure. The adapter is typed as Object at this layer because
-     * ShapeCommandFactory.createFromParsedCommand still uses that
+     * ShapeCommandFactory.createFromParameters still uses that
      * generic signature; we cast via instanceof to stay properly typed.
      */
     private void emitSuccessFeedback() {

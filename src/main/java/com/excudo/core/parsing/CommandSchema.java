@@ -39,7 +39,7 @@ public class CommandSchema {
     /**
      * Parse command arguments according to this schema
      */
-    public ParsedCommand parse(String[] args) throws CommandParseException {
+    public CommandParameters parse(String[] args) throws CommandParseException {
         Map<String, String> values = new HashMap<>();
         
         if (allowsNamedParameters && hasNamedArgs(args)) {
@@ -57,7 +57,7 @@ public class CommandSchema {
         // Validate parameter values
         validateParameterValues(values);
         
-        return new ParsedCommand(name, values);
+        return new CommandParameters(name, values);
     }
     
     /**
@@ -142,7 +142,7 @@ public class CommandSchema {
 
     /**
      * Build a reverse mapping from LLM parameter names to canonical parameter names.
-     * Used by LLMRequestBridge to convert LLM requests to ParsedCommands.
+     * Used by LLMRequestBridge to convert LLM requests to CommandParameters.
      */
     public Map<String, String> buildLlmToCanonicalParamMap() {
         Map<String, String> map = new HashMap<>();

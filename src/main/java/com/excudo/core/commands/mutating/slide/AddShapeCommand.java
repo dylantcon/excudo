@@ -1,13 +1,19 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
+import com.excudo.core.commands.ShapeCommandFactory;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.Parameter.ParameterType;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -15,8 +21,134 @@ import com.excudo.core.results.ExecutionResult;
  *
  * This command leverages the ShapeFactory system to create shapes with proper
  * shape types, geometry, and text content with full undo capability.
+ *
+ * <p>Self-registers via {@link com.excudo.core.parsing.CommandRegistry#registerCommandClass}:
+ * the static {@link #SCHEMA} declares the parameter contract and
+ * {@link #fromParameters} constructs an instance from validated parameters.
+ * The command name is derived from the class name ({@code AddShapeCommand}
+ * → {@code add-shape}) by {@link Command#getCommandName()}.
  */
 public class AddShapeCommand implements Command {
+
+    /** Declarative parameter schema. Picked up by
+     *  {@link com.excudo.core.parsing.CommandRegistry#registerCommandClass} via reflection. */
+    public static final CommandSchema SCHEMA = CommandSchema.builder("add-shape")
+        .description("Add a shape to a slide")
+        .llmEnabled(true)
+        .llmDescription("Add a new shape to a slide.")
+        .parameter(Parameter.builder("slide")
+            .description("Slide number")
+            .type(ParameterType.SLIDE_NUMBER)
+            .llmName("slideNumber")
+            .required(true)
+            .build())
+        .parameter(Parameter.builder("shape-type")
+            .description("Shape type: TEXT_BOX for plain text with no fill/border, "
+                + "or an autoshape preset like RECTANGLE, ELLIPSE, TRIANGLE, "
+                + "ROUNDED_RECTANGLE, etc. See ShapeType enum for the full set.")
+            .llmName("shapeType")
+            .defaultValue("RECTANGLE")
+            .build())
+        .parameter(Parameter.builder("text")
+            .description("Text content placed inside the shape. Markdown supported: "
+                + "**bold**, *italic*, - bullets, 1. numbered, \\n for line breaks. "
+                + "Leave empty for a shape with no text.")
+            .llmName("text")
+            .defaultValue("")
+            .build())
+        .parameter(Parameter.builder("x")
+            .description("X position in EMU")
+            .type(ParameterType.DOUBLE)
+            .required(true)
+            .build())
+        .parameter(Parameter.builder("y")
+            .description("Y position in EMU")
+            .type(ParameterType.DOUBLE)
+            .required(true)
+            .build())
+        .parameter(Parameter.builder("width")
+            .description("Width in EMU")
+            .type(ParameterType.DOUBLE)
+            .required(true)
+            .build())
+        .parameter(Parameter.builder("height")
+            .description("Height in EMU")
+            .type(ParameterType.DOUBLE)
+            .required(true)
+            .build())
+        .parameter(Parameter.builder("fill-color")
+            .description("Fill color: hex (FF0000) or scheme name (accent1)")
+            .llmName("fillColor")
+            .required(false)
+            .build())
+        .parameter(Parameter.builder("line-color")
+            .description("Line color: hex (000000) or scheme name (dk1)")
+            .llmName("lineColor")
+            .required(false)
+            .build())
+        .parameter(Parameter.builder("align")
+            .description("Paragraph horizontal alignment for the shape's text. "
+                + "Values: l/left, ctr/center, r/right, just/justify. "
+                + "Defaults to OOXML's center default for shape text bodies. "
+                + "Required to render code or indented text correctly inside shapes -- "
+                + "leaving it default centers each line and destroys leading whitespace.")
+            .llmName("align")
+            .required(false)
+            .build())
+        .example("add-shape 1 RECTANGLE \"Hello\" 100 100 200 100")
+        .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
+        .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
+        .build();
+
+    /**
+     * Construct an {@code AddShapeCommand} from validated parameters.
+     *
+     * <p>Recognised parameter aliases (canonical → llm):
+     * <ul>
+     *   <li>{@code slide} ← {@code slideNumber}</li>
+     *   <li>{@code shape-type} ← {@code shapeType} (defaults to {@code RECTANGLE};
+     *       {@code TEXT_BOX} / {@code TEXTBOX} resolve to a no-fill, no-line rectangle)</li>
+     *   <li>{@code fill-color} ← {@code fillColor} (hex or scheme name)</li>
+     *   <li>{@code line-color} ← {@code lineColor} (hex or scheme name)</li>
+     *   <li>{@code align} (l/left, ctr/center, r/right, just/justify)</li>
+     * </ul>
+     *
+     * @throws IllegalArgumentException when a required parameter is missing
+     *         or an enum-style value (shape type, alignment) is unrecognised.
+     */
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        int slide = p.requireInt("slide");
+        double x = p.requireDouble("x");
+        double y = p.requireDouble("y");
+        double width = p.requireDouble("width");
+        double height = p.requireDouble("height");
+
+        String shapeTypeRaw = p.optString("shape-type").orElse("RECTANGLE");
+        String normalizedTypeStr = shapeTypeRaw.toUpperCase();
+        boolean isTextBoxAlias = "TEXT_BOX".equals(normalizedTypeStr)
+            || "TEXTBOX".equals(normalizedTypeStr);
+        SlideShape.ShapeType shapeType = isTextBoxAlias
+            ? SlideShape.ShapeType.RECTANGLE
+            : SlideShape.ShapeType.valueOf(normalizedTypeStr);
+
+        String text = p.optString("text").orElse("");
+        ShapeGeometry geometry = new ShapeGeometry(
+            (long) x, (long) y, (long) width, (long) height);
+
+        String fillColor = p.optString("fill-color").orElse(null);
+        String lineColor = p.optString("line-color").orElse(null);
+        ShapeStyle style = isTextBoxAlias
+            ? ShapeStyle.textBox()
+            : ShapeCommandFactory.parseShapeStyle(fillColor, lineColor);
+
+        String alignment = ShapeCommandFactory.normalizeAlignment(
+            p.optString("align").orElse(null));
+
+        return new AddShapeCommand(slide, shapeType, geometry, text,
+            isTextBoxAlias ? "TextBox" : "Shape",
+            style, alignment, isTextBoxAlias,
+            ctx.orchestrator(), ctx.displayAdapter());
+    }
 
     private final int slideNumber;
     private final SlideShape.ShapeType shapeType;

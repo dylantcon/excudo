@@ -601,11 +601,11 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     private void executeCommandNormal(String commandString) {
         try {
             // Use sophisticated CommandRegistry parsing instead of primitive string splitting
-            com.excudo.core.parsing.ParsedCommand parsedCommand =
+            com.excudo.core.parsing.CommandParameters parameters =
                 com.excudo.core.parsing.CommandRegistry.parse(commandString);
             
             // Determine if this command requires a session or can work sessionless
-            String commandName = parsedCommand.getCommandName();
+            String commandName = parameters.getCommandName();
             boolean requiresSession = requiresSession(commandName);
             
             // Create Command object via appropriate CommandFactory
@@ -649,7 +649,7 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                 invoker = new CommandInvoker();
             }
             
-            Command command = factory.createCommand(parsedCommand, this);
+            Command command = factory.createCommand(parameters, this);
             invoker.executeCommand(command);
             
         } catch (com.excudo.core.parsing.CommandParseException e) {

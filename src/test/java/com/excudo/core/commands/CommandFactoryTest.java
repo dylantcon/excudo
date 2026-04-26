@@ -1,6 +1,6 @@
 package com.excudo.core.commands;
 
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import com.excudo.test.utils.StubPPTXOrchestrator;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,10 +56,23 @@ public class CommandFactoryTest {
     }
 
     @Test
-    public void handlesCommandReturnsFalseForAddShapeHandledByShapeFactory() {
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertFalse("'add-shape' is handled by ShapeCommandFactory, not CommandFactory",
-                factory.handlesCommand("add-shape"));
+    public void addShapeRoutedThroughClassRegistry() {
+        // After the class-keyed registry migration, AddShapeCommand owns its
+        // SCHEMA + fromParameters and dispatches via CommandClassRegistry --
+        // ShapeCommandFactory no longer claims "add-shape" in HANDLED_COMMANDS.
+        // CommandFactory.handlesCommand falls through to true for any name no
+        // sub-factory claims, but actual dispatch goes through the class
+        // registry first (verified separately by the round-trip tests).
+        assertNotNull("AddShapeCommand must be class-registered",
+                CommandClassRegistry.createFromParameters(
+                    CommandParameters.builder("add-shape")
+                        .addParam("slide", 1)
+                        .addParam("x", 0)
+                        .addParam("y", 0)
+                        .addParam("width", 100)
+                        .addParam("height", 50)
+                        .build(),
+                    new CommandContext(orchestrator, null)));
     }
 
     @Test

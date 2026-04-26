@@ -3,12 +3,12 @@ package com.excudo.core.llm;
 import com.excudo.core.commands.RequestSchema;
 import com.excudo.core.parsing.CommandRegistry;
 import com.excudo.core.parsing.CommandSchema;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 
 import java.util.*;
 
 /**
- * Adapts LLM {@link RequestSchema.ActionRequest}s to {@link ParsedCommand}s
+ * Adapts LLM {@link RequestSchema.ActionRequest}s to {@link CommandParameters}s
  * using {@link CommandSchema} as the single source of truth.
  *
  * <p>Static utility class (formerly an instance type with a fake instance
@@ -21,7 +21,7 @@ import java.util.*;
  * <ul>
  *   <li>Per-command parameter name mapping ({@code llmName} → canonical).</li>
  *   <li>Type coercion (the JSON-side Number/Boolean values are stringified
- *       to fit {@link ParsedCommand}'s string-only payload).</li>
+ *       to fit {@link CommandParameters}'s string-only payload).</li>
  * </ul>
  *
  * <p>Everything else got deleted in the 2026-04-24 seam-collapse pass —
@@ -41,13 +41,13 @@ public final class LLMRequestBridge {
         PARAM_MAPPINGS_CACHE = new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
-     * Convert an LLM ActionRequest into a ParsedCommand.
+     * Convert an LLM ActionRequest into a CommandParameters.
      *
      * @param actionRequest the LLM action request
-     * @return ParsedCommand ready for the command factory
+     * @return CommandParameters ready for the command factory
      * @throws IllegalArgumentException if the action type is unknown
      */
-    public static ParsedCommand bridge(RequestSchema.ActionRequest actionRequest) {
+    public static CommandParameters bridge(RequestSchema.ActionRequest actionRequest) {
         String actionType = actionRequest.getType();
         Map<String, Object> params = actionRequest.getParameters();
         if (params == null) params = Collections.emptyMap();
@@ -63,15 +63,15 @@ public final class LLMRequestBridge {
             String canonicalKey = paramMapping.getOrDefault(entry.getKey(), entry.getKey());
             canonicalParams.put(canonicalKey, String.valueOf(value));
         }
-        return new ParsedCommand(commandName, canonicalParams);
+        return new CommandParameters(commandName, canonicalParams);
     }
 
-    /** Convert an entire LLM request into a list of ParsedCommands. */
-    public static List<ParsedCommand> bridgeAll(RequestSchema.LLMRequest request) {
+    /** Convert an entire LLM request into a list of CommandParameters. */
+    public static List<CommandParameters> bridgeAll(RequestSchema.LLMRequest request) {
         if (request == null || request.getActions() == null) {
             return Collections.emptyList();
         }
-        List<ParsedCommand> commands = new ArrayList<>();
+        List<CommandParameters> commands = new ArrayList<>();
         for (RequestSchema.ActionRequest action : request.getActions()) {
             commands.add(bridge(action));
         }

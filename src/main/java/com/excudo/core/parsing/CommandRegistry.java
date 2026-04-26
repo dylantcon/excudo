@@ -7,18 +7,46 @@ import com.excudo.utils.FuzzyMatcher;
 /**
  * Registry of all command schemas.
  * Single source of truth for command definitions.
+ *
+ * <p>Two parallel registration paths exist during the magic-string-removal
+ * migration:
+ * <ol>
+ *   <li>The legacy {@code register…Command()} static methods below — each
+ *       hardcodes the canonical name as a string in
+ *       {@code CommandSchema.builder("name")} and writes directly into
+ *       {@link #schemas}.</li>
+ *   <li>The new class-keyed path in
+ *       {@code com.excudo.core.commands.CommandClassRegistry}. A Command
+ *       opts in by declaring a {@code public static final CommandSchema SCHEMA}
+ *       field and a
+ *       {@code public static Command fromParameters(CommandParameters, CommandContext)}
+ *       factory. Name derives from the class via {@link Object#getClass()}
+ *       (PascalCase → kebab-case, trailing {@code "Command"} stripped). The
+ *       class registry calls {@link #addSchema(String, CommandSchema)} so
+ *       schema lookups (validators, system-prompt generators, dispatcher)
+ *       continue to find the schema uniformly.</li>
+ * </ol>
+ *
+ * <p>The {@code Class.forName} call in the static block triggers
+ * {@code CommandClassRegistry}'s static init so its registrations land in
+ * {@link #schemas} before any external lookup. The reflection hop exists
+ * because {@code core/parsing} (this package) compiles before
+ * {@code core/commands} where the class registry lives.
+ *
+ * <p>Once every command is migrated to (2), the {@code register…Command()}
+ * methods can be deleted and the schema map populated entirely via the
+ * class registry.
  */
 public class CommandRegistry {
     private static final Map<String, CommandSchema> schemas = new HashMap<>();
-    
+
     static {
-        // Register all command schemas
+        // Legacy schema-only registrations.
         registerAnimationCommand();
         registerCreateCommand();
         registerDeleteCommand();
         registerListCommand();
         registerEditContentCommand();
-        registerAddShapeCommand();
         
         // Add missing command schemas identified in Phase 1 audit
         registerHelpCommand();
@@ -86,8 +114,31 @@ public class CommandRegistry {
         registerEditMasterBgCommand();
         registerShowMasterCommand();
         registerSetObjectDefaultsCommand();
+
+        // Trigger the class-keyed registry so its self-describing Commands
+        // populate the schemas map. Reflection because core/parsing
+        // compiles before core/commands.
+        try {
+            Class.forName("com.excudo.core.commands.CommandClassRegistry");
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(
+                "CommandClassRegistry class not found -- build is broken", e);
+        }
     }
-    
+
+    /**
+     * Side-channel for {@code com.excudo.core.commands.CommandClassRegistry}
+     * to populate the schemas map for class-registered Commands. Mirrors
+     * what the legacy {@code register…Command()} methods do — namely,
+     * {@code schemas.put(name, schema)} — so all schema consumers see the
+     * same uniform map regardless of registration path.
+     */
+    public static void addSchema(String name, CommandSchema schema) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(schema, "schema");
+        schemas.put(name, schema);
+    }
+
     /**
      * Register the add-animation command with proper schema
      */
@@ -277,81 +328,6 @@ public class CommandRegistry {
             .build();
 
         schemas.put("edit-content", schema);
-    }
-    
-    /**
-     * Register add-shape command
-     */
-    private static void registerAddShapeCommand() {
-        CommandSchema schema = CommandSchema.builder("add-shape")
-            .description("Add a shape to a slide")
-            .llmEnabled(true)
-            .llmDescription("Add a new shape to a slide.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("shape-type")
-                .description("Shape type: TEXT_BOX for plain text with no fill/border, "
-                    + "or an autoshape preset like RECTANGLE, ELLIPSE, TRIANGLE, "
-                    + "ROUNDED_RECTANGLE, etc. See ShapeType enum for the full set.")
-                .llmName("shapeType")
-                .defaultValue("RECTANGLE")
-                .build())
-            .parameter(Parameter.builder("text")
-                .description("Text content placed inside the shape. Markdown supported: "
-                    + "**bold**, *italic*, - bullets, 1. numbered, \\n for line breaks. "
-                    + "Leave empty for a shape with no text.")
-                .llmName("text")
-                .defaultValue("")
-                .build())
-            .parameter(Parameter.builder("x")
-                .description("X position in EMU")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("y")
-                .description("Y position in EMU")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("width")
-                .description("Width in EMU")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("height")
-                .description("Height in EMU")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("fill-color")
-                .description("Fill color: hex (FF0000) or scheme name (accent1)")
-                .llmName("fillColor")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("line-color")
-                .description("Line color: hex (000000) or scheme name (dk1)")
-                .llmName("lineColor")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("align")
-                .description("Paragraph horizontal alignment for the shape's text. "
-                    + "Values: l/left, ctr/center, r/right, just/justify. "
-                    + "Defaults to OOXML's center default for shape text bodies. "
-                    + "Required to render code or indented text correctly inside shapes -- "
-                    + "leaving it default centers each line and destroys leading whitespace.")
-                .llmName("align")
-                .required(false)
-                .build())
-            .example("add-shape 1 RECTANGLE \"Hello\" 100 100 200 100")
-            .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
-            .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
-            .build();
-
-        schemas.put("add-shape", schema);
     }
     
     /**
@@ -1344,7 +1320,7 @@ public class CommandRegistry {
     /**
      * Parse a command line input
      */
-    public static ParsedCommand parse(String commandLine) throws CommandParseException {
+    public static CommandParameters parse(String commandLine) throws CommandParseException {
         String[] parts = CommandLineParser.parseCommand(commandLine);
         if (parts.length == 0) {
             throw new CommandParseException("Empty command");

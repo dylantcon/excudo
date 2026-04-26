@@ -26,7 +26,7 @@ import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;
 import com.excudo.xml.writers.SlideCreator;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.llm.LLMRequestBridge;
 import java.io.File;
 import java.util.Collections;
@@ -85,8 +85,8 @@ public class CommandFactory extends AbstractCommandFactory {
     }
 
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        return createCommand(parsedCommand, displayAdapter);
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        return createCommand(parameters, displayAdapter);
     }
     
     // ========== SLIDE OPERATIONS ==========
@@ -228,7 +228,7 @@ public class CommandFactory extends AbstractCommandFactory {
 
     /**
      * Create Commands from an LLM request using the unified bridge.
-     * All action requests are converted to ParsedCommands by LLMRequestBridge,
+     * All action requests are converted to CommandParameters by LLMRequestBridge,
      * then routed through the same createCommand() path as console commands.
      *
      * @param request the LLM request to convert
@@ -242,11 +242,11 @@ public class CommandFactory extends AbstractCommandFactory {
             throw new IllegalArgumentException("LLM request and actions cannot be null");
         }
 
-        List<ParsedCommand> parsedCommands = LLMRequestBridge.bridgeAll(request);
+        List<CommandParameters> parameterss = LLMRequestBridge.bridgeAll(request);
 
         List<Command> commands = new ArrayList<>();
-        for (ParsedCommand parsedCommand : parsedCommands) {
-            commands.add(createCommand(parsedCommand, null));
+        for (CommandParameters parameters : parameterss) {
+            commands.add(createCommand(parameters, null));
         }
         return commands;
     }
@@ -455,57 +455,67 @@ public class CommandFactory extends AbstractCommandFactory {
     }
     
     /**
-     * Create a Command from ParsedCommand (bridge method for console integration).
+     * Create a Command from CommandParameters (bridge method for console integration).
      * 
      * This method bridges the gap between CommandRegistry parsing and Command creation,
      * enabling the console layer to use the sophisticated Command pattern infrastructure.
      * 
-     * @param parsedCommand the parsed command with validated parameters
+     * @param parameters the parsed command with validated parameters
      * @param displayAdapter the console display adapter (handles casting to specific interfaces)
      * @return appropriate Command object
      * @throws IllegalArgumentException if command name is not recognized
      */
-    public Command createCommand(com.excudo.core.parsing.ParsedCommand parsedCommand, 
+    public Command createCommand(com.excudo.core.parsing.CommandParameters parameters,
                                 Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
-        
+        String commandName = parameters.getCommandName();
+
+        // Class-keyed registry takes priority -- Commands that own their
+        // SCHEMA + fromParameters dispatch directly without going through
+        // a sub-factory switch. Falls through when the command isn't yet
+        // migrated.
+        Command classRouted = CommandClassRegistry.createFromParameters(
+            parameters, new CommandContext(orchestrator, displayAdapter));
+        if (classRouted != null) {
+            return classRouted;
+        }
+
         // Check if utility factory handles this command
         if (utilityFactory.handlesCommand(commandName)) {
-            return utilityFactory.createFromParsedCommand(parsedCommand, displayAdapter);
+            return utilityFactory.createFromParameters(parameters, displayAdapter);
         }
         
         // Check if system factory handles this command
         if (systemFactory.handlesCommand(commandName)) {
-            return systemFactory.createFromParsedCommand(parsedCommand, displayAdapter);
+            return systemFactory.createFromParameters(parameters, displayAdapter);
         }
         
         // Check if presentation factory handles this command
         if (presentationFactory.handlesCommand(commandName)) {
-            return presentationFactory.createFromParsedCommand(parsedCommand, displayAdapter);
+            return presentationFactory.createFromParameters(parameters, displayAdapter);
         }
         
         // Check if slide factory handles this command
         if (slideFactory.handlesCommand(commandName)) {
-            return slideFactory.createFromParsedCommand(parsedCommand, displayAdapter);
+            return slideFactory.createFromParameters(parameters, displayAdapter);
         }
         
         // Check if shape factory handles this command
         if (shapeFactory.handlesCommand(commandName)) {
-            return shapeFactory.createFromParsedCommand(parsedCommand, displayAdapter);
+            return shapeFactory.createFromParameters(parameters, displayAdapter);
         }
         
         switch (commandName) {
                                     
             case "add-animation":
-                Integer animSlideNum = parsedCommand.getInteger("slide");
-                String animSpidStr = parsedCommand.getString("spid");
-                String animType = parsedCommand.getString("type");
-                String direction = parsedCommand.getString("direction");
-                String trigger = parsedCommand.getString("trigger");
-                Integer paragraphStart = parsedCommand.getInteger("paragraphStart");
-                Integer paragraphEnd = parsedCommand.getInteger("paragraphEnd");
-                String motionPath = parsedCommand.getString("path");
-                Integer opacity = parsedCommand.getInteger("opacity");
+                Integer animSlideNum = parameters.getInteger("slide");
+                String animSpidStr = parameters.getString("spid");
+                String animType = parameters.getString("type");
+                String direction = parameters.getString("direction");
+                String trigger = parameters.getString("trigger");
+                Integer paragraphStart = parameters.getInteger("paragraphStart");
+                Integer paragraphEnd = parameters.getInteger("paragraphEnd");
+                String motionPath = parameters.getString("path");
+                Integer opacity = parameters.getInteger("opacity");
                 int animSpid = animSpidStr != null ? Integer.parseInt(animSpidStr) : 0;
                 // Use proper animation grouping logic instead of hardcoded "default-group"
                 String cleanTrigger = normalizeAnimationTrigger(trigger != null ? trigger : "on-click");
@@ -536,18 +546,18 @@ public class CommandFactory extends AbstractCommandFactory {
                                          cleanTrigger, animationGroup);
 
             case "remove-animation":
-                Integer removeSlide = parsedCommand.getInteger("slide");
-                Integer removeNodeId = parsedCommand.getInteger("timingNodeId");
+                Integer removeSlide = parameters.getInteger("slide");
+                Integer removeNodeId = parameters.getInteger("timingNodeId");
                 return new RemoveAnimationCommand(
                     removeSlide != null ? removeSlide : 1,
                     removeNodeId != null ? removeNodeId : 0,
                     orchestrator);
 
             case "update-animation":
-                Integer updateSlide = parsedCommand.getInteger("slide");
-                Integer updateNodeId = parsedCommand.getInteger("timingNodeId");
-                String updateProperty = parsedCommand.getString("property");
-                String updateValue = parsedCommand.getString("value");
+                Integer updateSlide = parameters.getInteger("slide");
+                Integer updateNodeId = parameters.getInteger("timingNodeId");
+                String updateProperty = parameters.getString("property");
+                String updateValue = parameters.getString("value");
                 return new UpdateAnimationCommand(
                     updateSlide != null ? updateSlide : 1,
                     updateNodeId != null ? updateNodeId : 0,
@@ -557,8 +567,8 @@ public class CommandFactory extends AbstractCommandFactory {
 
             // LLM AI-powered commands - delegate to specialized factory
             case "llm":
-                String llmSubcommand = parsedCommand.getString("subcommand");
-                String llmRequest = parsedCommand.getString("request");
+                String llmSubcommand = parameters.getString("subcommand");
+                String llmRequest = parameters.getString("request");
 
                 if (displayAdapter instanceof LLMContext) {
                     return LLMCommandFactory.createLLMCommand(
@@ -576,8 +586,8 @@ public class CommandFactory extends AbstractCommandFactory {
                     if (iconRepo == null) {
                         throw new IllegalStateException("Icon repository not initialized. Load a presentation first.");
                     }
-                    String iconSub = parsedCommand.getString("subcommand");
-                    String iconArgs = parsedCommand.getString("args");
+                    String iconSub = parameters.getString("subcommand");
+                    String iconArgs = parameters.getString("args");
                     String[] iconArgArray = iconArgs != null && !iconArgs.isEmpty()
                         ? iconArgs.split("\\s+") : new String[0];
                     return new IconCommand(iconRepo, iconSub, iconArgArray,

@@ -7,23 +7,23 @@ import java.util.*;
  * Provides type-safe access to parameter values.
  * 
  * Can be created programmatically using the Builder pattern:
- * ParsedCommand cmd = ParsedCommand.builder("edit-content")
+ * CommandParameters cmd = CommandParameters.builder("edit-content")
  *     .addParam("slide", 1)
  *     .addParam("spid", 123)
  *     .addParam("text", "New content")
  *     .build();
  */
-public class ParsedCommand {
+public class CommandParameters {
     private final String commandName;
     private final Map<String, String> parameters;
     
-    public ParsedCommand(String commandName, Map<String, String> parameters) {
+    public CommandParameters(String commandName, Map<String, String> parameters) {
         this.commandName = commandName;
         this.parameters = Collections.unmodifiableMap(new HashMap<>(parameters));
     }
     
     /**
-     * Create a new ParsedCommand builder for programmatic command creation.
+     * Create a new CommandParameters builder for programmatic command creation.
      * 
      * @param commandName the name of the command
      * @return a new Builder instance
@@ -33,7 +33,7 @@ public class ParsedCommand {
     }
     
     /**
-     * Builder for creating ParsedCommand objects programmatically.
+     * Builder for creating CommandParameters objects programmatically.
      * Supports fluent interface for chaining parameter additions.
      */
     public static class Builder {
@@ -99,19 +99,19 @@ public class ParsedCommand {
         }
         
         /**
-         * Build the ParsedCommand.
+         * Build the CommandParameters.
          * Can optionally validate against CommandSchema if needed.
          */
-        public ParsedCommand build() {
-            return new ParsedCommand(commandName, parameters);
+        public CommandParameters build() {
+            return new CommandParameters(commandName, parameters);
         }
         
         /**
-         * Build and validate the ParsedCommand against its registered schema.
+         * Build and validate the CommandParameters against its registered schema.
          * 
          * @throws CommandParseException if validation fails
          */
-        public ParsedCommand buildAndValidate() throws CommandParseException {
+        public CommandParameters buildAndValidate() throws CommandParseException {
             CommandSchema schema = CommandRegistry.getSchema(commandName);
             if (schema == null) {
                 throw new CommandParseException("No schema registered for command: " + commandName);
@@ -121,7 +121,7 @@ public class ParsedCommand {
             schema.validate(parameters);
             
             // If validation passes, create and return the command
-            return new ParsedCommand(commandName, parameters);
+            return new CommandParameters(commandName, parameters);
         }
     }
     
@@ -199,11 +199,127 @@ public class ParsedCommand {
     public boolean hasParameter(String parameterName) {
         return parameters.containsKey(parameterName);
     }
-    
+
     public Set<String> getParameterNames() {
         return parameters.keySet();
     }
-    
+
+    // ========== TYPED REQUIRE/OPT GETTERS ==========
+    //
+    // The fromParameters() factory methods on each Command class use these
+    // shorter, more declarative getters. Patterns:
+    //   p.requireInt("slide")            -- required, throws if missing/malformed
+    //   p.optString("name")              -- Optional<String>, present iff set
+    //   p.optEnum("align", Align.class)  -- Optional<Align>, valueOf-mapped
+    //
+    // The legacy getString()/getInteger()/getDouble()/getBoolean() above stay
+    // for old call sites; new code uses these.
+
+    /** Required int parameter. Throws CommandParseException with the
+     *  parameter name if missing or not parseable. */
+    public int requireInt(String name) {
+        String raw = parameters.get(name);
+        if (raw == null) {
+            throw new IllegalArgumentException("Required int parameter '" + name + "' is missing");
+        }
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be an integer, got: '" + raw + "'", e);
+        }
+    }
+
+    /** Required string parameter. Throws if missing or empty. */
+    public String requireString(String name) {
+        String raw = parameters.get(name);
+        if (raw == null || raw.isEmpty()) {
+            throw new IllegalArgumentException("Required string parameter '" + name + "' is missing");
+        }
+        return raw;
+    }
+
+    /** Required double parameter. Throws if missing or not parseable.
+     *  Use this for ParameterType.DOUBLE schema fields where a fractional
+     *  value (e.g. EMU coordinates) must be accepted. */
+    public double requireDouble(String name) {
+        String raw = parameters.get(name);
+        if (raw == null) {
+            throw new IllegalArgumentException("Required double parameter '" + name + "' is missing");
+        }
+        try {
+            return Double.parseDouble(raw);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be a number, got: '" + raw + "'", e);
+        }
+    }
+
+    /** Required long parameter. Throws if missing or not parseable. */
+    public long requireLong(String name) {
+        String raw = parameters.get(name);
+        if (raw == null) {
+            throw new IllegalArgumentException("Required long parameter '" + name + "' is missing");
+        }
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be a long, got: '" + raw + "'", e);
+        }
+    }
+
+    /** Optional string. Empty when the parameter is absent or empty. */
+    public Optional<String> optString(String name) {
+        String raw = parameters.get(name);
+        return (raw == null || raw.isEmpty()) ? Optional.empty() : Optional.of(raw);
+    }
+
+    /** Optional int. Empty when the parameter is absent. Throws if present-but-malformed. */
+    public OptionalInt optInt(String name) {
+        String raw = parameters.get(name);
+        if (raw == null || raw.isEmpty()) return OptionalInt.empty();
+        try {
+            return OptionalInt.of(Integer.parseInt(raw));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be an integer, got: '" + raw + "'", e);
+        }
+    }
+
+    /** Optional long. Empty when absent. Throws if present-but-malformed. */
+    public OptionalLong optLong(String name) {
+        String raw = parameters.get(name);
+        if (raw == null || raw.isEmpty()) return OptionalLong.empty();
+        try {
+            return OptionalLong.of(Long.parseLong(raw));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be a long, got: '" + raw + "'", e);
+        }
+    }
+
+    /** Optional boolean. Empty when absent. */
+    public Optional<Boolean> optBoolean(String name) {
+        String raw = parameters.get(name);
+        return (raw == null || raw.isEmpty()) ? Optional.empty() : Optional.of(Boolean.parseBoolean(raw));
+    }
+
+    /** Optional enum. valueOf() against the enum class; empty when absent.
+     *  Throws if present-but-not-a-valid-enum-constant. */
+    public <T extends Enum<T>> Optional<T> optEnum(String name, Class<T> enumType) {
+        String raw = parameters.get(name);
+        if (raw == null || raw.isEmpty()) return Optional.empty();
+        try {
+            return Optional.of(Enum.valueOf(enumType, raw));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "Parameter '" + name + "' must be one of "
+                + Arrays.toString(enumType.getEnumConstants())
+                + ", got: '" + raw + "'", e);
+        }
+    }
+
     @Override
     public String toString() {
         return commandName + " " + parameters;

@@ -216,12 +216,12 @@ public class ContentEditCommandTest {
         try {
             // Direct construction with conflicting modes isn't possible
             // (Mode is a single enum), so test the dispatch path: build a
-            // ParsedCommand with both flags set true and verify the
+            // CommandParameters with both flags set true and verify the
             // factory rejects it.
-            var parsed = new com.excudo.core.parsing.ParsedCommand("edit-content",
+            var parsed = new com.excudo.core.parsing.CommandParameters("edit-content",
                 java.util.Map.of("slide", "1", "spid", "3", "text", "x",
                                  "prepend", "true", "append", "true"));
-            factory.createFromParsedCommand(parsed, null);
+            factory.createFromParameters(parsed, null);
             fail("Expected IllegalArgumentException for conflicting --prepend + --append");
         } catch (IllegalArgumentException e) {
             assertTrue("Error should mention mutual exclusivity",

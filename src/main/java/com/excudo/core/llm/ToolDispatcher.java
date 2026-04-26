@@ -946,7 +946,7 @@ public class ToolDispatcher {
                 }
             }
 
-            // Parse JSON array into ActionRequests and bridge to ParsedCommands
+            // Parse JSON array into ActionRequests and bridge to CommandParameters
             List<RequestSchema.ActionRequest> actions = parseActionsFromJsonArray(commandsJson);
             if (actions.isEmpty()) {
                 return "Error: No valid commands parsed from JSON";
@@ -1009,7 +1009,7 @@ public class ToolDispatcher {
                         continue;
                     }
 
-                    com.excudo.core.parsing.ParsedCommand parsed = LLMRequestBridge.bridge(action);
+                    com.excudo.core.parsing.CommandParameters parsed = LLMRequestBridge.bridge(action);
                     Command command = commandFactory.createCommand(parsed, displayAdapter);
                     commandInvoker.executeCommand(command);
                     succeeded++;

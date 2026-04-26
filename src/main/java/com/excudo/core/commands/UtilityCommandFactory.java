@@ -22,7 +22,7 @@ import com.excudo.core.commands.readonly.ShowSlideCommand;
 import com.excudo.core.commands.readonly.ShowThemeCommand;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -154,26 +154,26 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     }
     
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        String commandName = parameters.getCommandName();
         CommandDisplay display = (CommandDisplay) displayAdapter;
         
         switch (commandName) {
             case "list":
-                return createListSlides(parsedCommand, display);
+                return createListSlides(parameters, display);
                 
             case "show":
-                return createShowSlide(parsedCommand, display);
+                return createShowSlide(parameters, display);
                 
             case "list-layouts":
-                String layoutThemeId = parsedCommand.getString("themeId");
+                String layoutThemeId = parameters.getString("themeId");
                 return new ListLayoutsCommand(orchestrator, display, layoutThemeId);
                 
             case "list-spids":
-                return createListSpids(parsedCommand, display);
+                return createListSpids(parameters, display);
                 
             case "list-animations":
-                return createListAnimations(parsedCommand, display);
+                return createListAnimations(parameters, display);
                 
             case "list-animation-types":
                 return createListAnimationTypesInternal(display);
@@ -185,16 +185,16 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
                 return new ListTransitionTypesCommand(display);
                 
             case "list-notes":
-                return createListNotes(parsedCommand, displayAdapter);
+                return createListNotes(parameters, displayAdapter);
                 
             case "dump-shape":
-                return createDumpShape(parsedCommand, display);
+                return createDumpShape(parameters, display);
                 
             case "dump-timing":
-                return createDumpTiming(parsedCommand, display);
+                return createDumpTiming(parameters, display);
                 
             case "show-shape":
-                return createShowShape(parsedCommand, displayAdapter);
+                return createShowShape(parameters, displayAdapter);
 
             case "list-arrange-ops":
                 return new ListArrangeOpsCommand(display);
@@ -203,14 +203,14 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
                 return new ListThemesCommand((CommandDisplay) displayAdapter);
 
             case "apply-theme":
-                String themeId = parsedCommand.getString("themeId");
+                String themeId = parameters.getString("themeId");
                 return new ApplyThemeCommand(themeId, orchestrator, (CommandDisplay) displayAdapter);
 
             case "render":
-                int renderSlide = parsedCommand.getInteger("slide") != null ? parsedCommand.getInteger("slide") : 1;
-                String renderOutput = parsedCommand.getString("output");
-                int renderWidth = parsedCommand.getInteger("width") != null ? parsedCommand.getInteger("width") : 1280;
-                int renderHeight = parsedCommand.getInteger("height") != null ? parsedCommand.getInteger("height") : 720;
+                int renderSlide = parameters.getInteger("slide") != null ? parameters.getInteger("slide") : 1;
+                String renderOutput = parameters.getString("output");
+                int renderWidth = parameters.getInteger("width") != null ? parameters.getInteger("width") : 1280;
+                int renderHeight = parameters.getInteger("height") != null ? parameters.getInteger("height") : 720;
                 if (slideRenderFunction == null) {
                     throw new IllegalStateException("Render function not registered. Call setSlideRenderFunction() first.");
                 }
@@ -218,24 +218,24 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
                     renderWidth, renderHeight, slideRenderFunction);
 
             case "show-theme":
-                return new ShowThemeCommand(parsedCommand.getString("themeId"), display);
+                return new ShowThemeCommand(parameters.getString("themeId"), display);
 
             case "create-theme":
                 return new CreateThemeCommand(
-                    parsedCommand.getString("id"),
-                    parsedCommand.getString("baseTheme"),
-                    parsedCommand.getString("displayName"),
+                    parameters.getString("id"),
+                    parameters.getString("baseTheme"),
+                    parameters.getString("displayName"),
                     display);
 
             case "edit-theme":
                 return new EditThemeCommand(
-                    parsedCommand.getString("themeId"),
-                    parsedCommand.getString("property"),
-                    parsedCommand.getString("value"),
+                    parameters.getString("themeId"),
+                    parameters.getString("property"),
+                    parameters.getString("value"),
                     display);
 
             case "delete-theme":
-                return new DeleteThemeCommand(parsedCommand.getString("themeId"), display);
+                return new DeleteThemeCommand(parameters.getString("themeId"), display);
 
             default:
                 return null;
@@ -247,8 +247,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a list slides command.
      */
-    private Command createListSlides(ParsedCommand parsedCommand, CommandDisplay display) {
-        Boolean verbose = parsedCommand.getBoolean("verbose");
+    private Command createListSlides(CommandParameters parameters, CommandDisplay display) {
+        Boolean verbose = parameters.getBoolean("verbose");
         return new ListSlidesCommand(orchestrator, display, 
                                     verbose != null ? verbose : false);
     }
@@ -256,8 +256,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a show slide command.
      */
-    private Command createShowSlide(ParsedCommand parsedCommand, CommandDisplay display) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
+    private Command createShowSlide(CommandParameters parameters, CommandDisplay display) {
+        Integer slideNumber = parameters.getInteger("slide");
         return new ShowSlideCommand(orchestrator, display, 
                                    slideNumber != null ? slideNumber : 1);
     }
@@ -265,8 +265,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a list SPIDs command.
      */
-    private Command createListSpids(ParsedCommand parsedCommand, CommandDisplay display) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
+    private Command createListSpids(CommandParameters parameters, CommandDisplay display) {
+        Integer slideNumber = parameters.getInteger("slide");
         return new ListSpidsCommand(orchestrator, display, 
                                    slideNumber != null ? slideNumber : 1);
     }
@@ -274,8 +274,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a list animations command.
      */
-    private Command createListAnimations(ParsedCommand parsedCommand, CommandDisplay display) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
+    private Command createListAnimations(CommandParameters parameters, CommandDisplay display) {
+        Integer slideNumber = parameters.getInteger("slide");
         return new ListAnimationsCommand(orchestrator, display, 
                                         slideNumber != null ? slideNumber : 1);
     }
@@ -290,8 +290,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a list notes command.
      */
-    private Command createListNotes(ParsedCommand parsedCommand, Object displayAdapter) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
+    private Command createListNotes(CommandParameters parameters, Object displayAdapter) {
+        Integer slideNumber = parameters.getInteger("slide");
         return new ListNotesCommand(
             (CommandSessionContext) displayAdapter,
             (CommandDisplay) displayAdapter,
@@ -303,12 +303,12 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a dump shape command.
      */
-    private Command createDumpShape(ParsedCommand parsedCommand, CommandDisplay display) {
+    private Command createDumpShape(CommandParameters parameters, CommandDisplay display) {
         // Support original slide range format: "1", "1-5", "all"
-        String slideRange = parsedCommand.getString("range");
+        String slideRange = parameters.getString("range");
         if (slideRange == null || slideRange.trim().isEmpty()) {
             // Fallback: try legacy slide parameter for backward compatibility
-            Integer slideNumber = parsedCommand.getInteger("slide");
+            Integer slideNumber = parameters.getInteger("slide");
             slideRange = slideNumber != null ? String.valueOf(slideNumber) : "1";
         }
         // Original behavior always wrote to file - preserve this
@@ -318,12 +318,12 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a dump timing command.
      */
-    private Command createDumpTiming(ParsedCommand parsedCommand, CommandDisplay display) {
+    private Command createDumpTiming(CommandParameters parameters, CommandDisplay display) {
         // Support original slide range format: "1", "1-5", "all"
-        String timingRange = parsedCommand.getString("range");
+        String timingRange = parameters.getString("range");
         if (timingRange == null || timingRange.trim().isEmpty()) {
             // Fallback: try legacy slide parameter for backward compatibility
-            Integer slideNumber = parsedCommand.getInteger("slide");
+            Integer slideNumber = parameters.getInteger("slide");
             timingRange = slideNumber != null ? String.valueOf(slideNumber) : "1";
         }
         // Original behavior always wrote to file - preserve this
@@ -333,9 +333,9 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     /**
      * Create a show shape command.
      */
-    private Command createShowShape(ParsedCommand parsedCommand, Object displayAdapter) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
-        String spid = parsedCommand.getString("spid");
+    private Command createShowShape(CommandParameters parameters, Object displayAdapter) {
+        Integer slideNumber = parameters.getInteger("slide");
+        String spid = parameters.getString("spid");
         return new ShowShapeCommand(
             (CommandSessionContext) displayAdapter,
             (CommandDisplay) displayAdapter,

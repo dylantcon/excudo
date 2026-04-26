@@ -1,7 +1,7 @@
 package com.excudo.core.llm;
 
 import com.excudo.core.commands.RequestSchema;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -9,7 +9,7 @@ import java.util.*;
 
 /**
  * Tests for LLMRequestBridge - verifies that LLM ActionRequests are correctly
- * converted to ParsedCommands using CommandSchema as the single source of truth.
+ * converted to CommandParameters using CommandSchema as the single source of truth.
  */
 public class LLMRequestBridgeTest {
 
@@ -58,7 +58,7 @@ public class LLMRequestBridgeTest {
             "Create a slide", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("create", cmd.getCommandName());
         assertEquals("3", cmd.getString("position"));
         assertEquals("My Slide", cmd.getString("title"));
@@ -74,7 +74,7 @@ public class LLMRequestBridgeTest {
             "Edit text", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("edit-content", cmd.getCommandName());
         // slideNumber -> slide, targetSpid -> spid, newText -> text
         assertEquals("1", cmd.getString("slide"));
@@ -90,7 +90,7 @@ public class LLMRequestBridgeTest {
             "Delete slide", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("delete", cmd.getCommandName());
         assertEquals("3", cmd.getString("slide"));
     }
@@ -103,7 +103,7 @@ public class LLMRequestBridgeTest {
             "Copy slide", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("copy", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("5", cmd.getString("position"));
@@ -121,7 +121,7 @@ public class LLMRequestBridgeTest {
             "Edit content", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("edit-content", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("7", cmd.getString("spid"));
@@ -136,7 +136,7 @@ public class LLMRequestBridgeTest {
             "Apply theme", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("apply-theme", cmd.getCommandName());
         assertEquals("corporate", cmd.getString("themeId"));
     }
@@ -149,7 +149,7 @@ public class LLMRequestBridgeTest {
             "Move shape", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("move", cmd.getCommandName());
         assertEquals("1", cmd.getString("slide"));
         assertEquals("5", cmd.getString("spid"));
@@ -165,7 +165,7 @@ public class LLMRequestBridgeTest {
             "Align shapes", null
         );
 
-        ParsedCommand cmd = LLMRequestBridge.bridge(action);
+        CommandParameters cmd = LLMRequestBridge.bridge(action);
         assertEquals("arrange", cmd.getCommandName());
         assertEquals("1", cmd.getString("slide"));
         assertEquals("align-left", cmd.getString("operation"));
@@ -187,7 +187,7 @@ public class LLMRequestBridgeTest {
             null
         );
 
-        List<ParsedCommand> commands = LLMRequestBridge.bridgeAll(request);
+        List<CommandParameters> commands = LLMRequestBridge.bridgeAll(request);
         assertEquals(2, commands.size());
         assertEquals("create", commands.get(0).getCommandName());
         assertEquals("edit-content", commands.get(1).getCommandName());

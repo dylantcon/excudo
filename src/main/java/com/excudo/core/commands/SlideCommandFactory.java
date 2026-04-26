@@ -6,7 +6,7 @@ import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
 import com.excudo.core.commands.mutating.deck.MoveSlideCommand;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import com.excudo.xml.writers.SlideCreator;
 import java.io.File;
 import java.util.Map;
@@ -16,7 +16,7 @@ import java.util.HashSet;
 /**
  * Factory for creating slide-related commands.
  * Handles create, delete, copy, and move slide operations.
- * LLM requests are bridged to ParsedCommand by LLMRequestBridge before reaching here.
+ * LLM requests are bridged to CommandParameters by LLMRequestBridge before reaching here.
  */
 public class SlideCommandFactory extends AbstractCommandFactory {
     
@@ -44,21 +44,21 @@ public class SlideCommandFactory extends AbstractCommandFactory {
     }
     
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        String commandName = parameters.getCommandName();
         
         switch (commandName) {
             case "create":
-                return createSlideCreation(parsedCommand, displayAdapter);
+                return createSlideCreation(parameters, displayAdapter);
                 
             case "delete":
-                return createSlideDeletion(parsedCommand);
+                return createSlideDeletion(parameters);
 
             case "copy":
-                return createSlideCopyFromConsole(parsedCommand);
+                return createSlideCopyFromConsole(parameters);
 
             case "move":
-                return createSlideMoveFromConsole(parsedCommand);
+                return createSlideMoveFromConsole(parameters);
 
             default:
                 return null;
@@ -71,11 +71,11 @@ public class SlideCommandFactory extends AbstractCommandFactory {
      * Create a slide creation command from console or LLM input.
      * Handles both console (with displayAdapter) and LLM (null displayAdapter) paths.
      */
-    private Command createSlideCreation(ParsedCommand parsedCommand, Object displayAdapter) {
-        Integer createPosition = parsedCommand.getInteger("position");
-        String createTitle = parsedCommand.getString("title");
-        String layoutId = parsedCommand.getString("layout");
-        String content = parsedCommand.getString("content");
+    private Command createSlideCreation(CommandParameters parameters, Object displayAdapter) {
+        Integer createPosition = parameters.getInteger("position");
+        String createTitle = parameters.getString("title");
+        String layoutId = parameters.getString("layout");
+        String content = parameters.getString("content");
 
         if (displayAdapter instanceof CommandSessionContext) {
             // Console path: uses session context for slideCreator/pptxDir
@@ -108,24 +108,24 @@ public class SlideCommandFactory extends AbstractCommandFactory {
     /**
      * Create a slide deletion command from console input.
      */
-    private Command createSlideDeletion(ParsedCommand parsedCommand) {
-        Integer slideNumber = parsedCommand.getInteger("slide");
+    private Command createSlideDeletion(CommandParameters parameters) {
+        Integer slideNumber = parameters.getInteger("slide");
         return createSlideDeletion(slideNumber != null ? slideNumber : 1, false, "Console delete command");
     }
     
-    private Command createSlideCopyFromConsole(ParsedCommand parsedCommand) {
-        Integer sourceSlide = parsedCommand.getInteger("slide");
-        Integer targetPosition = parsedCommand.getInteger("position");
-        String newTitle = parsedCommand.getString("title");
+    private Command createSlideCopyFromConsole(CommandParameters parameters) {
+        Integer sourceSlide = parameters.getInteger("slide");
+        Integer targetPosition = parameters.getInteger("position");
+        String newTitle = parameters.getString("title");
         return createSlideCopy(
             sourceSlide != null ? sourceSlide : 1,
             targetPosition != null ? targetPosition : 2,
             newTitle, null, true);
     }
 
-    private Command createSlideMoveFromConsole(ParsedCommand parsedCommand) {
-        Integer from = parsedCommand.getInteger("from");
-        Integer to = parsedCommand.getInteger("to");
+    private Command createSlideMoveFromConsole(CommandParameters parameters) {
+        Integer from = parameters.getInteger("from");
+        Integer to = parameters.getInteger("to");
         return new MoveSlideCommand(
             from != null ? from : 1,
             to != null ? to : 1,

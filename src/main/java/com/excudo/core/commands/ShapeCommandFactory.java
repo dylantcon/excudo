@@ -45,7 +45,7 @@ import com.excudo.core.model.BodyProperties;
 import com.excudo.core.model.AutofitType;
 import com.excudo.core.model.TransitionType;
 import com.excudo.core.geometry.UnitParser;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
@@ -55,7 +55,7 @@ import java.util.HashMap;
  * Factory for creating shape and content-related commands.
  * Handles edit-content, add-shape, move, resize, arrange, reorder,
  * transitions, connectors, notes, and more.
- * LLM requests are bridged to ParsedCommand by LLMRequestBridge before reaching here.
+ * LLM requests are bridged to CommandParameters by LLMRequestBridge before reaching here.
  */
 public class ShapeCommandFactory extends AbstractCommandFactory {
     
@@ -63,7 +63,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
     static {
         HANDLED_COMMANDS.add("edit-content");
-        HANDLED_COMMANDS.add("add-shape");
+        // add-shape: routed via CommandRegistry class registry (AddShapeCommand.SCHEMA / fromParameters)
         HANDLED_COMMANDS.add("remove-shape");
         HANDLED_COMMANDS.add("edit-bullet");
         HANDLED_COMMANDS.add("set-body-props");
@@ -108,17 +108,17 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
     }
     
     @Override
-    public Command createFromParsedCommand(ParsedCommand parsedCommand, Object displayAdapter) {
-        String commandName = parsedCommand.getCommandName();
+    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
+        String commandName = parameters.getCommandName();
         
         switch (commandName) {
             case "edit-content":
-                Integer editSlide = parsedCommand.getInteger("slide");
-                String editSpidStr = parsedCommand.getString("spid");
-                String text = parsedCommand.getString("text");
+                Integer editSlide = parameters.getInteger("slide");
+                String editSpidStr = parameters.getString("spid");
+                String text = parameters.getString("text");
                 if (text == null) text = "";  // accept explicit empty-string -> clear
-                Boolean prependFlag = parsedCommand.getBoolean("prepend");
-                Boolean appendFlag = parsedCommand.getBoolean("append");
+                Boolean prependFlag = parameters.getBoolean("prepend");
+                Boolean appendFlag = parameters.getBoolean("append");
                 boolean prepend = prependFlag != null && prependFlag;
                 boolean append = appendFlag != null && appendFlag;
                 if (prepend && append) {
@@ -130,57 +130,22 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 int editSpid = editSpidStr != null ? Integer.parseInt(editSpidStr) : 0;
                 return createContentEdit(editSlide != null ? editSlide : 1, editSpid, text, mode, displayAdapter);
                 
-            case "add-shape":
-                Integer shapeSlide = parsedCommand.getInteger("slide");
-                String shapeTypeStr = parsedCommand.getString("shape-type");
-                String shapeText = parsedCommand.getString("text");
-                Double x = parsedCommand.getDouble("x");
-                Double y = parsedCommand.getDouble("y");
-                Double width = parsedCommand.getDouble("width");
-                Double height = parsedCommand.getDouble("height");
-                String fillColor = parsedCommand.getString("fill-color");
-                String lineColor = parsedCommand.getString("line-color");
-                // Normalize alignment aliases to OOXML vocabulary.
-                String alignRaw = parsedCommand.getString("align");
-                String alignment = normalizeAlignment(alignRaw);
+            // "add-shape" intentionally absent: routed via the
+            // class-keyed registry in CommandRegistry / CommandFactory
+            // (AddShapeCommand.SCHEMA + AddShapeCommand.fromParameters).
 
-                // TEXT_BOX isn't a drawingml preset -- OOXML models text boxes
-                // as rectangles with no fill, no line, and no p:style element.
-                // Accept it as an alias so agents don't have to remember the
-                // "rectangle + empty style" incantation when they just want
-                // plain text on a slide.
-                String normalizedTypeStr = shapeTypeStr != null ? shapeTypeStr.toUpperCase() : "RECTANGLE";
-                boolean isTextBoxAlias = "TEXT_BOX".equals(normalizedTypeStr)
-                    || "TEXTBOX".equals(normalizedTypeStr);
-
-                SlideShape.ShapeType shapeType = isTextBoxAlias
-                    ? SlideShape.ShapeType.RECTANGLE
-                    : SlideShape.ShapeType.valueOf(normalizedTypeStr);
-                ShapeGeometry geometry = new ShapeGeometry(
-                    x != null ? x.longValue() : 0L, y != null ? y.longValue() : 0L,
-                    width != null ? width.longValue() : 100L, height != null ? height.longValue() : 50L);
-
-                // TEXT_BOX overrides any fill/line the caller passed -- if you
-                // want a styled rectangle, ask for RECTANGLE directly.
-                ShapeStyle parsedStyle = isTextBoxAlias
-                    ? ShapeStyle.textBox()
-                    : parseShapeStyle(fillColor, lineColor);
-                return new AddShapeCommand(shapeSlide != null ? shapeSlide : 1, shapeType, geometry,
-                    shapeText, isTextBoxAlias ? "TextBox" : "Shape", parsedStyle, alignment,
-                    isTextBoxAlias, orchestrator, displayAdapter);
-                
             case "remove-shape":
-                Integer removeSlide = parsedCommand.getInteger("slide");
-                String removeSpidStr = parsedCommand.getString("spid");
+                Integer removeSlide = parameters.getInteger("slide");
+                String removeSpidStr = parameters.getString("spid");
                 int removeSpid = removeSpidStr != null ? Integer.parseInt(removeSpidStr) : 0;
                 return createRemoveShape(removeSlide != null ? removeSlide : 1, removeSpid);
 
             case "edit-bullet":
-                Integer bulletSlide = parsedCommand.getInteger("slide");
-                String bulletSpidStr = parsedCommand.getString("spid");
-                String bulletOp = parsedCommand.getString("operation");
-                Integer bulletIdx = parsedCommand.getInteger("index");
-                String bulletText = parsedCommand.getString("text");
+                Integer bulletSlide = parameters.getInteger("slide");
+                String bulletSpidStr = parameters.getString("spid");
+                String bulletOp = parameters.getString("operation");
+                Integer bulletIdx = parameters.getInteger("index");
+                String bulletText = parameters.getString("text");
                 int bulletSpid = bulletSpidStr != null ? Integer.parseInt(bulletSpidStr) : 0;
                 return createBulletPointEdit(
                     bulletSlide != null ? bulletSlide : 1,
@@ -189,15 +154,15 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     bulletText, null);
 
             case "set-body-props":
-                Integer bodySlide = parsedCommand.getInteger("slide");
-                String bodySpidStr = parsedCommand.getString("spid");
+                Integer bodySlide = parameters.getInteger("slide");
+                String bodySpidStr = parameters.getString("spid");
                 int bodySpid = bodySpidStr != null ? Integer.parseInt(bodySpidStr) : 0;
-                String anchor = parsedCommand.getString("anchor");
-                String vert = parsedCommand.getString("vert");
-                String autofit = parsedCommand.getString("autofit");
-                String columnsStr = parsedCommand.getString("columns");
-                String wrap = parsedCommand.getString("wrap");
-                String textboxStr = parsedCommand.getString("textbox");
+                String anchor = parameters.getString("anchor");
+                String vert = parameters.getString("vert");
+                String autofit = parameters.getString("autofit");
+                String columnsStr = parameters.getString("columns");
+                String wrap = parameters.getString("wrap");
+                String textboxStr = parameters.getString("textbox");
 
                 BodyProperties.Builder bpBuilder = BodyProperties.builder();
                 if (anchor != null) bpBuilder.verticalAlignment(anchor);
@@ -216,32 +181,32 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     bpBuilder.build(), isTextBox, orchestrator);
 
             case "set-text":
-                Integer setTextSlide = parsedCommand.getInteger("slide");
-                String setTextSpidStr = parsedCommand.getString("spid");
-                String jsonBody = parsedCommand.getString("json");
+                Integer setTextSlide = parameters.getInteger("slide");
+                String setTextSpidStr = parameters.getString("spid");
+                String jsonBody = parameters.getString("json");
                 int setTextSpid = setTextSpidStr != null ? Integer.parseInt(setTextSpidStr) : 0;
                 com.excudo.core.model.TextBody textBody = TextBodyJsonParser.parse(jsonBody);
                 return new SetTextCommand(setTextSlide != null ? setTextSlide : 1, setTextSpid, textBody, orchestrator);
 
             case "add-notes":
-                Integer notesSlide = parsedCommand.getInteger("slide");
-                String notesText = parsedCommand.getString("text");
+                Integer notesSlide = parameters.getInteger("slide");
+                String notesText = parameters.getString("text");
                 return new AddNotesCommand(notesSlide != null ? notesSlide : 1, notesText, orchestrator);
 
             case "add-connector":
-                Integer cxnSlide = parsedCommand.getInteger("slide");
-                String cxnType = parsedCommand.getString("type");
-                Double cxnX = parsedCommand.getDouble("x");
-                Double cxnY = parsedCommand.getDouble("y");
-                Double cxnWidth = parsedCommand.getDouble("width");
-                Double cxnHeight = parsedCommand.getDouble("height");
-                String cxnHeadEnd = parsedCommand.getString("head-end");
-                String cxnTailEnd = parsedCommand.getString("tail-end");
-                String cxnLineColor = parsedCommand.getString("line-color");
-                String cxnLineStyle = parsedCommand.getString("line-style");
-                String startBinding = parsedCommand.getString("start");
-                String endBinding = parsedCommand.getString("end");
-                String cxnPath = parsedCommand.getString("path");
+                Integer cxnSlide = parameters.getInteger("slide");
+                String cxnType = parameters.getString("type");
+                Double cxnX = parameters.getDouble("x");
+                Double cxnY = parameters.getDouble("y");
+                Double cxnWidth = parameters.getDouble("width");
+                Double cxnHeight = parameters.getDouble("height");
+                String cxnHeadEnd = parameters.getString("head-end");
+                String cxnTailEnd = parameters.getString("tail-end");
+                String cxnLineColor = parameters.getString("line-color");
+                String cxnLineStyle = parameters.getString("line-style");
+                String startBinding = parameters.getString("start");
+                String endBinding = parameters.getString("end");
+                String cxnPath = parameters.getString("path");
 
                 ShapeGeometry cxnGeometry = new ShapeGeometry(
                     cxnX != null ? cxnX.longValue() : 0L, cxnY != null ? cxnY.longValue() : 0L,
@@ -264,18 +229,18 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     startCxnSpid, startCxnIdx, endCxnSpid, endCxnIdx, cxnPath, orchestrator);
 
             case "set-action":
-                Integer actionSlide = parsedCommand.getInteger("slide");
-                String actionSpidStr = parsedCommand.getString("spid");
-                String action = parsedCommand.getString("action");
-                String sound = parsedCommand.getString("sound");
+                Integer actionSlide = parameters.getInteger("slide");
+                String actionSpidStr = parameters.getString("spid");
+                String action = parameters.getString("action");
+                String sound = parameters.getString("sound");
                 int actionSpid = actionSpidStr != null ? Integer.parseInt(actionSpidStr) : 0;
                 return new SetActionCommand(actionSlide != null ? actionSlide : 1, actionSpid, action, sound, orchestrator);
 
             case "set-transition": {
-                Integer transSlide = parsedCommand.getInteger("slide");
-                String transType = parsedCommand.getString("type");
-                String transSpeed = parsedCommand.getString("speed");
-                Integer transAdvance = parsedCommand.getInteger("advance");
+                Integer transSlide = parameters.getInteger("slide");
+                String transType = parameters.getString("type");
+                String transSpeed = parameters.getString("speed");
+                Integer transAdvance = parameters.getInteger("advance");
                 return new SetTransitionCommand(
                     transSlide != null ? transSlide : 1,
                     TransitionType.parseType(transType),
@@ -283,17 +248,17 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "remove-transition": {
-                Integer rmTransSlide = parsedCommand.getInteger("slide");
+                Integer rmTransSlide = parameters.getInteger("slide");
                 return new SetTransitionCommand(
                     rmTransSlide != null ? rmTransSlide : 1,
                     TransitionType.NONE, null, null, orchestrator);
             }
 
             case "move": {
-                Integer moveSlide = parsedCommand.getInteger("slide");
-                String moveSpidStr = parsedCommand.getString("spid");
-                String xStr = parsedCommand.getString("x");
-                String yStr = parsedCommand.getString("y");
+                Integer moveSlide = parameters.getInteger("slide");
+                String moveSpidStr = parameters.getString("spid");
+                String xStr = parameters.getString("x");
+                String yStr = parameters.getString("y");
                 int moveSpid = moveSpidStr != null ? Integer.parseInt(moveSpidStr) : 0;
                 long moveX = UnitParser.parseToEmu(xStr);
                 long moveY = UnitParser.parseToEmu(yStr);
@@ -301,10 +266,10 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "resize": {
-                Integer resizeSlide = parsedCommand.getInteger("slide");
-                String resizeSpidStr = parsedCommand.getString("spid");
-                String widthStr = parsedCommand.getString("width");
-                String heightStr = parsedCommand.getString("height");
+                Integer resizeSlide = parameters.getInteger("slide");
+                String resizeSpidStr = parameters.getString("spid");
+                String widthStr = parameters.getString("width");
+                String heightStr = parameters.getString("height");
                 int resizeSpid = resizeSpidStr != null ? Integer.parseInt(resizeSpidStr) : 0;
                 long resizeW = UnitParser.parseToEmu(widthStr);
                 long resizeH = UnitParser.parseToEmu(heightStr);
@@ -312,26 +277,26 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "arrange": {
-                Integer arrSlide = parsedCommand.getInteger("slide");
-                String arrOp = parsedCommand.getString("operation");
-                String arrTargets = parsedCommand.getString("targets");
-                String arrAnchorStr = parsedCommand.getString("anchor");
+                Integer arrSlide = parameters.getInteger("slide");
+                String arrOp = parameters.getString("operation");
+                String arrTargets = parameters.getString("targets");
+                String arrAnchorStr = parameters.getString("anchor");
                 Integer arrAnchor = arrAnchorStr != null ? Integer.parseInt(arrAnchorStr) : null;
                 return new ArrangeCommand(arrSlide != null ? arrSlide : 1, arrOp, arrTargets, arrAnchor, orchestrator);
             }
 
             case "reorder": {
-                Integer reorderSlide = parsedCommand.getInteger("slide");
-                String reorderSpidStr = parsedCommand.getString("spid");
-                String direction = parsedCommand.getString("direction");
+                Integer reorderSlide = parameters.getInteger("slide");
+                String reorderSpidStr = parameters.getString("spid");
+                String direction = parameters.getString("direction");
                 int reorderSpid = reorderSpidStr != null ? Integer.parseInt(reorderSpidStr) : 0;
                 return new ReorderShapeCommand(reorderSlide != null ? reorderSlide : 1, reorderSpid,
                     ReorderShapeCommand.ZOrderOperation.parse(direction), orchestrator);
             }
 
             case "duplicate-layout": {
-                String dlSource = parsedCommand.getString("sourceLayoutId");
-                String dlName = parsedCommand.getString("name");
+                String dlSource = parameters.getString("sourceLayoutId");
+                String dlName = parameters.getString("name");
                 return new DuplicateLayoutCommand(
                     dlSource != null ? dlSource : "slideLayout1",
                     dlName != null ? dlName : "Custom Layout",
@@ -339,24 +304,24 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "add-layout": {
-                String alName = parsedCommand.getString("name");
-                String alType = parsedCommand.getString("type");
-                String alPlaceholders = parsedCommand.getString("placeholders");
+                String alName = parameters.getString("name");
+                String alType = parameters.getString("type");
+                String alPlaceholders = parameters.getString("placeholders");
                 return new AddLayoutCommand(
                     alName != null ? alName : "New Layout",
                     alType, alPlaceholders, orchestrator);
             }
 
             case "delete-layout": {
-                String delLayoutId = parsedCommand.getString("layoutId");
+                String delLayoutId = parameters.getString("layoutId");
                 return new DeleteLayoutCommand(
                     delLayoutId != null ? delLayoutId : "slideLayout1",
                     orchestrator);
             }
 
             case "rename-layout": {
-                String rnLayoutId = parsedCommand.getString("layoutId");
-                String rnName = parsedCommand.getString("name");
+                String rnLayoutId = parameters.getString("layoutId");
+                String rnName = parameters.getString("name");
                 return new RenameLayoutCommand(
                     rnLayoutId != null ? rnLayoutId : "slideLayout1",
                     rnName != null ? rnName : "Renamed Layout",
@@ -364,13 +329,13 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "add-placeholder": {
-                String apLayoutId = parsedCommand.getString("layoutId");
-                String apType = parsedCommand.getString("type");
-                Integer apIdx = parsedCommand.getInteger("idx");
-                Double apX = parsedCommand.getDouble("x");
-                Double apY = parsedCommand.getDouble("y");
-                Double apCx = parsedCommand.getDouble("cx");
-                Double apCy = parsedCommand.getDouble("cy");
+                String apLayoutId = parameters.getString("layoutId");
+                String apType = parameters.getString("type");
+                Integer apIdx = parameters.getInteger("idx");
+                Double apX = parameters.getDouble("x");
+                Double apY = parameters.getDouble("y");
+                Double apCx = parameters.getDouble("cx");
+                Double apCy = parameters.getDouble("cy");
                 return new AddPlaceholderCommand(
                     apLayoutId != null ? apLayoutId : "slideLayout1",
                     apType != null ? apType : "obj",
@@ -383,8 +348,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "remove-placeholder": {
-                String rpLayoutId = parsedCommand.getString("layoutId");
-                Integer rpIdx = parsedCommand.getInteger("idx");
+                String rpLayoutId = parameters.getString("layoutId");
+                Integer rpIdx = parameters.getInteger("idx");
                 return new RemovePlaceholderCommand(
                     rpLayoutId != null ? rpLayoutId : "slideLayout1",
                     rpIdx != null ? rpIdx : 1,
@@ -392,16 +357,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "set-font": {
-                Integer fontSlide = parsedCommand.getInteger("slide");
-                String fontSpidStr = parsedCommand.getString("spid");
+                Integer fontSlide = parameters.getInteger("slide");
+                String fontSpidStr = parameters.getString("spid");
                 int fontSpid = fontSpidStr != null ? Integer.parseInt(fontSpidStr) : 0;
                 Map<String, Object> fontProps = new HashMap<>();
-                String family = parsedCommand.getString("family");
-                Integer fontSize = parsedCommand.getInteger("size");
-                String boldStr = parsedCommand.getString("bold");
-                String italicStr = parsedCommand.getString("italic");
-                String underlineStr = parsedCommand.getString("underline");
-                String fontColor = parsedCommand.getString("color");
+                String family = parameters.getString("family");
+                Integer fontSize = parameters.getInteger("size");
+                String boldStr = parameters.getString("bold");
+                String italicStr = parameters.getString("italic");
+                String underlineStr = parameters.getString("underline");
+                String fontColor = parameters.getString("color");
                 if (family != null) fontProps.put("family", family);
                 if (fontSize != null) fontProps.put("size", fontSize);
                 if (boldStr != null) fontProps.put("bold", "true".equalsIgnoreCase(boldStr) || "1".equals(boldStr));
@@ -412,11 +377,11 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "set-style": {
-                Integer styleSlide = parsedCommand.getInteger("slide");
-                String styleSpidStr = parsedCommand.getString("spid");
+                Integer styleSlide = parameters.getInteger("slide");
+                String styleSpidStr = parameters.getString("spid");
                 int styleSpid = styleSpidStr != null ? Integer.parseInt(styleSpidStr) : 0;
-                String styleFillColor = parsedCommand.getString("fill-color");
-                String styleLineColor = parsedCommand.getString("line-color");
+                String styleFillColor = parameters.getString("fill-color");
+                String styleLineColor = parameters.getString("line-color");
                 ShapeStyle parsedNewStyle = parseShapeStyle(styleFillColor, styleLineColor);
                 if (parsedNewStyle == null) parsedNewStyle = ShapeStyle.defaultStyle();
                 return new SetStyleCommand(styleSlide != null ? styleSlide : 1, styleSpid,
@@ -424,11 +389,11 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "duplicate": {
-                Integer dupSlide = parsedCommand.getInteger("slide");
-                String dupSpidStr = parsedCommand.getString("spid");
+                Integer dupSlide = parameters.getInteger("slide");
+                String dupSpidStr = parameters.getString("spid");
                 int dupSpid = dupSpidStr != null ? Integer.parseInt(dupSpidStr) : 0;
-                String offsetXStr = parsedCommand.getString("offset-x");
-                String offsetYStr = parsedCommand.getString("offset-y");
+                String offsetXStr = parameters.getString("offset-x");
+                String offsetYStr = parameters.getString("offset-y");
                 long dupOffsetX = offsetXStr != null
                     ? com.excudo.core.geometry.UnitParser.parseToEmu(offsetXStr)
                     : DuplicateShapeCommand.DEFAULT_OFFSET_EMU;
@@ -440,16 +405,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "inject":
-                Integer injectSlide = parsedCommand.getInteger("slide");
-                String iconQuery = parsedCommand.getString("keyword");
+                Integer injectSlide = parameters.getInteger("slide");
+                String iconQuery = parameters.getString("keyword");
                 
                 // Parse placement options from command parameters
                 Map<String, Object> placementOptions = new HashMap<>();
-                Double injectX = parsedCommand.getDouble("x");
-                Double injectY = parsedCommand.getDouble("y");
-                Double injectWidth = parsedCommand.getDouble("width");
-                Double injectHeight = parsedCommand.getDouble("height");
-                String position = parsedCommand.getString("position");
+                Double injectX = parameters.getDouble("x");
+                Double injectY = parameters.getDouble("y");
+                Double injectWidth = parameters.getDouble("width");
+                Double injectHeight = parameters.getDouble("height");
+                String position = parameters.getString("position");
                 
                 if (injectX != null) placementOptions.put("x", injectX);
                 if (injectY != null) placementOptions.put("y", injectY);
@@ -460,16 +425,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 return createIconInjection(injectSlide != null ? injectSlide : 1, iconQuery != null ? iconQuery : "", placementOptions);
                 
             case "enhance":
-                Integer enhanceSlide = parsedCommand.getInteger("slide");
-                String keyword = parsedCommand.getString("keyword");
-                String templateStyle = parsedCommand.getString("style");
+                Integer enhanceSlide = parameters.getInteger("slide");
+                String keyword = parameters.getString("keyword");
+                String templateStyle = parameters.getString("style");
                 
                 // Parse geometry options for enhancement
                 Map<String, Object> enhanceGeometry = new HashMap<>();
-                Double enhanceX = parsedCommand.getDouble("x");
-                Double enhanceY = parsedCommand.getDouble("y");
-                Double enhanceWidth = parsedCommand.getDouble("width");
-                Double enhanceHeight = parsedCommand.getDouble("height");
+                Double enhanceX = parameters.getDouble("x");
+                Double enhanceY = parameters.getDouble("y");
+                Double enhanceWidth = parameters.getDouble("width");
+                Double enhanceHeight = parameters.getDouble("height");
                 
                 if (enhanceX != null) enhanceGeometry.put("x", enhanceX);
                 if (enhanceY != null) enhanceGeometry.put("y", enhanceY);
@@ -479,8 +444,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 return createEnhancedContent(enhanceSlide != null ? enhanceSlide : 1, keyword != null ? keyword : "", templateStyle, enhanceGeometry);
 
             case "group": {
-                Integer groupSlide = parsedCommand.getInteger("slide");
-                String spidsStr = parsedCommand.getString("spids");
+                Integer groupSlide = parameters.getInteger("slide");
+                String spidsStr = parameters.getString("spids");
                 if (spidsStr == null || spidsStr.trim().isEmpty()) {
                     throw new IllegalArgumentException("group command requires a 'spids' parameter (comma-separated SPIDs)");
                 }
@@ -492,16 +457,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "ungroup": {
-                Integer ungroupSlide = parsedCommand.getInteger("slide");
-                String ungroupSpidStr = parsedCommand.getString("spid");
+                Integer ungroupSlide = parameters.getInteger("slide");
+                String ungroupSpidStr = parameters.getString("spid");
                 int ungroupSpid = ungroupSpidStr != null ? Integer.parseInt(ungroupSpidStr) : 0;
                 return new UngroupCommand(ungroupSlide != null ? ungroupSlide : 1, ungroupSpid, orchestrator);
             }
 
             case "copy-style": {
-                Integer csSlide = parsedCommand.getInteger("slide");
-                String csSourceStr = parsedCommand.getString("source");
-                String csTargetsStr = parsedCommand.getString("targets");
+                Integer csSlide = parameters.getInteger("slide");
+                String csSourceStr = parameters.getString("source");
+                String csTargetsStr = parameters.getString("targets");
                 if (csSourceStr == null) {
                     throw new IllegalArgumentException("copy-style command requires a 'source' parameter");
                 }
@@ -517,16 +482,16 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "edit-master-style": {
-                String msTarget = parsedCommand.getString("target");
-                Integer msLevel = parsedCommand.getInteger("level");
+                String msTarget = parameters.getString("target");
+                Integer msLevel = parameters.getInteger("level");
                 Map<String, Object> msUpdates = new HashMap<>();
-                Integer msFontSize = parsedCommand.getInteger("fontSize");
-                String msBold = parsedCommand.getString("bold");
-                String msColor = parsedCommand.getString("color");
-                String msBullet = parsedCommand.getString("bullet");
-                String msBulletFont = parsedCommand.getString("bulletFont");
-                Integer msMargin = parsedCommand.getInteger("margin");
-                Integer msIndent = parsedCommand.getInteger("indent");
+                Integer msFontSize = parameters.getInteger("fontSize");
+                String msBold = parameters.getString("bold");
+                String msColor = parameters.getString("color");
+                String msBullet = parameters.getString("bullet");
+                String msBulletFont = parameters.getString("bulletFont");
+                Integer msMargin = parameters.getInteger("margin");
+                Integer msIndent = parameters.getInteger("indent");
                 if (msFontSize != null) msUpdates.put("fontSize", msFontSize);
                 if (msBold != null) msUpdates.put("bold", msBold);
                 if (msColor != null) msUpdates.put("color", msColor);
@@ -542,10 +507,10 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             case "edit-master-clrmap": {
                 Map<String, String> clrMappings = new java.util.LinkedHashMap<>();
-                String cmBg1 = parsedCommand.getString("bg1");
-                String cmTx1 = parsedCommand.getString("tx1");
-                String cmBg2 = parsedCommand.getString("bg2");
-                String cmTx2 = parsedCommand.getString("tx2");
+                String cmBg1 = parameters.getString("bg1");
+                String cmTx1 = parameters.getString("tx1");
+                String cmBg2 = parameters.getString("bg2");
+                String cmTx2 = parameters.getString("tx2");
                 if (cmBg1 != null) clrMappings.put("bg1", cmBg1);
                 if (cmTx1 != null) clrMappings.put("tx1", cmTx1);
                 if (cmBg2 != null) clrMappings.put("bg2", cmBg2);
@@ -557,8 +522,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "edit-master-bg": {
-                Integer bgFillIdx = parsedCommand.getInteger("fill-idx");
-                String bgColor = parsedCommand.getString("color");
+                Integer bgFillIdx = parameters.getInteger("fill-idx");
+                String bgColor = parameters.getString("color");
                 return new EditMasterBgCommand(
                     bgFillIdx != null ? bgFillIdx : 1001,
                     bgColor, orchestrator);
@@ -569,9 +534,9 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             }
 
             case "set-object-defaults": {
-                String odFontColor = parsedCommand.getString("font-color");
-                Integer odLineWidth = parsedCommand.getInteger("line-width");
-                String odFillColor = parsedCommand.getString("fill-color");
+                String odFontColor = parameters.getString("font-color");
+                Integer odLineWidth = parameters.getInteger("line-width");
+                String odFillColor = parameters.getString("fill-color");
                 return new SetObjectDefaultsCommand(odFontColor, odLineWidth, odFillColor, orchestrator);
             }
 
@@ -681,7 +646,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
      * unrecognized values rather than silently dropping them so the
      * agent gets immediate feedback.
      */
-    private String normalizeAlignment(String raw) {
+    public static String normalizeAlignment(String raw) {
         if (raw == null || raw.isBlank()) return null;
         String v = raw.trim().toLowerCase();
         switch (v) {
@@ -696,7 +661,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         }
     }
 
-    private ShapeStyle parseShapeStyle(String fillColor, String lineColor) {
+    public static ShapeStyle parseShapeStyle(String fillColor, String lineColor) {
         ShapeFill fill = null;
         ShapeLine line = null;
 

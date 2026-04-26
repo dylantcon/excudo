@@ -7,7 +7,7 @@ import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.orchestration.PPTXOrchestratorImpl;
 import com.excudo.core.orchestration.PresentationScaffolder;
-import com.excudo.core.parsing.ParsedCommand;
+import com.excudo.core.parsing.CommandParameters;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,7 +29,7 @@ import static org.junit.Assert.*;
 public class AddShapeTextBoxRoundTripTest {
 
     private PPTXOrchestratorImpl orchestrator;
-    private ShapeCommandFactory factory;
+    private CommandContext ctx;
     private ToolDispatcher dispatcher;
 
     @Before
@@ -38,20 +38,20 @@ public class AddShapeTextBoxRoundTripTest {
         orchestrator = new PPTXOrchestratorImpl();
         orchestrator.initialize(doc);
         orchestrator.createSlide(1, "TBT", "slideLayout2");
-        factory = new ShapeCommandFactory(orchestrator);
+        ctx = new CommandContext(orchestrator, null);
         CommandFactory cf = new CommandFactory(orchestrator);
         dispatcher = new ToolDispatcher(orchestrator, cf, new CommandInvoker());
     }
 
     @Test
     public void addShapeTextBoxAliasSetsTxBoxMarker() throws Exception {
-        ParsedCommand parsed = new ParsedCommand("add-shape", Map.of(
+        CommandParameters parsed = new CommandParameters("add-shape", Map.of(
             "slide", "1",
             "shape-type", "TEXT_BOX",
             "text", "I am a text box",
             "x", "1000000", "y", "1000000",
             "width", "3000000", "height", "1000000"));
-        Command cmd = factory.createFromParsedCommand(parsed, null);
+        Command cmd = CommandClassRegistry.createFromParameters(parsed, ctx);
         cmd.execute();
 
         // The just-created shape should report isTextBox()==true via the
@@ -65,13 +65,13 @@ public class AddShapeTextBoxRoundTripTest {
 
     @Test
     public void addShapeRectangleDoesNotSetTxBoxMarker() throws Exception {
-        ParsedCommand parsed = new ParsedCommand("add-shape", Map.of(
+        CommandParameters parsed = new CommandParameters("add-shape", Map.of(
             "slide", "1",
             "shape-type", "RECTANGLE",
             "text", "Just a rectangle",
             "x", "1000000", "y", "2500000",
             "width", "3000000", "height", "1000000"));
-        Command cmd = factory.createFromParsedCommand(parsed, null);
+        Command cmd = CommandClassRegistry.createFromParameters(parsed, ctx);
         cmd.execute();
 
         SlideShape created = findByText("Just a rectangle");
@@ -84,12 +84,12 @@ public class AddShapeTextBoxRoundTripTest {
     public void getSlideShapesDisplaysTextBoxLabel() throws Exception {
         // Add one TEXT_BOX and one styled RECTANGLE; verify the
         // get_slide_shapes MCP tool labels them differently.
-        factory.createFromParsedCommand(new ParsedCommand("add-shape", Map.of(
+        CommandClassRegistry.createFromParameters(new CommandParameters("add-shape", Map.of(
             "slide", "1", "shape-type", "TEXT_BOX", "text", "TXTBOX_LABEL",
-            "x", "0", "y", "0", "width", "1000000", "height", "500000")), null).execute();
-        factory.createFromParsedCommand(new ParsedCommand("add-shape", Map.of(
+            "x", "0", "y", "0", "width", "1000000", "height", "500000")), ctx).execute();
+        CommandClassRegistry.createFromParameters(new CommandParameters("add-shape", Map.of(
             "slide", "1", "shape-type", "RECTANGLE", "text", "RECT_LABEL",
-            "x", "0", "y", "1000000", "width", "1000000", "height", "500000")), null).execute();
+            "x", "0", "y", "1000000", "width", "1000000", "height", "500000")), ctx).execute();
 
         String out = dispatcher.dispatch("get_slide_shapes",
             "{\"slideNumber\":1}");

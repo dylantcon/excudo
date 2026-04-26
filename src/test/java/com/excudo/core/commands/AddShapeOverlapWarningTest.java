@@ -27,7 +27,6 @@ import static org.junit.Assert.*;
 public class AddShapeOverlapWarningTest {
 
     private PPTXOrchestratorImpl orchestrator;
-    private ShapeCommandFactory factory;
     private RecordingDisplay display;
 
     @Before
@@ -39,7 +38,6 @@ public class AddShapeOverlapWarningTest {
         // overlap area. Rectangles will be the only non-placeholder
         // shapes, making the assertions clean.
         orchestrator.createSlide(1, "Overlap Test", "slideLayout7");
-        factory = new ShapeCommandFactory(orchestrator);
         display = new RecordingDisplay();
     }
 
@@ -116,10 +114,11 @@ public class AddShapeOverlapWarningTest {
         // should be suppressed.
         orchestrator.createSlide(2, "Placeholder Test", "slideLayout2");
         display.clear();
-        var parsed = new com.excudo.core.parsing.ParsedCommand("add-shape", java.util.Map.of(
+        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape", java.util.Map.of(
             "slide", "2", "shape-type", "RECTANGLE", "text", "in-placeholder",
             "x", "1000000", "y", "2000000", "width", "5000000", "height", "2000000"));
-        Command cmd = factory.createFromParsedCommand(parsed, display);
+        Command cmd = CommandClassRegistry.createFromParameters(parsed,
+            new CommandContext(orchestrator, display));
         cmd.execute();
         assertEquals("Overlapping a placeholder should NOT warn (intentional fill)",
             0, display.messages.size());

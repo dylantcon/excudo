@@ -27,7 +27,7 @@ import static org.junit.Assert.*;
 public class AddShapeAlignmentTest {
 
     private PPTXOrchestratorImpl orchestrator;
-    private ShapeCommandFactory factory;
+    private CommandContext ctx;
     private static final ShapeGeometry GEO =
         new ShapeGeometry(1_000_000, 1_000_000, 3_000_000, 1_000_000);
 
@@ -37,7 +37,7 @@ public class AddShapeAlignmentTest {
         orchestrator = new PPTXOrchestratorImpl();
         orchestrator.initialize(doc);
         orchestrator.createSlide(1, "Align Test", "slideLayout2");
-        factory = new ShapeCommandFactory(orchestrator);
+        ctx = new CommandContext(orchestrator, null);
     }
 
     @Test
@@ -101,9 +101,9 @@ public class AddShapeAlignmentTest {
     @Test
     public void alignmentAliasesAreNormalized() throws Exception {
         // Aliases (left/center/right/justify) should reach the same
-        // canonical OOXML token. Drives the path through
-        // ShapeCommandFactory.createFromParsedCommand -> normalizeAlignment.
-        var parsed = new com.excudo.core.parsing.ParsedCommand("add-shape",
+        // canonical OOXML token. Drives the parse path through
+        // AddShapeCommand.fromParameters -> ShapeCommandFactory.normalizeAlignment.
+        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape",
             java.util.Map.of(
                 "slide", "1",
                 "shape-type", "RECTANGLE",
@@ -111,7 +111,7 @@ public class AddShapeAlignmentTest {
                 "x", "1000000", "y", "1000000",
                 "width", "3000000", "height", "1000000",
                 "align", "left"));
-        Command cmd = factory.createFromParsedCommand(parsed, null);
+        Command cmd = CommandClassRegistry.createFromParameters(parsed, ctx);
         cmd.execute();
         // The created SPID is the next available; instead of plumbing it
         // back, find the most recently added rectangle with "aliased" text.
@@ -128,13 +128,13 @@ public class AddShapeAlignmentTest {
 
     @Test
     public void invalidAlignmentTokenFailsLoud() {
-        var parsed = new com.excudo.core.parsing.ParsedCommand("add-shape",
+        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape",
             java.util.Map.of(
                 "slide", "1", "shape-type", "RECTANGLE", "text", "x",
                 "x", "0", "y", "0", "width", "100", "height", "100",
                 "align", "diagonal"));
         try {
-            factory.createFromParsedCommand(parsed, null);
+            CommandClassRegistry.createFromParameters(parsed, ctx);
             fail("Unrecognised alignment 'diagonal' should throw");
         } catch (IllegalArgumentException e) {
             assertTrue("Error must list valid alignment tokens",
