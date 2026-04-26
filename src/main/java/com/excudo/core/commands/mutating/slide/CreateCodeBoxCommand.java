@@ -57,6 +57,29 @@ public class CreateCodeBoxCommand implements Command {
     private static final long   FALLBACK_LINE_H = 182880L;       // 12pt * 1.2 spacing
     private static final String COLOR_BG        = "3F3F3F";
 
+    /**
+     * Sentinel prefix for the group's {@code cNvPr/@name}. Lets the
+     * {@link com.excudo.core.synthesis.ScriptSynthesizer} detect a
+     * compound primitive on parse-back and emit a single
+     * {@code CreateCodeBoxSpec} instead of decomposing into AddShape +
+     * SetText × N. The language follows the prefix as part of the name
+     * so re-emission can re-tokenize at run time without consulting a
+     * side table.
+     */
+    public static final String GROUP_TAG_PREFIX = "excudo:code_box_v1:";
+
+    /** Build the group-tag name for a given language. */
+    public static String tagFor(String language) {
+        return GROUP_TAG_PREFIX + (language != null ? language : "text");
+    }
+
+    /** Extract the language back out of a tag-shaped name, or null if
+     *  the name doesn't carry the prefix. */
+    public static String languageFromTag(String name) {
+        if (name == null || !name.startsWith(GROUP_TAG_PREFIX)) return null;
+        return name.substring(GROUP_TAG_PREFIX.length());
+    }
+
     private final int slideNumber;
     private final String code;
     private final String language;
@@ -184,6 +207,20 @@ public class CreateCodeBoxCommand implements Command {
                 slideNumber, List.of(lineNumSpid, codeSpid));
             if (groupResult != null && groupResult.getData().isPresent()) {
                 this.groupSpid = groupResult.getData().get();
+                // Tag the group so synthesize_slide_script can recognise
+                // this compound primitive on parse-back and emit a single
+                // CreateCodeBoxSpec instead of decomposing into AddShape +
+                // SetText for each panel. Failure is non-fatal: an
+                // un-tagged group still works as a code box, it just
+                // won't round-trip through the synthesizer.
+                try {
+                    orchestrator.updateShapeName(slideNumber, groupSpid, tagFor(language));
+                } catch (Exception e) {
+                    java.util.logging.Logger.getLogger(CreateCodeBoxCommand.class.getName())
+                        .warning("Failed to tag code box group " + groupSpid
+                            + " (compound shape will not round-trip via synthesizer): "
+                            + e.getMessage());
+                }
             }
             // If grouping fails the panels are still useful as siblings;
             // groupSpid stays null and undo just removes the children.

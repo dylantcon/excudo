@@ -86,6 +86,10 @@ public final class SpecToCommandMapper {
                                                         s.slideNumber(), s.groupSpid(), s.childSpid(), orchestrator);
             case CommandSpec.DetachFromGroupSpec s -> new com.excudo.core.commands.mutating.slide.DetachFromGroupCommand(
                                                         s.slideNumber(), s.childSpid(), orchestrator);
+            case CommandSpec.CreateCodeBoxSpec s -> new com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand(
+                                                        s.slideNumber(), s.code(), s.language(),
+                                                        s.x(), s.y(), s.width(), s.height(),
+                                                        s.lineNumberColor(), orchestrator);
         };
     }
 

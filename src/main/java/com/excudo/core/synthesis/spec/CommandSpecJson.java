@@ -168,6 +168,7 @@ public final class CommandSpecJson {
         SPEC_TYPES.put("UngroupSpec",         CommandSpec.UngroupSpec.class);
         SPEC_TYPES.put("AddToGroupSpec",      CommandSpec.AddToGroupSpec.class);
         SPEC_TYPES.put("DetachFromGroupSpec", CommandSpec.DetachFromGroupSpec.class);
+        SPEC_TYPES.put("CreateCodeBoxSpec",   CommandSpec.CreateCodeBoxSpec.class);
     }
 
     // ============================================================

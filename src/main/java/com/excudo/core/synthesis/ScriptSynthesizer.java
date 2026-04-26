@@ -61,24 +61,134 @@ public final class ScriptSynthesizer {
         // downstream spec references an upstream creation.
         Map<Integer, CommandSpec> addShapeBySpid = new HashMap<>();
 
-        emitShapeAdds(diff, slideNumber, builder, addShapeBySpid);
+        // Compound primitives (code boxes etc.) are detected up front so
+        // their constituent shapes / groups don't show up in the regular
+        // emitShapeAdds + emitGroupDeltas paths. The set of "consumed"
+        // SPIDs is the union of (a) the tagged group itself and
+        // (b) every child of that group in the added set.
+        Set<Integer> consumedSpids = new HashSet<>();
+        emitCompoundPrimitives(diff, slideNumber, builder, consumedSpids, warnings);
+
+        emitShapeAdds(diff, slideNumber, builder, addShapeBySpid, consumedSpids);
         emitShapeRemovals(diff, slideNumber, builder, warnings);
         emitShapeModifications(diff, slideNumber, builder, warnings);
         emitAnimationAdds(diff, slideNumber, builder, addShapeBySpid);
         emitAnimationRemovals(diff, slideNumber, builder, warnings);
         emitAnimationTimingChanges(diff, slideNumber, builder, warnings);
         emitTransitionChange(diff, slideNumber, builder);
-        emitGroupDeltas(diff, slideNumber, builder, addShapeBySpid);
+        emitGroupDeltas(diff, slideNumber, builder, addShapeBySpid, consumedSpids);
 
         return new Result(builder.build(), java.util.List.copyOf(warnings));
+    }
+
+    // ========== Compound primitives ==========
+
+    /**
+     * Detect tagged compound primitives (code boxes etc.) in the added
+     * set and emit a single high-level spec per compound, marking its
+     * constituent SPIDs as consumed so subsequent passes skip them.
+     */
+    private static void emitCompoundPrimitives(SlideStateDiff diff, int slideNumber,
+            CommandScript.Builder builder, Set<Integer> consumedSpids,
+            java.util.List<String> warnings) {
+        // Index added snapshots by SPID for parent-child lookup.
+        Map<Integer, ShapeSnapshot> addedBySpid = new HashMap<>();
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            addedBySpid.put(added.shape().spid(), added.shape());
+        }
+
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            ShapeSnapshot s = added.shape();
+            if (s.type() != com.excudo.core.model.SlideShape.ShapeType.GROUP) continue;
+
+            String language = com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand
+                .languageFromTag(s.name());
+            if (language == null) continue;
+
+            // Find children of this group in the added set.
+            ShapeSnapshot codePanel = null;
+            java.util.List<Integer> childSpids = new java.util.ArrayList<>();
+            for (SlideStateDiff.ShapeAdded a : diff.added()) {
+                ShapeSnapshot child = a.shape();
+                if (child.parentGroupSpid() != null && child.parentGroupSpid() == s.spid()) {
+                    childSpids.add(child.spid());
+                    if ("Code".equals(child.name())) codePanel = child;
+                }
+            }
+
+            if (codePanel == null || codePanel.textBody() == null) {
+                warnings.add("Code box group SPID " + s.spid()
+                    + " has tag '" + s.name() + "' but no Code child with a text body; "
+                    + "falling back to AddShape decomposition.");
+                continue;
+            }
+
+            String code = extractPlainCode(codePanel.textBody());
+            String lineNumberColor = extractLineNumberColor(addedBySpid, childSpids);
+
+            CommandSpec.CreateCodeBoxSpec spec = new CommandSpec.CreateCodeBoxSpec(
+                slideNumber, language, code,
+                s.geometry().getX(), s.geometry().getY(),
+                s.geometry().getWidth(), s.geometry().getHeight(),
+                lineNumberColor, s.spid());
+            builder.add(spec);
+
+            // Consume the group and every child of the group, plus any
+            // GroupDelta keyed on this group SPID.
+            consumedSpids.add(s.spid());
+            consumedSpids.addAll(childSpids);
+        }
+    }
+
+    /** Concatenate every run's text in document order, splitting paragraphs
+     *  with newlines. Round-trips the source code stored as syntax-highlighted
+     *  runs back into a flat string for re-tokenization. */
+    private static String extractPlainCode(TextBody body) {
+        StringBuilder sb = new StringBuilder();
+        java.util.List<com.excudo.core.model.TextParagraph> paragraphs = body.getParagraphs();
+        for (int i = 0; i < paragraphs.size(); i++) {
+            for (com.excudo.core.model.TextRun run : paragraphs.get(i).getRuns()) {
+                String t = run.getText();
+                if (t != null) sb.append(t);
+            }
+            if (i < paragraphs.size() - 1) sb.append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** Pull the line-number gutter color off the LineNumbers child if it
+     *  exists and carries an explicit hex color on its first run.
+     *  Returns null when the color matches the default (no override needed). */
+    private static String extractLineNumberColor(Map<Integer, ShapeSnapshot> addedBySpid,
+            java.util.List<Integer> childSpids) {
+        for (int childSpid : childSpids) {
+            ShapeSnapshot child = addedBySpid.get(childSpid);
+            if (child == null || !"LineNumbers".equals(child.name())) continue;
+            if (child.textBody() == null) return null;
+            for (com.excudo.core.model.TextParagraph p : child.textBody().getParagraphs()) {
+                for (com.excudo.core.model.TextRun r : p.getRuns()) {
+                    com.excudo.core.model.TextColor c = r.getColor();
+                    if (c != null && !c.isScheme()) {
+                        String hex = c.getHexVal();
+                        // Default dim gray is 858585; only emit overrides.
+                        if (hex != null && !"858585".equalsIgnoreCase(hex)) return hex;
+                    }
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     // ========== Shape adds ==========
 
     private static void emitShapeAdds(SlideStateDiff diff, int slideNumber,
-            CommandScript.Builder builder, Map<Integer, CommandSpec> addShapeBySpid) {
+            CommandScript.Builder builder, Map<Integer, CommandSpec> addShapeBySpid,
+            Set<Integer> consumedSpids) {
         for (SlideStateDiff.ShapeAdded added : diff.added()) {
             ShapeSnapshot s = added.shape();
+            // Skip shapes already covered by a compound primitive.
+            if (consumedSpids.contains(s.spid())) continue;
             // AddShapeSpec carries only plain text (matching AddShapeCommand's
             // surface). If the target TextBody has multi-paragraph / formatted
             // content, a follow-up SetTextSpec with a DAG edge will apply it.
@@ -378,8 +488,12 @@ public final class ScriptSynthesizer {
     // ========== Groups ==========
 
     private static void emitGroupDeltas(SlideStateDiff diff, int slideNumber,
-            CommandScript.Builder builder, Map<Integer, CommandSpec> addShapeBySpid) {
+            CommandScript.Builder builder, Map<Integer, CommandSpec> addShapeBySpid,
+            Set<Integer> consumedSpids) {
         for (SlideStateDiff.GroupDelta gd : diff.groupDeltas()) {
+            // Skip the GroupDelta when its group is part of a compound
+            // primitive that already emitted its own high-level spec.
+            if (consumedSpids.contains(gd.groupSpid())) continue;
             if (gd.groupAdded()) {
                 // New group with its initial children. Emit CreateGroupSpec
                 // and wire edges to each child's AddShapeSpec (children must

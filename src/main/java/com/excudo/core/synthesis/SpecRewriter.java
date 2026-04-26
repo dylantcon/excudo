@@ -77,6 +77,7 @@ public final class SpecRewriter {
             case CommandSpec.DetachFromGroupSpec s -> mapOrSame(s, spidMap,
                                                         id -> new CommandSpec.DetachFromGroupSpec(s.slideNumber(), id),
                                                         s.childSpid());
+            case CommandSpec.CreateCodeBoxSpec s -> s; // creates SPIDs, doesn't reference any
         };
     }
 

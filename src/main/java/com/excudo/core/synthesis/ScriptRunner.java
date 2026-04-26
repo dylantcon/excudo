@@ -79,6 +79,19 @@ public final class ScriptRunner {
                         spidMap.put(source, allocated);
                     }
                 }
+                // CreateCodeBoxSpec creates a tagged group + 2 children;
+                // downstream specs reference the GROUP, so we map source
+                // group SPID -> the freshly allocated group SPID. The
+                // children's SPIDs aren't visible to downstream specs
+                // that survived synthesis (the synthesizer consumed them).
+                if (rewritten instanceof CommandSpec.CreateCodeBoxSpec ccbSpec
+                        && cmd instanceof com.excudo.core.commands.mutating.slide.CreateCodeBoxCommand ccbCmd) {
+                    Integer allocatedGroup = ccbCmd.getGroupSpid();
+                    Integer source = ccbSpec.sourceSpidHint();
+                    if (allocatedGroup != null && source != null) {
+                        spidMap.put(source, allocatedGroup);
+                    }
+                }
             }
             return ExecutionResult.success("ScriptRunner", null);
         } catch (CommandExecutionException e) {

@@ -60,6 +60,9 @@ public final class RetargetToSlide {
                 targetSlide, s.groupSpid(), s.childSpid());
             case CommandSpec.DetachFromGroupSpec s -> new CommandSpec.DetachFromGroupSpec(
                 targetSlide, s.childSpid());
+            case CommandSpec.CreateCodeBoxSpec s -> new CommandSpec.CreateCodeBoxSpec(
+                targetSlide, s.language(), s.code(), s.x(), s.y(),
+                s.width(), s.height(), s.lineNumberColor(), s.sourceSpidHint());
         };
     }
 }

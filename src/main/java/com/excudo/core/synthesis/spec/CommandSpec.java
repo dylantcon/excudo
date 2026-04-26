@@ -63,7 +63,8 @@ public sealed interface CommandSpec permits
         CommandSpec.CreateGroupSpec,
         CommandSpec.UngroupSpec,
         CommandSpec.AddToGroupSpec,
-        CommandSpec.DetachFromGroupSpec {
+        CommandSpec.DetachFromGroupSpec,
+        CommandSpec.CreateCodeBoxSpec {
 
     /** Slide number this spec targets. Every spec carries it, so the
      *  DAG's node-to-slide mapping is self-contained. */
@@ -352,6 +353,48 @@ public sealed interface CommandSpec permits
         public DetachFromGroupSpec {
             validateSlide(slideNumber);
             validateSpid(childSpid);
+        }
+    }
+
+    // ============================================================
+    // Compound primitives
+    // ============================================================
+
+    /**
+     * Re-create a syntax-highlighted code box as a single high-level
+     * spec. Synthesizer emits this when it sees a GROUP shape tagged with
+     * {@code excudo:code_box_v1:<language>} -- without it, a single code
+     * box decomposes into AddShape × 2 + CreateGroup + SetText × N, and
+     * editing {@code code} would require the LLM to hand-rebuild the
+     * syntax-highlight run tree.
+     *
+     * <p>{@code lineNumberColor} is nullable; null means the default
+     * dim-gray gutter color. {@code width} / {@code height} are nullable
+     * for the auto-size path the runtime command supports (auto-fit to
+     * longest line + line count); a non-null value pins the dimension.
+     *
+     * <p>{@code sourceSpidHint} mirrors {@link AddShapeSpec#sourceSpidHint}
+     * -- the GROUP's source-slide SPID gets remapped to the freshly
+     * allocated SPID on execute, so downstream specs that reference the
+     * group (animations, reorders) continue to point at the right shape.
+     */
+    record CreateCodeBoxSpec(
+            int slideNumber,
+            String language,
+            String code,
+            long x,
+            long y,
+            Long width,
+            Long height,
+            String lineNumberColor,
+            Integer sourceSpidHint) implements CommandSpec {
+        public CreateCodeBoxSpec {
+            validateSlide(slideNumber);
+            Objects.requireNonNull(code, "code");
+            if (code.isEmpty()) {
+                throw new IllegalArgumentException("code cannot be empty");
+            }
+            if (language == null || language.isBlank()) language = "text";
         }
     }
 
