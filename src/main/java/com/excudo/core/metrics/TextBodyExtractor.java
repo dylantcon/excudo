@@ -112,17 +112,77 @@ public final class TextBodyExtractor {
             extractParagraphProperties(pPr, builder);
         }
 
-        // Parse a:r elements
+        // Walk run-level children. Two shapes show up here:
+        //   - <a:r> ... </a:r>            (plain text run)
+        //   - <a14:m> <m:oMath> ... </m:oMath> </a14:m>   (embedded OMML)
+        // The OMML branch is a Tier-A flat-text fallback: concatenate every
+        // <m:t> text node in document order into a single italic Cambria Math
+        // run so the formula stops being invisible. Full math layout (stacked
+        // fractions, sized delimiters, super/sub baselines) is Tier C work
+        // and lives in a dedicated MathPainter.
         NodeList children = p.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             Node child = children.item(i);
-            if (child instanceof Element el && matchesName(el, "a:r")) {
+            if (!(child instanceof Element el)) continue;
+            if (matchesName(el, "a:r")) {
                 TextRun run = extractRun(el);
                 if (run != null) builder.addRun(run);
+            } else if (isMathContainer(el)) {
+                TextRun mathRun = extractMathAsFlatRun(el);
+                if (mathRun != null) builder.addRun(mathRun);
             }
         }
 
         return builder.build();
+    }
+
+    /** True iff this element is the OMML-in-DrawingML wrapper (a14:m) or a
+     *  bare m:oMath / m:oMathPara that carries math content. */
+    private static boolean isMathContainer(Element el) {
+        String local = el.getLocalName();
+        if (local == null) local = stripPrefix(el.getTagName());
+        return "m".equals(local) || "oMath".equals(local) || "oMathPara".equals(local);
+    }
+
+    /**
+     * Tier-A math fallback. Concatenates every {@code <m:t>} text node in
+     * the math subtree into a single TextRun, formatted as italic Cambria
+     * Math (the convention PowerPoint uses for inline math). The result
+     * reads correctly as a flat string -- e.g.
+     * {@code y(x*) ~ N(m(x*), σ²(x*))} -- but loses the layout (no
+     * stacked fractions, super/sub on the baseline). That's what Tier C
+     * is for; this just stops the math being invisible.
+     */
+    private static TextRun extractMathAsFlatRun(Element mathEl) {
+        StringBuilder sb = new StringBuilder();
+        collectMathText(mathEl, sb);
+        if (sb.length() == 0) return null;
+        return TextRun.builder(sb.toString())
+            .fontFamily("Cambria Math")
+            .italic(true)
+            .build();
+    }
+
+    private static void collectMathText(Node node, StringBuilder sb) {
+        NodeList kids = node.getChildNodes();
+        for (int i = 0; i < kids.getLength(); i++) {
+            Node n = kids.item(i);
+            if (n instanceof Element el) {
+                String local = el.getLocalName();
+                if (local == null) local = stripPrefix(el.getTagName());
+                if ("t".equals(local)) {
+                    String t = el.getTextContent();
+                    if (t != null) sb.append(t);
+                } else {
+                    collectMathText(el, sb);
+                }
+            }
+        }
+    }
+
+    private static String stripPrefix(String qname) {
+        int i = qname.indexOf(':');
+        return i < 0 ? qname : qname.substring(i + 1);
     }
 
     private static void extractParagraphProperties(Element pPr, TextParagraph.Builder builder) {

@@ -81,6 +81,15 @@ public class SlideXMLParser {
    */
   public ParsedSlideData parseSlide(Document document, int slideNumber) throws XMLParsingException {
     try {
+      // Unwrap mc:AlternateContent before any DOM walk. PowerPoint authors
+      // shapes that use Office 2010+ extensions (like a14:m for math)
+      // inside a <mc:Choice Requires="a14"> branch with a <mc:Fallback>
+      // sibling for older readers. Without unwrapping, our XPath misses
+      // the Choice shapes entirely, so on slide-with-math files (e.g.
+      // /tmp/Uncertainty Quantification.pptx slides 8/10/12) the body
+      // doesn't render at all.
+      MarkupCompatibilityUnwrapper.unwrap(document);
+
       // Extract the three core data structures with slide context
       ShapeRegistry shapeRegistry = extractShapes(document, slideNumber);
       TimingTree timingTree = extractTimingTree(document);
