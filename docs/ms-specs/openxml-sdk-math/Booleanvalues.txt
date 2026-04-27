@@ -1,0 +1,260 @@
+# BooleanValues Enum
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Math](documentformat.openxml.math?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially
+modified before it’s released. Microsoft makes no warranties, express or
+implied, with respect to the information provided here.
+
+Defines the BooleanValues enumeration.
+
+    
+    
+    public enum BooleanValues
+    
+    
+    public readonly struct BooleanValues : DocumentFormat.OpenXml.IEnumValue, DocumentFormat.OpenXml.IEnumValueFactory<DocumentFormat.OpenXml.Math.BooleanValues>, IEquatable<DocumentFormat.OpenXml.Math.BooleanValues>
+    
+    
+    type BooleanValues = 
+    
+    
+    type BooleanValues = struct
+        interface IEnumValue
+        interface IEnumValueFactory<BooleanValues>
+    
+    
+    Public Enum BooleanValues
+    
+    
+    Public Structure BooleanValues
+    Implements IEnumValue, IEnumValueFactory(Of BooleanValues), IEquatable(Of BooleanValues)
+
+Inheritance
+
+    
+
+[Enum](/en-us/dotnet/api/system.enum)
+
+BooleanValues
+
+Inheritance
+
+    
+
+[ValueType](/en-us/dotnet/api/system.valuetype)
+
+BooleanValues
+
+## Fields
+
+Name | Value | Description  
+---|---|---  
+True  | 0 | true. When the item is serialized out as xml, its value is "true".  
+False  | 1 | false. When the item is serialized out as xml, its value is "false".  
+On  | 2 | On. When the item is serialized out as xml, its value is "on".  
+Off  | 3 | Off. When the item is serialized out as xml, its value is "off".  
+Zero  | 4 | 
+
+  0. 
+When the item is serialized out as xml, its value is "0".  
+One  | 5 | 
+
+  1. 
+When the item is serialized out as xml, its value is "1".  
+BooleanValues(String)  |  | Creates a new BooleanValues enum instance  
+Equality(BooleanValues, BooleanValues)  |  |   
+Equals(BooleanValues)  |  |   
+Equals(Object)  |  |   
+False  |  | false. When the item is serialized out as xml, its value is "false".  
+GetHashCode()  |  |   
+IEnumValue.IsValid  |  |   
+IEnumValue.Value  |  |   
+IEnumValue.Version  |  |   
+IEnumValueFactory<BooleanValues>.Create(String)  |  |   
+Inequality(BooleanValues, BooleanValues)  |  |   
+Off  |  | Off. When the item is serialized out as xml, its value is "off".  
+On  |  | On. When the item is serialized out as xml, its value is "on".  
+One  |  | 
+
+  1. 
+When the item is serialized out as xml, its value is "1".  
+ToString()  |  |   
+True  |  | true. When the item is serialized out as xml, its value is "true".  
+Zero  |  | 
+
+  0. 
+When the item is serialized out as xml, its value is "0".  
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+

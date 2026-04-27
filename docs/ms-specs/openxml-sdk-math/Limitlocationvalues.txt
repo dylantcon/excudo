@@ -1,0 +1,240 @@
+# LimitLocationValues Enum
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Math](documentformat.openxml.math?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially
+modified before it’s released. Microsoft makes no warranties, express or
+implied, with respect to the information provided here.
+
+Defines the LimitLocationValues enumeration.
+
+    
+    
+    public enum LimitLocationValues
+    
+    
+    public readonly struct LimitLocationValues : DocumentFormat.OpenXml.IEnumValue, DocumentFormat.OpenXml.IEnumValueFactory<DocumentFormat.OpenXml.Math.LimitLocationValues>, IEquatable<DocumentFormat.OpenXml.Math.LimitLocationValues>
+    
+    
+    type LimitLocationValues = 
+    
+    
+    type LimitLocationValues = struct
+        interface IEnumValue
+        interface IEnumValueFactory<LimitLocationValues>
+    
+    
+    Public Enum LimitLocationValues
+    
+    
+    Public Structure LimitLocationValues
+    Implements IEnumValue, IEnumValueFactory(Of LimitLocationValues), IEquatable(Of LimitLocationValues)
+
+Inheritance
+
+    
+
+[Enum](/en-us/dotnet/api/system.enum)
+
+LimitLocationValues
+
+Inheritance
+
+    
+
+[ValueType](/en-us/dotnet/api/system.valuetype)
+
+LimitLocationValues
+
+## Fields
+
+Name | Value | Description  
+---|---|---  
+UnderOver  | 0 | Under-Over location. When the item is serialized out as xml, its value is "undOvr".  
+SubscriptSuperscript  | 1 | Subscript-Superscript location. When the item is serialized out as xml, its value is "subSup".  
+Equality(LimitLocationValues, LimitLocationValues)  |  |   
+Equals(LimitLocationValues)  |  |   
+Equals(Object)  |  |   
+GetHashCode()  |  |   
+IEnumValue.IsValid  |  |   
+IEnumValue.Value  |  |   
+IEnumValue.Version  |  |   
+IEnumValueFactory<LimitLocationValues>.Create(String)  |  |   
+Inequality(LimitLocationValues, LimitLocationValues)  |  |   
+LimitLocationValues(String)  |  | Creates a new LimitLocationValues enum instance  
+SubscriptSuperscript  |  | Subscript-Superscript location. When the item is serialized out as xml, its value is "subSup".  
+ToString()  |  |   
+UnderOver  |  | Under-Over location. When the item is serialized out as xml, its value is "undOvr".  
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+

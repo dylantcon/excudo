@@ -1,0 +1,244 @@
+# JustificationValues Enum
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Math](documentformat.openxml.math?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially
+modified before it’s released. Microsoft makes no warranties, express or
+implied, with respect to the information provided here.
+
+Defines the JustificationValues enumeration.
+
+    
+    
+    public enum JustificationValues
+    
+    
+    public readonly struct JustificationValues : DocumentFormat.OpenXml.IEnumValue, DocumentFormat.OpenXml.IEnumValueFactory<DocumentFormat.OpenXml.Math.JustificationValues>, IEquatable<DocumentFormat.OpenXml.Math.JustificationValues>
+    
+    
+    type JustificationValues = 
+    
+    
+    type JustificationValues = struct
+        interface IEnumValue
+        interface IEnumValueFactory<JustificationValues>
+    
+    
+    Public Enum JustificationValues
+    
+    
+    Public Structure JustificationValues
+    Implements IEnumValue, IEnumValueFactory(Of JustificationValues), IEquatable(Of JustificationValues)
+
+Inheritance
+
+    
+
+[Enum](/en-us/dotnet/api/system.enum)
+
+JustificationValues
+
+Inheritance
+
+    
+
+[ValueType](/en-us/dotnet/api/system.valuetype)
+
+JustificationValues
+
+## Fields
+
+Name | Value | Description  
+---|---|---  
+Left  | 0 | Left Justification. When the item is serialized out as xml, its value is "left".  
+Right  | 1 | Right. When the item is serialized out as xml, its value is "right".  
+Center  | 2 | Center (Equation). When the item is serialized out as xml, its value is "center".  
+CenterGroup  | 3 | Centered as Group (Equations). When the item is serialized out as xml, its value is "centerGroup".  
+Center  |  | Center (Equation). When the item is serialized out as xml, its value is "center".  
+CenterGroup  |  | Centered as Group (Equations). When the item is serialized out as xml, its value is "centerGroup".  
+Equality(JustificationValues, JustificationValues)  |  |   
+Equals(JustificationValues)  |  |   
+Equals(Object)  |  |   
+GetHashCode()  |  |   
+IEnumValue.IsValid  |  |   
+IEnumValue.Value  |  |   
+IEnumValue.Version  |  |   
+IEnumValueFactory<JustificationValues>.Create(String)  |  |   
+Inequality(JustificationValues, JustificationValues)  |  |   
+JustificationValues(String)  |  | Creates a new JustificationValues enum instance  
+Left  |  | Left Justification. When the item is serialized out as xml, its value is "left".  
+Right  |  | Right. When the item is serialized out as xml, its value is "right".  
+ToString()  |  |   
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+

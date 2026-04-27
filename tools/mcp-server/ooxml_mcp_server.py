@@ -33,11 +33,14 @@ ORACLE_SLIDES_DIR = os.path.join(PROJECT_ROOT, "test-pptx-samples", "all_anim_ex
 
 # Spec files available for search, keyed by short name
 SPEC_FILES = {
-    "MS-OE376":      os.path.join(SPECS_DIR, "MS-OE376.txt"),
-    "MS-OE376-pml":  os.path.join(SPECS_DIR, "MS-OE376-pml.txt"),
-    "MS-OI29500":    os.path.join(SPECS_DIR, "MS-OI29500.txt"),
-    "MS-OI29500-pml":os.path.join(SPECS_DIR, "MS-OI29500-pml.txt"),
-    "MS-PPTX":       os.path.join(SPECS_DIR, "MS-PPTX.txt"),
+    "MS-OE376":         os.path.join(SPECS_DIR, "MS-OE376.txt"),
+    "MS-OE376-pml":     os.path.join(SPECS_DIR, "MS-OE376-pml.txt"),
+    "MS-OE376-math":    os.path.join(SPECS_DIR, "MS-OE376-math.txt"),
+    "MS-OI29500":       os.path.join(SPECS_DIR, "MS-OI29500.txt"),
+    "MS-OI29500-pml":   os.path.join(SPECS_DIR, "MS-OI29500-pml.txt"),
+    "MS-OI29500-math":  os.path.join(SPECS_DIR, "MS-OI29500-math.txt"),
+    "MS-PPTX":          os.path.join(SPECS_DIR, "MS-PPTX.txt"),
+    "OT-MATH-table":    os.path.join(SPECS_DIR, "OT-MATH-table.txt"),
 }
 
 # Auto-discover OpenXML SDK spec pages (topic-specific ISO 29500-1 extracts)
@@ -47,6 +50,14 @@ if os.path.isdir(_SDK_DIR):
         if _fname.endswith(".txt"):
             _key = "sdk:" + _fname.replace(".txt", "")
             SPEC_FILES[_key] = os.path.join(_SDK_DIR, _fname)
+
+# Auto-discover OpenXML SDK math pages (per-element OMML class references)
+_SDK_MATH_DIR = os.path.join(SPECS_DIR, "openxml-sdk-math")
+if os.path.isdir(_SDK_MATH_DIR):
+    for _fname in sorted(os.listdir(_SDK_MATH_DIR)):
+        if _fname.endswith(".txt"):
+            _key = "math:" + _fname.replace(".txt", "")
+            SPEC_FILES[_key] = os.path.join(_SDK_MATH_DIR, _fname)
 
 # All spec short names, for reference in tool descriptions
 ALL_SPEC_NAMES = sorted(SPEC_FILES.keys())
@@ -171,9 +182,31 @@ def spec_search(query, specs=None, context_lines=3, max_results=20, section_numb
         max_results: Maximum number of results to return (default 20)
         section_number: If provided, search for this specific section (e.g., "4.6.33")
     """
+    # Heuristic: when the query looks math-shaped, fold in the OMML +
+    # OpenType MATH scope so callers don't need to know the alias by
+    # name. Triggers on m: prefixes, common math element names, or any
+    # explicit MATH-table term. Misses are fine (caller can pass
+    # specs=["omml"] explicitly); false positives are cheap since
+    # adding the math files just expands the search corpus.
+    # Trailing \b is omitted for the math element / variable terms because
+    # the MATH table spec uses CamelCase compound names (fractionRuleThickness,
+    # mathConstants, naryLargeOpItalicCorrection, ...). A leading \b is
+    # enough to anchor the start of the word.
+    _MATH_HINT_RE = re.compile(
+        r"(\bm:[a-zA-Z]+|\boMath|\bnary|\bfraction|\bradical|"
+        r"\bsubscript|\bsuperscript|\bdelimiter|\bMATH table|"
+        r"\bitalic correction|\bMathConstant|\bMathVariant|"
+        r"\bMathKern|\bstretch(?:y|ed)?)",
+        re.IGNORECASE)
+
     if specs is None:
-        # Default: PML extracts + all SDK topic pages (fast, focused)
+        # Default: PML extracts + all SDK topic pages (fast, focused).
+        # Math scope is added on demand via the heuristic below so
+        # non-math queries don't get noisier.
         specs = ["MS-OE376-pml", "MS-OI29500-pml"] + [k for k in ALL_SPEC_NAMES if k.startswith("sdk:")]
+        if _MATH_HINT_RE.search(query or ""):
+            specs.extend(k for k in ALL_SPEC_NAMES if k.startswith("math:"))
+            specs.extend(["MS-OE376-math", "MS-OI29500-math", "OT-MATH-table"])
     else:
         # Expand shorthand aliases
         expanded = []
@@ -183,6 +216,11 @@ def spec_search(query, specs=None, context_lines=3, max_results=20, section_numb
                 break
             elif s == "sdk":
                 expanded.extend(k for k in ALL_SPEC_NAMES if k.startswith("sdk:"))
+            elif s == "omml":
+                expanded.extend(k for k in ALL_SPEC_NAMES if k.startswith("math:"))
+                expanded.extend(["MS-OE376-math", "MS-OI29500-math"])
+            elif s == "opentype-math":
+                expanded.append("OT-MATH-table")
             else:
                 expanded.append(s)
         specs = expanded
@@ -1409,12 +1447,18 @@ TOOLS = [
         "name": "spec_search",
         "description": (
             "Search OOXML specification documents by keyword, regex, or section number. "
-            "Covers MS-OE376, MS-OI29500, MS-PPTX (full + PML extracts) and 15 OpenXML SDK "
-            "topic pages (BodyProperties, Placeholder, SlideLayout, SlideMaster, ColorScheme, "
-            "FontScheme, FormatScheme, TextStyles, PresetGeometry, NormalAutoFit, MajorFont, "
-            "MinorFont, ColorMap, PlaceholderValues, SlideLayoutValues). Default search scope "
-            "includes PML extracts + all SDK pages. Use specs=['all'] to search everything "
-            "including the full 2.7MB MS-OE376/MS-OI29500 texts."
+            "Covers MS-OE376, MS-OI29500, MS-PPTX (full + PML + math extracts), the OpenType "
+            "MATH table specification, 15 OpenXML SDK PML topic pages "
+            "(BodyProperties, Placeholder, SlideLayout, SlideMaster, ColorScheme, FontScheme, "
+            "FormatScheme, TextStyles, PresetGeometry, NormalAutoFit, MajorFont, MinorFont, "
+            "ColorMap, PlaceholderValues, SlideLayoutValues), and 145 OpenXML SDK math topic "
+            "pages (Fraction, Radical, NaryOperator, Subscript, Superscript, Delimiter, Bar, "
+            "Accent, Matrix, etc., addressed as math:Fraction, math:Radical, ...). "
+            "Default search scope includes PML extracts + all SDK pages; the math scope is "
+            "auto-included when the query contains math-shaped terms (m: prefixes, "
+            "'fraction', 'radical', 'MATH table', 'italic correction', etc). Use "
+            "specs=['omml'] for the full math element set, specs=['opentype-math'] for the "
+            "MATH table spec, specs=['all'] for everything."
         ),
         "inputSchema": {
             "type": "object",

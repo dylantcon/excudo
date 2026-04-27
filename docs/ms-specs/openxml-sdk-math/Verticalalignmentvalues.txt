@@ -1,0 +1,244 @@
+# VerticalAlignmentValues Enum
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Math](documentformat.openxml.math?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially
+modified before it’s released. Microsoft makes no warranties, express or
+implied, with respect to the information provided here.
+
+Defines the VerticalAlignmentValues enumeration.
+
+    
+    
+    public enum VerticalAlignmentValues
+    
+    
+    public readonly struct VerticalAlignmentValues : DocumentFormat.OpenXml.IEnumValue, DocumentFormat.OpenXml.IEnumValueFactory<DocumentFormat.OpenXml.Math.VerticalAlignmentValues>, IEquatable<DocumentFormat.OpenXml.Math.VerticalAlignmentValues>
+    
+    
+    type VerticalAlignmentValues = 
+    
+    
+    type VerticalAlignmentValues = struct
+        interface IEnumValue
+        interface IEnumValueFactory<VerticalAlignmentValues>
+    
+    
+    Public Enum VerticalAlignmentValues
+    
+    
+    Public Structure VerticalAlignmentValues
+    Implements IEnumValue, IEnumValueFactory(Of VerticalAlignmentValues), IEquatable(Of VerticalAlignmentValues)
+
+Inheritance
+
+    
+
+[Enum](/en-us/dotnet/api/system.enum)
+
+VerticalAlignmentValues
+
+Inheritance
+
+    
+
+[ValueType](/en-us/dotnet/api/system.valuetype)
+
+VerticalAlignmentValues
+
+## Fields
+
+Name | Value | Description  
+---|---|---  
+Top  | 0 | Top. When the item is serialized out as xml, its value is "top".  
+Center  | 1 | Center (Function). When the item is serialized out as xml, its value is "center".  
+Bottom  | 2 | bottom. When the item is serialized out as xml, its value is "bottom".  
+Bot  | 3 | Bottom Alignment. When the item is serialized out as xml, its value is "bot".  
+Bot  |  | Bottom Alignment. When the item is serialized out as xml, its value is "bot".  
+Bottom  |  | bottom. When the item is serialized out as xml, its value is "bottom".  
+Center  |  | Center (Function). When the item is serialized out as xml, its value is "center".  
+Equality(VerticalAlignmentValues, VerticalAlignmentValues)  |  |   
+Equals(Object)  |  |   
+Equals(VerticalAlignmentValues)  |  |   
+GetHashCode()  |  |   
+IEnumValue.IsValid  |  |   
+IEnumValue.Value  |  |   
+IEnumValue.Version  |  |   
+IEnumValueFactory<VerticalAlignmentValues>.Create(String)  |  |   
+Inequality(VerticalAlignmentValues, VerticalAlignmentValues)  |  |   
+Top  |  | Top. When the item is serialized out as xml, its value is "top".  
+ToString()  |  |   
+VerticalAlignmentValues(String)  |  | Creates a new VerticalAlignmentValues enum instance  
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+

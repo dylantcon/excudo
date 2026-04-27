@@ -1,0 +1,480 @@
+# MathFunction Class
+
+##
+
+## Definition
+
+Namespace:
+
+     [DocumentFormat.OpenXml.Math](documentformat.openxml.math?view=openxml-3.0.1)
+
+Assembly:
+
+    DocumentFormat.OpenXml.dll
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.10.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.11.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.12.3
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.13.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.14.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.15.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.16.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.17.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.18.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.19.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.20.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.7.2
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.8.1
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.0
+
+Package:
+
+    DocumentFormat.OpenXml v2.9.1
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.0
+
+Package:
+
+    DocumentFormat.OpenXml v3.0.1
+
+Important
+
+Some information relates to prerelease product that may be substantially
+modified before it’s released. Microsoft makes no warranties, express or
+implied, with respect to the information provided here.
+
+Function Apply Function.
+
+This class is available in Office 2007 and above.
+
+When the object is serialized out as xml, it's qualified name is m:func.
+
+    
+    
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))]
+    [DocumentFormat.OpenXml.OfficeAvailability(DocumentFormat.OpenXml.FileFormatVersions.Office2007)]
+    [DocumentFormat.OpenXml.SchemaAttr(21, "func")]
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    [DocumentFormat.OpenXml.SchemaAttr(21, "func")]
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    [DocumentFormat.OpenXml.SchemaAttr("m:func")]
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    [DocumentFormat.OpenXml.SchemaAttr("m:func")]
+    public class MathFunction : DocumentFormat.OpenXml.TypedOpenXmlCompositeElement
+    
+    
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))]
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))]
+    [DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))]
+    [DocumentFormat.OpenXml.OfficeAvailability(DocumentFormat.OpenXml.FileFormatVersions.Office2007)]
+    public class MathFunction : DocumentFormat.OpenXml.OpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))>]
+    [<DocumentFormat.OpenXml.OfficeAvailability(DocumentFormat.OpenXml.FileFormatVersions.Office2007)>]
+    [<DocumentFormat.OpenXml.SchemaAttr(21, "func")>]
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.SchemaAttr(21, "func")>]
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.SchemaAttr("m:func")>]
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.SchemaAttr("m:func")>]
+    type MathFunction = class
+        inherit TypedOpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))>]
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionProperties))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.FunctionName))>]
+    [<DocumentFormat.OpenXml.ChildElementInfo(typeof(DocumentFormat.OpenXml.Math.Base))>]
+    [<DocumentFormat.OpenXml.OfficeAvailability(DocumentFormat.OpenXml.FileFormatVersions.Office2007)>]
+    type MathFunction = class
+        inherit OpenXmlCompositeElement
+    
+    
+    Public Class MathFunction
+    Inherits OpenXmlCompositeElement
+    
+    
+    Public Class MathFunction
+    Inherits TypedOpenXmlCompositeElement
+
+Inheritance
+
+    
+
+[Object](/en-us/dotnet/api/system.object)
+
+[OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1)
+
+[OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1)
+
+MathFunction
+
+Inheritance
+
+    
+
+[Object](/en-us/dotnet/api/system.object)
+
+[OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1)
+
+[OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1)
+
+[TypedOpenXmlCompositeElement](documentformat.openxml.typedopenxmlcompositeelement?view=openxml-3.0.1)
+
+MathFunction
+
+Attributes
+
+    
+
+[ChildElementInfoAttribute](documentformat.openxml.childelementinfoattribute?view=openxml-3.0.1
+"DocumentFormat.OpenXml.ChildElementInfoAttribute")
+[OfficeAvailabilityAttribute](documentformat.openxml.officeavailabilityattribute?view=openxml-3.0.1
+"DocumentFormat.OpenXml.OfficeAvailabilityAttribute")
+[SchemaAttrAttribute](documentformat.openxml.schemaattrattribute?view=openxml-3.0.1
+"DocumentFormat.OpenXml.SchemaAttrAttribute")
+
+## Remarks
+
+[ISO/IEC 29500-1 1st Edition]
+
+**func (Function Apply Object)**
+
+This element specifies the Function-Apply object, which consists of a function
+name and an argument element (e) acted upon. It is often applied using a form
+of linear format. For example, in the linear format described in Unicode
+Technical Article #28, this object is applied by using the Function
+Application character (U+2061). [_Example_ : Examples of Function-Apply
+objects include: , , and .
+
+As an example, the func has fName and e :
+
+    
+    
+    <m:func>   <m:fName>  
+        <m:limLow>  
+          <m:e>  
+            <m:r>  
+              <m:rPr>  
+                <m:scr m:val="roman"/>  
+                <m:sty  m:val="p"/>  
+              </m:rPr>  
+              <m:t>  
+    lim</m:t>  
+            </m:r>  
+          </m:e>  
+          <m:lim>  
+            <m:r>  
+              <m:t>n&#8594;&#8734;</m:t>  
+            </m:r>  
+          </m:lim>  
+        </m:limLow>  
+      </m:fName>  
+      <m:e>  
+        <m:sSub>  
+          <m:e>  
+            <m:r>  
+              <m:t>x</m:t>  
+            </m:r>  
+          </m:e>  
+          <m:sub>  
+            <m:r>  
+              <m:t>n</m:t>  
+            </m:r>  
+          </m:sub>  
+        </m:sSub>  
+      </m:e>  
+    </m:func>  
+    
+
+_end example_]
+
+Parent Elements  
+---  
+deg (§22.1.2.26); del (§17.13.5.14); den (§22.1.2.28); e (§22.1.2.32); fName
+(§22.1.2.37); ins (§17.13.5.18); lim (§22.1.2.52); moveFrom (§17.13.5.22);
+moveTo (§17.13.5.25); num (§22.1.2.75); oMath (§22.1.2.77); sub (§22.1.2.112);
+sup (§22.1.2.114)  
+Child Elements | Subclause  
+---|---  
+e (Element (Argument)) | §22.1.2.32  
+fName (Function Name) | §22.1.2.37  
+funcPr (Function Properties) | §22.1.2.40  
+  
+[_Note_ : The W3C XML Schema definition of this element’s content model
+(CT_Func) is located in §A.6.1. _end note_]
+
+� ISO/IEC29500: 2008.
+
+##  Constructors
+
+[MathFunction()](documentformat.openxml.math.mathfunction.-ctor?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-ctor) |  Initializes a new instance of the MathFunction class.  
+---|---  
+[MathFunction(IEnumerable<OpenXmlElement>)](documentformat.openxml.math.mathfunction.-ctor?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-ctor\(system-collections-generic-ienumerable\(\(documentformat-openxml-openxmlelement\)\)\)) |  Initializes a new instance of the MathFunction class with the specified child elements.  
+[MathFunction(OpenXmlElement[])](documentformat.openxml.math.mathfunction.-ctor?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-ctor\(documentformat-openxml-openxmlelement\(\)\)) |  Initializes a new instance of the MathFunction class with the specified child elements.  
+[MathFunction(String)](documentformat.openxml.math.mathfunction.-ctor?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-ctor\(system-string\)) |  Initializes a new instance of the MathFunction class from outer XML.  
+  
+##  Properties
+
+[Base](documentformat.openxml.math.mathfunction.base?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-base) |  Base (Argument). Represents the following element tag in the schema: m:e.  
+---|---  
+[ChildElements](documentformat.openxml.openxmlelement.childelements?view=openxml-3.0.1#documentformat-openxml-openxmlelement-childelements) |  Gets all the child nodes of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[ExtendedAttributes](documentformat.openxml.openxmlelement.extendedattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-extendedattributes) |  Gets all extended attributes (attributes not defined in the schema) of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Features](documentformat.openxml.openxmlelement.features?view=openxml-3.0.1#documentformat-openxml-openxmlelement-features) |  Gets a [IFeatureCollection](documentformat.openxml.features.ifeaturecollection?view=openxml-3.0.1) for the current element. This feature collection will be read-only, but will inherit features from its parent part and package if available. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[FirstChild](documentformat.openxml.openxmlcompositeelement.firstchild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-firstchild) |  Gets the first child of the current OpenXmlElement element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[FunctionName](documentformat.openxml.math.mathfunction.functionname?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-functionname) |  Function Name. Represents the following element tag in the schema: m:fName.  
+[FunctionProperties](documentformat.openxml.math.mathfunction.functionproperties?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-functionproperties) |  Function Properties. Represents the following element tag in the schema: m:funcPr.  
+[HasAttributes](documentformat.openxml.openxmlelement.hasattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-hasattributes) |  Gets a value indicating whether the current element has any attributes. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[HasChildren](documentformat.openxml.openxmlcompositeelement.haschildren?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-haschildren) |  Gets a value that indicates whether the current element has any child elements. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[InnerText](documentformat.openxml.openxmlcompositeelement.innertext?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-innertext) |  Gets or sets the concatenated values of the current node and all of its children. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[InnerXml](documentformat.openxml.openxmlcompositeelement.innerxml?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-innerxml) |  Gets or sets the markup that represents only the child nodes of the current node. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[LastChild](documentformat.openxml.openxmlcompositeelement.lastchild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-lastchild) |  Gets the last child of the current OpenXmlElement element. Returns null (Nothing in Visual Basic) if there is no such OpenXmlElement element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[LocalName](documentformat.openxml.math.mathfunction.localname?view=openxml-3.0.1#documentformat-
+openxml-math-mathfunction-localname)  
+[LocalName](documentformat.openxml.openxmlelement.localname?view=openxml-3.0.1#documentformat-openxml-openxmlelement-localname) |  Gets the local name of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[MCAttributes](documentformat.openxml.openxmlelement.mcattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-mcattributes) |  Gets or sets the markup compatibility attributes. Returns null if no markup compatibility attributes are defined for the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[NamespaceDeclarations](documentformat.openxml.openxmlelement.namespacedeclarations?view=openxml-3.0.1#documentformat-openxml-openxmlelement-namespacedeclarations) |  Gets all the namespace declarations defined in the current element. Returns an empty enumerator if there is no namespace declaration. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[NamespaceUri](documentformat.openxml.openxmlelement.namespaceuri?view=openxml-3.0.1#documentformat-openxml-openxmlelement-namespaceuri) |  Gets the namespace URI of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[OpenXmlElementContext](documentformat.openxml.openxmlelement.openxmlelementcontext?view=openxml-3.0.1#documentformat-openxml-openxmlelement-openxmlelementcontext) |  Gets the OpenXmlElementContext of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[OuterXml](documentformat.openxml.openxmlelement.outerxml?view=openxml-3.0.1#documentformat-openxml-openxmlelement-outerxml) |  Gets the markup that represents the current element and all of its child elements. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Parent](documentformat.openxml.openxmlelement.parent?view=openxml-3.0.1#documentformat-openxml-openxmlelement-parent) |  Gets the parent element of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Prefix](documentformat.openxml.openxmlelement.prefix?view=openxml-3.0.1#documentformat-openxml-openxmlelement-prefix) |  Gets the namespace prefix of current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[XmlQualifiedName](documentformat.openxml.openxmlelement.xmlqualifiedname?view=openxml-3.0.1#documentformat-openxml-openxmlelement-xmlqualifiedname) |  Gets the qualified name of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[XName](documentformat.openxml.openxmlelement.xname?view=openxml-3.0.1#documentformat-openxml-openxmlelement-xname) |  Gets the qualified name of the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+  
+##  Methods
+
+[AddAnnotation(Object)](documentformat.openxml.openxmlelement.addannotation?view=openxml-3.0.1#documentformat-openxml-openxmlelement-addannotation\(system-object\)) |  Adds an object to the current OpenXmlElement element's list of annotations. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+---|---  
+[AddChild(OpenXmlElement, Boolean)](documentformat.openxml.openxmlcompositeelement.addchild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-addchild\(documentformat-openxml-openxmlelement-system-boolean\)) |  Adds the specified element to the element if it is a known child. This adds the element in the correct location according to the schema. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[AddNamespaceDeclaration(String, String)](documentformat.openxml.openxmlelement.addnamespacedeclaration?view=openxml-3.0.1#documentformat-openxml-openxmlelement-addnamespacedeclaration\(system-string-system-string\)) |  Adds a namespace declaration to the current node. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Ancestors()](documentformat.openxml.openxmlelement.ancestors?view=openxml-3.0.1#documentformat-openxml-openxmlelement-ancestors) |  Enumerates all of the current element's ancestors. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Ancestors<T>()](documentformat.openxml.openxmlelement.ancestors?view=openxml-3.0.1#documentformat-openxml-openxmlelement-ancestors-1) |  Enumerates only the current element's ancestors that have the specified type. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Annotation(Type)](documentformat.openxml.openxmlelement.annotation?view=openxml-3.0.1#documentformat-openxml-openxmlelement-annotation\(system-type\)) |  Get the first annotation object of the specified type from the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Annotation<T>()](documentformat.openxml.openxmlelement.annotation?view=openxml-3.0.1#documentformat-openxml-openxmlelement-annotation-1) |  Get the first annotation object of the specified type from the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Annotations(Type)](documentformat.openxml.openxmlelement.annotations?view=openxml-3.0.1#documentformat-openxml-openxmlelement-annotations\(system-type\)) |  Gets a collection of annotations with the specified type for the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Annotations<T>()](documentformat.openxml.openxmlelement.annotations?view=openxml-3.0.1#documentformat-openxml-openxmlelement-annotations-1) |  Gets a collection of annotations with the specified type for the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Append(IEnumerable<OpenXmlElement>)](documentformat.openxml.openxmlelement.append?view=openxml-3.0.1#documentformat-openxml-openxmlelement-append\(system-collections-generic-ienumerable\(\(documentformat-openxml-openxmlelement\)\)\)) |  Appends each element from a list of elements to the end of the current element's list of child elements. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Append(OpenXmlElement[])](documentformat.openxml.openxmlelement.append?view=openxml-3.0.1#documentformat-openxml-openxmlelement-append\(documentformat-openxml-openxmlelement\(\)\)) |  Appends each element from an array of elements to the end of the current element's list of child elements. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[AppendChild<T>(T)](documentformat.openxml.openxmlcompositeelement.appendchild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-appendchild-1\(-0\)) |  Appends the specified element to the end of the current element's list of child nodes. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[ClearAllAttributes()](documentformat.openxml.openxmlelement.clearallattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-clearallattributes) |  Clears all of the attributes, including both known attributes and extended attributes. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Clone()](documentformat.openxml.openxmlelement.clone?view=openxml-3.0.1#documentformat-openxml-openxmlelement-clone) |  Creates a duplicate of the current node. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[CloneNode(Boolean)](documentformat.openxml.math.mathfunction.clonenode?view=openxml-3.0.1#documentformat-openxml-math-mathfunction-clonenode\(system-boolean\)) |  Creates a duplicate of this node.  
+[Descendants()](documentformat.openxml.openxmlelement.descendants?view=openxml-3.0.1#documentformat-openxml-openxmlelement-descendants) |  Enumerates all of the current element's descendants. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Descendants<T>()](documentformat.openxml.openxmlelement.descendants?view=openxml-3.0.1#documentformat-openxml-openxmlelement-descendants-1) |  Enumerate all of the current element's descendants of type T. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Elements()](documentformat.openxml.openxmlelement.elements?view=openxml-3.0.1#documentformat-openxml-openxmlelement-elements) |  Enumerates all of the current element's children. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Elements<T>()](documentformat.openxml.openxmlelement.elements?view=openxml-3.0.1#documentformat-openxml-openxmlelement-elements-1) |  Enumerates only the current element's children that have the specified type. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[ElementsAfter()](documentformat.openxml.openxmlelement.elementsafter?view=openxml-3.0.1#documentformat-openxml-openxmlelement-elementsafter) |  Enumerates all of the sibling elements that follow the current element and have the same parent as the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[ElementsBefore()](documentformat.openxml.openxmlelement.elementsbefore?view=openxml-3.0.1#documentformat-openxml-openxmlelement-elementsbefore) |  Enumerates all of the sibling elements that precede the current element and have the same parent as the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[GetAttribute(String, String)](documentformat.openxml.openxmlelement.getattribute?view=openxml-3.0.1#documentformat-openxml-openxmlelement-getattribute\(system-string-system-string\)) |  Gets an Open XML attribute with the specified tag name and namespace URI. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[GetAttributes()](documentformat.openxml.openxmlelement.getattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-getattributes) |  Gets a list that contains a copy of all the attributes. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[GetEnumerator()](documentformat.openxml.openxmlelement.getenumerator?view=openxml-3.0.1#documentformat-openxml-openxmlelement-getenumerator) |  Returns an enumerator that iterates through the child collection. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[GetFirstChild<T>()](documentformat.openxml.openxmlelement.getfirstchild?view=openxml-3.0.1#documentformat-openxml-openxmlelement-getfirstchild-1) |  Finds the first child element in type T. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[InsertAfter<T>(T, OpenXmlElement)](documentformat.openxml.openxmlcompositeelement.insertafter?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-insertafter-1\(-0-documentformat-openxml-openxmlelement\)) |  Inserts the specified element immediately after the specified reference element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[InsertAfterSelf<T>(T)](documentformat.openxml.openxmlelement.insertafterself?view=openxml-3.0.1#documentformat-openxml-openxmlelement-insertafterself-1\(-0\)) |  Inserts the specified element immediately after the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[InsertAt<T>(T, Int32)](documentformat.openxml.openxmlcompositeelement.insertat?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-insertat-1\(-0-system-int32\)) |  Inserts the specified element at the specified index of the current element's children. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[InsertBefore<T>(T, OpenXmlElement)](documentformat.openxml.openxmlcompositeelement.insertbefore?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-insertbefore-1\(-0-documentformat-openxml-openxmlelement\)) |  Inserts the specified element immediately before the specified reference element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[InsertBeforeSelf<T>(T)](documentformat.openxml.openxmlelement.insertbeforeself?view=openxml-3.0.1#documentformat-openxml-openxmlelement-insertbeforeself-1\(-0\)) |  Inserts the specified element immediately before the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[IsAfter(OpenXmlElement)](documentformat.openxml.openxmlelement.isafter?view=openxml-3.0.1#documentformat-openxml-openxmlelement-isafter\(documentformat-openxml-openxmlelement\)) |  Determines if the current element appears after a specified element in document order. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[IsBefore(OpenXmlElement)](documentformat.openxml.openxmlelement.isbefore?view=openxml-3.0.1#documentformat-openxml-openxmlelement-isbefore\(documentformat-openxml-openxmlelement\)) |  Determines if the current element appears before a specified element in document order. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[LookupNamespace(String)](documentformat.openxml.openxmlelement.lookupnamespace?view=openxml-3.0.1#documentformat-openxml-openxmlelement-lookupnamespace\(system-string\)) |  Resolves the namespace prefix in the context of the current node. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[LookupPrefix(String)](documentformat.openxml.openxmlelement.lookupprefix?view=openxml-3.0.1#documentformat-openxml-openxmlelement-lookupprefix\(system-string\)) |  Finds the corresponding prefix for a namespace uri in the current element scope. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[NextSibling()](documentformat.openxml.openxmlelement.nextsibling?view=openxml-3.0.1#documentformat-openxml-openxmlelement-nextsibling) |  Gets the OpenXmlElement element that immediately follows the current OpenXmlElement element. Returns null (Nothing in Visual Basic) if there is no next OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[NextSibling<T>()](documentformat.openxml.openxmlelement.nextsibling?view=openxml-3.0.1#documentformat-openxml-openxmlelement-nextsibling-1) |  Gets the OpenXmlElement element with the specified type that follows the current OpenXmlElement element. Returns null (Nothing in Visual Basic) if there is no next OpenXmlElement. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[PrependChild<T>(T)](documentformat.openxml.openxmlcompositeelement.prependchild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-prependchild-1\(-0\)) |  Inserts the specified element at the beginning of the current element's list of child nodes. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[PreviousSibling()](documentformat.openxml.openxmlelement.previoussibling?view=openxml-3.0.1#documentformat-openxml-openxmlelement-previoussibling) |  Gets the OpenXmlElement element that immediately precedes the current OpenXmlElement element. Returns null (Nothing in Visual Basic ) if there is no preceding OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[PreviousSibling<T>()](documentformat.openxml.openxmlelement.previoussibling?view=openxml-3.0.1#documentformat-openxml-openxmlelement-previoussibling-1) |  Gets the OpenXmlElement element with the specified type that precedes the current OpenXmlElement. Returns null (Nothing in Visual Basic) if there is no preceding OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[Remove()](documentformat.openxml.openxmlelement.remove?view=openxml-3.0.1#documentformat-openxml-openxmlelement-remove) |  Removes the current element from its parent. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[RemoveAllChildren()](documentformat.openxml.openxmlcompositeelement.removeallchildren?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-removeallchildren) |  Removes all of the current element's child elements. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[RemoveAllChildren<T>()](documentformat.openxml.openxmlelement.removeallchildren?view=openxml-3.0.1#documentformat-openxml-openxmlelement-removeallchildren-1) |  Remove all of the current element's child elements that are of type T. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[RemoveAnnotations(Type)](documentformat.openxml.openxmlelement.removeannotations?view=openxml-3.0.1#documentformat-openxml-openxmlelement-removeannotations\(system-type\)) |  Removes the annotations of the specified type from the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[RemoveAnnotations<T>()](documentformat.openxml.openxmlelement.removeannotations?view=openxml-3.0.1#documentformat-openxml-openxmlelement-removeannotations-1) |  Removes the annotations with the specified type from the current OpenXmlElement element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[RemoveAttribute(String, String)](documentformat.openxml.openxmlelement.removeattribute?view=openxml-3.0.1#documentformat-openxml-openxmlelement-removeattribute\(system-string-system-string\)) |  Removes the attribute from the current element. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[RemoveChild<T>(T)](documentformat.openxml.openxmlcompositeelement.removechild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-removechild-1\(-0\)) |  Removes the specified child element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[RemoveNamespaceDeclaration(String)](documentformat.openxml.openxmlelement.removenamespacedeclaration?view=openxml-3.0.1#documentformat-openxml-openxmlelement-removenamespacedeclaration\(system-string\)) |  Removes the namespace declaration for the specified prefix. Removes nothing if there is no prefix. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[ReplaceChild<T>(OpenXmlElement, T)](documentformat.openxml.openxmlcompositeelement.replacechild?view=openxml-3.0.1#documentformat-openxml-openxmlcompositeelement-replacechild-1\(documentformat-openxml-openxmlelement-0\)) |  Replaces one of the current element's child elements with another OpenXmlElement element. (Inherited from [OpenXmlCompositeElement](documentformat.openxml.openxmlcompositeelement?view=openxml-3.0.1))   
+[SetAttribute(OpenXmlAttribute)](documentformat.openxml.openxmlelement.setattribute?view=openxml-3.0.1#documentformat-openxml-openxmlelement-setattribute\(documentformat-openxml-openxmlattribute\)) |  Sets an attribute to the specified element. If the attribute is a known attribute, the value of the attribute is set. If the attribute is an extended attribute, the 'openxmlAttribute' is added to the extended attributes list. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[SetAttributes(IEnumerable<OpenXmlAttribute>)](documentformat.openxml.openxmlelement.setattributes?view=openxml-3.0.1#documentformat-openxml-openxmlelement-setattributes\(system-collections-generic-ienumerable\(\(documentformat-openxml-openxmlattribute\)\)\)) |  Sets a number of attributes to the element. If an attribute is a known attribute, the value of the attribute is set. If an attribute is an extended attribute, the 'openxmlAttribute' is added to the extended attributes list. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+[WriteTo(XmlWriter)](documentformat.openxml.openxmlelement.writeto?view=openxml-3.0.1#documentformat-openxml-openxmlelement-writeto\(system-xml-xmlwriter\)) |  Saves the current node to the specified XmlWriter. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+  
+##  Explicit Interface Implementations
+
+[IEnumerable.GetEnumerator()](documentformat.openxml.openxmlelement.system-collections-ienumerable-getenumerator?view=openxml-3.0.1#documentformat-openxml-openxmlelement-system-collections-ienumerable-getenumerator) |  (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+---|---  
+[IEnumerable<OpenXmlElement>.GetEnumerator()](documentformat.openxml.openxmlelement.system-collections-generic-ienumerable-documentformat-openxml-openxmlelement--getenumerator?view=openxml-3.0.1#documentformat-openxml-openxmlelement-system-collections-generic-ienumerable\(\(documentformat-openxml-openxmlelement\)\)-getenumerator) |  Returns an enumerator that iterates through the child collection. (Inherited from [OpenXmlElement](documentformat.openxml.openxmlelement?view=openxml-3.0.1))   
+  
+## Applies to
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+### In this article
+
+Was this page helpful?
+
+Yes No No
+
+Need help with this topic?
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+Ask Learn Ask Learn
+
+Suggest a fix?
+
+en-us
+
+[ Your Privacy Choices](https://aka.ms/yourcaliforniaprivacychoices)
+
+Theme
+
+  * Light 
+  * Dark 
+  * High contrast 
+
+  *   * [AI Disclaimer](https://learn.microsoft.com/en-us/principles-for-ai-generated-content)
+  * [Previous Versions](https://learn.microsoft.com/en-us/previous-versions/)
+  * [Blog](https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog)
+  * [Contribute](https://learn.microsoft.com/en-us/contribute)
+  * [Privacy](https://go.microsoft.com/fwlink/?LinkId=521839)
+  * [Consumer Health Privacy](https://go.microsoft.com/fwlink/?linkid=2259814)
+  * [Terms of Use](https://learn.microsoft.com/en-us/legal/termsofuse)
+  * [Trademarks](https://www.microsoft.com/legal/intellectualproperty/Trademarks/)
+  * (C) Microsoft 2026
+
