@@ -1,8 +1,19 @@
 package com.excudo.core.model;
 
+import com.excudo.core.model.math.MathBody;
+
 /**
  * Single run of uniformly formatted text within a paragraph.
  * Nullable fields indicate "inherit from theme/layout" -- only non-null fields emit XML attributes.
+ *
+ * <p>A run can carry math content instead of plain text: when
+ * {@link #getMathBody()} is non-null the run renders via the math
+ * pipeline ({@code MathPainter} consuming the {@link MathBody} AST +
+ * MATH-table constants) rather than the plain-text painter. The
+ * {@code text} field on a math run holds the flat fallback string
+ * the Tier-A path produced -- still readable on environments that
+ * lack the math layout pipeline. Mirrors PowerPoint's run-level
+ * embedding of math via {@code <a14:m>/<m:oMath>}.
  */
 public final class TextRun {
 
@@ -20,6 +31,7 @@ public final class TextRun {
     private final Integer baseline;
     private final Integer characterSpacing;
     private final Integer kerningThreshold;
+    private final MathBody mathBody;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -36,6 +48,7 @@ public final class TextRun {
         this.baseline = builder.baseline;
         this.characterSpacing = builder.characterSpacing;
         this.kerningThreshold = builder.kerningThreshold;
+        this.mathBody = builder.mathBody;
     }
 
     public String getText() { return text; }
@@ -75,6 +88,13 @@ public final class TextRun {
      */
     public Integer getKerningThreshold() { return kerningThreshold; }
 
+    /** Typed math AST when this run carries OMML content; null for
+     *  plain-text runs. Non-null implies math rendering. */
+    public MathBody getMathBody() { return mathBody; }
+
+    /** Convenience: true iff this run has a non-null math body. */
+    public boolean isMathRun() { return mathBody != null; }
+
     /**
      * Text as it should be rendered + measured, after applying any
      * capitalization transform. {@code cap="all"} uppercases the raw
@@ -112,14 +132,15 @@ public final class TextRun {
             && java.util.Objects.equals(capitalization, that.capitalization)
             && java.util.Objects.equals(baseline, that.baseline)
             && java.util.Objects.equals(characterSpacing, that.characterSpacing)
-            && java.util.Objects.equals(kerningThreshold, that.kerningThreshold);
+            && java.util.Objects.equals(kerningThreshold, that.kerningThreshold)
+            && java.util.Objects.equals(mathBody, that.mathBody);
     }
 
     @Override
     public int hashCode() {
         return java.util.Objects.hash(text, fontSize, bold, italic, underline, strikethrough,
             fontFamily, color, highlight, language, capitalization, baseline,
-            characterSpacing, kerningThreshold);
+            characterSpacing, kerningThreshold, mathBody);
     }
 
     public static final class Builder {
@@ -137,6 +158,7 @@ public final class TextRun {
         private Integer baseline;
         private Integer characterSpacing;
         private Integer kerningThreshold;
+        private MathBody mathBody;
 
         private Builder(String text) {
             this.text = text;
@@ -161,6 +183,11 @@ public final class TextRun {
         public Builder characterSpacing(int spc) { this.characterSpacing = spc; return this; }
         /** Kerning threshold in hundredths of a point. Zero disables kerning. */
         public Builder kerningThreshold(int kern) { this.kerningThreshold = kern; return this; }
+        /** Math AST for this run. Non-null marks the run as a math
+         *  run and routes rendering through the math pipeline. The
+         *  surrounding {@link TextRun#getText() text} stays as a flat
+         *  fallback string. */
+        public Builder mathBody(MathBody body) { this.mathBody = body; return this; }
 
         public TextRun build() {
             return new TextRun(this);

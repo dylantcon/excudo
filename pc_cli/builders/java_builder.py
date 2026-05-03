@@ -186,7 +186,7 @@ class PCBuilder:
             ("exceptions", "src/main/java/com/excudo/exceptions/*.java"),
             ("core utils", "src/main/java/com/excudo/core/utils/*.java"),
             ("core config", "src/main/java/com/excudo/core/config/*.java"),
-            ("core model", "src/main/java/com/excudo/core/model/*.java"),
+            ("core model", "src/main/java/com/excudo/core/model/*.java src/main/java/com/excudo/core/model/math/*.java"),
             ("utils", "src/main/java/com/excudo/utils/*.java"),
             ("XML builders", "src/main/java/com/excudo/xml/builders/*.java"),
             ("XML shapes", "src/main/java/com/excudo/xml/shapes/*.java"),

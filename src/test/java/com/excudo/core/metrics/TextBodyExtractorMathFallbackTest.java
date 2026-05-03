@@ -30,6 +30,40 @@ import static org.junit.Assert.*;
 public class TextBodyExtractorMathFallbackTest {
 
     @Test
+    public void embeddedMathRunCarriesTypedMathBody() throws Exception {
+        // After Tier C, every math run additionally carries the typed
+        // OMML AST so the math pipeline can render with structure.
+        // Flat-text fallback (testing the Tier-A path stays intact)
+        // is asserted in the test below.
+        TextBody body = parseTxBody("""
+            <p:txBody xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main'
+                      xmlns:a='http://schemas.openxmlformats.org/drawingml/2006/main'
+                      xmlns:a14='http://schemas.microsoft.com/office/drawing/2010/main'
+                      xmlns:m='http://schemas.openxmlformats.org/officeDocument/2006/math'>
+              <a:bodyPr/>
+              <a:p>
+                <a14:m>
+                  <m:oMath>
+                    <m:f>
+                      <m:num><m:r><m:t>a</m:t></m:r></m:num>
+                      <m:den><m:r><m:t>b</m:t></m:r></m:den>
+                    </m:f>
+                  </m:oMath>
+                </a14:m>
+              </a:p>
+            </p:txBody>
+            """);
+        TextRun mathRun = body.getParagraphs().get(0).getRuns().get(0);
+        assertTrue("Math run carries a typed math body", mathRun.isMathRun());
+        com.excudo.core.model.math.MathBody mb = mathRun.getMathBody();
+        assertEquals("Single fraction element preserved",
+            1, mb.getElements().size());
+        assertTrue("Element is structured Fraction, not flattened",
+            mb.getElements().get(0)
+                instanceof com.excudo.core.model.math.MathElement.Fraction);
+    }
+
+    @Test
     public void embeddedMathBecomesItalicCambriaRun() throws Exception {
         // PowerPoint authoring pattern from /tmp/Uncertainty Quantification.pptx
         // slide 10: a regular text run + an inline a14:m wrapper around oMath.

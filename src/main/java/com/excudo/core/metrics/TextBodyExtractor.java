@@ -145,22 +145,49 @@ public final class TextBodyExtractor {
     }
 
     /**
-     * Tier-A math fallback. Concatenates every {@code <m:t>} text node in
-     * the math subtree into a single TextRun, formatted as italic Cambria
-     * Math (the convention PowerPoint uses for inline math). The result
-     * reads correctly as a flat string -- e.g.
-     * {@code y(x*) ~ N(m(x*), σ²(x*))} -- but loses the layout (no
-     * stacked fractions, super/sub on the baseline). That's what Tier C
-     * is for; this just stops the math being invisible.
+     * Extract an OMML subtree as a {@link TextRun} carrying both the
+     * flat-text Tier-A fallback (so the formula stays readable on
+     * environments without the math layout pipeline) and the typed
+     * {@link com.excudo.core.model.math.MathBody} AST (used by the
+     * math pipeline for proper layout: stacked fractions, sized
+     * delimiters, baseline-correct super/sub, etc).
+     *
+     * <p>The {@code mathEl} can be either {@code a14:m} (the
+     * compatibility wrapper) or {@code m:oMath} / {@code m:oMathPara}
+     * directly. {@code a14:m} is unwrapped to its child math root
+     * before extraction.
      */
     private static TextRun extractMathAsFlatRun(Element mathEl) {
+        // Unwrap a14:m -> m:oMath if present.
+        Element mathRoot = mathEl;
+        String local = mathEl.getLocalName();
+        if (local == null) local = stripPrefix(mathEl.getTagName());
+        if ("m".equals(local)) {
+            // a14:m wrapper -- find the inner oMath / oMathPara.
+            for (org.w3c.dom.Node n = mathEl.getFirstChild(); n != null; n = n.getNextSibling()) {
+                if (n instanceof Element kid) {
+                    String kl = kid.getLocalName();
+                    if (kl == null) kl = stripPrefix(kid.getTagName());
+                    if ("oMath".equals(kl) || "oMathPara".equals(kl)) {
+                        mathRoot = kid;
+                        break;
+                    }
+                }
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
-        collectMathText(mathEl, sb);
+        collectMathText(mathRoot, sb);
         if (sb.length() == 0) return null;
-        return TextRun.builder(sb.toString())
+
+        com.excudo.core.model.math.MathBody body =
+            com.excudo.core.metrics.math.OmmlExtractor.extract(mathRoot);
+
+        TextRun.Builder b = TextRun.builder(sb.toString())
             .fontFamily("Cambria Math")
-            .italic(true)
-            .build();
+            .italic(true);
+        if (body != null) b.mathBody(body);
+        return b.build();
     }
 
     private static void collectMathText(Node node, StringBuilder sb) {
