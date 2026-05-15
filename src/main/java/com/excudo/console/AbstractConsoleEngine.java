@@ -488,7 +488,12 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                     new com.excudo.mcp.MCPProtocolHandler(dispatcher);
 
                 displaySuccess("MCP server listening at " + transport.getUrl());
-                registerWithClaudeDesktop(transport.getUrl());
+                // Write the endpoint file BEFORE registerWithClaudeDesktop:
+                // a freshly-launched bridge that races us would otherwise
+                // see the .json missing on its first proxied call.
+                com.excudo.mcp.MCPEndpointFile.write(
+                    transport.getUrl(), transport.getToken());
+                registerWithClaudeDesktop();
                 displayMessage("  /exit or /stop  - stop the server and return to the console");
                 displayMessage("  /status         - show current endpoint and token");
 
@@ -498,7 +503,9 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             } finally {
                 // Whether serve returned cleanly or bind threw, the server
                 // is no longer live -- clear the active ref so the user can
-                // start another one.
+                // start another one. Remove the discovery file too so the
+                // bridge falls back to "Excudo not running" on the next call.
+                com.excudo.mcp.MCPEndpointFile.delete();
                 if (activeMcpTransport == transport) {
                     activeMcpTransport = null;
                     releaseSessionOwnership();
@@ -539,28 +546,67 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     }
 
     /**
-     * Best-effort registration of the live MCP server URL with Claude
-     * Desktop. Never blocks server startup -- a missing or unreadable
-     * config just gets a status line and lets the user paste the URL
-     * into their client of choice manually.
+     * Best-effort registration of Excudo's stdio bridge with Claude
+     * Desktop. The config entry is per-install (path to the bridge
+     * script), not per-session, so it survives every Excudo restart --
+     * the bridge discovers the live URL via {@code ~/.excudo/mcp-endpoint.json}.
+     *
+     * <p>Never blocks server startup -- a missing config just gets a
+     * status line and lets the user paste a manual config into a
+     * different client if they want one.
      */
-    protected void registerWithClaudeDesktop(String serverUrl) {
+    protected void registerWithClaudeDesktop() {
         java.nio.file.Path path =
             com.excudo.mcp.config.ClaudeDesktopConfigWriter.detectConfigPath();
         if (!java.nio.file.Files.exists(path)) {
             displayMessage("  Claude Desktop config not found at " + path + ".");
-            displayMessage("  If you have a different client, paste the URL above into its MCP config.");
+            displayMessage("  Point your MCP client at: python3 " + locateBridgeScript());
+            return;
+        }
+        java.nio.file.Path bridge = locateBridgeScript();
+        if (!java.nio.file.Files.exists(bridge)) {
+            displayMessage("  Bridge script not found at " + bridge + ".");
+            displayMessage("  Skipping Claude Desktop registration.");
             return;
         }
         com.excudo.mcp.config.ClaudeDesktopConfigWriter.Result result =
-            com.excudo.mcp.config.ClaudeDesktopConfigWriter.register(path, serverUrl);
+            com.excudo.mcp.config.ClaudeDesktopConfigWriter.register(path, bridge);
         if (result.written()) {
             displayMessage("  Registered with Claude Desktop at " + result.configPath());
-            displayMessage("  Config uses the npx mcp-remote stdio bridge -- Node/npx must be on PATH.");
-            displayMessage("  Restart Claude Desktop for the new URL to take effect.");
+            displayMessage("  Bridge: python3 " + bridge);
+            displayMessage("  Restart Claude Desktop once -- subsequent Excudo restarts are auto-detected.");
         } else {
             displayMessage("  Claude Desktop config update skipped: " + result.message());
         }
+    }
+
+    /**
+     * Resolve the stdio bridge script path. The bridge ships in the
+     * project repo at {@code tools/mcp-server/excudo_bridge.py}; walks
+     * up from the current working directory to find it (handles the
+     * common case of running via {@code pc.py} from project root, and
+     * the edge case of being launched from a subdirectory).
+     */
+    private java.nio.file.Path locateBridgeScript() {
+        java.nio.file.Path relative =
+            java.nio.file.Path.of("tools", "mcp-server", "excudo_bridge.py");
+        java.nio.file.Path cwd =
+            java.nio.file.Path.of(System.getProperty("user.dir", "."));
+        java.nio.file.Path candidate = cwd.resolve(relative);
+        if (java.nio.file.Files.exists(candidate)) {
+            return candidate.toAbsolutePath().normalize();
+        }
+        java.nio.file.Path parent = cwd.getParent();
+        while (parent != null) {
+            candidate = parent.resolve(relative);
+            if (java.nio.file.Files.exists(candidate)) {
+                return candidate.toAbsolutePath().normalize();
+            }
+            parent = parent.getParent();
+        }
+        // Fall back to the cwd-relative path even if it doesn't exist;
+        // the caller logs a friendlier message via the existence check.
+        return cwd.resolve(relative).toAbsolutePath().normalize();
     }
 
     /**

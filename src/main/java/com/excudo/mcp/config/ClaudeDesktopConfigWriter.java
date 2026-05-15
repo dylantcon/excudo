@@ -88,11 +88,18 @@ public final class ClaudeDesktopConfigWriter {
 
     /**
      * Add or replace the {@code mcpServers.excudo} entry so it points at
-     * the given URL. Creates the config file (and parent dirs) if missing.
-     * Writes a {@code .bak} copy of the previous contents when the file
-     * already existed.
+     * Excudo's stdio bridge script. Creates the config file (and parent
+     * dirs) if missing. Writes a {@code .bak} copy of the previous
+     * contents when the file already existed.
+     *
+     * <p>The bridge presents a healthy MCP handshake to Claude Desktop
+     * regardless of whether Excudo is running -- so Claude no longer
+     * shows "failed to attach" warnings on launch when the app is off.
+     * The bridge proxies real tool calls to the live HTTP/SSE server
+     * (discovered via {@code ~/.excudo/mcp-endpoint.json}) and exposes a
+     * {@code launch_excudo} tool that starts the GUI on demand.
      */
-    public static Result register(Path configPath, String serverUrl) {
+    public static Result register(Path configPath, Path bridgeScript) {
         JsonObject root;
         boolean fileExisted = Files.exists(configPath);
 
@@ -120,18 +127,13 @@ public final class ClaudeDesktopConfigWriter {
             ? root.getAsJsonObject("mcpServers")
             : new JsonObject();
 
-        // Claude Desktop's MCP config only accepts stdio transport (command +
-        // args), not direct HTTP/SSE URL entries. We hand Claude Desktop the
-        // npx mcp-remote bridge, which it launches as a stdio subprocess; the
-        // bridge then proxies JSON-RPC to our in-process HTTP server, so TTY
-        // echo in the user's arrange-mcp console is preserved.
-        // Requires Node / npx on the user's PATH.
+        // Build a fresh entry from scratch so any stale fields from an
+        // older Excudo install (e.g. a previous "url" or "mcp-remote"
+        // shape) get fully overwritten rather than merged.
         JsonObject entry = new JsonObject();
-        entry.addProperty("command", "npx");
+        entry.addProperty("command", "python3");
         JsonArray args = new JsonArray();
-        args.add("-y");
-        args.add("mcp-remote");
-        args.add(serverUrl);
+        args.add(bridgeScript.toAbsolutePath().toString());
         entry.add("args", args);
         mcpServers.add(SERVER_KEY, entry);
         root.add("mcpServers", mcpServers);
