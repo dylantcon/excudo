@@ -78,14 +78,14 @@ public class CommandRegistry {
         registerCreateThemeCommand();
         registerEditThemeCommand();
         registerDeleteThemeCommand();
-        registerRemoveShapeCommand();
+        // remove-shape: migrated to class registry (RemoveShapeCommand)
         registerEditBulletCommand();
         registerListShapeTypesCommand();
-        registerSetBodyPropsCommand();
+        // set-body-props: migrated to class registry (SetBodyPropsCommand)
         registerSetTextCommand();
-        registerAddNotesCommand();
+        // add-notes: migrated to class registry (AddNotesCommand)
         registerAddConnectorCommand();
-        registerSetActionCommand();
+        // set-action: migrated to class registry (SetActionCommand)
         registerCopySlideCommand();
         // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
         registerSetTransitionCommand();
@@ -946,28 +946,6 @@ public class CommandRegistry {
         schemas.put("delete-theme", schema);
     }
 
-    private static void registerRemoveShapeCommand() {
-        CommandSchema schema = CommandSchema.builder("remove-shape")
-            .description("Remove a shape from a slide")
-            .llmEnabled(true)
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID to remove")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .example("remove-shape 1 5")
-            .build();
-
-        schemas.put("remove-shape", schema);
-    }
-
     private static void registerEditBulletCommand() {
         CommandSchema schema = CommandSchema.builder("edit-bullet")
             .description("Edit bullet points in a shape")
@@ -1018,57 +996,6 @@ public class CommandRegistry {
         schemas.put("list-shape-types", schema);
     }
 
-    private static void registerSetBodyPropsCommand() {
-        CommandSchema schema = CommandSchema.builder("set-body-props")
-            .description("Set body properties on a shape")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("anchor")
-                .description("Vertical alignment: t, ctr, b")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("vert")
-                .description("Text direction: vert, vert270, wordArtVert")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("autofit")
-                .description("Autofit mode: none, normal, shape")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("columns")
-                .description("Number of text columns")
-                .type(ParameterType.INTEGER)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("wrap")
-                .description("Text wrap mode: square, none")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("textbox")
-                .description("Mark shape as textbox (true/false)")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("set-body-props 1 3 --anchor ctr")
-            .example("set-body-props 1 3 --autofit shape --textbox true")
-            .example("set-body-props 1 3 --vert vert270 --columns 2")
-            .build();
-
-        schemas.put("set-body-props", schema);
-    }
-
     private static void registerSetTextCommand() {
         CommandSchema schema = CommandSchema.builder("set-text")
             .description("Set rich text body on a shape from JSON")
@@ -1091,26 +1018,6 @@ public class CommandRegistry {
             .build();
 
         schemas.put("set-text", schema);
-    }
-
-    private static void registerAddNotesCommand() {
-        CommandSchema schema = CommandSchema.builder("add-notes")
-            .description("Add speaker notes to a slide")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("text")
-                .description("Notes text content")
-                .required(true)
-                .variableLength(true)
-                .build())
-            .example("add-notes 1 \"Speaker notes for slide 1\"")
-            .example("add-notes --slide 2 --text \"Key talking points for this slide\"")
-            .build();
-
-        schemas.put("add-notes", schema);
     }
 
     private static void registerAddConnectorCommand() {
@@ -1182,36 +1089,6 @@ public class CommandRegistry {
             .build();
 
         schemas.put("add-connector", schema);
-    }
-
-    private static void registerSetActionCommand() {
-        CommandSchema schema = CommandSchema.builder("set-action")
-            .description("Set hyperlink action on a shape")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("action")
-                .description("Action type: nextslide, previousslide, firstslide, lastslide, endshow, noaction")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("sound")
-                .description("Audio file path to embed")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("set-action 1 5 nextslide")
-            .example("set-action 1 5 noaction --sound applause.wav")
-            .build();
-
-        schemas.put("set-action", schema);
     }
 
     private static void registerCopySlideCommand() {

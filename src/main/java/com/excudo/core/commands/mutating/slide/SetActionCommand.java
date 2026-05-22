@@ -1,9 +1,13 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -13,8 +17,36 @@ import com.excudo.core.results.ExecutionResult;
  * Before mutation, the command captures a deep clone of the shape's DOM element
  * via the orchestrator's captureShapeElement API. On undo, the original element
  * is restored back into the slide's spTree.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code set-action} derives from the class name.
  */
 public class SetActionCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").required().build();
+    static final Parameter<String> ACTION = Parameter.ofString("action")
+        .description("Action type: nextslide, previousslide, firstslide, lastslide, endshow, noaction")
+        .required().build();
+    static final Parameter<String> SOUND = Parameter.ofString("sound")
+        .description("Audio file path to embed").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Set hyperlink action on a shape")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(ACTION)
+        .parameter(SOUND)
+        .example("set-action 1 5 nextslide")
+        .example("set-action 1 5 noaction --sound applause.wav")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SetActionCommand(p.get(SLIDE), p.get(SPID), p.get(ACTION),
+            p.opt(SOUND).orElse(null), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int spid;

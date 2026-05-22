@@ -55,6 +55,10 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.ReorderShapeCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.deck.MoveSlideCommand.class);
         registerCommandClass(com.excudo.core.commands.meta.UndoCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.RemoveShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.notes.AddNotesCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetActionCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetBodyPropsCommand.class);
     }
 
     private CommandClassRegistry() {}

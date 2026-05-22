@@ -63,14 +63,11 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
     static {
         HANDLED_COMMANDS.add("edit-content");
-        // add-shape: routed via CommandRegistry class registry (AddShapeCommand.SCHEMA / fromParameters)
-        HANDLED_COMMANDS.add("remove-shape");
+        // add-shape, remove-shape, set-body-props, add-notes, set-action:
+        // migrated to class registry (own SCHEMA / fromParameters)
         HANDLED_COMMANDS.add("edit-bullet");
-        HANDLED_COMMANDS.add("set-body-props");
         HANDLED_COMMANDS.add("set-text");
-        HANDLED_COMMANDS.add("add-notes");
         HANDLED_COMMANDS.add("add-connector");
-        HANDLED_COMMANDS.add("set-action");
         HANDLED_COMMANDS.add("inject");
         HANDLED_COMMANDS.add("enhance");
         HANDLED_COMMANDS.add("set-transition");
@@ -134,11 +131,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             // class-keyed registry in CommandRegistry / CommandFactory
             // (AddShapeCommand.SCHEMA + AddShapeCommand.fromParameters).
 
-            case "remove-shape":
-                Integer removeSlide = parameters.getInteger("slide");
-                String removeSpidStr = parameters.getString("spid");
-                int removeSpid = removeSpidStr != null ? Integer.parseInt(removeSpidStr) : 0;
-                return createRemoveShape(removeSlide != null ? removeSlide : 1, removeSpid);
+            // "remove-shape" migrated to class registry (RemoveShapeCommand)
 
             case "edit-bullet":
                 Integer bulletSlide = parameters.getInteger("slide");
@@ -153,32 +146,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     bulletIdx != null ? bulletIdx : -1,
                     bulletText, null);
 
-            case "set-body-props":
-                Integer bodySlide = parameters.getInteger("slide");
-                String bodySpidStr = parameters.getString("spid");
-                int bodySpid = bodySpidStr != null ? Integer.parseInt(bodySpidStr) : 0;
-                String anchor = parameters.getString("anchor");
-                String vert = parameters.getString("vert");
-                String autofit = parameters.getString("autofit");
-                String columnsStr = parameters.getString("columns");
-                String wrap = parameters.getString("wrap");
-                String textboxStr = parameters.getString("textbox");
-
-                BodyProperties.Builder bpBuilder = BodyProperties.builder();
-                if (anchor != null) bpBuilder.verticalAlignment(anchor);
-                if (vert != null) bpBuilder.verticalText(vert);
-                if (wrap != null) bpBuilder.wrap(wrap);
-                if (columnsStr != null) bpBuilder.numColumns(Integer.parseInt(columnsStr));
-                if (autofit != null) {
-                    switch (autofit.toLowerCase()) {
-                        case "none": bpBuilder.autofit(AutofitType.NONE); break;
-                        case "normal": bpBuilder.autofit(AutofitType.NORMAL); break;
-                        case "shape": bpBuilder.autofit(AutofitType.SHAPE); break;
-                    }
-                }
-                boolean isTextBox = "true".equalsIgnoreCase(textboxStr) || "1".equals(textboxStr);
-                return new SetBodyPropsCommand(bodySlide != null ? bodySlide : 1, bodySpid,
-                    bpBuilder.build(), isTextBox, orchestrator);
+            // "set-body-props" migrated to class registry (SetBodyPropsCommand)
 
             case "set-text":
                 Integer setTextSlide = parameters.getInteger("slide");
@@ -188,10 +156,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 com.excudo.core.model.TextBody textBody = TextBodyJsonParser.parse(jsonBody);
                 return new SetTextCommand(setTextSlide != null ? setTextSlide : 1, setTextSpid, textBody, orchestrator);
 
-            case "add-notes":
-                Integer notesSlide = parameters.getInteger("slide");
-                String notesText = parameters.getString("text");
-                return new AddNotesCommand(notesSlide != null ? notesSlide : 1, notesText, orchestrator);
+            // "add-notes" migrated to class registry (AddNotesCommand)
 
             case "add-connector":
                 Integer cxnSlide = parameters.getInteger("slide");
@@ -228,13 +193,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     cxnHeadEnd, cxnTailEnd, cxnLineColor, cxnLineStyle,
                     startCxnSpid, startCxnIdx, endCxnSpid, endCxnIdx, cxnPath, orchestrator);
 
-            case "set-action":
-                Integer actionSlide = parameters.getInteger("slide");
-                String actionSpidStr = parameters.getString("spid");
-                String action = parameters.getString("action");
-                String sound = parameters.getString("sound");
-                int actionSpid = actionSpidStr != null ? Integer.parseInt(actionSpidStr) : 0;
-                return new SetActionCommand(actionSlide != null ? actionSlide : 1, actionSpid, action, sound, orchestrator);
+            // "set-action" migrated to class registry (SetActionCommand)
 
             case "set-transition": {
                 Integer transSlide = parameters.getInteger("slide");
