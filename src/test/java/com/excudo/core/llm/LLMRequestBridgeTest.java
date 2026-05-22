@@ -144,13 +144,13 @@ public class LLMRequestBridgeTest {
     @Test
     public void testBridgeMove() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "move",
+            "move-shape",
             Map.of("slideNumber", 1, "targetSpid", 5, "x", "100pt", "y", "200pt"),
             "Move shape", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("move", cmd.getCommandName());
+        assertEquals("move-shape", cmd.getCommandName());
         assertEquals("1", cmd.getString("slide"));
         assertEquals("5", cmd.getString("spid"));
         assertEquals("100pt", cmd.getString("x"));
@@ -227,9 +227,9 @@ public class LLMRequestBridgeTest {
         assertTrue(names.contains("add-shape"));
         assertTrue(names.contains("add-animation"));
         assertTrue(names.contains("arrange"));
-        assertTrue(names.contains("move"));
+        assertTrue(names.contains("move-shape"));
         assertTrue(names.contains("resize"));
-        assertTrue(names.contains("reorder"));
+        assertTrue(names.contains("reorder-shape"));
         // Console-only commands should NOT be LLM-enabled
         assertFalse(names.contains("help"));
         assertFalse(names.contains("undo"));

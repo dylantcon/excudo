@@ -219,9 +219,56 @@ public class Parameter<T> {
         return new Builder<>(name, Boolean::parseBoolean).type(ParameterType.BOOLEAN);
     }
 
-    /** Typed enum parameter; the parser is {@code Enum.valueOf(enumType, raw)}. */
+    /**
+     * Typed enum parameter; the parser is {@code Enum.valueOf(enumType, raw)}.
+     * The schema's {@code validValues} are auto-populated from the enum
+     * constants (for LLM JSON-schema generation and parse-time validation)
+     * unless set explicitly -- so the accepted value set is never declared
+     * twice. Use {@link #of(String, Function)} instead for enums with a custom
+     * parse (e.g. {@code TransitionType.parseType}) whose accepted tokens
+     * differ from the constant names.
+     */
     public static <E extends Enum<E>> Builder<E> ofEnum(String name, Class<E> enumType) {
-        return new Builder<>(name, s -> Enum.valueOf(enumType, s));
+        Builder<E> b = new Builder<>(name, s -> Enum.valueOf(enumType, s));
+        b.enumSource = enumType;
+        return b;
+    }
+
+    /**
+     * Generic typed parameter: fold any existing parse helper into the key.
+     * The workhorse for unit→EMU, JSON blobs, comma-separated lists, and
+     * custom enum parses -- e.g. {@code Parameter.of("type", TransitionType::parseType)}
+     * or {@code Parameter.of("json", TextBodyJsonParser::parse)}.
+     */
+    public static <T> Builder<T> of(String name, Function<String, T> parser) {
+        return new Builder<>(name, parser);
+    }
+
+    /**
+     * Unit-string coordinate parameter parsed to EMU via
+     * {@link com.excudo.core.geometry.UnitParser#parseToEmu(String)} -- accepts
+     * "100pt", "1.5in", "914400emu", or a bare number. Wire type stays STRING:
+     * the raw value is a unit-bearing string, not a plain number, so parse-time
+     * validation (which runs before the parser) must not reject "100pt".
+     */
+    public static Builder<Long> ofUnit(String name) {
+        return new Builder<>(name, com.excudo.core.geometry.UnitParser::parseToEmu);
+    }
+
+    /**
+     * Comma-separated SPID list parsed to a {@code List<Integer>} (e.g. the
+     * group / arrange / copy-style targets). Blank tokens are skipped; each
+     * remaining token must be an integer.
+     */
+    public static Builder<List<Integer>> ofSpidList(String name) {
+        return new Builder<>(name, raw -> {
+            List<Integer> ids = new ArrayList<>();
+            for (String part : raw.split(",")) {
+                String t = part.trim();
+                if (!t.isEmpty()) ids.add(Integer.parseInt(t));
+            }
+            return ids;
+        });
     }
 
     public enum ParameterType {
@@ -317,6 +364,7 @@ public class Parameter<T> {
         private Predicate<String> validator;
         private boolean variableLength = false;
         private String llmName;
+        private Class<? extends Enum<?>> enumSource;
 
         /** Legacy constructor: string-keyed parameter with identity parser. */
         @SuppressWarnings("unchecked")
@@ -398,6 +446,13 @@ public class Parameter<T> {
         }
 
         public Parameter<T> build() {
+            if (validValues == null && enumSource != null) {
+                Set<String> vs = new LinkedHashSet<>();
+                for (Object c : enumSource.getEnumConstants()) {
+                    vs.add(((Enum<?>) c).name());
+                }
+                this.validValues = vs;
+            }
             return new Parameter<>(this);
         }
     }

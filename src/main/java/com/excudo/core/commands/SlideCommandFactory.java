@@ -26,7 +26,7 @@ public class SlideCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("create");
         HANDLED_COMMANDS.add("delete");
         HANDLED_COMMANDS.add("copy");
-        HANDLED_COMMANDS.add("move");
+        // move: migrated to class registry (MoveSlideCommand)
     }
     
     /**
@@ -57,8 +57,7 @@ public class SlideCommandFactory extends AbstractCommandFactory {
             case "copy":
                 return createSlideCopyFromConsole(parameters);
 
-            case "move":
-                return createSlideMoveFromConsole(parameters);
+            // "move" migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
 
             default:
                 return null;
@@ -121,15 +120,6 @@ public class SlideCommandFactory extends AbstractCommandFactory {
             sourceSlide != null ? sourceSlide : 1,
             targetPosition != null ? targetPosition : 2,
             newTitle, null, true);
-    }
-
-    private Command createSlideMoveFromConsole(CommandParameters parameters) {
-        Integer from = parameters.getInteger("from");
-        Integer to = parameters.getInteger("to");
-        return new MoveSlideCommand(
-            from != null ? from : 1,
-            to != null ? to : 1,
-            orchestrator);
     }
 
     // ========== PUBLIC FACTORY METHODS (for direct use and delegation) ==========

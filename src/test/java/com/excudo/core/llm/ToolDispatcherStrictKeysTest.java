@@ -78,7 +78,7 @@ public class ToolDispatcherStrictKeysTest {
         // 'targetSpid' was treated as an unknown key, passed through to
         // the factory, and silently dropped. Post-backfill, the alias
         // resolves to canonical 'spid' and validates clean.
-        RequestSchema.ActionRequest action = action("move", Map.of(
+        RequestSchema.ActionRequest action = action("move-shape", Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "x", "100pt",
@@ -86,7 +86,7 @@ public class ToolDispatcherStrictKeysTest {
 
         String err = ToolDispatcher.validateActionStrictly(action);
 
-        assertNull("move targetSpid must validate after backfill", err);
+        assertNull("move-shape targetSpid must validate after backfill", err);
     }
 
     @Test
@@ -104,7 +104,7 @@ public class ToolDispatcherStrictKeysTest {
 
     @Test
     public void reorderAcceptsTargetSpidAfterAliasBackfill() {
-        RequestSchema.ActionRequest action = action("reorder", Map.of(
+        RequestSchema.ActionRequest action = action("reorder-shape", Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "direction", "front"));
@@ -135,7 +135,7 @@ public class ToolDispatcherStrictKeysTest {
         // The canonical 'spid' must still validate; this is used by the
         // REPL parser path and we don't want to break it just because
         // the LLM-facing alias is preferred for the agent surface.
-        RequestSchema.ActionRequest action = action("move", Map.of(
+        RequestSchema.ActionRequest action = action("move-shape", Map.of(
             "slide", "1",
             "spid", "2",
             "x", "100pt",

@@ -1,12 +1,47 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
+/**
+ * Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code reorder-shape} derives from the class name.
+ */
 public class ReorderShapeCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").llmName("targetSpid").required().build();
+    // Custom parse: accepted tokens (front/back/forward/backward) differ from
+    // the enum constant names, so validValues is declared explicitly for the
+    // LLM JSON schema rather than auto-derived from the enum.
+    static final Parameter<ZOrderOperation> DIRECTION =
+        Parameter.of("direction", ZOrderOperation::parse)
+            .description("Direction: front, back, forward, backward")
+            .validValues("front", "back", "forward", "backward")
+            .required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Change z-order of a shape")
+        .llmEnabled(true)
+        .llmDescription("Change z-order of a shape.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(DIRECTION)
+        .example("reorder-shape 1 5 front")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ReorderShapeCommand(p.get(SLIDE), p.get(SPID), p.get(DIRECTION), ctx.orchestrator());
+    }
 
     public enum ZOrderOperation {
         BRING_FRONT, SEND_BACK, BRING_FORWARD, SEND_BACKWARD;

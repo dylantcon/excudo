@@ -51,6 +51,10 @@ public final class CommandClassRegistry {
         // Self-describing Commands. Each declares its own SCHEMA + fromParameters;
         // the canonical name derives from the class name.
         registerCommandClass(com.excudo.core.commands.mutating.slide.AddShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.MoveShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.ReorderShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.deck.MoveSlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.UndoCommand.class);
     }
 
     private CommandClassRegistry() {}

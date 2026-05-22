@@ -1,12 +1,16 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeRegistry;
 import com.excudo.core.model.SlideShape;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -14,8 +18,35 @@ import com.excudo.core.results.ExecutionResult;
  *
  * Captures the original geometry before moving so that undo can restore
  * the shape to its previous position. Width and height are preserved.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code move-shape} derives from the class name.
  */
 public class MoveShapeCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").llmName("targetSpid").required().build();
+    static final Parameter<Long> X = Parameter.ofUnit("x")
+        .description("New X position (points, EMU, or inches: 100pt, 1270000emu, 1.5in)").required().build();
+    static final Parameter<Long> Y = Parameter.ofUnit("y")
+        .description("New Y position (points, EMU, or inches: 100pt, 1270000emu, 1.5in)").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Move a shape to a new position")
+        .llmEnabled(true)
+        .llmDescription("Move a shape to a position.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(X)
+        .parameter(Y)
+        .example("move-shape 1 5 100pt 200pt")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new MoveShapeCommand(p.get(SLIDE), p.get(SPID), p.get(X), p.get(Y), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int spid;

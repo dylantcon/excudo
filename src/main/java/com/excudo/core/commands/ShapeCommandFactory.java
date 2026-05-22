@@ -75,10 +75,10 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("enhance");
         HANDLED_COMMANDS.add("set-transition");
         HANDLED_COMMANDS.add("remove-transition");
-        HANDLED_COMMANDS.add("move");
+        // move: migrated to class registry (MoveShapeCommand)
         HANDLED_COMMANDS.add("resize");
         HANDLED_COMMANDS.add("arrange");
-        HANDLED_COMMANDS.add("reorder");
+        // reorder: migrated to class registry (ReorderShapeCommand)
         HANDLED_COMMANDS.add("duplicate-layout");
         HANDLED_COMMANDS.add("add-layout");
         HANDLED_COMMANDS.add("delete-layout");
@@ -254,16 +254,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     TransitionType.NONE, null, null, orchestrator);
             }
 
-            case "move": {
-                Integer moveSlide = parameters.getInteger("slide");
-                String moveSpidStr = parameters.getString("spid");
-                String xStr = parameters.getString("x");
-                String yStr = parameters.getString("y");
-                int moveSpid = moveSpidStr != null ? Integer.parseInt(moveSpidStr) : 0;
-                long moveX = UnitParser.parseToEmu(xStr);
-                long moveY = UnitParser.parseToEmu(yStr);
-                return new MoveShapeCommand(moveSlide != null ? moveSlide : 1, moveSpid, moveX, moveY, orchestrator);
-            }
+            // "move" migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
 
             case "resize": {
                 Integer resizeSlide = parameters.getInteger("slide");
@@ -285,14 +276,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 return new ArrangeCommand(arrSlide != null ? arrSlide : 1, arrOp, arrTargets, arrAnchor, orchestrator);
             }
 
-            case "reorder": {
-                Integer reorderSlide = parameters.getInteger("slide");
-                String reorderSpidStr = parameters.getString("spid");
-                String direction = parameters.getString("direction");
-                int reorderSpid = reorderSpidStr != null ? Integer.parseInt(reorderSpidStr) : 0;
-                return new ReorderShapeCommand(reorderSlide != null ? reorderSlide : 1, reorderSpid,
-                    ReorderShapeCommand.ZOrderOperation.parse(direction), orchestrator);
-            }
+            // "reorder" migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
 
             case "duplicate-layout": {
                 String dlSource = parameters.getString("sourceLayoutId");

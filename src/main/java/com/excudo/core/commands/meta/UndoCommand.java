@@ -2,24 +2,40 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
 
 /**
  * GoF Command for undoing the last executed command.
- * 
+ *
  * This is a system operation that delegates to CommandInvoker.undo().
  * Since undo is the negation of execute, it cannot itself be undone
  * (use RedoCommand instead). This prevents philosophical paradoxes
  * and infinite recursion.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code undo} derives from the class name. Needs a REPL
+ * session context + display, pulled from {@link CommandContext}.
  */
 public class UndoCommand implements Command {
-    
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Undo the last command")
+        .example("undo")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new UndoCommand(ctx.requireSession(), ctx.requireDisplay());
+    }
+
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;
     private boolean executed = false;
-    
+
     
     /**
      * Create an UndoCommand.

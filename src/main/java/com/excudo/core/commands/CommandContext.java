@@ -22,10 +22,52 @@ import com.excudo.core.orchestration.PPTXOrchestrator;
  * object (easy to construct in tests, no orchestrator needed) and lets the
  * factory inject the orchestrator separately.
  *
+ * <p>The REPL {@code displayAdapter} is a console "god object" that
+ * implements {@link CommandDisplay}, {@link CommandSessionContext},
+ * {@link CommandSessionManager}, and {@link LLMContext} simultaneously.
+ * Commands that need one of those capabilities pull it via the typed
+ * {@code require*()} accessors below, which cast the adapter and throw a
+ * clear message when the current dispatch path didn't supply one (the LLM
+ * path passes {@code null}, so session/manager/LLM-only commands fail loudly
+ * rather than with a raw {@link ClassCastException}).
+ *
  * @param orchestrator    the active orchestrator the Command will mutate
- * @param displayAdapter  optional display sink for advisory output (e.g.
- *                        the overlap-warning notes from add-shape). Pass
- *                        null when the caller doesn't have one (most
- *                        non-REPL paths).
+ * @param displayAdapter  optional multi-capability adapter for advisory
+ *                        output, session/history, and LLM context. Pass null
+ *                        when the caller doesn't have one (most non-REPL paths).
  */
-public record CommandContext(PPTXOrchestrator orchestrator, Object displayAdapter) {}
+public record CommandContext(PPTXOrchestrator orchestrator, Object displayAdapter) {
+
+    /** The display sink, or null when none was supplied. */
+    public CommandDisplay display() {
+        return displayAdapter instanceof CommandDisplay d ? d : null;
+    }
+
+    /** Display sink, required. */
+    public CommandDisplay requireDisplay() {
+        if (displayAdapter instanceof CommandDisplay d) return d;
+        throw new IllegalStateException(
+            "This command requires a display adapter; none on this dispatch path.");
+    }
+
+    /** Session/history context (undo/redo/history/save/session commands). */
+    public CommandSessionContext requireSession() {
+        if (displayAdapter instanceof CommandSessionContext s) return s;
+        throw new IllegalStateException(
+            "This command requires a REPL session context; none on this dispatch path.");
+    }
+
+    /** Session lifecycle manager (load/new/session-* commands). */
+    public CommandSessionManager requireSessionManager() {
+        if (displayAdapter instanceof CommandSessionManager m) return m;
+        throw new IllegalStateException(
+            "This command requires a session manager; none on this dispatch path.");
+    }
+
+    /** LLM context (llm / llm-config commands). */
+    public LLMContext requireLlmContext() {
+        if (displayAdapter instanceof LLMContext c) return c;
+        throw new IllegalStateException(
+            "LLM commands require LLMContext support; none on this dispatch path.");
+    }
+}

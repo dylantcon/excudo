@@ -67,7 +67,7 @@ public class CommandRegistry {
         registerSessionCommand();
         registerInjectCommand();
         registerEnhanceCommand();
-        registerUndoCommand();
+        // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
         registerRedoCommand();
         registerHistoryCommand();
         registerListNotesCommand();
@@ -87,14 +87,14 @@ public class CommandRegistry {
         registerAddConnectorCommand();
         registerSetActionCommand();
         registerCopySlideCommand();
-        registerMoveSlideCommand();
+        // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
         registerSetTransitionCommand();
         registerRemoveTransitionCommand();
         registerListTransitionTypesCommand();
-        registerMoveShapeCommand();
+        // move-shape: migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
         registerResizeShapeCommand();
         registerArrangeCommand();
-        registerReorderCommand();
+        // reorder-shape: migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
         registerDuplicateLayoutCommand();
         registerAddLayoutCommand();
         registerDeleteLayoutCommand();
@@ -699,15 +699,6 @@ public class CommandRegistry {
     /**
      * Register the undo command with proper schema
      */
-    private static void registerUndoCommand() {
-        CommandSchema schema = CommandSchema.builder("undo")
-            .description("Undo the last command")
-            .example("undo")
-            .build();
-        
-        schemas.put("undo", schema);
-    }
-    
     /**
      * Register the redo command with proper schema
      */
@@ -1251,26 +1242,6 @@ public class CommandRegistry {
         schemas.put("copy", schema);
     }
 
-    private static void registerMoveSlideCommand() {
-        CommandSchema schema = CommandSchema.builder("move")
-            .description("Move a slide to a new position")
-            .parameter(Parameter.builder("from")
-                .description("Current slide position")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("to")
-                .description("Target position")
-                .type(ParameterType.INTEGER)
-                .required(true)
-                .build())
-            .example("move 3 1")
-            .example("move 5 2")
-            .build();
-
-        schemas.put("move", schema);
-    }
-
     private static void registerSetTransitionCommand() {
         CommandSchema schema = CommandSchema.builder("set-transition")
             .description("Set a slide transition effect")
@@ -1359,37 +1330,6 @@ public class CommandRegistry {
         }
     }
     
-    private static void registerMoveShapeCommand() {
-        CommandSchema schema = CommandSchema.builder("move")
-            .description("Move a shape to a new position")
-            .llmEnabled(true)
-            .llmDescription("Move a shape to a position.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("x")
-                .description("New X position (points, EMU, or inches: 100pt, 1270000emu, 1.5in)")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("y")
-                .description("New Y position (points, EMU, or inches: 100pt, 1270000emu, 1.5in)")
-                .required(true)
-                .build())
-            .example("move 1 5 100pt 200pt")
-            .build();
-
-        schemas.put("move", schema);
-    }
-
     private static void registerResizeShapeCommand() {
         CommandSchema schema = CommandSchema.builder("resize")
             .description("Resize a shape")
@@ -1454,34 +1394,6 @@ public class CommandRegistry {
             .build();
 
         schemas.put("arrange", schema);
-    }
-
-    private static void registerReorderCommand() {
-        CommandSchema schema = CommandSchema.builder("reorder")
-            .description("Change z-order of a shape")
-            .llmEnabled(true)
-            .llmDescription("Change z-order of a shape.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("direction")
-                .description("Direction: front, back, forward, backward")
-                .validValues("front", "back", "forward", "backward")
-                .required(true)
-                .build())
-            .example("reorder 1 5 front")
-            .build();
-
-        schemas.put("reorder", schema);
     }
 
     private static void registerDuplicateLayoutCommand() {

@@ -1,15 +1,39 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.SlideExecutionResult;
 
 /**
  * Command for moving a slide from one position to another.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code move-slide} derives from the class name.
  */
 public class MoveSlideCommand implements Command {
+
+    static final Parameter<Integer> FROM = Parameter.ofInt("from")
+        .slideNumber().description("Current slide position").required().build();
+    static final Parameter<Integer> TO = Parameter.ofInt("to")
+        .type(Parameter.ParameterType.INTEGER).description("Target position").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Move a slide to a new position")
+        .parameter(FROM)
+        .parameter(TO)
+        .example("move-slide 3 1")
+        .example("move-slide 5 2")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new MoveSlideCommand(p.get(FROM), p.get(TO), ctx.orchestrator());
+    }
 
     private final int fromPosition;
     private final int toPosition;
