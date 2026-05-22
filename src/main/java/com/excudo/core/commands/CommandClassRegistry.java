@@ -70,7 +70,13 @@ public final class CommandClassRegistry {
                 commandClass, "fromParameters",
                 MethodType.methodType(Command.class, CommandParameters.class, CommandContext.class));
 
+            // Canonical name is derived from the class -- the single source of
+            // truth. Class-registered SCHEMAs are declared nameless; we stamp
+            // the derived name onto the schema here so schema consumers
+            // (validators, LLM tool-schema generation) see it. assignName
+            // throws if the schema carries a conflicting hardcoded name.
             String name = derivedCommandName(commandClass);
+            schema.assignName(name);
 
             CommandFactory factory = (params, ctx) -> {
                 try {

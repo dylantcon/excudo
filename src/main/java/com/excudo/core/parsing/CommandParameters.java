@@ -305,6 +305,50 @@ public class CommandParameters {
         return (raw == null || raw.isEmpty()) ? Optional.empty() : Optional.of(Boolean.parseBoolean(raw));
     }
 
+    // ========== TYPED PARAMETER-KEY ACCESSORS ==========
+    //
+    // These read through a Parameter<T> constant rather than a string literal,
+    // so the parameter key is declared exactly once (on the Parameter) and
+    // shared between the command's SCHEMA and its fromParameters body. The
+    // Parameter carries its own parser, default, and required flag:
+    //   int slide   = p.get(SLIDE);          -- required; throws if missing
+    //   String type = p.get(SHAPE_TYPE);     -- default falls out of the key
+    //   var align   = p.opt(ALIGN);          -- Optional<T>, normalizer applied
+
+    /**
+     * Resolve a parameter's typed value via its own {@link Parameter} key.
+     * When the raw value is absent, the parameter's declared default is parsed
+     * and returned; if there is no default and the parameter is required, an
+     * {@link IllegalArgumentException} is thrown; otherwise {@code null}.
+     */
+    public <T> T get(Parameter<T> param) {
+        String raw = parameters.get(param.getName());
+        if (raw == null || raw.isEmpty()) {
+            String def = param.getDefaultValue();
+            if (def != null) return param.parse(def);
+            if (param.isRequired()) {
+                throw new IllegalArgumentException(
+                    "Required parameter '" + param.getName() + "' is missing");
+            }
+            return null;
+        }
+        return param.parse(raw);
+    }
+
+    /**
+     * Optional typed value via a {@link Parameter} key. Present when the value
+     * is set, or when the parameter declares a default; empty otherwise. The
+     * parameter's parser (including any normalizer) is applied in both cases.
+     */
+    public <T> Optional<T> opt(Parameter<T> param) {
+        String raw = parameters.get(param.getName());
+        if (raw == null || raw.isEmpty()) {
+            String def = param.getDefaultValue();
+            return def != null ? Optional.ofNullable(param.parse(def)) : Optional.empty();
+        }
+        return Optional.ofNullable(param.parse(raw));
+    }
+
     /** Optional enum. valueOf() against the enum class; empty when absent.
      *  Throws if present-but-not-a-valid-enum-constant. */
     public <T extends Enum<T>> Optional<T> optEnum(String name, Class<T> enumType) {

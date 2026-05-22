@@ -66,7 +66,7 @@ public class CommandSchemaTest {
     public void getParametersReturnsAllParametersInOrder() {
         CommandSchema schema = buildTwoParamSchema();
 
-        List<Parameter> params = schema.getParameters();
+        List<Parameter<?>> params = schema.getParameters();
 
         assertEquals(2, params.size());
         assertEquals("param1", params.get(0).getName());

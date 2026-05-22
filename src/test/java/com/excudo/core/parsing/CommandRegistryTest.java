@@ -162,7 +162,7 @@ public class CommandRegistryTest {
     @Test
     public void createSchema_hasRequiredParameters() {
         CommandSchema schema = CommandRegistry.getSchema("create");
-        List<Parameter> params = schema.getParameters();
+        List<Parameter<?>> params = schema.getParameters();
 
         assertNotNull(params);
         assertFalse("'create' schema must define parameters", params.isEmpty());
@@ -174,7 +174,7 @@ public class CommandRegistryTest {
     @Test
     public void addShapeSchema_hasParameters() {
         CommandSchema schema = CommandRegistry.getSchema("add-shape");
-        List<Parameter> params = schema.getParameters();
+        List<Parameter<?>> params = schema.getParameters();
 
         assertNotNull(params);
         assertFalse("'add-shape' schema must define parameters", params.isEmpty());
@@ -183,7 +183,7 @@ public class CommandRegistryTest {
     @Test
     public void createSchema_firstParameterIsPositionOrSlideNumber() {
         CommandSchema schema = CommandRegistry.getSchema("create");
-        List<Parameter> params = schema.getParameters();
+        List<Parameter<?>> params = schema.getParameters();
 
         assertFalse(params.isEmpty());
         Parameter first = params.get(0);
@@ -195,7 +195,7 @@ public class CommandRegistryTest {
     @Test
     public void addShapeSchema_firstParameterIsSlide() {
         CommandSchema schema = CommandRegistry.getSchema("add-shape");
-        List<Parameter> params = schema.getParameters();
+        List<Parameter<?>> params = schema.getParameters();
 
         assertFalse(params.isEmpty());
         assertEquals("slide", params.get(0).getName());

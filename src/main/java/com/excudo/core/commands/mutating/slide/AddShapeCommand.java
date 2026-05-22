@@ -13,7 +13,6 @@ import com.excudo.core.model.ShapeStyle;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.Parameter;
-import com.excudo.core.parsing.Parameter.ParameterType;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -30,76 +29,71 @@ import com.excudo.core.results.ExecutionResult;
  */
 public class AddShapeCommand implements Command {
 
-    /** Declarative parameter schema. Picked up by
-     *  {@link com.excudo.core.parsing.CommandRegistry#registerCommandClass} via reflection. */
-    public static final CommandSchema SCHEMA = CommandSchema.builder("add-shape")
-        .description("Add a shape to a slide")
-        .llmEnabled(true)
-        .llmDescription("Add a new shape to a slide.")
-        .parameter(Parameter.builder("slide")
-            .description("Slide number")
-            .type(ParameterType.SLIDE_NUMBER)
-            .llmName("slideNumber")
-            .required(true)
-            .build())
-        .parameter(Parameter.builder("shape-type")
-            .description("Shape type: TEXT_BOX for plain text with no fill/border, "
-                + "or an autoshape preset like RECTANGLE, ELLIPSE, TRIANGLE, "
-                + "ROUNDED_RECTANGLE, etc. See ShapeType enum for the full set.")
-            .llmName("shapeType")
-            .defaultValue("RECTANGLE")
-            .build())
-        .parameter(Parameter.builder("text")
-            .description("Text content placed inside the shape. Markdown supported: "
-                + "**bold**, *italic*, - bullets, 1. numbered, \\n for line breaks. "
-                + "Leave empty for a shape with no text.")
-            .llmName("text")
-            .defaultValue("")
-            .build())
-        .parameter(Parameter.builder("x")
-            .description("X position in EMU")
-            .type(ParameterType.DOUBLE)
-            .required(true)
-            .build())
-        .parameter(Parameter.builder("y")
-            .description("Y position in EMU")
-            .type(ParameterType.DOUBLE)
-            .required(true)
-            .build())
-        .parameter(Parameter.builder("width")
-            .description("Width in EMU")
-            .type(ParameterType.DOUBLE)
-            .required(true)
-            .build())
-        .parameter(Parameter.builder("height")
-            .description("Height in EMU")
-            .type(ParameterType.DOUBLE)
-            .required(true)
-            .build())
-        .parameter(Parameter.builder("fill-color")
-            .description("Fill color: hex (FF0000) or scheme name (accent1)")
-            .llmName("fillColor")
-            .required(false)
-            .build())
-        .parameter(Parameter.builder("line-color")
-            .description("Line color: hex (000000) or scheme name (dk1)")
-            .llmName("lineColor")
-            .required(false)
-            .build())
-        .parameter(Parameter.builder("fill-alpha")
-            .description("Fill opacity, 0-100 (percent). 100 = fully opaque, 0 = fully "
-                + "transparent. Use to author muted fills without picking a paler hex.")
-            .type(ParameterType.INTEGER)
-            .llmName("fillAlpha")
-            .required(false)
-            .build())
-        .parameter(Parameter.builder("line-alpha")
-            .description("Line opacity, 0-100 (percent). Same semantics as fill-alpha.")
-            .type(ParameterType.INTEGER)
-            .llmName("lineAlpha")
-            .required(false)
-            .build())
-        .parameter(Parameter.builder("align")
+    // Typed parameter keys: each is the single source of truth for one
+    // parameter -- name, wire type, default, LLM alias, and how to parse the
+    // raw value into a typed Java value. Both SCHEMA (below) and
+    // fromParameters reference these same constants, so a key is declared
+    // exactly once with no string-literal drift between the two.
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber()
+        .description("Slide number")
+        .llmName("slideNumber")
+        .required()
+        .build();
+
+    static final Parameter<String> SHAPE_TYPE = Parameter.ofString("shape-type")
+        .description("Shape type: TEXT_BOX for plain text with no fill/border, "
+            + "or an autoshape preset like RECTANGLE, ELLIPSE, TRIANGLE, "
+            + "ROUNDED_RECTANGLE, etc. See ShapeType enum for the full set.")
+        .llmName("shapeType")
+        .def("RECTANGLE")
+        .build();
+
+    static final Parameter<String> TEXT = Parameter.ofString("text")
+        .description("Text content placed inside the shape. Markdown supported: "
+            + "**bold**, *italic*, - bullets, 1. numbered, \\n for line breaks. "
+            + "Leave empty for a shape with no text.")
+        .llmName("text")
+        .def("")
+        .build();
+
+    static final Parameter<Double> X = Parameter.ofDouble("x")
+        .description("X position in EMU").required().build();
+    static final Parameter<Double> Y = Parameter.ofDouble("y")
+        .description("Y position in EMU").required().build();
+    static final Parameter<Double> WIDTH = Parameter.ofDouble("width")
+        .description("Width in EMU").required().build();
+    static final Parameter<Double> HEIGHT = Parameter.ofDouble("height")
+        .description("Height in EMU").required().build();
+
+    static final Parameter<String> FILL_COLOR = Parameter.ofString("fill-color")
+        .description("Fill color: hex (FF0000) or scheme name (accent1)")
+        .llmName("fillColor")
+        .required(false)
+        .build();
+
+    static final Parameter<String> LINE_COLOR = Parameter.ofString("line-color")
+        .description("Line color: hex (000000) or scheme name (dk1)")
+        .llmName("lineColor")
+        .required(false)
+        .build();
+
+    static final Parameter<Integer> FILL_ALPHA = Parameter.ofInt("fill-alpha")
+        .description("Fill opacity, 0-100 (percent). 100 = fully opaque, 0 = fully "
+            + "transparent. Use to author muted fills without picking a paler hex.")
+        .llmName("fillAlpha")
+        .required(false)
+        .build();
+
+    static final Parameter<Integer> LINE_ALPHA = Parameter.ofInt("line-alpha")
+        .description("Line opacity, 0-100 (percent). Same semantics as fill-alpha.")
+        .llmName("lineAlpha")
+        .required(false)
+        .build();
+
+    static final Parameter<String> ALIGN =
+        Parameter.ofString("align", ShapeCommandFactory::normalizeAlignment)
             .description("Paragraph horizontal alignment for the shape's text. "
                 + "Values: l/left, ctr/center, r/right, just/justify. "
                 + "Defaults to OOXML's center default for shape text bodies. "
@@ -107,7 +101,26 @@ public class AddShapeCommand implements Command {
                 + "leaving it default centers each line and destroys leading whitespace.")
             .llmName("align")
             .required(false)
-            .build())
+            .build();
+
+    /** Declarative parameter schema. Picked up by
+     *  {@link com.excudo.core.parsing.CommandRegistry#registerCommandClass} via reflection. */
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Add a shape to a slide")
+        .llmEnabled(true)
+        .llmDescription("Add a new shape to a slide.")
+        .parameter(SLIDE)
+        .parameter(SHAPE_TYPE)
+        .parameter(TEXT)
+        .parameter(X)
+        .parameter(Y)
+        .parameter(WIDTH)
+        .parameter(HEIGHT)
+        .parameter(FILL_COLOR)
+        .parameter(LINE_COLOR)
+        .parameter(FILL_ALPHA)
+        .parameter(LINE_ALPHA)
+        .parameter(ALIGN)
         .example("add-shape 1 RECTANGLE \"Hello\" 100 100 200 100")
         .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
         .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
@@ -130,13 +143,9 @@ public class AddShapeCommand implements Command {
      *         or an enum-style value (shape type, alignment) is unrecognised.
      */
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        int slide = p.requireInt("slide");
-        double x = p.requireDouble("x");
-        double y = p.requireDouble("y");
-        double width = p.requireDouble("width");
-        double height = p.requireDouble("height");
+        int slide = p.get(SLIDE);
 
-        String shapeTypeRaw = p.optString("shape-type").orElse("RECTANGLE");
+        String shapeTypeRaw = p.get(SHAPE_TYPE);
         String normalizedTypeStr = shapeTypeRaw.toUpperCase();
         boolean isTextBoxAlias = "TEXT_BOX".equals(normalizedTypeStr)
             || "TEXTBOX".equals(normalizedTypeStr);
@@ -144,20 +153,20 @@ public class AddShapeCommand implements Command {
             ? SlideShape.ShapeType.RECTANGLE
             : SlideShape.ShapeType.valueOf(normalizedTypeStr);
 
-        String text = p.optString("text").orElse("");
+        String text = p.get(TEXT);
         ShapeGeometry geometry = new ShapeGeometry(
-            (long) x, (long) y, (long) width, (long) height);
+            p.get(X).longValue(), p.get(Y).longValue(),
+            p.get(WIDTH).longValue(), p.get(HEIGHT).longValue());
 
-        String fillColor = p.optString("fill-color").orElse(null);
-        String lineColor = p.optString("line-color").orElse(null);
-        Integer fillAlpha = p.optInt("fill-alpha").isPresent() ? p.optInt("fill-alpha").getAsInt() : null;
-        Integer lineAlpha = p.optInt("line-alpha").isPresent() ? p.optInt("line-alpha").getAsInt() : null;
+        String fillColor = p.opt(FILL_COLOR).orElse(null);
+        String lineColor = p.opt(LINE_COLOR).orElse(null);
+        Integer fillAlpha = p.opt(FILL_ALPHA).orElse(null);
+        Integer lineAlpha = p.opt(LINE_ALPHA).orElse(null);
         ShapeStyle style = isTextBoxAlias
             ? ShapeStyle.textBox()
             : ShapeCommandFactory.parseShapeStyle(fillColor, lineColor, fillAlpha, lineAlpha);
 
-        String alignment = ShapeCommandFactory.normalizeAlignment(
-            p.optString("align").orElse(null));
+        String alignment = p.opt(ALIGN).orElse(null);
 
         return new AddShapeCommand(slide, shapeType, geometry, text,
             isTextBoxAlias ? "TextBox" : "Shape",

@@ -15,10 +15,10 @@ import java.util.stream.Collectors;
  * - Lack of self-documentation
  */
 public class CommandSchema {
-    private final String name;
+    private String name;
     private final String description;
-    private final List<Parameter> parameters;
-    private final Map<String, Parameter> parametersByName;
+    private final List<Parameter<?>> parameters;
+    private final Map<String, Parameter<?>> parametersByName;
     private final List<String> examples;
     private final boolean allowsNamedParameters;
     private final boolean llmEnabled;
@@ -99,7 +99,7 @@ public class CommandSchema {
         
         // Parameters
         help.append("Parameters:\n");
-        for (Parameter param : parameters) {
+        for (Parameter<?> param : parameters) {
             help.append("  ").append(param.generateHelp()).append("\n");
         }
         
@@ -128,15 +128,43 @@ public class CommandSchema {
         return name;
     }
 
+    /**
+     * Assign the canonical command name derived from the owning Command class.
+     *
+     * <p>Class-registered commands declare a nameless {@link #builder()} schema:
+     * the single source of truth for the command name is the class itself
+     * ({@code AddShapeCommand} → {@code add-shape}), stamped here at registration
+     * time. This keeps the name from being duplicated as a magic string in
+     * {@code CommandSchema.builder("...")}.
+     *
+     * <p>Idempotent for the same name (tolerates re-registration); throws if a
+     * different name was already present, which signals a stray hardcoded name
+     * fighting the class-derived one.
+     */
+    public void assignName(String derivedName) {
+        if (derivedName == null || derivedName.isBlank()) {
+            throw new IllegalArgumentException("derivedName must be non-blank");
+        }
+        if (this.name != null) {
+            if (this.name.equals(derivedName)) return;
+            throw new IllegalStateException(
+                "Schema already named '" + this.name + "' but the owning class derives '"
+                + derivedName + "'. Class-registered commands must use a nameless "
+                + "CommandSchema.builder() so the class is the only source of truth "
+                + "for the command name.");
+        }
+        this.name = derivedName;
+    }
+
     public String getDescription() {
         return description;
     }
 
-    public List<Parameter> getParameters() {
+    public List<Parameter<?>> getParameters() {
         return parameters;
     }
 
-    public Parameter getParameter(String name) {
+    public Parameter<?> getParameter(String name) {
         return parametersByName.get(name);
     }
 
@@ -146,7 +174,7 @@ public class CommandSchema {
      */
     public Map<String, String> buildLlmToCanonicalParamMap() {
         Map<String, String> map = new HashMap<>();
-        for (Parameter p : parameters) {
+        for (Parameter<?> p : parameters) {
             // Map canonical name to itself
             map.put(p.getName(), p.getName());
             // Map LLM alias to canonical name
@@ -172,7 +200,7 @@ public class CommandSchema {
 
         List<String> requiredParams = new ArrayList<>();
         for (int i = 0; i < parameters.size(); i++) {
-            Parameter p = parameters.get(i);
+            Parameter<?> p = parameters.get(i);
             String llmParamName = p.getEffectiveLlmName();
 
             if (i > 0) sb.append(",\n");
@@ -197,7 +225,7 @@ public class CommandSchema {
         return sb.toString();
     }
 
-    private String parameterToJsonSchema(Parameter p) {
+    private String parameterToJsonSchema(Parameter<?> p) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
 
@@ -274,7 +302,7 @@ public class CommandSchema {
         
         // Check for common parameter mistakes
         for (int i = 0; i < args.length && i < parameters.size(); i++) {
-            Parameter param = parameters.get(i);
+            Parameter<?> param = parameters.get(i);
             String value = args[i];
             if (!param.isValidValue(value)) {
                 suggestions.add(String.format("%s should be %s", 
@@ -318,7 +346,7 @@ public class CommandSchema {
         for (int i = firstNamedIndex; i < args.length; i++) {
             if (args[i].startsWith("--")) {
                 String paramName = args[i].substring(2);
-                Parameter param = parametersByName.get(paramName);
+                Parameter<?> param = parametersByName.get(paramName);
 
                 if (param == null) {
                     throw new CommandParseException(
@@ -363,7 +391,7 @@ public class CommandSchema {
         }
         
         int argIndex = 0;
-        for (Parameter param : parameters) {
+        for (Parameter<?> param : parameters) {
             if (param.isVariableLength()) {
                 // Collect remaining arguments
                 List<String> varArgs = new ArrayList<>();
@@ -392,7 +420,7 @@ public class CommandSchema {
     }
     
     private void applyDefaults(Map<String, String> values) {
-        for (Parameter param : parameters) {
+        for (Parameter<?> param : parameters) {
             if (!values.containsKey(param.getName()) && param.getDefaultValue() != null) {
                 values.put(param.getName(), param.getDefaultValue());
             }
@@ -402,7 +430,7 @@ public class CommandSchema {
     private void validateParameterValues(Map<String, String> values) 
             throws CommandParseException {
         for (Map.Entry<String, String> entry : values.entrySet()) {
-            Parameter param = parametersByName.get(entry.getKey());
+            Parameter<?> param = parametersByName.get(entry.getKey());
             if (param != null && !param.isValidValue(entry.getValue())) {
                 throw new CommandParseException(
                     String.format("Invalid value for %s: '%s'\n%s",
@@ -429,11 +457,22 @@ public class CommandSchema {
     public static Builder builder(String name) {
         return new Builder(name);
     }
+
+    /**
+     * Nameless schema builder for class-registered commands. The canonical
+     * command name is derived from the owning Command class and stamped on at
+     * registration via {@link #assignName(String)} -- so the name is never
+     * hardcoded here. Legacy commands registered through {@code CommandRegistry}
+     * still use {@link #builder(String)} until migrated.
+     */
+    public static Builder builder() {
+        return new Builder(null);
+    }
     
     public static class Builder {
         private final String name;
         private String description = "";
-        private final List<Parameter> parameters = new ArrayList<>();
+        private final List<Parameter<?>> parameters = new ArrayList<>();
         private final List<String> examples = new ArrayList<>();
         private boolean allowsNamedParameters = true;
         private boolean llmEnabled = false;
@@ -448,7 +487,7 @@ public class CommandSchema {
             return this;
         }
         
-        public Builder parameter(Parameter parameter) {
+        public Builder parameter(Parameter<?> parameter) {
             this.parameters.add(parameter);
             return this;
         }
