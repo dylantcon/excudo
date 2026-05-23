@@ -73,7 +73,7 @@ public class SlideContentContext {
         // Add capabilities
         json.append("  \"capabilities\": {\n");
         json.append("    \"shapeOperations\": [\"add-shape\", \"update-text\", \"update-geometry\", \"delete-shape\"],\n");
-        json.append("    \"animationOperations\": [\"add-animation\", \"update-animation\", \"delete-animation\"],\n");
+        json.append("    \"animationOperations\": [\"add-animation\", \"update-animation\", \"remove-animation\"],\n");
         json.append("    \"animationTypes\": [\"appear\", \"fade\", \"fly\", \"wipe\", \"split\", \"zoom\"]\n");
         json.append("  }\n");
         

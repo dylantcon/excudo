@@ -90,24 +90,24 @@ public class CommandFactoryTest {
     }
 
     @Test
-    public void handlesCommandReturnsTrueForAddAnimation() {
+    public void handlesCommandReturnsTrueForAnimationEdit() {
+        // 'add-animation' is class-registered (AddAnimationCommand); not
+        // claimed by any sub-factory, so CommandFactory.handlesCommand
+        // returns true via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue("'add-animation' is handled directly by CommandFactory",
-                factory.handlesCommand("add-animation"));
+        assertTrue(factory.handlesCommand("add-animation"));
     }
 
     @Test
     public void handlesCommandReturnsTrueForRemoveAnimation() {
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue("'remove-animation' is handled directly by CommandFactory",
-                factory.handlesCommand("remove-animation"));
+        assertTrue(factory.handlesCommand("remove-animation"));
     }
 
     @Test
     public void handlesCommandReturnsTrueForUpdateAnimation() {
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue("'update-animation' is handled directly by CommandFactory",
-                factory.handlesCommand("update-animation"));
+        assertTrue(factory.handlesCommand("update-animation"));
     }
 
     @Test

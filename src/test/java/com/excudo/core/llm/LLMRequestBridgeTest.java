@@ -25,12 +25,12 @@ public class LLMRequestBridgeTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testResolveLegacyAliasIsNoLongerSupported() {
-        // The 2026-04-24 seam-collapse pass deleted the legacy alias path.
-        // Old action-type names (animation-edit, content-edit,
-        // shape-addition, slide-creation, slide-deletion, slide-copy,
-        // enhanced-content, bullet-point-edit) no longer resolve --
-        // payloads using them now fail loudly via this exception.
-        LLMRequestBridge.resolveCommandName("animation-edit");
+        // Legacy alias action-types (shape-addition, slide-creation,
+        // slide-deletion, slide-copy) never resolved and still don't.
+        // Note: add-animation, content-edit, bullet-point-edit, enhanced-content
+        // are now CANONICAL names (derived from their classes) after the
+        // class-registry sweep -- they DO resolve.
+        LLMRequestBridge.resolveCommandName("shape-addition");
     }
 
     @Test(expected = IllegalArgumentException.class)

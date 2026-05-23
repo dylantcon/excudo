@@ -1,9 +1,13 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
@@ -16,10 +20,39 @@ import java.util.Map;
  * Supports undo by capturing the previous value before applying changes.
  * Delegates to PPTXOrchestrator.updateAnimation() which is fully implemented
  * through AnimationOrchestrationManager and AnimationInjector.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code update-animation} derives from the class name.
  */
 public class UpdateAnimationCommand implements Command {
 
     private static final ComponentLogger logger = Logger.animation();
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<Integer> TIMING_NODE_ID = Parameter.ofInt("timingNodeId")
+        .description("Timing node ID (cTn id) of the animation to update").required().build();
+    static final Parameter<String> PROPERTY = Parameter.ofString("property")
+        .description("Property to update")
+        .validValues("duration", "delay", "presetSubtype")
+        .required().build();
+    static final Parameter<String> VALUE = Parameter.ofString("value")
+        .description("New value for the property").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Update properties of an existing animation")
+        .parameter(SLIDE)
+        .parameter(TIMING_NODE_ID)
+        .parameter(PROPERTY)
+        .parameter(VALUE)
+        .example("update-animation 1 15 duration 1000")
+        .example("update-animation --slide 1 --timingNodeId 15 --property duration --value 1000")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new UpdateAnimationCommand(p.get(SLIDE), p.get(TIMING_NODE_ID),
+            p.get(PROPERTY), p.get(VALUE), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int timingNodeId;

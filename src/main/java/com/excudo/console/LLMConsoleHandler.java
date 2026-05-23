@@ -600,7 +600,7 @@ public class LLMConsoleHandler implements LLMHandler {
             if (jsonCommand.contains("\"operations\"")) {
                 int slideCreations = countOccurrences(jsonCommand, "\"type\":\\s*\"slide-creation\"");
                 int contentEdits = countOccurrences(jsonCommand, "\"type\":\\s*\"content-edit\"");
-                int animationEdits = countOccurrences(jsonCommand, "\"type\":\\s*\"animation-edit\"");
+                int animationEdits = countOccurrences(jsonCommand, "\"type\":\\s*\"add-animation\"");
 
                 if (slideCreations > 0) preview.append("- ").append(slideCreations).append(" slide creation(s)\n");
                 if (contentEdits > 0) preview.append("- ").append(contentEdits).append(" content edit(s)\n");

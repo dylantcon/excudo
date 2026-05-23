@@ -1,9 +1,14 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.AnimationParameterRequirement;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;
@@ -14,17 +19,132 @@ import com.excudo.utils.FuzzyMatcher;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * GoF Command for adding animations to shapes.
- * 
+ *
  * This command allows adding entrance/exit/emphasis animations to shapes with
  * undo capability by removing the added animation.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code add-animation} derives from the class name. (The
+ * legacy REPL/LLM name {@code add-animation} no longer resolves; payloads must
+ * use {@code add-animation}.)
  */
-public class AnimationEditCommand implements Command {
+public class AddAnimationCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID to animate (must be valid existing SPID)")
+        .llmName("targetSpid").required().build();
+    static final Parameter<String> TYPE = Parameter.ofString("type")
+        .description("Animation type (fade, fly, wipe, appear, split, zoom, motion-custom, etc.)")
+        .type(Parameter.ParameterType.ANIMATION_TYPE)
+        .llmName("animationType").required().build();
+    static final Parameter<String> DIRECTION = Parameter.ofString("direction")
+        .description("Animation direction")
+        .validValues("in", "out", "emphasis")
+        .defaultValue("in").build();
+    static final Parameter<String> TRIGGER = Parameter.ofString("trigger")
+        .description("Animation trigger")
+        .validValues("on-click", "with-previous", "after-previous")
+        .llmName("animationGroup")
+        .defaultValue("on-click").build();
+    static final Parameter<Integer> DURATION = Parameter.ofInt("duration")
+        .description("Duration in milliseconds (e.g., 500 = 0.5 seconds)")
+        .llmName("durationMs")
+        .defaultValue("500").build();
+    static final Parameter<Integer> DELAY = Parameter.ofInt("delay")
+        .description("Delay before this animation starts, in milliseconds. Used with "
+            + "with-previous to stagger effects (e.g. three shapes fading together with "
+            + "delays 0/200/400 produces a wave instead of a simultaneous appear). "
+            + "Default 0.")
+        .llmName("delayMs")
+        .defaultValue("0").build();
+    static final Parameter<String> PATH = Parameter.ofString("path")
+        .description("SVG-like motion path for motion-custom (e.g. 'M 0 0 L 0.25 0.25')")
+        .required(false).build();
+    static final Parameter<Integer> PARAGRAPH_START = Parameter.ofInt("paragraphStart")
+        .description("Start paragraph index (0-based) for paragraph-level targeting")
+        .required(false).build();
+    static final Parameter<Integer> PARAGRAPH_END = Parameter.ofInt("paragraphEnd")
+        .description("End paragraph index (0-based) for paragraph-level targeting")
+        .required(false).build();
+    static final Parameter<Integer> OPACITY = Parameter.ofInt("opacity")
+        .description("Opacity percentage for transparency emphasis (25, 50, 75, 100)")
+        .llmName("opacity")
+        .validValues("25", "50", "75", "100")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Add animation to a shape")
+        .llmEnabled(true)
+        .llmDescription("Add animation to a shape.")
+        .parameter(SLIDE).parameter(SPID).parameter(TYPE)
+        .parameter(DIRECTION).parameter(TRIGGER).parameter(DURATION).parameter(DELAY)
+        .parameter(PATH).parameter(PARAGRAPH_START).parameter(PARAGRAPH_END).parameter(OPACITY)
+        .example("add-animation 1 2 fade in on-click")
+        .example("add-animation 1 2 fly-in-left in with-previous 1000")
+        .example("add-animation 1 2 transparency emphasis on-click --opacity 50")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        String cleanTrigger = normalizeTrigger(p.get(TRIGGER));
+        String animationGroup = determineGroup(cleanTrigger);
+
+        Map<String, String> effectParams = new HashMap<>();
+        p.opt(PATH).filter(s -> !s.isBlank())
+            .ifPresent(v -> effectParams.put(AnimationBinding.PARAM_MOTION_PATH, v));
+        p.opt(OPACITY).ifPresent(v -> effectParams.put(AnimationBinding.PARAM_OPACITY, String.valueOf(v)));
+        effectParams.put(AnimationBinding.PARAM_DELAY_MS, String.valueOf(p.get(DELAY)));
+        effectParams.put(AnimationBinding.PARAM_DURATION_MS, String.valueOf(p.get(DURATION)));
+
+        Integer pStart = p.opt(PARAGRAPH_START).orElse(null);
+        Integer pEnd = p.opt(PARAGRAPH_END).orElse(null);
+        boolean hasParagraphRange = pStart != null && pEnd != null;
+
+        return new AddAnimationCommand(p.get(SLIDE), p.get(SPID), p.get(TYPE), p.get(DIRECTION),
+            cleanTrigger, animationGroup, ctx.orchestrator(), ctx.groupIdManager(),
+            effectParams, hasParagraphRange ? pStart : null, hasParagraphRange ? pEnd : null);
+    }
+
+    /**
+     * Normalize a user-typed trigger to the canonical internal token. Mirrors
+     * what the legacy CommandFactory did before the class-registry migration.
+     */
+    private static String normalizeTrigger(String trigger) {
+        if (trigger == null) return AnimationParameterRequirement.TRIGGER_ON_CLICK;
+        String clean = trigger.toLowerCase().trim().replaceAll("[^a-z_0-9]", "");
+        if (clean.matches("click\\d+")) return AnimationParameterRequirement.TRIGGER_ON_CLICK;
+        switch (clean) {
+            case "click": case "onclick": case "on_click":
+                return AnimationParameterRequirement.TRIGGER_ON_CLICK;
+            case "withprevious": case "with_previous":
+                return AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS;
+            case "afterprevious": case "after_previous":
+                return AnimationParameterRequirement.TRIGGER_AFTER_PREVIOUS;
+            default: return clean;
+        }
+    }
+
+    /** Trigger-based animation group selection (mirrors the legacy helper). */
+    private static String determineGroup(String normalizedTrigger) {
+        switch (normalizedTrigger) {
+            case AnimationParameterRequirement.TRIGGER_ON_CLICK:
+                return AnimationParameterRequirement.TRIGGER_ON_CLICK;
+            case AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS:
+                return AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS;
+            case AnimationParameterRequirement.TRIGGER_AFTER_PREVIOUS:
+                return AnimationParameterRequirement.TRIGGER_AFTER_PREVIOUS;
+            default:
+                return AnimationParameterRequirement.TRIGGER_ON_CLICK;
+        }
+    }
 
     private static final ComponentLogger logger = Logger.llm();
 
@@ -68,7 +188,7 @@ public class AnimationEditCommand implements Command {
     private Integer undoTimingNodeId = null;
 
     /**
-     * Create an AnimationEditCommand with animation group and effectParams.
+     * Create an AddAnimationCommand with animation group and effectParams.
      *
      * @param slideNumber the slide number containing the shape
      * @param spid the SPID of the shape to animate
@@ -80,7 +200,7 @@ public class AnimationEditCommand implements Command {
      * @param groupIdManager optional group ID manager
      * @param effectParams effect-specific parameters (rotation, scale, color, etc.)
      */
-    public AnimationEditCommand(int slideNumber, int spid, String animationType, String direction,
+    public AddAnimationCommand(int slideNumber, int spid, String animationType, String direction,
                                String trigger, String animationGroup, PPTXOrchestrator orchestrator,
                                com.excudo.xml.writers.animations.GroupIdManager groupIdManager,
                                Map<String, String> effectParams,
@@ -110,13 +230,13 @@ public class AnimationEditCommand implements Command {
         this.orchestrator = orchestrator;
         this.groupIdManager = groupIdManager;
 
-        com.excudo.core.utils.Logger.animation().debug("AnimationEditCommand: constructed with trigger='" + this.trigger + "', animationGroup='" + this.animationGroup + "'");
+        com.excudo.core.utils.Logger.animation().debug("AddAnimationCommand: constructed with trigger='" + this.trigger + "', animationGroup='" + this.animationGroup + "'");
     }
 
     /**
-     * Create an AnimationEditCommand with all params except paragraph targeting.
+     * Create an AddAnimationCommand with all params except paragraph targeting.
      */
-    public AnimationEditCommand(int slideNumber, int spid, String animationType, String direction,
+    public AddAnimationCommand(int slideNumber, int spid, String animationType, String direction,
                                String trigger, String animationGroup, PPTXOrchestrator orchestrator,
                                com.excudo.xml.writers.animations.GroupIdManager groupIdManager,
                                Map<String, String> effectParams) {
@@ -124,24 +244,24 @@ public class AnimationEditCommand implements Command {
     }
 
     /**
-     * Create an AnimationEditCommand with animation group (no effectParams).
+     * Create an AddAnimationCommand with animation group (no effectParams).
      */
-    public AnimationEditCommand(int slideNumber, int spid, String animationType, String direction,
+    public AddAnimationCommand(int slideNumber, int spid, String animationType, String direction,
                                String trigger, String animationGroup, PPTXOrchestrator orchestrator,
                                com.excudo.xml.writers.animations.GroupIdManager groupIdManager) {
         this(slideNumber, spid, animationType, direction, trigger, animationGroup, orchestrator, groupIdManager, Collections.emptyMap(), null, null);
     }
 
     /**
-     * Create an AnimationEditCommand without animation group.
+     * Create an AddAnimationCommand without animation group.
      */
-    public AnimationEditCommand(int slideNumber, int spid, String animationType,
+    public AddAnimationCommand(int slideNumber, int spid, String animationType,
                               String direction, String trigger, PPTXOrchestrator orchestrator) {
         this(slideNumber, spid, animationType, direction, trigger, deriveAnimationGroup(trigger), orchestrator, null, Collections.emptyMap(), null, null);
     }
 
     /**
-     * Create an AnimationEditCommand directly from a pre-built
+     * Create an AddAnimationCommand directly from a pre-built
      * {@link AnimationBinding}. Used by the synthesizer's
      * {@code AddAnimationSpec} path where the binding has already been
      * composed and doesn't need to be reassembled from broken-down
@@ -150,7 +270,7 @@ public class AnimationEditCommand implements Command {
      * {@code clickTrigger} == 0 &rarr; with-previous,
      * {@code clickTrigger} == -1 &rarr; after-previous.
      */
-    public static AnimationEditCommand fromBinding(int slideNumber, AnimationBinding binding,
+    public static AddAnimationCommand fromBinding(int slideNumber, AnimationBinding binding,
             PPTXOrchestrator orchestrator,
             com.excudo.xml.writers.animations.GroupIdManager groupIdManager) {
         if (binding == null) {
@@ -166,7 +286,7 @@ public class AnimationEditCommand implements Command {
             ? binding.getEffectParams() : Collections.emptyMap();
         Integer pStart = binding.getParagraphStart();
         Integer pEnd   = binding.getParagraphEnd();
-        return new AnimationEditCommand(slideNumber, binding.getTargetSpid(), type, direction,
+        return new AddAnimationCommand(slideNumber, binding.getTargetSpid(), type, direction,
             trigger, animGroup, orchestrator, groupIdManager, params, pStart, pEnd);
     }
     
@@ -239,9 +359,9 @@ public class AnimationEditCommand implements Command {
             // Set animation group if provided
             if (animationGroup != null && !animationGroup.trim().isEmpty()) {
                 builder.animationGroup(animationGroup);
-                logger.debug("DEBUG AnimationEditCommand: Set animationGroup on builder: '" + animationGroup + "'");
+                logger.debug("DEBUG AddAnimationCommand: Set animationGroup on builder: '" + animationGroup + "'");
             } else {
-                logger.debug("DEBUG AnimationEditCommand: No animationGroup provided (null or empty)");
+                logger.debug("DEBUG AddAnimationCommand: No animationGroup provided (null or empty)");
             }
 
             // Forward effectParams into the binding
@@ -274,7 +394,7 @@ public class AnimationEditCommand implements Command {
             }
 
             AnimationBinding binding = builder.build();
-            com.excudo.core.utils.Logger.animation().debug("AnimationEditCommand: Built binding with animationGroup: '" + binding.getAnimationGroup() + "'");
+            com.excudo.core.utils.Logger.animation().debug("AddAnimationCommand: Built binding with animationGroup: '" + binding.getAnimationGroup() + "'");
 
             // Snapshot the set of <p:cTn id=...> ids present BEFORE the
             // injection so we can identify the new preset-root cTn

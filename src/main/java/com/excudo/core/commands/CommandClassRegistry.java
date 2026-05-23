@@ -66,6 +66,9 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.BulletPointEditCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.SetTextCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.AddConnectorCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.AddAnimationCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.RemoveAnimationCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.UpdateAnimationCommand.class);
     }
 
     private CommandClassRegistry() {}

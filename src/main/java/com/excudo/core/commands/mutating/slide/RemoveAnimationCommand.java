@@ -1,9 +1,13 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
@@ -13,10 +17,30 @@ import com.excudo.core.utils.Logger;
  *
  * Delegates to PPTXOrchestrator.removeAnimation() which is fully implemented
  * through AnimationOrchestrationManager and AnimationInjector.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code remove-animation} derives from the class name.
  */
 public class RemoveAnimationCommand implements Command {
 
     private static final ComponentLogger logger = Logger.animation();
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<Integer> TIMING_NODE_ID = Parameter.ofInt("timingNodeId")
+        .description("Timing node ID (cTn id) of the animation to remove").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Remove an animation from a slide by timing node ID")
+        .parameter(SLIDE)
+        .parameter(TIMING_NODE_ID)
+        .example("remove-animation 1 15")
+        .example("remove-animation --slide 1 --timingNodeId 15")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new RemoveAnimationCommand(p.get(SLIDE), p.get(TIMING_NODE_ID), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int timingNodeId;

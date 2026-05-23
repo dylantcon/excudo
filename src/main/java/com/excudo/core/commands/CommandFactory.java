@@ -7,7 +7,7 @@ import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.mutating.deck.CopySlideCommand;
 import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
 import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
-import com.excudo.core.commands.mutating.slide.AnimationEditCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 import com.excudo.core.commands.mutating.slide.BulletPointEditCommand;
 import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
 import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
@@ -162,30 +162,30 @@ public class CommandFactory extends AbstractCommandFactory {
      * @param animationType the type of animation
      * @param direction the animation direction
      * @param trigger the animation trigger
-     * @return AnimationEditCommand
+     * @return AddAnimationCommand
      */
-    public AnimationEditCommand createAnimationEdit(int slideNumber, int spid, String animationType,
+    public AddAnimationCommand createAnimationEdit(int slideNumber, int spid, String animationType,
                                                    String direction, String trigger, String animationGroup) {
-        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, animationGroup, orchestrator, sessionGroupIdManager);
+        return new AddAnimationCommand(slideNumber, spid, animationType, direction, trigger, animationGroup, orchestrator, sessionGroupIdManager);
     }
 
     /**
      * Create an animation edit command with effect-specific parameters.
      */
-    public AnimationEditCommand createAnimationEdit(int slideNumber, int spid, String animationType,
+    public AddAnimationCommand createAnimationEdit(int slideNumber, int spid, String animationType,
                                                    String direction, String trigger, String animationGroup,
                                                    Map<String, String> effectParams) {
-        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
+        return new AddAnimationCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
                                        orchestrator, sessionGroupIdManager, effectParams);
     }
 
     /**
      * Create an animation edit command with paragraph-level targeting.
      */
-    public AnimationEditCommand createAnimationEdit(int slideNumber, int spid, String animationType,
+    public AddAnimationCommand createAnimationEdit(int slideNumber, int spid, String animationType,
                                                    String direction, String trigger, String animationGroup,
                                                    Integer paragraphStart, Integer paragraphEnd) {
-        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
+        return new AddAnimationCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
                                        orchestrator, sessionGroupIdManager, Collections.emptyMap(),
                                        paragraphStart, paragraphEnd);
     }
@@ -196,11 +196,11 @@ public class CommandFactory extends AbstractCommandFactory {
      * AND a paragraphStart/paragraphEnd range -- the older two-arg
      * overloads would silently drop one of them.
      */
-    public AnimationEditCommand createAnimationEdit(int slideNumber, int spid, String animationType,
+    public AddAnimationCommand createAnimationEdit(int slideNumber, int spid, String animationType,
                                                    String direction, String trigger, String animationGroup,
                                                    Map<String, String> effectParams,
                                                    Integer paragraphStart, Integer paragraphEnd) {
-        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
+        return new AddAnimationCommand(slideNumber, spid, animationType, direction, trigger, animationGroup,
                                        orchestrator, sessionGroupIdManager,
                                        effectParams != null ? effectParams : Collections.emptyMap(),
                                        paragraphStart, paragraphEnd);
@@ -233,11 +233,11 @@ public class CommandFactory extends AbstractCommandFactory {
      * @param animationType the type of animation (fade, fly, wipe, etc.)
      * @param direction the animation direction (in, out, emphasis)
      * @param trigger the animation trigger (click, with_previous, after_previous)
-     * @return AnimationEditCommand
+     * @return AddAnimationCommand
      */
-    public AnimationEditCommand createAddAnimation(int slideNumber, int spid, String animationType, 
+    public AddAnimationCommand createAddAnimation(int slideNumber, int spid, String animationType, 
                                                  String direction, String trigger) {
-        return new AnimationEditCommand(slideNumber, spid, animationType, direction, trigger, orchestrator);
+        return new AddAnimationCommand(slideNumber, spid, animationType, direction, trigger, orchestrator);
     }
     
     // ========== LLM REQUEST CONVERSION ==========
@@ -490,7 +490,7 @@ public class CommandFactory extends AbstractCommandFactory {
         // a sub-factory switch. Falls through when the command isn't yet
         // migrated.
         Command classRouted = CommandClassRegistry.createFromParameters(
-            parameters, new CommandContext(orchestrator, displayAdapter));
+            parameters, new CommandContext(orchestrator, displayAdapter, sessionGroupIdManager));
         if (classRouted != null) {
             return classRouted;
         }
@@ -521,78 +521,10 @@ public class CommandFactory extends AbstractCommandFactory {
         }
         
         switch (commandName) {
-                                    
-            case "add-animation":
-                Integer animSlideNum = parameters.getInteger("slide");
-                String animSpidStr = parameters.getString("spid");
-                String animType = parameters.getString("type");
-                String direction = parameters.getString("direction");
-                String trigger = parameters.getString("trigger");
-                Integer paragraphStart = parameters.getInteger("paragraphStart");
-                Integer paragraphEnd = parameters.getInteger("paragraphEnd");
-                String motionPath = parameters.getString("path");
-                Integer opacity = parameters.getInteger("opacity");
-                Integer delayMs = parameters.getInteger("delay");
-                Integer durationMs = parameters.getInteger("duration");
-                int animSpid = animSpidStr != null ? Integer.parseInt(animSpidStr) : 0;
-                // Use proper animation grouping logic instead of hardcoded "default-group"
-                String cleanTrigger = normalizeAnimationTrigger(trigger != null ? trigger : "on-click");
-                String animationGroup = determineAnimationGroup(cleanTrigger);
 
-                // Build effectParams map. Duration / delay flow through here
-                // so AnimationEditCommand can apply them on the builder
-                // without growing another constructor overload -- the synthesizer
-                // already round-trips them as effectParams keys.
-                Map<String, String> animEffectParams = new HashMap<>();
-                if (motionPath != null && !motionPath.isBlank()) {
-                    animEffectParams.put(AnimationBinding.PARAM_MOTION_PATH, motionPath);
-                }
-                if (opacity != null) {
-                    animEffectParams.put(AnimationBinding.PARAM_OPACITY, String.valueOf(opacity));
-                }
-                if (delayMs != null) {
-                    animEffectParams.put(AnimationBinding.PARAM_DELAY_MS, String.valueOf(delayMs));
-                }
-                if (durationMs != null) {
-                    animEffectParams.put(AnimationBinding.PARAM_DURATION_MS, String.valueOf(durationMs));
-                }
-
-                // One unified factory call so the four optional axes
-                // (effectParams, paragraphRange) compose correctly. The
-                // older split branches dropped delay/duration silently
-                // when paragraphRange was also set.
-                boolean hasParagraphRange = paragraphStart != null && paragraphEnd != null;
-                if (!animEffectParams.isEmpty() || hasParagraphRange) {
-                    return createAnimationEdit(animSlideNum != null ? animSlideNum : 1, animSpid,
-                                             animType, direction != null ? direction : "in",
-                                             cleanTrigger, animationGroup,
-                                             animEffectParams,
-                                             hasParagraphRange ? paragraphStart : null,
-                                             hasParagraphRange ? paragraphEnd : null);
-                }
-                return createAnimationEdit(animSlideNum != null ? animSlideNum : 1, animSpid,
-                                         animType, direction != null ? direction : "in",
-                                         cleanTrigger, animationGroup);
-
-            case "remove-animation":
-                Integer removeSlide = parameters.getInteger("slide");
-                Integer removeNodeId = parameters.getInteger("timingNodeId");
-                return new RemoveAnimationCommand(
-                    removeSlide != null ? removeSlide : 1,
-                    removeNodeId != null ? removeNodeId : 0,
-                    orchestrator);
-
-            case "update-animation":
-                Integer updateSlide = parameters.getInteger("slide");
-                Integer updateNodeId = parameters.getInteger("timingNodeId");
-                String updateProperty = parameters.getString("property");
-                String updateValue = parameters.getString("value");
-                return new UpdateAnimationCommand(
-                    updateSlide != null ? updateSlide : 1,
-                    updateNodeId != null ? updateNodeId : 0,
-                    updateProperty,
-                    updateValue,
-                    orchestrator);
+            // "add-animation"/"add-animation", "remove-animation", "update-animation"
+            // migrated to class registry (AddAnimationCommand, RemoveAnimationCommand,
+            // UpdateAnimationCommand).
 
             // LLM AI-powered commands - delegate to specialized factory
             case "llm":

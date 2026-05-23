@@ -42,7 +42,7 @@ public class CommandRegistry {
 
     static {
         // Legacy schema-only registrations.
-        registerAnimationCommand();
+        // add-animation: migrated to class registry (AddAnimationCommand)
         registerCreateCommand();
         registerDeleteCommand();
         registerListCommand();
@@ -58,8 +58,8 @@ public class CommandRegistry {
         registerListSpidsCommand();
         registerListAnimationsCommand();
         registerListAnimationTypesCommand();
-        registerRemoveAnimationCommand();
-        registerUpdateAnimationCommand();
+        // remove-animation, update-animation: migrated to class registry
+        // (RemoveAnimationCommand, UpdateAnimationCommand).
         registerDumpTimingCommand();
         registerDumpShapeCommand();
         registerShowShapeCommand();
@@ -139,88 +139,6 @@ public class CommandRegistry {
         schemas.put(name, schema);
     }
 
-    /**
-     * Register the add-animation command with proper schema
-     */
-    private static void registerAnimationCommand() {
-        CommandSchema schema = CommandSchema.builder("add-animation")
-            .description("Add animation to a shape")
-            .llmEnabled(true)
-            .llmDescription("Add animation to a shape.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID to animate (must be valid existing SPID)")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("type")
-                .description("Animation type (fade, fly, wipe, appear, split, zoom, motion-custom, etc.)")
-                .type(ParameterType.ANIMATION_TYPE)
-                .llmName("animationType")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("direction")
-                .description("Animation direction")
-                .validValues("in", "out", "emphasis")
-                .defaultValue("in")
-                .build())
-            .parameter(Parameter.builder("trigger")
-                .description("Animation trigger")
-                .validValues("on-click", "with-previous", "after-previous")
-                .llmName("animationGroup")
-                .defaultValue("on-click")
-                .build())
-            .parameter(Parameter.builder("duration")
-                .description("Duration in milliseconds (e.g., 500 = 0.5 seconds)")
-                .type(ParameterType.INTEGER)
-                .llmName("durationMs")
-                .defaultValue("500")
-                .build())
-            .parameter(Parameter.builder("delay")
-                .description("Delay before this animation starts, in milliseconds. Used with "
-                    + "with-previous to stagger effects (e.g. three shapes fading together with "
-                    + "delays 0/200/400 produces a wave instead of a simultaneous appear). "
-                    + "Default 0.")
-                .type(ParameterType.INTEGER)
-                .llmName("delayMs")
-                .defaultValue("0")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("path")
-                .description("SVG-like motion path for motion-custom (e.g. 'M 0 0 L 0.25 0.25')")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("paragraphStart")
-                .description("Start paragraph index (0-based) for paragraph-level targeting")
-                .type(ParameterType.INTEGER)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("paragraphEnd")
-                .description("End paragraph index (0-based) for paragraph-level targeting")
-                .type(ParameterType.INTEGER)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("opacity")
-                .description("Opacity percentage for transparency emphasis (25, 50, 75, 100)")
-                .type(ParameterType.INTEGER)
-                .llmName("opacity")
-                .validValues("25", "50", "75", "100")
-                .required(false)
-                .build())
-            .example("add-animation 1 2 fade in on-click")
-            .example("add-animation 1 2 fly-in-left in with-previous 1000")
-            .example("add-animation 1 2 transparency emphasis on-click --opacity 50")
-            .build();
-
-        schemas.put("add-animation", schema);
-    }
-    
     /**
      * Register the create command
      */
@@ -696,60 +614,6 @@ public class CommandRegistry {
         schemas.put("list-notes", schema);
     }
     
-    /**
-     * Register the remove-animation command
-     */
-    private static void registerRemoveAnimationCommand() {
-        CommandSchema schema = CommandSchema.builder("remove-animation")
-            .description("Remove an animation from a slide by timing node ID")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("timingNodeId")
-                .description("Timing node ID (cTn id) of the animation to remove")
-                .type(ParameterType.INTEGER)
-                .required(true)
-                .build())
-            .example("remove-animation 1 15")
-            .example("remove-animation --slide 1 --timingNodeId 15")
-            .build();
-
-        schemas.put("remove-animation", schema);
-    }
-
-    /**
-     * Register the update-animation command
-     */
-    private static void registerUpdateAnimationCommand() {
-        CommandSchema schema = CommandSchema.builder("update-animation")
-            .description("Update properties of an existing animation")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("timingNodeId")
-                .description("Timing node ID (cTn id) of the animation to update")
-                .type(ParameterType.INTEGER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("property")
-                .description("Property to update")
-                .validValues("duration", "delay", "presetSubtype")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("value")
-                .description("New value for the property")
-                .required(true)
-                .build())
-            .example("update-animation 1 15 duration 1000")
-            .example("update-animation --slide 1 --timingNodeId 15 --property duration --value 1000")
-            .build();
-
-        schemas.put("update-animation", schema);
-    }
 
     /**
      * Get schema for a command

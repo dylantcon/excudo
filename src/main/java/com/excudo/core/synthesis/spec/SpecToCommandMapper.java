@@ -1,7 +1,7 @@
 package com.excudo.core.synthesis.spec;
 
 import com.excudo.core.commands.mutating.slide.AddShapeCommand;
-import com.excudo.core.commands.mutating.slide.AnimationEditCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 import com.excudo.core.commands.mutating.slide.ClearTransitionCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.mutating.slide.ContentEditCommand;
@@ -67,7 +67,7 @@ public final class SpecToCommandMapper {
                                                         s.style(), orchestrator);
             case CommandSpec.ReorderSpec s       -> new ReorderShapeCommand(s.slideNumber(), s.spid(),
                                                         mapReorderDirection(s.direction()), orchestrator);
-            case CommandSpec.AddAnimationSpec s  -> AnimationEditCommand.fromBinding(
+            case CommandSpec.AddAnimationSpec s  -> AddAnimationCommand.fromBinding(
                                                         s.slideNumber(), s.binding(), orchestrator,
                                                         (GroupIdManager) null);
             case CommandSpec.RemoveAnimationSpec s -> new RemoveAnimationCommand(

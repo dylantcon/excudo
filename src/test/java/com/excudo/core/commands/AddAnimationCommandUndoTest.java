@@ -1,6 +1,6 @@
 package com.excudo.core.commands;
 
-import com.excudo.core.commands.mutating.slide.AnimationEditCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestratorImpl;
@@ -15,7 +15,7 @@ import java.util.Collections;
 import static org.junit.Assert.*;
 
 /**
- * State-level verification of AnimationEditCommand's snapshot-based undo.
+ * State-level verification of AddAnimationCommand's snapshot-based undo.
  *
  * <p>These tests do NOT merely assert that {@code execute()} returned a
  * success flag; they exercise the full orchestrator + writer path, read
@@ -32,7 +32,7 @@ import static org.junit.Assert.*;
  * animation from the tree. A "success returned from undo()" assertion
  * would have passed even with the old no-op implementation.
  */
-public class AnimationEditCommandUndoTest {
+public class AddAnimationCommandUndoTest {
 
     private static final String PML_NS = com.excudo.core.utils.XMLConstants.Namespaces.PML;
 
@@ -57,7 +57,7 @@ public class AnimationEditCommandUndoTest {
         int presetBefore = countPresetRootCTn(1);
         assertEquals("Fresh slide should have no preset-root cTn", 0, presetBefore);
 
-        AnimationEditCommand cmd = new AnimationEditCommand(
+        AddAnimationCommand cmd = new AddAnimationCommand(
             1, shapeSpid, "fade", "in", "on-click", "on-click",
             orchestrator, null, Collections.emptyMap());
         cmd.execute();
@@ -87,7 +87,7 @@ public class AnimationEditCommandUndoTest {
         assertEquals("Fresh slide should have no preset-root cTn before any command",
             0, countPresetRootCTn(1));
 
-        AnimationEditCommand cmd = new AnimationEditCommand(
+        AddAnimationCommand cmd = new AddAnimationCommand(
             1, shapeSpid, "fade", "in", "on-click", "on-click",
             orchestrator, null, Collections.emptyMap());
         cmd.execute();
@@ -104,7 +104,7 @@ public class AnimationEditCommandUndoTest {
 
     @Test
     public void undoBeforeExecuteThrows() {
-        AnimationEditCommand cmd = new AnimationEditCommand(
+        AddAnimationCommand cmd = new AddAnimationCommand(
             1, shapeSpid, "fade", "in", "on-click", "on-click",
             orchestrator, null, Collections.emptyMap());
         try {
@@ -119,7 +119,7 @@ public class AnimationEditCommandUndoTest {
 
     @Test
     public void redoAfterUndoRestoresAnimation() {
-        AnimationEditCommand cmd = new AnimationEditCommand(
+        AddAnimationCommand cmd = new AddAnimationCommand(
             1, shapeSpid, "fade", "in", "on-click", "on-click",
             orchestrator, null, Collections.emptyMap());
         cmd.execute();

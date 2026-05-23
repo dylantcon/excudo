@@ -36,7 +36,14 @@ import com.excudo.core.orchestration.PPTXOrchestrator;
  *                        output, session/history, and LLM context. Pass null
  *                        when the caller doesn't have one (most non-REPL paths).
  */
-public record CommandContext(PPTXOrchestrator orchestrator, Object displayAdapter) {
+public record CommandContext(PPTXOrchestrator orchestrator, Object displayAdapter,
+                              com.excudo.xml.writers.animations.GroupIdManager groupIdManager) {
+
+    /** Two-arg back-compat constructor; null group-id manager. Used by callers
+     *  (tests, non-REPL paths) that don't need animation group ID allocation. */
+    public CommandContext(PPTXOrchestrator orchestrator, Object displayAdapter) {
+        this(orchestrator, displayAdapter, null);
+    }
 
     /** The display sink, or null when none was supplied. */
     public CommandDisplay display() {

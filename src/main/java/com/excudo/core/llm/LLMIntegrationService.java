@@ -604,7 +604,7 @@ public class LLMIntegrationService {
     
     // REMOVED: processContentEdit() - This business logic is now handled by ContentEditCommand via CommandFactory
     
-    // REMOVED: processAnimationEdit() - This business logic is now handled by AnimationEditCommand via CommandFactory
+    // REMOVED: processAnimationEdit() - This business logic is now handled by AddAnimationCommand via CommandFactory
     
     
     // REMOVED: Commented TODO section for processEnhancedContent - This business logic is now handled by EnhancedContentCommand
