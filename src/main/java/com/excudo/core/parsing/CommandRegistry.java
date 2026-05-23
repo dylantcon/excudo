@@ -92,7 +92,7 @@ public class CommandRegistry {
         registerRemoveTransitionCommand();
         registerListTransitionTypesCommand();
         // move-shape: migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
-        registerResizeShapeCommand();
+        // resize-shape: migrated to class registry (ResizeShapeCommand)
         registerArrangeCommand();
         // reorder-shape: migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
         registerDuplicateLayoutCommand();
@@ -104,8 +104,8 @@ public class CommandRegistry {
         registerListArrangeOpsCommand();
         registerSetFontCommand();
         registerSetStyleCommand();
-        registerDuplicateCommand();
-        registerGroupCommand();
+        // duplicate-shape: migrated to class registry (DuplicateShapeCommand)
+        // group-shapes: migrated to class registry (GroupShapesCommand)
         registerUngroupCommand();
         registerCopyStyleCommand();
         registerIconCommand();
@@ -1207,36 +1207,6 @@ public class CommandRegistry {
         }
     }
     
-    private static void registerResizeShapeCommand() {
-        CommandSchema schema = CommandSchema.builder("resize")
-            .description("Resize a shape")
-            .llmEnabled(true)
-            .llmDescription("Resize a shape.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("width")
-                .description("New width (points, EMU, or inches)")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("height")
-                .description("New height (points, EMU, or inches)")
-                .required(true)
-                .build())
-            .example("resize 1 5 400pt 300pt")
-            .build();
-
-        schemas.put("resize", schema);
-    }
 
     private static void registerArrangeCommand() {
         CommandSchema schema = CommandSchema.builder("arrange")
@@ -1526,39 +1496,6 @@ public class CommandRegistry {
         schemas.put("set-style", schema);
     }
 
-    private static void registerDuplicateCommand() {
-        CommandSchema schema = CommandSchema.builder("duplicate")
-            .description("Duplicate a shape on the same slide")
-            .llmEnabled(true)
-            .llmDescription("Duplicate a shape on the same slide.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID to duplicate")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("offset-x")
-                .description("Horizontal offset for the clone (points, EMU, or inches). Defaults to 0.5in.")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("offset-y")
-                .description("Vertical offset for the clone (points, EMU, or inches). Defaults to 0.5in.")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("duplicate 1 3")
-            .example("duplicate 1 3 --offset-x 1in --offset-y 1in")
-            .build();
-
-        schemas.put("duplicate", schema);
-    }
 
     /**
      * Suggest similar command names
@@ -1578,30 +1515,7 @@ public class CommandRegistry {
         return FuzzyMatcher.findClosestMatch(input, getCommandNames(), 3);
     }
 
-    /**
-     * Register the group command schema.
-     * Usage: group &lt;slide&gt; --spids &lt;spid1,spid2,...&gt;
-     */
-    private static void registerGroupCommand() {
-        CommandSchema schema = CommandSchema.builder("group")
-            .description("Group multiple shapes into a single group shape. Returns group SPID.")
-            .llmEnabled(true)
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spids")
-                .description("Comma-separated list of SPIDs to group (minimum 2)")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .example("group 1 --spids 2,3,4")
-            .build();
-
-        schemas.put("group", schema);
-    }
+    // group-shapes: migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)
 
     /**
      * Register the ungroup command schema.

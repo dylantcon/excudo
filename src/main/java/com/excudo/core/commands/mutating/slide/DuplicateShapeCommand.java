@@ -1,9 +1,13 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -14,11 +18,43 @@ import com.excudo.core.results.ExecutionResult;
  *
  * Default offset is 457200 EMU (0.5 inch) in both axes, matching PowerPoint's
  * native Ctrl+D behaviour.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code duplicate-shape} derives from the class name.
  */
 public class DuplicateShapeCommand implements Command {
 
     /** Default offset for duplicated shape: 0.5 inch in EMU. */
     public static final long DEFAULT_OFFSET_EMU = 457200L;
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID to duplicate").llmName("targetSpid").required().build();
+    static final Parameter<Long> OFFSET_X = Parameter.ofUnit("offset-x")
+        .description("Horizontal offset for the clone (points, EMU, or inches). Defaults to 0.5in.")
+        .required(false).build();
+    static final Parameter<Long> OFFSET_Y = Parameter.ofUnit("offset-y")
+        .description("Vertical offset for the clone (points, EMU, or inches). Defaults to 0.5in.")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Duplicate a shape on the same slide")
+        .llmEnabled(true)
+        .llmDescription("Duplicate a shape on the same slide.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(OFFSET_X)
+        .parameter(OFFSET_Y)
+        .example("duplicate-shape 1 3")
+        .example("duplicate-shape 1 3 --offset-x 1in --offset-y 1in")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        long offX = p.opt(OFFSET_X).orElse(DEFAULT_OFFSET_EMU);
+        long offY = p.opt(OFFSET_Y).orElse(DEFAULT_OFFSET_EMU);
+        return new DuplicateShapeCommand(p.get(SLIDE), p.get(SPID), offX, offY, ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int spid;

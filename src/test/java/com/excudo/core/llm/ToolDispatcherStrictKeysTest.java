@@ -91,7 +91,7 @@ public class ToolDispatcherStrictKeysTest {
 
     @Test
     public void resizeAcceptsTargetSpidAfterAliasBackfill() {
-        RequestSchema.ActionRequest action = action("resize", Map.of(
+        RequestSchema.ActionRequest action = action("resize-shape", Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "width", "400pt",

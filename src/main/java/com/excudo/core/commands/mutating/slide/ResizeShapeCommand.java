@@ -1,12 +1,16 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeRegistry;
 import com.excudo.core.model.SlideShape;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -14,8 +18,36 @@ import com.excudo.core.results.ExecutionResult;
  *
  * Captures the original geometry before resizing so that undo can restore
  * the shape to its previous dimensions. Position (x, y) is preserved.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code resize-shape} derives from the class name.
  */
 public class ResizeShapeCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").llmName("targetSpid").required().build();
+    static final Parameter<Long> WIDTH = Parameter.ofUnit("width")
+        .description("New width (points, EMU, or inches)").required().build();
+    static final Parameter<Long> HEIGHT = Parameter.ofUnit("height")
+        .description("New height (points, EMU, or inches)").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Resize a shape")
+        .llmEnabled(true)
+        .llmDescription("Resize a shape.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(WIDTH)
+        .parameter(HEIGHT)
+        .example("resize-shape 1 5 400pt 300pt")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ResizeShapeCommand(p.get(SLIDE), p.get(SPID),
+            p.get(WIDTH), p.get(HEIGHT), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int spid;

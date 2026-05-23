@@ -73,7 +73,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("set-transition");
         HANDLED_COMMANDS.add("remove-transition");
         // move: migrated to class registry (MoveShapeCommand)
-        HANDLED_COMMANDS.add("resize");
+        // resize: migrated to class registry (ResizeShapeCommand)
         HANDLED_COMMANDS.add("arrange");
         // reorder: migrated to class registry (ReorderShapeCommand)
         HANDLED_COMMANDS.add("duplicate-layout");
@@ -84,8 +84,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("remove-placeholder");
         HANDLED_COMMANDS.add("set-font");
         HANDLED_COMMANDS.add("set-style");
-        HANDLED_COMMANDS.add("duplicate");
-        HANDLED_COMMANDS.add("group");
+        // duplicate: migrated to class registry (DuplicateShapeCommand)
+        // group: migrated to class registry (GroupShapesCommand)
         HANDLED_COMMANDS.add("ungroup");
         HANDLED_COMMANDS.add("copy-style");
         HANDLED_COMMANDS.add("edit-master-style");
@@ -215,16 +215,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             // "move" migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
 
-            case "resize": {
-                Integer resizeSlide = parameters.getInteger("slide");
-                String resizeSpidStr = parameters.getString("spid");
-                String widthStr = parameters.getString("width");
-                String heightStr = parameters.getString("height");
-                int resizeSpid = resizeSpidStr != null ? Integer.parseInt(resizeSpidStr) : 0;
-                long resizeW = UnitParser.parseToEmu(widthStr);
-                long resizeH = UnitParser.parseToEmu(heightStr);
-                return new ResizeShapeCommand(resizeSlide != null ? resizeSlide : 1, resizeSpid, resizeW, resizeH, orchestrator);
-            }
+            // "resize" migrated to class registry (ResizeShapeCommand.SCHEMA / fromParameters)
 
             case "arrange": {
                 Integer arrSlide = parameters.getInteger("slide");
@@ -334,21 +325,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                     parsedNewStyle, orchestrator);
             }
 
-            case "duplicate": {
-                Integer dupSlide = parameters.getInteger("slide");
-                String dupSpidStr = parameters.getString("spid");
-                int dupSpid = dupSpidStr != null ? Integer.parseInt(dupSpidStr) : 0;
-                String offsetXStr = parameters.getString("offset-x");
-                String offsetYStr = parameters.getString("offset-y");
-                long dupOffsetX = offsetXStr != null
-                    ? com.excudo.core.geometry.UnitParser.parseToEmu(offsetXStr)
-                    : DuplicateShapeCommand.DEFAULT_OFFSET_EMU;
-                long dupOffsetY = offsetYStr != null
-                    ? com.excudo.core.geometry.UnitParser.parseToEmu(offsetYStr)
-                    : DuplicateShapeCommand.DEFAULT_OFFSET_EMU;
-                return new DuplicateShapeCommand(dupSlide != null ? dupSlide : 1, dupSpid,
-                    dupOffsetX, dupOffsetY, orchestrator);
-            }
+            // "duplicate" migrated to class registry (DuplicateShapeCommand.SCHEMA / fromParameters)
 
             case "inject":
                 Integer injectSlide = parameters.getInteger("slide");
@@ -389,18 +366,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
                 
                 return createEnhancedContent(enhanceSlide != null ? enhanceSlide : 1, keyword != null ? keyword : "", templateStyle, enhanceGeometry);
 
-            case "group": {
-                Integer groupSlide = parameters.getInteger("slide");
-                String spidsStr = parameters.getString("spids");
-                if (spidsStr == null || spidsStr.trim().isEmpty()) {
-                    throw new IllegalArgumentException("group command requires a 'spids' parameter (comma-separated SPIDs)");
-                }
-                java.util.List<Integer> groupSpids = new java.util.ArrayList<>();
-                for (String part : spidsStr.split(",")) {
-                    groupSpids.add(Integer.parseInt(part.trim()));
-                }
-                return new GroupShapesCommand(groupSlide != null ? groupSlide : 1, groupSpids, orchestrator);
-            }
+            // "group" migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)
 
             case "ungroup": {
                 Integer ungroupSlide = parameters.getInteger("slide");

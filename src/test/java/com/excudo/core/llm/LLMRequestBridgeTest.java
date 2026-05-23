@@ -228,7 +228,7 @@ public class LLMRequestBridgeTest {
         assertTrue(names.contains("add-animation"));
         assertTrue(names.contains("arrange"));
         assertTrue(names.contains("move-shape"));
-        assertTrue(names.contains("resize"));
+        assertTrue(names.contains("resize-shape"));
         assertTrue(names.contains("reorder-shape"));
         // Console-only commands should NOT be LLM-enabled
         assertFalse(names.contains("help"));
