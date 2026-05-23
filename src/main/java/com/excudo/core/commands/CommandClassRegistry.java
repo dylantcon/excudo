@@ -62,6 +62,10 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.ResizeShapeCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.DuplicateShapeCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.GroupShapesCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.ContentEditCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.BulletPointEditCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetTextCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.AddConnectorCommand.class);
     }
 
     private CommandClassRegistry() {}

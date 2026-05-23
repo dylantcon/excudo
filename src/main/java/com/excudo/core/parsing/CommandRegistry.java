@@ -46,7 +46,7 @@ public class CommandRegistry {
         registerCreateCommand();
         registerDeleteCommand();
         registerListCommand();
-        registerEditContentCommand();
+        // content-edit: migrated to class registry (ContentEditCommand)
         
         // Add missing command schemas identified in Phase 1 audit
         registerHelpCommand();
@@ -79,12 +79,12 @@ public class CommandRegistry {
         registerEditThemeCommand();
         registerDeleteThemeCommand();
         // remove-shape: migrated to class registry (RemoveShapeCommand)
-        registerEditBulletCommand();
+        // bullet-point-edit: migrated to class registry (BulletPointEditCommand)
         registerListShapeTypesCommand();
         // set-body-props: migrated to class registry (SetBodyPropsCommand)
-        registerSetTextCommand();
+        // set-text: migrated to class registry (SetTextCommand)
         // add-notes: migrated to class registry (AddNotesCommand)
-        registerAddConnectorCommand();
+        // add-connector: migrated to class registry (AddConnectorCommand)
         // set-action: migrated to class registry (SetActionCommand)
         registerCopySlideCommand();
         // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
@@ -295,51 +295,6 @@ public class CommandRegistry {
     /**
      * Register edit-content command
      */
-    private static void registerEditContentCommand() {
-        CommandSchema schema = CommandSchema.builder("edit-content")
-            .description("Edit text content of a shape. Default mode is REPLACE: the passed string (including empty string) replaces the shape's content. --prepend / --append opt into additive modes.")
-            .llmEnabled(true)
-            .llmDescription("Edit text content of a shape. Default: replace. Flags --prepend and --append opt into additive modes; the absence of both means the passed string replaces the shape's content (empty string clears).")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID (must be valid existing SPID)")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("text")
-                .description("New text content. Markdown: **bold**, *italic*, - bullets, 1. numbered, indent 2 spaces per level, \\n for line breaks. Empty string clears the shape's content when neither --prepend nor --append is set.")
-                .llmName("newText")
-                .required(true)
-                .variableLength(true)
-                .build())
-            .parameter(Parameter.builder("prepend")
-                .description("Prepend the text to existing content instead of replacing (boolean flag).")
-                .llmName("prepend")
-                .type(ParameterType.BOOLEAN)
-                .required(false)
-                .defaultValue("false")
-                .build())
-            .parameter(Parameter.builder("append")
-                .description("Append the text to existing content instead of replacing (boolean flag). Mutually exclusive with --prepend.")
-                .llmName("append")
-                .type(ParameterType.BOOLEAN)
-                .required(false)
-                .defaultValue("false")
-                .build())
-            .example("edit-content 1 2 \"New text content\"")
-            .example("edit-content 1 2 \"\"           # clear the shape's text")
-            .example("edit-content --slide 1 --spid 2 --text \" more\" --append")
-            .build();
-
-        schemas.put("edit-content", schema);
-    }
-    
     /**
      * Register the help command with proper schema
      */
@@ -946,46 +901,6 @@ public class CommandRegistry {
         schemas.put("delete-theme", schema);
     }
 
-    private static void registerEditBulletCommand() {
-        CommandSchema schema = CommandSchema.builder("edit-bullet")
-            .description("Edit bullet points in a shape")
-            .llmEnabled(true)
-            .llmDescription("Bullet point operations on a text shape.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID containing bullets")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("operation")
-                .description("Bullet operation")
-                .validValues("add", "edit", "remove", "reorder")
-                .llmName("editType")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("index")
-                .description("Bullet index (0-based, -1 to append)")
-                .type(ParameterType.INTEGER)
-                .llmName("bulletIndex")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("text")
-                .description("New text content (target index for reorder)")
-                .llmName("content")
-                .required(false)
-                .build())
-            .example("edit-bullet 1 3 add -1 \"New bullet point\"")
-            .example("edit-bullet 1 3 edit 0 \"Updated text\"")
-            .build();
-
-        schemas.put("edit-bullet", schema);
-    }
 
     private static void registerListShapeTypesCommand() {
         CommandSchema schema = CommandSchema.builder("list-shape-types")
@@ -996,100 +911,7 @@ public class CommandRegistry {
         schemas.put("list-shape-types", schema);
     }
 
-    private static void registerSetTextCommand() {
-        CommandSchema schema = CommandSchema.builder("set-text")
-            .description("Set rich text body on a shape from JSON")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("Shape ID")
-                .type(ParameterType.SPID)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("json")
-                .description("JSON text body definition")
-                .required(true)
-                .variableLength(true)
-                .build())
-            .example("set-text 1 3 '[{\"runs\":[{\"text\":\"Bold\",\"b\":true}]}]'")
-            .build();
 
-        schemas.put("set-text", schema);
-    }
-
-    private static void registerAddConnectorCommand() {
-        CommandSchema schema = CommandSchema.builder("add-connector")
-            .description("Add a connector shape to a slide")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("type")
-                .description("Connector type: line, straight, elbow, curved")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("x")
-                .description("X position in EMUs")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("y")
-                .description("Y position in EMUs")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("width")
-                .description("Width in EMUs")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("height")
-                .description("Height in EMUs")
-                .type(ParameterType.DOUBLE)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("head-end")
-                .description("Head end type: none, triangle, arrow")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("tail-end")
-                .description("Tail end type: none, triangle, arrow")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("line-color")
-                .description("Line color: hex (FF0000) or scheme (accent1)")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("start")
-                .description("Start binding: spid:idx")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("end")
-                .description("End binding: spid:idx")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("path")
-                .description("Custom geometry path: M x y L x y C x1 y1 x2 y2 x y")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("add-connector 1 line 100 100 500 0")
-            .example("add-connector 1 elbow 100 100 500 300 --tail-end triangle")
-            .example("add-connector 1 line 100 100 500 0 --start 3:2 --end 5:0")
-            .build();
-
-        schemas.put("add-connector", schema);
-    }
 
     private static void registerCopySlideCommand() {
         CommandSchema schema = CommandSchema.builder("copy")

@@ -20,7 +20,7 @@ public class LLMRequestBridgeTest {
         // Direct command name should work
         assertEquals("create", LLMRequestBridge.resolveCommandName("create"));
         assertEquals("delete", LLMRequestBridge.resolveCommandName("delete"));
-        assertEquals("edit-content", LLMRequestBridge.resolveCommandName("edit-content"));
+        assertEquals("content-edit", LLMRequestBridge.resolveCommandName("content-edit"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -41,10 +41,12 @@ public class LLMRequestBridgeTest {
     @Test
     public void testIsRecognizedActionType() {
         assertTrue(LLMRequestBridge.isRecognizedActionType("create"));
-        assertTrue(LLMRequestBridge.isRecognizedActionType("edit-content"));
-        // Legacy alias names are no longer recognized.
+        // content-edit is the canonical name (derived from ContentEditCommand)
+        // after the class-registry sweep; the old "edit-content" alias was
+        // intentionally not preserved.
+        assertTrue(LLMRequestBridge.isRecognizedActionType("content-edit"));
         assertFalse(LLMRequestBridge.isRecognizedActionType("slide-creation"));
-        assertFalse(LLMRequestBridge.isRecognizedActionType("content-edit"));
+        assertFalse(LLMRequestBridge.isRecognizedActionType("edit-content"));
         assertFalse(LLMRequestBridge.isRecognizedActionType("totally-unknown"));
     }
 
@@ -69,13 +71,13 @@ public class LLMRequestBridgeTest {
     @Test
     public void testBridgeEditContent() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "edit-content",
+            "content-edit",
             Map.of("slideNumber", 1, "targetSpid", 5, "newText", "Hello World"),
             "Edit text", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("edit-content", cmd.getCommandName());
+        assertEquals("content-edit", cmd.getCommandName());
         // slideNumber -> slide, targetSpid -> spid, newText -> text
         assertEquals("1", cmd.getString("slide"));
         assertEquals("5", cmd.getString("spid"));
@@ -116,13 +118,13 @@ public class LLMRequestBridgeTest {
     public void testBridgeWithCanonicalNames() {
         // LLM using new unified command names
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "edit-content",
+            "content-edit",
             Map.of("slideNumber", 2, "targetSpid", 7, "newText", "Updated"),
             "Edit content", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("edit-content", cmd.getCommandName());
+        assertEquals("content-edit", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("7", cmd.getString("spid"));
         assertEquals("Updated", cmd.getString("text"));
@@ -181,7 +183,7 @@ public class LLMRequestBridgeTest {
             List.of(
                 new RequestSchema.ActionRequest("create",
                     Map.of("position", 1, "title", "Intro"), "Create", null),
-                new RequestSchema.ActionRequest("edit-content",
+                new RequestSchema.ActionRequest("content-edit",
                     Map.of("slideNumber", 1, "targetSpid", 2, "newText", "Hello"), "Edit", null)
             ),
             null
@@ -190,7 +192,7 @@ public class LLMRequestBridgeTest {
         List<CommandParameters> commands = LLMRequestBridge.bridgeAll(request);
         assertEquals(2, commands.size());
         assertEquals("create", commands.get(0).getCommandName());
-        assertEquals("edit-content", commands.get(1).getCommandName());
+        assertEquals("content-edit", commands.get(1).getCommandName());
     }
 
     // ========== SCHEMA GENERATION ==========
@@ -203,7 +205,7 @@ public class LLMRequestBridgeTest {
         assertTrue(schema.endsWith("]"));
         // Should contain LLM-enabled commands
         assertTrue(schema.contains("\"create\""));
-        assertTrue(schema.contains("\"edit-content\""));
+        assertTrue(schema.contains("\"content-edit\""));
         assertTrue(schema.contains("\"add-shape\""));
     }
 
@@ -213,7 +215,7 @@ public class LLMRequestBridgeTest {
         assertNotNull(ref);
         assertTrue(ref.contains("COMMANDS:"));
         assertTrue(ref.contains("create"));
-        assertTrue(ref.contains("edit-content"));
+        assertTrue(ref.contains("content-edit"));
         assertTrue(ref.contains("add-animation"));
         assertTrue(ref.contains("arrange"));
     }
@@ -223,7 +225,7 @@ public class LLMRequestBridgeTest {
         List<String> names = LLMRequestBridge.getLLMEnabledCommandNames();
         assertFalse(names.isEmpty());
         assertTrue(names.contains("create"));
-        assertTrue(names.contains("edit-content"));
+        assertTrue(names.contains("content-edit"));
         assertTrue(names.contains("add-shape"));
         assertTrue(names.contains("add-animation"));
         assertTrue(names.contains("arrange"));

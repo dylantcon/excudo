@@ -18,7 +18,7 @@ public class CommandRegistryTest {
     // Commands that must be present for the console to function correctly
     private static final List<String> CRITICAL_COMMANDS = Arrays.asList(
         "create", "delete", "list", "add-shape", "add-animation",
-        "edit-content", "load", "save", "show", "undo", "redo", "llm"
+        "content-edit", "load", "save", "show", "undo", "redo", "llm"
     );
 
     // ========== Critical Command Presence ==========

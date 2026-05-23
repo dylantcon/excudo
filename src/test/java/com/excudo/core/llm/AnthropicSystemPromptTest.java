@@ -38,7 +38,7 @@ public class AnthropicSystemPromptTest {
         String prompt = AnthropicSystemPrompt.POWERPOINT_EDITOR_PROMPT;
 
         assertTrue("Should contain create command", prompt.contains("create"));
-        assertTrue("Should contain edit-content command", prompt.contains("edit-content"));
+        assertTrue("Should contain content-edit command", prompt.contains("content-edit"));
         assertTrue("Should contain add-shape command", prompt.contains("add-shape"));
         assertTrue("Should contain add-animation command", prompt.contains("add-animation"));
     }

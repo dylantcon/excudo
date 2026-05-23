@@ -1,10 +1,14 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.ShapeGeometry;
@@ -16,12 +20,63 @@ import java.util.logging.Logger;
 
 /**
  * GoF Command for editing text content of shapes.
- * 
+ *
  * This command allows editing the text content of a specific shape (SPID)
  * on a slide with undo capability. Includes geometry validation and layout
  * context awareness for debugging placeholder inheritance issues.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code content-edit} derives from the class name
+ * ({@code ContentEditCommand}).
  */
 public class ContentEditCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID (must be valid existing SPID)").llmName("targetSpid").required().build();
+    static final Parameter<String> TEXT = Parameter.ofString("text")
+        .description("New text content. Markdown: **bold**, *italic*, - bullets, 1. numbered, "
+            + "indent 2 spaces per level, \\n for line breaks. Empty string clears the shape's "
+            + "content when neither --prepend nor --append is set.")
+        .llmName("newText").required().variableLength(true).build();
+    static final Parameter<Boolean> PREPEND = Parameter.ofBool("prepend")
+        .description("Prepend the text to existing content instead of replacing (boolean flag).")
+        .defaultValue("false").build();
+    static final Parameter<Boolean> APPEND = Parameter.ofBool("append")
+        .description("Append the text to existing content instead of replacing (boolean flag). "
+            + "Mutually exclusive with --prepend.")
+        .defaultValue("false").build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Edit text content of a shape. Default mode is REPLACE: the passed string "
+            + "(including empty string) replaces the shape's content. --prepend / --append opt "
+            + "into additive modes.")
+        .llmEnabled(true)
+        .llmDescription("Edit text content of a shape. Default: replace. Flags --prepend and "
+            + "--append opt into additive modes; the absence of both means the passed string "
+            + "replaces the shape's content (empty string clears).")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(TEXT)
+        .parameter(PREPEND)
+        .parameter(APPEND)
+        .example("content-edit 1 2 \"New text content\"")
+        .example("content-edit 1 2 \"\"           # clear the shape's text")
+        .example("content-edit --slide 1 --spid 2 --text \" more\" --append")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        boolean prepend = p.get(PREPEND);
+        boolean append = p.get(APPEND);
+        if (prepend && append) {
+            throw new IllegalArgumentException(
+                "content-edit: --prepend and --append are mutually exclusive");
+        }
+        Mode mode = prepend ? Mode.PREPEND : append ? Mode.APPEND : Mode.REPLACE;
+        return new ContentEditCommand(p.get(SLIDE), p.get(SPID), p.get(TEXT),
+            mode, ctx.orchestrator(), ctx.displayAdapter());
+    }
 
     /**
      * How the passed text interacts with the shape's existing content.

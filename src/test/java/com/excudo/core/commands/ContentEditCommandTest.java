@@ -210,18 +210,16 @@ public class ContentEditCommandTest {
 
     @Test
     public void prependAndAppendAreMutuallyExclusive() throws Exception {
-        // Schema-level enforcement -- the factory throws when both flags
-        // are set, with a clear error message.
-        ShapeCommandFactory factory = new ShapeCommandFactory(orchestrator);
+        // Dispatch-path enforcement -- fromParameters throws when both flags
+        // are set, with a clear error message. After the class-registry sweep
+        // the dispatch path is CommandClassRegistry.createFromParameters,
+        // keyed on the derived name "content-edit".
         try {
-            // Direct construction with conflicting modes isn't possible
-            // (Mode is a single enum), so test the dispatch path: build a
-            // CommandParameters with both flags set true and verify the
-            // factory rejects it.
-            var parsed = new com.excudo.core.parsing.CommandParameters("edit-content",
+            var parsed = new com.excudo.core.parsing.CommandParameters("content-edit",
                 java.util.Map.of("slide", "1", "spid", "3", "text", "x",
                                  "prepend", "true", "append", "true"));
-            factory.createFromParameters(parsed, null);
+            com.excudo.core.commands.CommandClassRegistry.createFromParameters(
+                parsed, new com.excudo.core.commands.CommandContext(orchestrator, null));
             fail("Expected IllegalArgumentException for conflicting --prepend + --append");
         } catch (IllegalArgumentException e) {
             assertTrue("Error should mention mutual exclusivity",

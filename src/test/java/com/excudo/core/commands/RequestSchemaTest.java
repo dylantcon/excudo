@@ -25,7 +25,7 @@ public class RequestSchemaTest {
         assertNotNull("Auto-generated tools schema should not be null", toolsSchema);
         assertTrue("Should be a JSON array", toolsSchema.startsWith("["));
         assertTrue("Should contain create command", toolsSchema.contains("\"create\""));
-        assertTrue("Should contain edit-content command", toolsSchema.contains("\"edit-content\""));
+        assertTrue("Should contain content-edit command", toolsSchema.contains("\"content-edit\""));
         assertTrue("Should contain add-animation command", toolsSchema.contains("\"add-animation\""));
     }
 
@@ -35,7 +35,7 @@ public class RequestSchemaTest {
         assertNotNull("Command reference should not be null", ref);
         assertTrue("Should contain COMMANDS header", ref.contains("COMMANDS:"));
         assertTrue("Should contain create", ref.contains("create"));
-        assertTrue("Should contain edit-content", ref.contains("edit-content"));
+        assertTrue("Should contain content-edit", ref.contains("content-edit"));
         assertTrue("Should contain add-shape", ref.contains("add-shape"));
     }
 

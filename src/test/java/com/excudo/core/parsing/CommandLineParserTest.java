@@ -45,9 +45,9 @@ public class CommandLineParserTest {
 
     @Test
     public void parseCommand_mixedQuotedAndUnquotedTokens_parsesCorrectly() {
-        String[] tokens = CommandLineParser.parseCommand("edit-content 2 3 \"Hello World\" plain");
+        String[] tokens = CommandLineParser.parseCommand("content-edit 2 3 \"Hello World\" plain");
 
-        assertArrayEquals(new String[]{"edit-content", "2", "3", "Hello World", "plain"}, tokens);
+        assertArrayEquals(new String[]{"content-edit", "2", "3", "Hello World", "plain"}, tokens);
     }
 
     // ========== Escape Sequences ==========

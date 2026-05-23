@@ -62,12 +62,9 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
     private static final Set<String> HANDLED_COMMANDS = new HashSet<>();
 
     static {
-        HANDLED_COMMANDS.add("edit-content");
-        // add-shape, remove-shape, set-body-props, add-notes, set-action:
-        // migrated to class registry (own SCHEMA / fromParameters)
-        HANDLED_COMMANDS.add("edit-bullet");
-        HANDLED_COMMANDS.add("set-text");
-        HANDLED_COMMANDS.add("add-connector");
+        // add-shape, remove-shape, set-body-props, add-notes, set-action,
+        // edit-content, edit-bullet, set-text, add-connector: migrated to
+        // class registry (own SCHEMA / fromParameters).
         HANDLED_COMMANDS.add("inject");
         HANDLED_COMMANDS.add("enhance");
         HANDLED_COMMANDS.add("set-transition");
@@ -109,89 +106,24 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         String commandName = parameters.getCommandName();
         
         switch (commandName) {
-            case "edit-content":
-                Integer editSlide = parameters.getInteger("slide");
-                String editSpidStr = parameters.getString("spid");
-                String text = parameters.getString("text");
-                if (text == null) text = "";  // accept explicit empty-string -> clear
-                Boolean prependFlag = parameters.getBoolean("prepend");
-                Boolean appendFlag = parameters.getBoolean("append");
-                boolean prepend = prependFlag != null && prependFlag;
-                boolean append = appendFlag != null && appendFlag;
-                if (prepend && append) {
-                    throw new IllegalArgumentException(
-                        "edit-content: --prepend and --append are mutually exclusive");
-                }
-                ContentEditCommand.Mode mode = prepend ? ContentEditCommand.Mode.PREPEND
-                    : (append ? ContentEditCommand.Mode.APPEND : ContentEditCommand.Mode.REPLACE);
-                int editSpid = editSpidStr != null ? Integer.parseInt(editSpidStr) : 0;
-                return createContentEdit(editSlide != null ? editSlide : 1, editSpid, text, mode, displayAdapter);
-                
+            // "edit-content" migrated to class registry (ContentEditCommand)
+
+
             // "add-shape" intentionally absent: routed via the
             // class-keyed registry in CommandRegistry / CommandFactory
             // (AddShapeCommand.SCHEMA + AddShapeCommand.fromParameters).
 
             // "remove-shape" migrated to class registry (RemoveShapeCommand)
 
-            case "edit-bullet":
-                Integer bulletSlide = parameters.getInteger("slide");
-                String bulletSpidStr = parameters.getString("spid");
-                String bulletOp = parameters.getString("operation");
-                Integer bulletIdx = parameters.getInteger("index");
-                String bulletText = parameters.getString("text");
-                int bulletSpid = bulletSpidStr != null ? Integer.parseInt(bulletSpidStr) : 0;
-                return createBulletPointEdit(
-                    bulletSlide != null ? bulletSlide : 1,
-                    bulletSpid, bulletOp,
-                    bulletIdx != null ? bulletIdx : -1,
-                    bulletText, null);
+            // "edit-bullet" migrated to class registry (BulletPointEditCommand)
 
             // "set-body-props" migrated to class registry (SetBodyPropsCommand)
 
-            case "set-text":
-                Integer setTextSlide = parameters.getInteger("slide");
-                String setTextSpidStr = parameters.getString("spid");
-                String jsonBody = parameters.getString("json");
-                int setTextSpid = setTextSpidStr != null ? Integer.parseInt(setTextSpidStr) : 0;
-                com.excudo.core.model.TextBody textBody = TextBodyJsonParser.parse(jsonBody);
-                return new SetTextCommand(setTextSlide != null ? setTextSlide : 1, setTextSpid, textBody, orchestrator);
+            // "set-text" migrated to class registry (SetTextCommand)
 
             // "add-notes" migrated to class registry (AddNotesCommand)
 
-            case "add-connector":
-                Integer cxnSlide = parameters.getInteger("slide");
-                String cxnType = parameters.getString("type");
-                Double cxnX = parameters.getDouble("x");
-                Double cxnY = parameters.getDouble("y");
-                Double cxnWidth = parameters.getDouble("width");
-                Double cxnHeight = parameters.getDouble("height");
-                String cxnHeadEnd = parameters.getString("head-end");
-                String cxnTailEnd = parameters.getString("tail-end");
-                String cxnLineColor = parameters.getString("line-color");
-                String cxnLineStyle = parameters.getString("line-style");
-                String startBinding = parameters.getString("start");
-                String endBinding = parameters.getString("end");
-                String cxnPath = parameters.getString("path");
-
-                ShapeGeometry cxnGeometry = new ShapeGeometry(
-                    cxnX != null ? cxnX.longValue() : 0L, cxnY != null ? cxnY.longValue() : 0L,
-                    cxnWidth != null ? cxnWidth.longValue() : 914400L, cxnHeight != null ? cxnHeight.longValue() : 0L);
-
-                Integer startCxnSpid = null, startCxnIdx = null, endCxnSpid = null, endCxnIdx = null;
-                if (startBinding != null && startBinding.contains(":")) {
-                    String[] parts = startBinding.split(":");
-                    startCxnSpid = Integer.parseInt(parts[0]);
-                    startCxnIdx = Integer.parseInt(parts[1]);
-                }
-                if (endBinding != null && endBinding.contains(":")) {
-                    String[] parts = endBinding.split(":");
-                    endCxnSpid = Integer.parseInt(parts[0]);
-                    endCxnIdx = Integer.parseInt(parts[1]);
-                }
-
-                return new AddConnectorCommand(cxnSlide != null ? cxnSlide : 1, cxnType, cxnGeometry,
-                    cxnHeadEnd, cxnTailEnd, cxnLineColor, cxnLineStyle,
-                    startCxnSpid, startCxnIdx, endCxnSpid, endCxnIdx, cxnPath, orchestrator);
+            // "add-connector" migrated to class registry (AddConnectorCommand)
 
             // "set-action" migrated to class registry (SetActionCommand)
 

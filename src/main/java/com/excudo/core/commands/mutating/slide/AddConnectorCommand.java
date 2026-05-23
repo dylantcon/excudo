@@ -1,10 +1,14 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.model.ShapeGeometry;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -12,8 +16,75 @@ import com.excudo.core.results.ExecutionResult;
  *
  * Connectors in OOXML use p:cxnSp elements (not p:sp) and can optionally
  * bind to connection points on other shapes via start/end SPID and index.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code add-connector} derives from the class name.
  */
 public class AddConnectorCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<String> TYPE = Parameter.ofString("type")
+        .description("Connector type: line, straight, elbow, curved").required().build();
+    static final Parameter<Double> X = Parameter.ofDouble("x")
+        .description("X position in EMUs").required().build();
+    static final Parameter<Double> Y = Parameter.ofDouble("y")
+        .description("Y position in EMUs").required().build();
+    static final Parameter<Double> WIDTH = Parameter.ofDouble("width")
+        .description("Width in EMUs").required().build();
+    static final Parameter<Double> HEIGHT = Parameter.ofDouble("height")
+        .description("Height in EMUs").required().build();
+    static final Parameter<String> HEAD_END = Parameter.ofString("head-end")
+        .description("Head end type: none, triangle, arrow").required(false).build();
+    static final Parameter<String> TAIL_END = Parameter.ofString("tail-end")
+        .description("Tail end type: none, triangle, arrow").required(false).build();
+    static final Parameter<String> LINE_COLOR = Parameter.ofString("line-color")
+        .description("Line color: hex (FF0000) or scheme (accent1)").required(false).build();
+    static final Parameter<String> START = Parameter.ofString("start")
+        .description("Start binding: spid:idx").required(false).build();
+    static final Parameter<String> END = Parameter.ofString("end")
+        .description("End binding: spid:idx").required(false).build();
+    static final Parameter<String> PATH = Parameter.ofString("path")
+        .description("Custom geometry path: M x y L x y C x1 y1 x2 y2 x y").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Add a connector shape to a slide")
+        .parameter(SLIDE)
+        .parameter(TYPE)
+        .parameter(X)
+        .parameter(Y)
+        .parameter(WIDTH)
+        .parameter(HEIGHT)
+        .parameter(HEAD_END)
+        .parameter(TAIL_END)
+        .parameter(LINE_COLOR)
+        .parameter(START)
+        .parameter(END)
+        .parameter(PATH)
+        .example("add-connector 1 line 100 100 500 0")
+        .example("add-connector 1 elbow 100 100 500 300 --tail-end triangle")
+        .example("add-connector 1 line 100 100 500 0 --start 3:2 --end 5:0")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        ShapeGeometry geometry = new ShapeGeometry(
+            p.get(X).longValue(), p.get(Y).longValue(),
+            p.get(WIDTH).longValue(), p.get(HEIGHT).longValue());
+        int[] startBind = parseEndpoint(p.opt(START).orElse(null));
+        int[] endBind = parseEndpoint(p.opt(END).orElse(null));
+        return new AddConnectorCommand(p.get(SLIDE), p.get(TYPE), geometry,
+            p.opt(HEAD_END).orElse(null), p.opt(TAIL_END).orElse(null),
+            p.opt(LINE_COLOR).orElse(null), null,
+            startBind[0] < 0 ? null : startBind[0], startBind[1] < 0 ? null : startBind[1],
+            endBind[0] < 0 ? null : endBind[0], endBind[1] < 0 ? null : endBind[1],
+            p.opt(PATH).orElse(null), ctx.orchestrator());
+    }
+
+    private static int[] parseEndpoint(String binding) {
+        if (binding == null || !binding.contains(":")) return new int[]{-1, -1};
+        String[] parts = binding.split(":");
+        return new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1])};
+    }
 
     private final int slideNumber;
     private final String connectorType; // line, straight, elbow, curved

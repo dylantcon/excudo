@@ -320,10 +320,16 @@ public class CommandParameters {
      * When the raw value is absent, the parameter's declared default is parsed
      * and returned; if there is no default and the parameter is required, an
      * {@link IllegalArgumentException} is thrown; otherwise {@code null}.
+     *
+     * <p>"Absent" means the key isn't in the parameter map (null). Empty string
+     * is a present value -- consistent with {@link CommandSchema}'s validation,
+     * which keys "present" off {@code containsKey}. Lets commands like
+     * {@code content-edit} accept {@code text=""} as the explicit "clear"
+     * idiom rather than treating it as missing.
      */
     public <T> T get(Parameter<T> param) {
         String raw = parameters.get(param.getName());
-        if (raw == null || raw.isEmpty()) {
+        if (raw == null) {
             String def = param.getDefaultValue();
             if (def != null) return param.parse(def);
             if (param.isRequired()) {
@@ -337,12 +343,13 @@ public class CommandParameters {
 
     /**
      * Optional typed value via a {@link Parameter} key. Present when the value
-     * is set, or when the parameter declares a default; empty otherwise. The
-     * parameter's parser (including any normalizer) is applied in both cases.
+     * is set (including empty string -- see {@link #get(Parameter)}), or when
+     * the parameter declares a default; empty otherwise. The parameter's
+     * parser (including any normalizer) is applied in both cases.
      */
     public <T> Optional<T> opt(Parameter<T> param) {
         String raw = parameters.get(param.getName());
-        if (raw == null || raw.isEmpty()) {
+        if (raw == null) {
             String def = param.getDefaultValue();
             return def != null ? Optional.ofNullable(param.parse(def)) : Optional.empty();
         }
