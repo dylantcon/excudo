@@ -1,12 +1,17 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
@@ -18,7 +23,43 @@ import java.util.ArrayList;
  * enhancements to slides with undo capability.
  */
 public class EnhancedContentCommand implements Command {
-    
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<String> KEYWORD = Parameter.ofString("keyword")
+        .description("Keyword for icon/graphic search")
+        .llmName("iconKeyword").required(false).build();
+    static final Parameter<String> STYLE = Parameter.ofString("style")
+        .description("Template style to apply").required(false).build();
+    static final Parameter<Double> X = Parameter.ofDouble("x")
+        .description("X position in EMUs").required(false).build();
+    static final Parameter<Double> Y = Parameter.ofDouble("y")
+        .description("Y position in EMUs").required(false).build();
+    static final Parameter<Double> WIDTH = Parameter.ofDouble("width")
+        .description("Width in EMUs").required(false).build();
+    static final Parameter<Double> HEIGHT = Parameter.ofDouble("height")
+        .description("Height in EMUs").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Enhance slide content with smart features")
+        .llmEnabled(true)
+        .llmDescription("Add icon to a slide by keyword.")
+        .parameter(SLIDE).parameter(KEYWORD).parameter(STYLE)
+        .parameter(X).parameter(Y).parameter(WIDTH).parameter(HEIGHT)
+        .example("enhanced-content 1")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        Map<String, Object> geometry = new HashMap<>();
+        p.opt(X).ifPresent(v -> geometry.put("x", v));
+        p.opt(Y).ifPresent(v -> geometry.put("y", v));
+        p.opt(WIDTH).ifPresent(v -> geometry.put("width", v));
+        p.opt(HEIGHT).ifPresent(v -> geometry.put("height", v));
+        return new EnhancedContentCommand(p.get(SLIDE),
+            p.opt(KEYWORD).orElse(""), p.opt(STYLE).orElse(null),
+            geometry, ctx.orchestrator());
+    }
+
     private static final ComponentLogger logger = Logger.llm();
     
     private final int slideNumber;

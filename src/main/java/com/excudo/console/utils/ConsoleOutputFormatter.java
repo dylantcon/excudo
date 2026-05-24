@@ -31,8 +31,8 @@ public class ConsoleOutputFormatter {
             case "delete" -> "delete <slide#> - Delete a slide";
             case "llm" -> "llm <subcommand> - AI-powered editing commands";
             case "session" -> "session <create|list|info|close|switch> - Manage presentation sessions";
-            case "inject" -> "inject <slide> <query> - Inject icon into slide using SmartContent";
-            case "enhance" -> "enhance <slide> [query] - Enhance slide with SmartContent icons";
+            case "inject-icon" -> "inject <slide> <query> - Inject icon into slide using SmartContent";
+            case "enhanced-content" -> "enhance <slide> [query] - Enhance slide with SmartContent icons";
             case "icon" -> "icon <search|upload|list|sources> - Icon management and library";
             case "list-layouts" -> "list-layouts [themeId] - Show slide layouts (from presentation or theme)";
             case "list-spids" -> "list-spids <slide#> - List all SPIDs on a slide";
@@ -236,8 +236,8 @@ public class ConsoleOutputFormatter {
         help.add("AI & Smart Content:");
         help.add("");
         help.add("  " + getCommandHelp("llm"));
-        help.add("  " + getCommandHelp("inject"));
-        help.add("  " + getCommandHelp("enhance"));
+        help.add("  " + getCommandHelp("inject-icon"));
+        help.add("  " + getCommandHelp("enhanced-content"));
         help.add("");
         help.add("Examples:");
         help.add("  llm edit add fade animations to all titles");

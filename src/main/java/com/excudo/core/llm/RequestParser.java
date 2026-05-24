@@ -432,7 +432,7 @@ public class RequestParser {
             String editType = (String) params.get("editType");
             validateBulletPointEditOperation(editType, params, builder);
         }
-        if ("enhance".equals(resolvedType) && params.containsKey("geometry")) {
+        if ("enhanced-content".equals(resolvedType) && params.containsKey("geometry")) {
             Map<?, ?> geometry = (Map<?, ?>) params.get("geometry");
             validateGeometry(geometry, builder);
         }

@@ -65,8 +65,8 @@ public class CommandRegistry {
         registerShowShapeCommand();
         registerLlmCommand();
         registerSessionCommand();
-        registerInjectCommand();
-        registerEnhanceCommand();
+        // inject-icon, enhanced-content: migrated to class registry
+        // (InjectIconCommand, EnhancedContentCommand)
         // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
         registerRedoCommand();
         registerHistoryCommand();
@@ -525,50 +525,6 @@ public class CommandRegistry {
     /**
      * Register the inject command with proper schema
      */
-    private static void registerInjectCommand() {
-        CommandSchema schema = CommandSchema.builder("inject")
-            .description("Inject enhanced content (icons, images)")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("keyword")
-                .description("Content keyword")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .example("inject 1 \"business icon\"")
-            .build();
-        
-        schemas.put("inject", schema);
-    }
-    
-    /**
-     * Register the enhance command with proper schema
-     */
-    private static void registerEnhanceCommand() {
-        CommandSchema schema = CommandSchema.builder("enhance")
-            .description("Enhance slide content with smart features")
-            .llmEnabled(true)
-            .llmDescription("Add icon to a slide by keyword.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("keyword")
-                .description("Keyword for icon/graphic search")
-                .llmName("iconKeyword")
-                .required(false)
-                .build())
-            .example("enhance 1")
-            .build();
-        
-        schemas.put("enhance", schema);
-    }
-    
     /**
      * Register the undo command with proper schema
      */

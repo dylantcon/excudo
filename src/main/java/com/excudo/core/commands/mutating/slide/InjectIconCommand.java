@@ -1,12 +1,17 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
@@ -21,7 +26,41 @@ import java.util.ArrayList;
  * focused on icon injection operations.
  */
 public class InjectIconCommand implements Command {
-    
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<String> KEYWORD = Parameter.ofString("keyword")
+        .description("Content keyword").required().build();
+    static final Parameter<Double> X = Parameter.ofDouble("x")
+        .description("X position in EMUs").required(false).build();
+    static final Parameter<Double> Y = Parameter.ofDouble("y")
+        .description("Y position in EMUs").required(false).build();
+    static final Parameter<Double> WIDTH = Parameter.ofDouble("width")
+        .description("Width in EMUs").required(false).build();
+    static final Parameter<Double> HEIGHT = Parameter.ofDouble("height")
+        .description("Height in EMUs").required(false).build();
+    static final Parameter<String> POSITION = Parameter.ofString("position")
+        .description("Placement hint (e.g. 'top-right', 'bottom-left')")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Inject enhanced content (icons, images)")
+        .parameter(SLIDE).parameter(KEYWORD)
+        .parameter(X).parameter(Y).parameter(WIDTH).parameter(HEIGHT)
+        .parameter(POSITION)
+        .example("inject-icon 1 \"business icon\"")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        Map<String, Object> placement = new HashMap<>();
+        p.opt(X).ifPresent(v -> placement.put("x", v));
+        p.opt(Y).ifPresent(v -> placement.put("y", v));
+        p.opt(WIDTH).ifPresent(v -> placement.put("width", v));
+        p.opt(HEIGHT).ifPresent(v -> placement.put("height", v));
+        p.opt(POSITION).ifPresent(v -> placement.put("position", v));
+        return new InjectIconCommand(p.get(SLIDE), p.get(KEYWORD), placement, ctx.orchestrator());
+    }
+
     private static final ComponentLogger logger = Logger.llm();
     
     private final int slideNumber;

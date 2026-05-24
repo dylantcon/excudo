@@ -1073,9 +1073,9 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     public List<String> getAvailableCommands() {
         return Arrays.asList(
             "help", "load", "save", "render", "list", "show", "create", "delete", "llm",
-            "session", "inject", "enhance", "list-layouts", "list-spids", "list-animations",
+            "session", "inject-icon", "enhanced-content", "list-layouts", "list-spids", "list-animations",
             "list-animation-types", "list-shape-types", "dump-timing", "dump-shape",
-            "show-shape", "edit-content", "add-shape", "remove-shape", "edit-bullet",
+            "show-shape", "content-edit", "add-shape", "remove-shape", "bullet-point-edit",
             "add-animation", "remove-animation",
             "update-animation", "list-notes", "list-themes", "apply-theme", "new",
             "show-theme", "create-theme", "edit-theme", "delete-theme",

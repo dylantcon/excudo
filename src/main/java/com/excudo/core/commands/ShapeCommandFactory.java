@@ -65,8 +65,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         // add-shape, remove-shape, set-body-props, add-notes, set-action,
         // edit-content, edit-bullet, set-text, add-connector: migrated to
         // class registry (own SCHEMA / fromParameters).
-        HANDLED_COMMANDS.add("inject");
-        HANDLED_COMMANDS.add("enhance");
+        // inject-icon, enhanced-content: migrated to class registry
         // set-transition, remove-transition: migrated to class registry
         // move: migrated to class registry (MoveShapeCommand)
         // resize: migrated to class registry (ResizeShapeCommand)
@@ -242,44 +241,9 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             // "duplicate" migrated to class registry (DuplicateShapeCommand.SCHEMA / fromParameters)
 
-            case "inject":
-                Integer injectSlide = parameters.getInteger("slide");
-                String iconQuery = parameters.getString("keyword");
-                
-                // Parse placement options from command parameters
-                Map<String, Object> placementOptions = new HashMap<>();
-                Double injectX = parameters.getDouble("x");
-                Double injectY = parameters.getDouble("y");
-                Double injectWidth = parameters.getDouble("width");
-                Double injectHeight = parameters.getDouble("height");
-                String position = parameters.getString("position");
-                
-                if (injectX != null) placementOptions.put("x", injectX);
-                if (injectY != null) placementOptions.put("y", injectY);
-                if (injectWidth != null) placementOptions.put("width", injectWidth);
-                if (injectHeight != null) placementOptions.put("height", injectHeight);
-                if (position != null) placementOptions.put("position", position);
-                
-                return createIconInjection(injectSlide != null ? injectSlide : 1, iconQuery != null ? iconQuery : "", placementOptions);
-                
-            case "enhance":
-                Integer enhanceSlide = parameters.getInteger("slide");
-                String keyword = parameters.getString("keyword");
-                String templateStyle = parameters.getString("style");
-                
-                // Parse geometry options for enhancement
-                Map<String, Object> enhanceGeometry = new HashMap<>();
-                Double enhanceX = parameters.getDouble("x");
-                Double enhanceY = parameters.getDouble("y");
-                Double enhanceWidth = parameters.getDouble("width");
-                Double enhanceHeight = parameters.getDouble("height");
-                
-                if (enhanceX != null) enhanceGeometry.put("x", enhanceX);
-                if (enhanceY != null) enhanceGeometry.put("y", enhanceY);
-                if (enhanceWidth != null) enhanceGeometry.put("width", enhanceWidth);
-                if (enhanceHeight != null) enhanceGeometry.put("height", enhanceHeight);
-                
-                return createEnhancedContent(enhanceSlide != null ? enhanceSlide : 1, keyword != null ? keyword : "", templateStyle, enhanceGeometry);
+            // "inject" -> "inject-icon" (InjectIconCommand) and
+            // "enhance" -> "enhanced-content" (EnhancedContentCommand)
+            // migrated to class registry.
 
             // "group" migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)
 
