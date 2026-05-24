@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -58,6 +59,8 @@ public class CreateSlideCommand implements Command {
         .example("create-slide 2 \"My New Slide\"")
         .example("create-slide 2 \"My Slide\" slideLayout2")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(CreateSlideCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         int position = p.get(POSITION);

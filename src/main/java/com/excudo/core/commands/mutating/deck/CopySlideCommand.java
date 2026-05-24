@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -38,6 +39,8 @@ public class CopySlideCommand implements Command {
         .example("copy-slide 1 3")
         .example("copy-slide 2 5 \"Updated Title\"")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(CopySlideCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new CopySlideCommand(p.get(SLIDE), p.get(POSITION),

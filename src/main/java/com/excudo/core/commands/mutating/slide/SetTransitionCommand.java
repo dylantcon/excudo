@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -47,6 +48,8 @@ public class SetTransitionCommand implements Command {
         .example("set-transition 1 fade")
         .example("set-transition 3 wipe-left --speed slow --advance 5000")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetTransitionCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new SetTransitionCommand(p.get(SLIDE), p.get(TYPE),

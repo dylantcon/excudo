@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -38,6 +39,8 @@ public class ReorderShapeCommand implements Command {
         .parameter(DIRECTION)
         .example("reorder-shape 1 5 front")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ReorderShapeCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new ReorderShapeCommand(p.get(SLIDE), p.get(SPID), p.get(DIRECTION), ctx.orchestrator());

@@ -71,6 +71,8 @@ public final class SpecFormDialog {
             case CommandSpec.SetRunFormatSpec s -> false;
             case CommandSpec.AddAnimationSpec a -> false;
             case CommandSpec.CreateGroupSpec g -> false;
+            case CommandSpec.CreateCodeBoxSpec c -> false;
+            case CommandSpec.CreateDiagramSpec d -> false;
         };
     }
 
@@ -105,6 +107,8 @@ public final class SpecFormDialog {
             case CommandSpec.SetRunFormatSpec s -> Optional.empty();
             case CommandSpec.AddAnimationSpec a -> Optional.empty();
             case CommandSpec.CreateGroupSpec g -> Optional.empty();
+            case CommandSpec.CreateCodeBoxSpec c -> Optional.empty();
+            case CommandSpec.CreateDiagramSpec d -> Optional.empty();
         };
     }
 

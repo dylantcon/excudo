@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -40,6 +41,8 @@ public class DeleteSlideCommand implements Command {
         .parameter(SLIDE)
         .example("delete-slide 3")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DeleteSlideCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new DeleteSlideCommand(p.get(SLIDE), false, "Console delete command", ctx.orchestrator());

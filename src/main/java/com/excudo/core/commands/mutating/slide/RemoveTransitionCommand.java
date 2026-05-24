@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 
 import com.excudo.core.model.TransitionType;
@@ -36,6 +37,8 @@ public class RemoveTransitionCommand implements Command {
         .parameter(SLIDE)
         .example("remove-transition 3")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RemoveTransitionCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new RemoveTransitionCommand(p.get(SLIDE), ctx.orchestrator());

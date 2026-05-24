@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -30,6 +31,8 @@ public class MoveSlideCommand implements Command {
         .example("move-slide 3 1")
         .example("move-slide 5 2")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(MoveSlideCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new MoveSlideCommand(p.get(FROM), p.get(TO), ctx.orchestrator());

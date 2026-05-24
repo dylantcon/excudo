@@ -2,6 +2,7 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.AnimationParameterRequirement;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -92,6 +93,8 @@ public class AddAnimationCommand implements Command {
         .example("add-animation 1 2 fly-in-left in with-previous 1000")
         .example("add-animation 1 2 transparency emphasis on-click --opacity 50")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(AddAnimationCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         String cleanTrigger = normalizeTrigger(p.get(TRIGGER));

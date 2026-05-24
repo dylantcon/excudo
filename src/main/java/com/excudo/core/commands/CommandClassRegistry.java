@@ -100,7 +100,7 @@ public final class CommandClassRegistry {
             // the derived name onto the schema here so schema consumers
             // (validators, LLM tool-schema generation) see it. assignName
             // throws if the schema carries a conflicting hardcoded name.
-            String name = derivedCommandName(commandClass);
+            String name = nameOf(commandClass);
             schema.assignName(name);
 
             CommandFactory factory = (params, ctx) -> {
@@ -149,13 +149,21 @@ public final class CommandClassRegistry {
     }
 
     /**
-     * Derive the canonical command name from a Command class via the
-     * default {@link Command#getCommandName()}: PascalCase → kebab-case,
-     * stripping a trailing {@code "Command"}. Done by direct string
-     * conversion (not instance construction) because most Commands take
-     * required constructor args.
+     * Derive the canonical command name from a Command class:
+     * PascalCase → kebab-case, stripping a trailing {@code "Command"}.
+     * {@code AddShapeCommand} → {@code add-shape}.
+     *
+     * <p>Exposed so each migrated Command can publish its name as a
+     * compile-time-checked symbolic constant:
+     * <pre>{@code
+     * public static final String NAME = CommandClassRegistry.nameOf(MyCommand.class);
+     * }</pre>
+     * Callers (tests, dispatchers, LLM-bridge tests) reference
+     * {@code MyCommand.NAME} instead of hardcoding the kebab string -- the
+     * class is the single source of truth and a rename breaks at compile
+     * time instead of silently in tests.
      */
-    private static String derivedCommandName(Class<? extends Command> commandClass) {
+    public static String nameOf(Class<? extends Command> commandClass) {
         String simple = commandClass.getSimpleName();
         String stripped = simple.endsWith("Command")
             ? simple.substring(0, simple.length() - "Command".length())

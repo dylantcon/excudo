@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -43,6 +44,8 @@ public class ResizeShapeCommand implements Command {
         .parameter(HEIGHT)
         .example("resize-shape 1 5 400pt 300pt")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ResizeShapeCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new ResizeShapeCommand(p.get(SLIDE), p.get(SPID),

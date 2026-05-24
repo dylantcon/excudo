@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -35,6 +36,8 @@ public class RemoveShapeCommand implements Command {
         .parameter(SPID)
         .example("remove-shape 1 5")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RemoveShapeCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new RemoveShapeCommand(p.get(SLIDE), p.get(SPID), ctx.orchestrator());

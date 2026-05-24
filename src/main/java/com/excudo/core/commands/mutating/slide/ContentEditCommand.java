@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -65,6 +66,8 @@ public class ContentEditCommand implements Command {
         .example("content-edit 1 2 \"\"           # clear the shape's text")
         .example("content-edit --slide 1 --spid 2 --text \" more\" --append")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ContentEditCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         boolean prepend = p.get(PREPEND);

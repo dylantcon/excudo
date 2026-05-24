@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -43,6 +44,8 @@ public class MoveShapeCommand implements Command {
         .parameter(Y)
         .example("move-shape 1 5 100pt 200pt")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(MoveShapeCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new MoveShapeCommand(p.get(SLIDE), p.get(SPID), p.get(X), p.get(Y), ctx.orchestrator());

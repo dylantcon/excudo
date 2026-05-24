@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -42,6 +43,8 @@ public class SetActionCommand implements Command {
         .example("set-action 1 5 nextslide")
         .example("set-action 1 5 noaction --sound applause.wav")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetActionCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new SetActionCommand(p.get(SLIDE), p.get(SPID), p.get(ACTION),

@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -125,6 +126,8 @@ public class AddShapeCommand implements Command {
         .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
         .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(AddShapeCommand.class);
 
     /**
      * Construct an {@code AddShapeCommand} from validated parameters.

@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -50,6 +51,8 @@ public class InjectIconCommand implements Command {
         .parameter(POSITION)
         .example("inject-icon 1 \"business icon\"")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(InjectIconCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         Map<String, Object> placement = new HashMap<>();

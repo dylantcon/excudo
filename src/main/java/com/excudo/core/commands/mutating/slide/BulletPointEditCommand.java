@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -47,6 +48,8 @@ public class BulletPointEditCommand implements Command {
         .example("bullet-point-edit 1 3 add -1 \"New bullet point\"")
         .example("bullet-point-edit 1 3 edit 0 \"Updated text\"")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(BulletPointEditCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new BulletPointEditCommand(p.get(SLIDE), p.get(SPID), p.get(OPERATION),

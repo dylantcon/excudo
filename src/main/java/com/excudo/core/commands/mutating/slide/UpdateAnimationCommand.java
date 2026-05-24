@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -48,6 +49,8 @@ public class UpdateAnimationCommand implements Command {
         .example("update-animation 1 15 duration 1000")
         .example("update-animation --slide 1 --timingNodeId 15 --property duration --value 1000")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(UpdateAnimationCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new UpdateAnimationCommand(p.get(SLIDE), p.get(TIMING_NODE_ID),

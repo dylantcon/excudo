@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -49,6 +50,8 @@ public class DuplicateShapeCommand implements Command {
         .example("duplicate-shape 1 3")
         .example("duplicate-shape 1 3 --offset-x 1in --offset-y 1in")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DuplicateShapeCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         long offX = p.opt(OFFSET_X).orElse(DEFAULT_OFFSET_EMU);

@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -56,6 +57,8 @@ public class SetBodyPropsCommand implements Command {
         .example("set-body-props 1 3 --autofit shape --textbox true")
         .example("set-body-props 1 3 --vert vert270 --columns 2")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetBodyPropsCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         BodyProperties.Builder bp = BodyProperties.builder();

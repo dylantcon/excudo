@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.TextBodyJsonParser;
@@ -36,6 +37,8 @@ public class SetTextCommand implements Command {
         .parameter(JSON)
         .example("set-text 1 3 '[{\"runs\":[{\"text\":\"Bold\",\"b\":true}]}]'")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetTextCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new SetTextCommand(p.get(SLIDE), p.get(SPID), p.get(JSON), ctx.orchestrator());

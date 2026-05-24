@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -48,6 +49,8 @@ public class EnhancedContentCommand implements Command {
         .parameter(X).parameter(Y).parameter(WIDTH).parameter(HEIGHT)
         .example("enhanced-content 1")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(EnhancedContentCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         Map<String, Object> geometry = new HashMap<>();

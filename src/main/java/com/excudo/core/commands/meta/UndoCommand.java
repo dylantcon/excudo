@@ -2,6 +2,7 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -27,6 +28,8 @@ public class UndoCommand implements Command {
         .description("Undo the last command")
         .example("undo")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(UndoCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new UndoCommand(ctx.requireSession(), ctx.requireDisplay());

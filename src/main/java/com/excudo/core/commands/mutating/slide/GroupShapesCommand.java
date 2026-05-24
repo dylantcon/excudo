@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -34,6 +35,8 @@ public class GroupShapesCommand implements Command {
         .parameter(SPIDS)
         .example("group-shapes 1 --spids 2,3,4")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(GroupShapesCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         List<Integer> spids = p.get(SPIDS);

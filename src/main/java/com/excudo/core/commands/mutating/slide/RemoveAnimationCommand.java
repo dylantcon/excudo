@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -37,6 +38,8 @@ public class RemoveAnimationCommand implements Command {
         .example("remove-animation 1 15")
         .example("remove-animation --slide 1 --timingNodeId 15")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RemoveAnimationCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new RemoveAnimationCommand(p.get(SLIDE), p.get(TIMING_NODE_ID), ctx.orchestrator());

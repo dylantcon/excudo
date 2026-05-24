@@ -166,6 +166,11 @@ public class SynthesizeSlideScriptCommand implements Command {
                 "AddToGroup group=" + a.groupSpid() + " child=" + a.childSpid();
             case CommandSpec.DetachFromGroupSpec d ->
                 "DetachFromGroup child=" + d.childSpid();
+            case CommandSpec.CreateCodeBoxSpec c ->
+                "CreateCodeBox lang=" + c.language();
+            case CommandSpec.CreateDiagramSpec d ->
+                "CreateDiagram mermaidSource=("
+                    + d.mermaidSource().length() + " chars)";
         };
     }
 }

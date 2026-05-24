@@ -1,6 +1,7 @@
 package com.excudo.core.commands.mutating.notes;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -33,6 +34,8 @@ public class AddNotesCommand implements Command {
         .example("add-notes 1 \"Speaker notes for slide 1\"")
         .example("add-notes --slide 2 --text \"Key talking points for this slide\"")
         .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(AddNotesCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         return new AddNotesCommand(p.get(SLIDE), p.get(TEXT), ctx.orchestrator());
