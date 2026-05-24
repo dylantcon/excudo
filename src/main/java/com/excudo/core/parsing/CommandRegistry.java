@@ -88,8 +88,8 @@ public class CommandRegistry {
         // set-action: migrated to class registry (SetActionCommand)
         registerCopySlideCommand();
         // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
-        registerSetTransitionCommand();
-        registerRemoveTransitionCommand();
+        // set-transition, remove-transition: migrated to class registry
+        // (SetTransitionCommand, RemoveTransitionCommand)
         registerListTransitionTypesCommand();
         // move-shape: migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
         // resize-shape: migrated to class registry (ResizeShapeCommand)
@@ -805,52 +805,6 @@ public class CommandRegistry {
         schemas.put("copy", schema);
     }
 
-    private static void registerSetTransitionCommand() {
-        CommandSchema schema = CommandSchema.builder("set-transition")
-            .description("Set a slide transition effect")
-            .llmEnabled(true)
-            .llmDescription("Set slide transition effect.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("type")
-                .description("Transition type (fade, wipe-left, push-down, dissolve, etc.)")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("speed")
-                .description("Transition speed")
-                .validValues("slow", "med", "fast")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("advance")
-                .description("Auto-advance time in milliseconds (e.g., 5000 = 5 seconds)")
-                .type(ParameterType.INTEGER)
-                .llmName("advanceMs")
-                .required(false)
-                .build())
-            .example("set-transition 1 fade")
-            .example("set-transition 3 wipe-left --speed slow --advance 5000")
-            .build();
-
-        schemas.put("set-transition", schema);
-    }
-
-    private static void registerRemoveTransitionCommand() {
-        CommandSchema schema = CommandSchema.builder("remove-transition")
-            .description("Remove transition from a slide")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .example("remove-transition 3")
-            .build();
-
-        schemas.put("remove-transition", schema);
-    }
 
     private static void registerListTransitionTypesCommand() {
         CommandSchema schema = CommandSchema.builder("list-transition-types")

@@ -69,6 +69,8 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.AddAnimationCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.RemoveAnimationCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.UpdateAnimationCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetTransitionCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.RemoveTransitionCommand.class);
     }
 
     private CommandClassRegistry() {}

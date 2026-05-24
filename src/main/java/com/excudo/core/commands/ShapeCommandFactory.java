@@ -67,8 +67,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         // class registry (own SCHEMA / fromParameters).
         HANDLED_COMMANDS.add("inject");
         HANDLED_COMMANDS.add("enhance");
-        HANDLED_COMMANDS.add("set-transition");
-        HANDLED_COMMANDS.add("remove-transition");
+        // set-transition, remove-transition: migrated to class registry
         // move: migrated to class registry (MoveShapeCommand)
         // resize: migrated to class registry (ResizeShapeCommand)
         HANDLED_COMMANDS.add("arrange");
@@ -127,23 +126,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             // "set-action" migrated to class registry (SetActionCommand)
 
-            case "set-transition": {
-                Integer transSlide = parameters.getInteger("slide");
-                String transType = parameters.getString("type");
-                String transSpeed = parameters.getString("speed");
-                Integer transAdvance = parameters.getInteger("advance");
-                return new SetTransitionCommand(
-                    transSlide != null ? transSlide : 1,
-                    TransitionType.parseType(transType),
-                    transSpeed, transAdvance, orchestrator);
-            }
-
-            case "remove-transition": {
-                Integer rmTransSlide = parameters.getInteger("slide");
-                return new SetTransitionCommand(
-                    rmTransSlide != null ? rmTransSlide : 1,
-                    TransitionType.NONE, null, null, orchestrator);
-            }
+            // "set-transition" / "remove-transition" migrated to class registry
 
             // "move" migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
 
