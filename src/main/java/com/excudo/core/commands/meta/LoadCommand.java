@@ -2,6 +2,8 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
@@ -11,18 +13,45 @@ import com.excudo.core.commands.SessionResult;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
 import com.excudo.core.orchestration.SessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import java.io.File;
 
 /**
  * GoF Command for loading a PowerPoint presentation file.
- * 
+ *
  * Handles both session creation (if needed) and file loading using composition.
  * If no session exists, delegates to SessionCreateCommand first.
  * If session exists, loads directly into current orchestrator.
  * Does not support undo since it changes system state fundamentally.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code load} derives from the class.
  */
 public class LoadCommand implements Command {
+
+    static final Parameter<String> FILENAME = Parameter.ofString("filename")
+        .description("PPTX file to load").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Load an existing PowerPoint presentation from disk")
+        .llmEnabled(true)
+        .llmDescription("DESTRUCTIVE: replaces the current in-memory presentation "
+            + "with the file at the given path. Any unsaved work is lost. Use when "
+            + "asked to edit an existing deck rather than create a new one.")
+        .parameter(FILENAME)
+        .example("load presentation.pptx")
+        .example("load /path/to/file.pptx")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(LoadCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new LoadCommand(ctx.requireSessionManager(), ctx.requireSession(),
+            ctx.requireDisplay(), p.get(FILENAME));
+    }
     
     private final CommandSessionManager sessionManager;
     private final CommandSessionContext sessionContext;

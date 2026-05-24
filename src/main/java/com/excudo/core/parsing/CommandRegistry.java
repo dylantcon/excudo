@@ -50,8 +50,7 @@ public class CommandRegistry {
         
         // Add missing command schemas identified in Phase 1 audit
         registerHelpCommand();
-        registerLoadCommand();
-        registerSaveCommand();
+        // load, save: migrated to class registry (LoadCommand, SaveCommand)
         // render-slide, show-slide: migrated to class registry
         // (RenderSlideCommand, ShowSlideCommand)
         registerListLayoutsCommand();
@@ -63,8 +62,10 @@ public class CommandRegistry {
         registerDumpTimingCommand();
         registerDumpShapeCommand();
         registerShowShapeCommand();
-        registerLlmCommand();
-        registerSessionCommand();
+        // llm, llm-config: migrated to class registry (LLMCommand, LLMConfigCommand)
+        // session-create/list/info/close/switch: migrated to class registry
+        // (split from the legacy "session" umbrella; each subcommand is now a
+        // top-level command keyed on its class derivation).
         // inject-icon, enhanced-content: migrated to class registry
         // (InjectIconCommand, EnhancedContentCommand)
         // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
@@ -72,7 +73,7 @@ public class CommandRegistry {
         registerListNotesCommand();
         registerApplyThemeCommand();
         registerListThemesCommand();
-        registerNewCommand();
+        // new-presentation: migrated to class registry (NewPresentationCommand)
         registerShowThemeCommand();
         registerCreateThemeCommand();
         registerEditThemeCommand();
@@ -169,48 +170,6 @@ public class CommandRegistry {
     /**
      * Register the load command with proper schema
      */
-    private static void registerLoadCommand() {
-        CommandSchema schema = CommandSchema.builder("load")
-            .description("Load an existing PowerPoint presentation from disk")
-            .llmEnabled(true)
-            .llmDescription("DESTRUCTIVE: replaces the current in-memory presentation "
-                + "with the file at the given path. Any unsaved work is lost. Use when "
-                + "asked to edit an existing deck rather than create a new one.")
-            .parameter(Parameter.builder("filename")
-                .description("PPTX file to load")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .example("load presentation.pptx")
-            .example("open /path/to/file.pptx")
-            .build();
-
-        schemas.put("load", schema);
-        schemas.put("open", schema);
-    }
-
-    /**
-     * Register the save command with proper schema
-     */
-    private static void registerSaveCommand() {
-        CommandSchema schema = CommandSchema.builder("save")
-            .description("Save the current presentation to a PPTX file")
-            .llmEnabled(true)
-            .llmDescription("OVERWRITES: writes the current presentation to the given path, "
-                + "replacing any existing file. Always pass an explicit filename -- the "
-                + "console's Ctrl+S-style save-to-last-path convenience is not reliable "
-                + "in an agent context.")
-            .parameter(Parameter.builder("filename")
-                .description("Output PPTX path. Always pass this explicitly.")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("save")
-            .example("save output.pptx")
-            .build();
-        
-        schemas.put("save", schema);
-    }
 
     /**
      * Register the show command with proper schema
@@ -361,52 +320,6 @@ public class CommandRegistry {
     /**
      * Register the llm command with proper schema
      */
-    private static void registerLlmCommand() {
-        CommandSchema schema = CommandSchema.builder("llm")
-            .description("LLM-powered presentation editing")
-            .parameter(Parameter.builder("subcommand")
-                .description("LLM subcommand (edit, analyze, suggest, config, help)")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("request")
-                .description("Natural language request for the LLM")
-                .type(ParameterType.STRING)
-                .required(false)
-                .variableLength(true)
-                .build())
-            .example("llm help")
-            .example("llm edit add a blue rectangle to slide 1")
-            .example("llm analyze")
-            .build();
-
-        schemas.put("llm", schema);
-    }
-    
-    /**
-     * Register the session command with proper schema
-     */
-    private static void registerSessionCommand() {
-        CommandSchema schema = CommandSchema.builder("session")
-            .description("Session management operations")
-            .parameter(Parameter.builder("operation")
-                .description("Session operation")
-                .validValues("create", "list", "info", "close", "switch")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("args")
-                .description("Operation arguments")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("session create presentation.pptx")
-            .example("session list")
-            .example("session info session-123")
-            .build();
-        
-        schemas.put("session", schema);
-    }
-    
     /**
      * Register the inject command with proper schema
      */
@@ -489,22 +402,6 @@ public class CommandRegistry {
         schemas.put("list-themes", schema);
     }
 
-    private static void registerNewCommand() {
-        CommandSchema schema = CommandSchema.builder("new")
-            .description("Create a new presentation from scratch")
-            .llmEnabled(true)
-            .llmDescription("DESTRUCTIVE: Reset and create a blank presentation with a theme. Destroys all current slides. Only use when explicitly asked to start over.")
-            .parameter(Parameter.builder("themeId")
-                .description("Theme ID")
-                .validValues("minimal", "corporate", "academic", "excudo")
-                .defaultValue("minimal")
-                .build())
-            .example("new minimal")
-            .example("new corporate")
-            .build();
-
-        schemas.put("new", schema);
-    }
 
     private static void registerShowThemeCommand() {
         CommandSchema schema = CommandSchema.builder("show-theme")

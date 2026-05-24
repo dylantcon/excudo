@@ -81,6 +81,16 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.readonly.RenderSlideCommand.class);
         registerCommandClass(com.excudo.core.commands.meta.RedoCommand.class);
         registerCommandClass(com.excudo.core.commands.readonly.HistoryCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.NewPresentationCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.LoadCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SaveCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SessionCreateCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SessionListCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SessionInfoCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SessionCloseCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.SessionSwitchCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.LLMCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.LLMConfigCommand.class);
     }
 
     private CommandClassRegistry() {}

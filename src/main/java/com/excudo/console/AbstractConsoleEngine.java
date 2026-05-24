@@ -1,5 +1,15 @@
 package com.excudo.console;
 
+import com.excudo.core.commands.meta.SessionSwitchCommand;
+import com.excudo.core.commands.meta.SessionCloseCommand;
+import com.excudo.core.commands.meta.SessionInfoCommand;
+import com.excudo.core.commands.meta.SessionListCommand;
+import com.excudo.core.commands.meta.SessionCreateCommand;
+import com.excudo.core.commands.meta.LLMConfigCommand;
+import com.excudo.core.commands.meta.LLMCommand;
+import com.excudo.core.commands.meta.NewPresentationCommand;
+import com.excudo.core.commands.meta.SaveCommand;
+import com.excudo.core.commands.meta.LoadCommand;
 import com.excudo.core.commands.readonly.ShowSlideCommand;
 import com.excudo.core.commands.readonly.RenderSlideCommand;
 import com.excudo.core.commands.readonly.ListSlidesCommand;
@@ -142,9 +152,12 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             case "help":
             case "?":
             case "list-animation-types":
-            case "session":
+            case "session-create":
+            case "session-list":
+            case "session-info":
+            case "session-close":
+            case "session-switch":
             case "load":
-            case "open":
             case "undo":
             case "redo":
             case "list-themes":
@@ -154,8 +167,9 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             case "delete-theme":
             case "list-layouts":
             case "list-shape-types":
-            case "new":
+            case "new-presentation":
             case "llm":
+            case "llm-config":
             case "icon":
                 return false;
             default:
@@ -1090,13 +1104,17 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     @Override
     public List<String> getAvailableCommands() {
         return Arrays.asList(
-            "help", "load", "save", RenderSlideCommand.NAME, ListSlidesCommand.NAME, ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME, "llm",
-            "session", InjectIconCommand.NAME, EnhancedContentCommand.NAME, "list-layouts", "list-spids", "list-animations",
+            "help", LoadCommand.NAME, SaveCommand.NAME, RenderSlideCommand.NAME, ListSlidesCommand.NAME,
+            ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME, LLMCommand.NAME,
+            LLMConfigCommand.NAME, SessionCreateCommand.NAME, SessionListCommand.NAME,
+            SessionInfoCommand.NAME, SessionCloseCommand.NAME, SessionSwitchCommand.NAME,
+            InjectIconCommand.NAME, EnhancedContentCommand.NAME,
+            "list-layouts", "list-spids", "list-animations",
             "list-animation-types", "list-shape-types", "dump-timing", "dump-shape",
-            "show-shape", ContentEditCommand.NAME, AddShapeCommand.NAME, RemoveShapeCommand.NAME, BulletPointEditCommand.NAME,
-            AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
-            UpdateAnimationCommand.NAME, "list-notes", "list-themes", "apply-theme", "new",
-            "show-theme", "create-theme", "edit-theme", "delete-theme",
+            "show-shape", ContentEditCommand.NAME, AddShapeCommand.NAME, RemoveShapeCommand.NAME,
+            BulletPointEditCommand.NAME, AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
+            UpdateAnimationCommand.NAME, "list-notes", "list-themes", "apply-theme",
+            NewPresentationCommand.NAME, "show-theme", "create-theme", "edit-theme", "delete-theme",
             UndoCommand.NAME, RedoCommand.NAME, HistoryCommand.NAME, "arrange"
         );
     }

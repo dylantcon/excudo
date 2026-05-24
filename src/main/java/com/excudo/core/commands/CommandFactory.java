@@ -526,19 +526,7 @@ public class CommandFactory extends AbstractCommandFactory {
             // migrated to class registry (AddAnimationCommand, RemoveAnimationCommand,
             // UpdateAnimationCommand).
 
-            // LLM AI-powered commands - delegate to specialized factory
-            case "llm":
-                String llmSubcommand = parameters.getString("subcommand");
-                String llmRequest = parameters.getString("request");
-
-                if (displayAdapter instanceof LLMContext) {
-                    return LLMCommandFactory.createLLMCommand(
-                        (LLMContext) displayAdapter,
-                        llmSubcommand,
-                        llmRequest);
-                } else {
-                    throw new IllegalStateException("LLM commands require LLMContext support");
-                }
+            // "llm" / "llm-config" migrated to class registry (LLMCommand, LLMConfigCommand)
 
             // Icon management commands
             case "icon":

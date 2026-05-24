@@ -1,5 +1,11 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.meta.NewPresentationCommand;
+
+import com.excudo.core.commands.meta.LoadCommand;
+
+import com.excudo.core.commands.meta.SaveCommand;
+
 import com.excudo.core.commands.readonly.ShowSlideCommand;
 import com.excudo.core.commands.readonly.ListSlidesCommand;
 import com.excudo.core.commands.mutating.slide.RemoveShapeCommand;
@@ -71,7 +77,7 @@ public class CommandRegistryAutocompleteTest {
         // refactor silently drops a core command.
         Set<String> names = CommandRegistry.getCommandNames();
         String[] mustHave = {
-            "load", "save", "new", ListSlidesCommand.NAME, ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME,
+            LoadCommand.NAME, SaveCommand.NAME, NewPresentationCommand.NAME, ListSlidesCommand.NAME, ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME,
             AddShapeCommand.NAME, RemoveShapeCommand.NAME, AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
             "list-layouts", "list-themes", "apply-theme",
             UndoCommand.NAME, RedoCommand.NAME, "arrange", "help"

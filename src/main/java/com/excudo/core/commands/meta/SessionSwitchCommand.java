@@ -2,22 +2,46 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
 import com.excudo.core.commands.CommandSessionManager;
 import com.excudo.core.commands.SessionResult;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 
 import java.io.File;
 
 /**
  * GoF Command for switching between active sessions.
- * 
+ *
  * This command contains the actual session switch logic extracted from AbstractConsoleEngine.
  * Handles session context switching without circular dependencies.
  * Cannot be undone since it changes system state.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code session-switch} derives from the class.
  */
 public class SessionSwitchCommand implements Command {
+
+    static final Parameter<String> SESSION_ID = Parameter.ofString("sessionId")
+        .description("Target session ID to switch to").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Switch the active session to a different one")
+        .parameter(SESSION_ID)
+        .example("session-switch abc-123")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SessionSwitchCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SessionSwitchCommand(ctx.requireSessionManager(), ctx.requireSession(),
+            ctx.requireDisplay(), p.get(SESSION_ID));
+    }
     
     private final CommandSessionManager sessionManager;
     private final CommandSessionContext sessionContext;

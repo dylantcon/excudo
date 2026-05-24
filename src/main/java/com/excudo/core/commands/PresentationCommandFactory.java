@@ -34,16 +34,10 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     private static final Set<String> HANDLED_COMMANDS = new HashSet<>();
     
     static {
-        // File operations
-        HANDLED_COMMANDS.add("load");
-        HANDLED_COMMANDS.add("open");
-        HANDLED_COMMANDS.add("save");
-        
-        // Create from scratch
-        HANDLED_COMMANDS.add("new");
-
-        // Session management
-        HANDLED_COMMANDS.add("session");
+        // load, save, new-presentation, session-create/list/info/close/switch:
+        // all migrated to class registry. PresentationCommandFactory is now
+        // drained -- the private create* helpers below are unreachable from
+        // dispatch but retained for any direct callers.
     }
     
     /**
@@ -64,23 +58,9 @@ public class PresentationCommandFactory extends AbstractCommandFactory {
     public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
         String commandName = parameters.getCommandName();
         
-        switch (commandName) {
-            case "load":
-            case "open":
-                return createLoad(parameters, displayAdapter);
-                
-            case "save":
-                return createSave(parameters, displayAdapter);
-
-            case "new":
-                return createNew(parameters, displayAdapter);
-
-            case "session":
-                return createSession(parameters, displayAdapter);
-                
-            default:
-                return null;
-        }
+        // All presentation/session commands are class-registered; this
+        // dispatch path is unreachable.
+        return null;
     }
     
     // ========== FILE OPERATIONS ==========

@@ -2,19 +2,43 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
 import com.excudo.core.commands.CommandSessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 
 /**
  * GoF Command for closing an active session.
- * 
+ *
  * This command contains the actual session close logic extracted from AbstractConsoleEngine.
  * Handles session cleanup without circular dependencies.
  * Cannot be undone since it changes system state.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code session-close} derives from the class.
  */
 public class SessionCloseCommand implements Command {
+
+    static final Parameter<String> SESSION_ID = Parameter.ofString("sessionId")
+        .description("Session ID to close").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Close an active session")
+        .parameter(SESSION_ID)
+        .example("session-close abc-123")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SessionCloseCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SessionCloseCommand(ctx.requireSessionManager(), ctx.requireSession(),
+            ctx.requireDisplay(), p.get(SESSION_ID));
+    }
     
     private final CommandSessionManager sessionManager;
     private final CommandSessionContext sessionContext;

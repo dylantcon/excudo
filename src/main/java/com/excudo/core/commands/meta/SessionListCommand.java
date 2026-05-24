@@ -1,21 +1,39 @@
 package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
 
 import java.io.File;
 import java.util.Map;
 
 /**
  * GoF Command for listing all active sessions.
- * 
+ *
  * This command contains the actual session listing logic extracted from AbstractConsoleEngine.
  * Provides formatted display of session information without circular dependencies.
  * All external dependencies are provided via interfaces to avoid build order issues.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code session-list} derives from the class.
  */
 public class SessionListCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List all active REPL sessions")
+        .example("session-list")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SessionListCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SessionListCommand(ctx.requireSessionManager(), ctx.requireDisplay());
+    }
     
     private final CommandSessionManager sessionManager;
     private final CommandDisplay display;

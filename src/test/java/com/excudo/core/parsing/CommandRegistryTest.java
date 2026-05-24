@@ -1,5 +1,11 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.meta.LoadCommand;
+
+import com.excudo.core.commands.meta.LLMCommand;
+
+import com.excudo.core.commands.meta.SaveCommand;
+
 import com.excudo.core.commands.readonly.ShowSlideCommand;
 import com.excudo.core.commands.readonly.ListSlidesCommand;
 import com.excudo.core.commands.mutating.slide.ContentEditCommand;
@@ -28,7 +34,7 @@ public class CommandRegistryTest {
     // Commands that must be present for the console to function correctly
     private static final List<String> CRITICAL_COMMANDS = Arrays.asList(
         CreateSlideCommand.NAME, DeleteSlideCommand.NAME, ListSlidesCommand.NAME, AddShapeCommand.NAME, AddAnimationCommand.NAME,
-        ContentEditCommand.NAME, "load", "save", ShowSlideCommand.NAME, UndoCommand.NAME, RedoCommand.NAME, "llm"
+        ContentEditCommand.NAME, LoadCommand.NAME, SaveCommand.NAME, ShowSlideCommand.NAME, UndoCommand.NAME, RedoCommand.NAME, LLMCommand.NAME
     );
 
     // ========== Critical Command Presence ==========
@@ -73,7 +79,7 @@ public class CommandRegistryTest {
 
     @Test
     public void getSchema_llm_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("llm"));
+        assertNotNull(CommandRegistry.getSchema(LLMCommand.NAME));
     }
 
     // ========== Unknown Command Lookup ==========
@@ -151,7 +157,7 @@ public class CommandRegistryTest {
 
     @Test
     public void loadSchema_hasNonEmptyDescription() {
-        CommandSchema schema = CommandRegistry.getSchema("load");
+        CommandSchema schema = CommandRegistry.getSchema(LoadCommand.NAME);
         assertNotNull(schema.getDescription());
         assertFalse("'load' schema must have a non-empty description",
                 schema.getDescription().trim().isEmpty());

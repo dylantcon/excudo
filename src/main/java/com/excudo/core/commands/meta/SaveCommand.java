@@ -3,22 +3,53 @@ package com.excudo.core.commands.meta;
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import java.io.File;
 
 /**
  * GoF Command for saving a PowerPoint presentation file.
- * 
+ *
  * This command contains the actual save logic extracted from AbstractConsoleEngine.
  * Handles file validation and saving without circular dependencies.
  * Does not support undo since it changes filesystem state.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code save} derives from the class.
  */
 public class SaveCommand implements Command {
+
+    static final Parameter<String> FILENAME = Parameter.ofString("filename")
+        .description("Output PPTX path. Always pass this explicitly.")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Save the current presentation to a PPTX file")
+        .llmEnabled(true)
+        .llmDescription("OVERWRITES: writes the current presentation to the given path, "
+            + "replacing any existing file. Always pass an explicit filename -- the "
+            + "console's Ctrl+S-style save-to-last-path convenience is not reliable "
+            + "in an agent context.")
+        .parameter(FILENAME)
+        .example("save")
+        .example("save output.pptx")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SaveCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SaveCommand(ctx.requireSession(), ctx.requireDisplay(),
+            p.opt(FILENAME).orElse(null));
+    }
     
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;

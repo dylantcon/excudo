@@ -1,5 +1,9 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.LLMCommand;
+
+import com.excudo.core.commands.meta.LoadCommand;
+
 import com.excudo.core.commands.readonly.ListSlidesCommand;
 import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
 import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
@@ -94,10 +98,11 @@ public class CommandFactoryTest {
     }
 
     @Test
-    public void handlesCommandReturnsFalseForLoadHandledByPresentationFactory() {
+    public void handlesCommandReturnsTrueForLoad() {
+        // 'load' is class-registered (LoadCommand); no sub-factory claims it,
+        // so CommandFactory.handlesCommand returns true via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertFalse("'load' is handled by PresentationCommandFactory, not CommandFactory",
-                factory.handlesCommand("load"));
+        assertTrue(factory.handlesCommand(LoadCommand.NAME));
     }
 
     @Test
@@ -123,9 +128,10 @@ public class CommandFactoryTest {
 
     @Test
     public void handlesCommandReturnsTrueForLlm() {
+        // 'llm' is class-registered (LLMCommand); no sub-factory claims it,
+        // so CommandFactory.handlesCommand returns true via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue("'llm' is handled directly by CommandFactory",
-                factory.handlesCommand("llm"));
+        assertTrue(factory.handlesCommand(LLMCommand.NAME));
     }
 
     // ========== createComposite ==========

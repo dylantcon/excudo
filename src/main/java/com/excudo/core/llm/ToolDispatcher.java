@@ -1231,13 +1231,13 @@ public class ToolDispatcher {
             for (RequestSchema.ActionRequest action : actions) {
                 try {
                     String actionType = action.getType();
-                    boolean isNewCommand = "new".equals(actionType) || "new-presentation".equals(actionType);
+                    boolean isNewCommand = "new-presentation".equals(actionType);
                     // load and open both create context -- they are valid when
                     // no presentation exists yet (initial open) AND when one
                     // already exists (switch to a different file). They must
                     // not be blocked by the no-context gate.
                     boolean isContextCreatingCommand = isNewCommand
-                        || "load".equals(actionType) || "open".equals(actionType);
+                        || "load".equals(actionType);
 
                     // Block 'new' if already called this session -- prevents reset loops
                     if (isNewCommand && (hasContext || presentationCreated)) {

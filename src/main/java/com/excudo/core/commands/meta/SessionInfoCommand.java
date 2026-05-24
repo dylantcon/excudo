@@ -1,17 +1,41 @@
 package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 
 /**
  * GoF Command for displaying detailed session information.
- * 
+ *
  * This command contains the actual session info logic extracted from AbstractConsoleEngine.
  * Provides comprehensive session details without circular dependencies.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code session-info} derives from the class.
  */
 public class SessionInfoCommand implements Command {
+
+    static final Parameter<String> SESSION_ID = Parameter.ofString("sessionId")
+        .description("Session ID to inspect").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Display detailed information about a session")
+        .parameter(SESSION_ID)
+        .example("session-info abc-123")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SessionInfoCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SessionInfoCommand(ctx.requireSessionManager(), ctx.requireDisplay(),
+            p.get(SESSION_ID));
+    }
     
     private final CommandSessionManager sessionManager;
     private final CommandDisplay display;

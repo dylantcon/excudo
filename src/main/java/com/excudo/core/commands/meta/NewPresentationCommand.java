@@ -2,6 +2,8 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
@@ -12,6 +14,9 @@ import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
 import com.excudo.core.orchestration.PresentationScaffolder;
 import com.excudo.core.orchestration.SessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 import java.io.File;
@@ -20,8 +25,34 @@ import java.io.File;
  * GoF Command for creating a new presentation from scratch.
  * Uses PresentationScaffolder to generate all required PPTX parts,
  * then initializes a session with the scaffolded directory.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code new-presentation} derives from the class.
  */
 public class NewPresentationCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Theme ID")
+        .validValues("minimal", "corporate", "academic", "excudo")
+        .defaultValue("minimal").build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Create a new presentation from scratch")
+        .llmEnabled(true)
+        .llmDescription("DESTRUCTIVE: Reset and create a blank presentation with a theme. "
+            + "Destroys all current slides. Only use when explicitly asked to start over.")
+        .parameter(THEME_ID)
+        .example("new-presentation minimal")
+        .example("new-presentation corporate")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(NewPresentationCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new NewPresentationCommand(
+            ctx.requireSessionManager(), ctx.requireSession(),
+            ctx.requireDisplay(), p.get(THEME_ID));
+    }
 
     private final CommandSessionManager sessionManager;
     private final CommandSessionContext sessionContext;

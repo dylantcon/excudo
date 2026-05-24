@@ -3,32 +3,72 @@ package com.excudo.core.commands.meta;
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CompositeCommand;
+import com.excudo.core.commands.LLMContext;
 import com.excudo.core.commands.LLMHandler;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.BatchExecutionResult;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 
 /**
  * GoF Command for handling LLM (AI-powered) operations.
- * 
+ *
  * This is a "command creation command" that uses AI to generate and execute
  * multiple presentation operations as a single atomic unit. The LLM analyzes
  * the current presentation state and creates appropriate commands via the
  * existing CompositeCommand infrastructure.
- * 
+ *
  * Key features:
  * - Delegates to LLMHandler for API interaction
  * - Uses existing LLMIntegrationService for command creation
  * - Leverages CompositeCommand for atomic undo/redo behavior
  * - Provides agentic productivity features through natural language
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code llm} derives from the class. {@code fromParameters} pulls the
+ * orchestrator and {@link CommandInvoker} from the {@link LLMContext}
+ * exposed by the REPL adapter.
  */
 public class LLMCommand implements Command {
 
     private static final ComponentLogger logger = Logger.llm();
+
+    static final Parameter<String> SUBCOMMAND = Parameter.ofString("subcommand")
+        .description("LLM subcommand (edit, analyze, suggest, help)").required().build();
+    static final Parameter<String> REQUEST = Parameter.ofString("request")
+        .description("Natural language request for the LLM")
+        .required(false).variableLength(true).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("LLM-powered presentation editing")
+        .parameter(SUBCOMMAND)
+        .parameter(REQUEST)
+        .example("llm help")
+        .example("llm edit add a blue rectangle to slide 1")
+        .example("llm analyze")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(LLMCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        LLMContext llmCtx = ctx.requireLlmContext();
+        LLMHandler handler = llmCtx.getLLMHandler();
+        if (handler == null) {
+            throw new IllegalStateException("LLM handler not available");
+        }
+        return new LLMCommand(handler, llmCtx.getCurrentOrchestrator(),
+            llmCtx.getCurrentCommandInvoker(),
+            p.get(SUBCOMMAND).trim().toLowerCase(),
+            p.opt(REQUEST).orElse("").trim());
+    }
 
     private final LLMHandler llmHandler;
     private final PPTXOrchestrator orchestrator;

@@ -33,7 +33,7 @@ public class ConsoleOutputFormatter {
      */
     public static String getCommandHelp(String command) {
         return switch (command.toLowerCase()) {
-            case "new" -> "new [themeId] - Create a new presentation from scratch (default: minimal)";
+            case "new-presentation" -> "new [themeId] - Create a new presentation from scratch (default: minimal)";
             case "load" -> "load <file.pptx> - Load a PowerPoint presentation";
             case "save" -> "save [file.pptx] - Save the current presentation";
             case "list-slides" -> "list-slides - Show all slides in the presentation";
@@ -41,7 +41,7 @@ public class ConsoleOutputFormatter {
             case "create-slide" -> "create-slide <position> [title] [layout] - Create a new slide";
             case "delete-slide" -> "delete-slide <slide#> - Delete a slide";
             case "llm" -> "llm <subcommand> - AI-powered editing commands";
-            case "session" -> "session <create|list|info|close|switch> - Manage presentation sessions";
+            case "session-create" -> "session <create|list|info|close|switch> - Manage presentation sessions";
             case "inject-icon" -> "inject <slide> <query> - Inject icon into slide using SmartContent";
             case "enhanced-content" -> "enhance <slide> [query] - Enhance slide with SmartContent icons";
             case "icon" -> "icon <search|upload|list|sources> - Icon management and library";

@@ -2,6 +2,8 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
@@ -10,6 +12,9 @@ import com.excudo.core.commands.LLMHandler;
 import com.excudo.core.commands.SessionResult;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import java.io.File;
 
 /**
@@ -23,7 +28,25 @@ import java.io.File;
  * to avoid circular dependencies with the console package.
  */
 public class SessionCreateCommand implements Command {
-    
+
+    static final Parameter<String> FILENAME = Parameter.ofString("filename")
+        .description("PPTX file path (optional -- empty session if absent)")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Create a new REPL session, optionally loading a PPTX file")
+        .parameter(FILENAME)
+        .example("session-create")
+        .example("session-create presentation.pptx")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SessionCreateCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new SessionCreateCommand(ctx.requireSessionManager(), ctx.requireSession(),
+            ctx.requireDisplay(), p.opt(FILENAME).orElse(null));
+    }
+
     private final CommandSessionManager sessionManager;
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;
