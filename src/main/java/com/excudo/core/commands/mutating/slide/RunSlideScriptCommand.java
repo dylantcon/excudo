@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CompositeCommand;
@@ -137,7 +138,7 @@ public class RunSlideScriptCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         rollback(executedInOrder);

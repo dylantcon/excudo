@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -69,14 +70,14 @@ public class ClearTransitionCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         if (hadSlideLevelOverride && snapshot != null) {
             ExecutionResult<Void> result = orchestrator.setTransition(slideNumber,
                 snapshot.type(), snapshot.speed(), snapshot.autoAdvanceMs());
             if (!result.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "undo", result.getMessage());
+                throw new CommandExecutionException(getDescription(), UndoCommand.NAME, result.getMessage());
             }
         }
         executed = false;

@@ -1,5 +1,23 @@
 package com.excudo.console;
 
+import com.excudo.core.commands.readonly.ShowSlideCommand;
+import com.excudo.core.commands.readonly.RenderSlideCommand;
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.readonly.HistoryCommand;
+import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
+import com.excudo.core.commands.mutating.slide.RemoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.InjectIconCommand;
+import com.excudo.core.commands.mutating.slide.EnhancedContentCommand;
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.BulletPointEditCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.meta.RedoCommand;
+
 import com.excudo.core.orchestration.OrchestrationContext;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
@@ -1072,14 +1090,14 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     @Override
     public List<String> getAvailableCommands() {
         return Arrays.asList(
-            "help", "load", "save", "render-slide", "list-slides", "show-slide", "create-slide", "delete-slide", "llm",
-            "session", "inject-icon", "enhanced-content", "list-layouts", "list-spids", "list-animations",
+            "help", "load", "save", RenderSlideCommand.NAME, ListSlidesCommand.NAME, ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME, "llm",
+            "session", InjectIconCommand.NAME, EnhancedContentCommand.NAME, "list-layouts", "list-spids", "list-animations",
             "list-animation-types", "list-shape-types", "dump-timing", "dump-shape",
-            "show-shape", "content-edit", "add-shape", "remove-shape", "bullet-point-edit",
-            "add-animation", "remove-animation",
-            "update-animation", "list-notes", "list-themes", "apply-theme", "new",
+            "show-shape", ContentEditCommand.NAME, AddShapeCommand.NAME, RemoveShapeCommand.NAME, BulletPointEditCommand.NAME,
+            AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
+            UpdateAnimationCommand.NAME, "list-notes", "list-themes", "apply-theme", "new",
             "show-theme", "create-theme", "edit-theme", "delete-theme",
-            "undo", "redo", "history", "arrange"
+            UndoCommand.NAME, RedoCommand.NAME, HistoryCommand.NAME, "arrange"
         );
     }
     

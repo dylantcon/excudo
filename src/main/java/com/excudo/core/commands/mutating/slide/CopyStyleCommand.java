@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -81,10 +82,10 @@ public class CopyStyleCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo", "Command has not been executed");
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Command has not been executed");
         }
         if (!canUndo()) {
-            throw new CommandExecutionException(getDescription(), "undo", "No captured state available for undo");
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "No captured state available for undo");
         }
 
         // Restore in reverse order: remove the restyled shape then restore the original snapshot
@@ -95,13 +96,13 @@ public class CopyStyleCommand implements Command {
 
             ExecutionResult<Void> removeResult = orchestrator.removeShape(slideNumber, targetSpid);
             if (!removeResult.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "undo",
+                throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                     "Failed to remove restyled shape SPID " + targetSpid + ": " + removeResult.getMessage());
             }
 
             ExecutionResult<Void> restoreResult = orchestrator.restoreShape(slideNumber, original);
             if (!restoreResult.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "undo",
+                throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                     "Failed to restore original shape SPID " + targetSpid + ": " + restoreResult.getMessage());
             }
         }

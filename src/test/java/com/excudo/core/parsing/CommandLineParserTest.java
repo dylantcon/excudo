@@ -1,5 +1,8 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -17,7 +20,7 @@ public class CommandLineParserTest {
     public void parseCommand_simpleTokens_returnsSplitArray() {
         String[] tokens = CommandLineParser.parseCommand("add-shape 1 rect");
 
-        assertArrayEquals(new String[]{"add-shape", "1", "rect"}, tokens);
+        assertArrayEquals(new String[]{AddShapeCommand.NAME, "1", "rect"}, tokens);
     }
 
     @Test
@@ -47,7 +50,7 @@ public class CommandLineParserTest {
     public void parseCommand_mixedQuotedAndUnquotedTokens_parsesCorrectly() {
         String[] tokens = CommandLineParser.parseCommand("content-edit 2 3 \"Hello World\" plain");
 
-        assertArrayEquals(new String[]{"content-edit", "2", "3", "Hello World", "plain"}, tokens);
+        assertArrayEquals(new String[]{ContentEditCommand.NAME, "2", "3", "Hello World", "plain"}, tokens);
     }
 
     // ========== Escape Sequences ==========

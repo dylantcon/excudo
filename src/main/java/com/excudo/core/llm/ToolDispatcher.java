@@ -1,5 +1,7 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.readonly.RenderSlideCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.*;
 import com.excudo.core.metrics.LayoutIssue;
 import com.excudo.core.metrics.LayoutValidator;
@@ -1287,7 +1289,7 @@ public class ToolDispatcher {
                     // MCP callers need to verify. Pin the resulting file's
                     // absolute path + byte count to the batch output so the
                     // agent can confirm the write landed where they expect.
-                    if ("save".equals(actionType) || "render-slide".equals(actionType)) {
+                    if ("save".equals(actionType) || RenderSlideCommand.NAME.equals(actionType)) {
                         String filename = actionFileParam(action);
                         if (filename != null) {
                             java.io.File f = new java.io.File(filename);
@@ -1796,7 +1798,7 @@ public class ToolDispatcher {
                 // verbose phrasing above.
                 displayPath = outputArg;
             } else {
-                outputFile = java.io.File.createTempFile("render-slide" + slideNumber + "-", ".png");
+                outputFile = java.io.File.createTempFile(RenderSlideCommand.NAME + slideNumber + "-", ".png");
                 displayPath = outputFile.getAbsolutePath();
             }
 

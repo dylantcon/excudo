@@ -1,5 +1,6 @@
 package com.excudo.core.synthesis.spec;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 import com.excudo.core.commands.mutating.slide.ClearTransitionCommand;
@@ -137,7 +138,7 @@ public final class SpecToCommandMapper {
             @Override public void undo() {
                 if (!executed) {
                     throw new com.excudo.core.commands.CommandExecutionException(
-                        getDescription(), "undo", "Not executed");
+                        getDescription(), UndoCommand.NAME, "Not executed");
                 }
                 if (snapshot != null) {
                     orchestrator.setTextBody(s.slideNumber(), s.spid(), snapshot);

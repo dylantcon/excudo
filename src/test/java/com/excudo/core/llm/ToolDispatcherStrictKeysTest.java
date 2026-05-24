@@ -1,5 +1,9 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.ResizeShapeCommand;
+import com.excudo.core.commands.mutating.slide.ReorderShapeCommand;
+import com.excudo.core.commands.mutating.slide.MoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.RequestSchema;
 import org.junit.Test;
 
@@ -37,7 +41,7 @@ public class ToolDispatcherStrictKeysTest {
         assertNotNull("unknown action type must reject", err);
         assertTrue(err, err.contains("Unknown command type 'ad-shape'"));
         // FuzzyMatcher should suggest add-shape
-        assertTrue(err, err.contains("add-shape"));
+        assertTrue(err, err.contains(AddShapeCommand.NAME));
     }
 
     @Test
@@ -78,7 +82,7 @@ public class ToolDispatcherStrictKeysTest {
         // 'targetSpid' was treated as an unknown key, passed through to
         // the factory, and silently dropped. Post-backfill, the alias
         // resolves to canonical 'spid' and validates clean.
-        RequestSchema.ActionRequest action = action("move-shape", Map.of(
+        RequestSchema.ActionRequest action = action(MoveShapeCommand.NAME, Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "x", "100pt",
@@ -91,7 +95,7 @@ public class ToolDispatcherStrictKeysTest {
 
     @Test
     public void resizeAcceptsTargetSpidAfterAliasBackfill() {
-        RequestSchema.ActionRequest action = action("resize-shape", Map.of(
+        RequestSchema.ActionRequest action = action(ResizeShapeCommand.NAME, Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "width", "400pt",
@@ -104,7 +108,7 @@ public class ToolDispatcherStrictKeysTest {
 
     @Test
     public void reorderAcceptsTargetSpidAfterAliasBackfill() {
-        RequestSchema.ActionRequest action = action("reorder-shape", Map.of(
+        RequestSchema.ActionRequest action = action(ReorderShapeCommand.NAME, Map.of(
             "slideNumber", "1",
             "targetSpid", "2",
             "direction", "front"));
@@ -135,7 +139,7 @@ public class ToolDispatcherStrictKeysTest {
         // The canonical 'spid' must still validate; this is used by the
         // REPL parser path and we don't want to break it just because
         // the LLM-facing alias is preferred for the agent surface.
-        RequestSchema.ActionRequest action = action("move-shape", Map.of(
+        RequestSchema.ActionRequest action = action(MoveShapeCommand.NAME, Map.of(
             "slide", "1",
             "spid", "2",
             "x", "100pt",

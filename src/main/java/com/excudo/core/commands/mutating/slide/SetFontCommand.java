@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -79,24 +80,24 @@ public class SetFontCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         if (!canUndo()) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "No captured state available for undo");
         }
 
         ExecutionResult<Void> removeResult = orchestrator.removeShape(slideNumber, spid);
         if (!removeResult.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Failed to remove modified shape during undo: " + removeResult.getMessage());
         }
 
         ExecutionResult<Void> restoreResult =
             orchestrator.restoreShape(slideNumber, capturedElement);
         if (!restoreResult.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Failed to restore shape: " + restoreResult.getMessage());
         }
 

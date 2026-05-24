@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.theme;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -45,7 +46,7 @@ public class SetObjectDefaultsCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
             "Object defaults undo not yet implemented -- use show-master to verify changes");
     }
 

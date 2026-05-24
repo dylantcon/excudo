@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -56,12 +57,12 @@ public class AddToGroupCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         ExecutionResult<Void> r = orchestrator.detachFromGroup(slideNumber, childSpid);
         if (!r.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo", r.getMessage());
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, r.getMessage());
         }
         executed = false;
     }

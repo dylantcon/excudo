@@ -103,7 +103,7 @@ public class AddShapeAlignmentTest {
         // Aliases (left/center/right/justify) should reach the same
         // canonical OOXML token. Drives the parse path through
         // AddShapeCommand.fromParameters -> ShapeCommandFactory.normalizeAlignment.
-        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape",
+        var parsed = new com.excudo.core.parsing.CommandParameters(AddShapeCommand.NAME,
             java.util.Map.of(
                 "slide", "1",
                 "shape-type", "RECTANGLE",
@@ -128,7 +128,7 @@ public class AddShapeAlignmentTest {
 
     @Test
     public void invalidAlignmentTokenFailsLoud() {
-        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape",
+        var parsed = new com.excudo.core.parsing.CommandParameters(AddShapeCommand.NAME,
             java.util.Map.of(
                 "slide", "1", "shape-type", "RECTANGLE", "text", "x",
                 "x", "0", "y", "0", "width", "100", "height", "100",

@@ -1,5 +1,6 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.CommandFactory;
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.model.PPTXDocument;
@@ -140,7 +141,7 @@ public class GetSlideShapesBatchTest {
     private void addRect(int slide, String name) {
         com.excudo.core.commands.Command cmd =
             com.excudo.core.commands.CommandClassRegistry.createFromParameters(
-                new CommandParameters("add-shape", Map.of(
+                new CommandParameters(AddShapeCommand.NAME, Map.of(
                     "slide", String.valueOf(slide),
                     "shape-type", "RECTANGLE",
                     "text", name,

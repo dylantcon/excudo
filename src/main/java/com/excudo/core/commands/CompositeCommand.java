@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.UndoCommand;
+
 import java.util.List;
 import java.util.ArrayList;
 import com.excudo.core.utils.Logger;
@@ -99,7 +101,7 @@ public class CompositeCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(description, "undo", "Command has not been executed");
+            throw new CommandExecutionException(description, UndoCommand.NAME, "Command has not been executed");
         }
         
         // Undo commands in reverse order
@@ -126,7 +128,7 @@ public class CompositeCommand implements Command {
         if (!undoErrors.isEmpty()) {
             throw new CommandExecutionException(
                 description, 
-                "undo", 
+                UndoCommand.NAME, 
                 "Some commands failed to undo: " + String.join("; ", undoErrors)
             );
         }

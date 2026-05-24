@@ -1,5 +1,6 @@
 package com.excudo.core.commands.readonly;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -141,7 +142,7 @@ public class ListShapeTypesCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo", "Read-only command");
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Read-only command");
     }
 
     @Override

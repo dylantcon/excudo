@@ -1,5 +1,9 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+
 import com.excudo.core.llm.LLMRequestBridge;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -34,9 +38,9 @@ public class RequestSchemaTest {
         String ref = LLMRequestBridge.generateLLMCommandReference();
         assertNotNull("Command reference should not be null", ref);
         assertTrue("Should contain COMMANDS header", ref.contains("COMMANDS:"));
-        assertTrue("Should contain create-slide", ref.contains("create-slide"));
-        assertTrue("Should contain content-edit", ref.contains("content-edit"));
-        assertTrue("Should contain add-shape", ref.contains("add-shape"));
+        assertTrue("Should contain create-slide", ref.contains(CreateSlideCommand.NAME));
+        assertTrue("Should contain content-edit", ref.contains(ContentEditCommand.NAME));
+        assertTrue("Should contain add-shape", ref.contains(AddShapeCommand.NAME));
     }
 
     @Test

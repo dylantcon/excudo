@@ -1,5 +1,7 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
@@ -47,7 +49,7 @@ public class Tier6ExpressivenessTest {
     @Test
     public void addShapeWithFillAlphaEmitsAlphaElement() throws Exception {
         Command cmd = CommandClassRegistry.createFromParameters(
-            new CommandParameters("add-shape", Map.of(
+            new CommandParameters(AddShapeCommand.NAME, Map.of(
                 "slide", "1",
                 "shape-type", "RECTANGLE",
                 "text", "alpha-rect",
@@ -71,7 +73,7 @@ public class Tier6ExpressivenessTest {
     public void setStyleAcceptsAlphaParams() throws Exception {
         // Add a plain rect first.
         Command add = CommandClassRegistry.createFromParameters(
-            new CommandParameters("add-shape", Map.of(
+            new CommandParameters(AddShapeCommand.NAME, Map.of(
                 "slide", "1", "shape-type", "RECTANGLE", "text", "set-alpha",
                 "x", "1000000", "y", "1000000",
                 "width", "2000000", "height", "1000000")),
@@ -103,7 +105,7 @@ public class Tier6ExpressivenessTest {
     public void addAnimationDelayMsReachesBinding() throws Exception {
         // Need a target shape first.
         Command add = CommandClassRegistry.createFromParameters(
-            new CommandParameters("add-shape", Map.of(
+            new CommandParameters(AddShapeCommand.NAME, Map.of(
                 "slide", "1", "shape-type", "RECTANGLE", "text", "anim-target",
                 "x", "1000000", "y", "1000000",
                 "width", "2000000", "height", "1000000")),
@@ -114,7 +116,7 @@ public class Tier6ExpressivenessTest {
             .filter(s -> s.getTextContent() != null && s.getTextContent().contains("anim-target"))
             .findFirst().orElseThrow().getSpid();
 
-        CommandParameters animParams = CommandParameters.builder("add-animation")
+        CommandParameters animParams = CommandParameters.builder(AddAnimationCommand.NAME)
             .addParam("slide", 1)
             .addParam("spid", spid)
             .addParam("type", "fade")

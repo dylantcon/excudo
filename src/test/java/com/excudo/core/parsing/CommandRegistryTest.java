@@ -1,5 +1,15 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.readonly.ShowSlideCommand;
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.meta.RedoCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -17,8 +27,8 @@ public class CommandRegistryTest {
 
     // Commands that must be present for the console to function correctly
     private static final List<String> CRITICAL_COMMANDS = Arrays.asList(
-        "create-slide", "delete-slide", "list-slides", "add-shape", "add-animation",
-        "content-edit", "load", "save", "show-slide", "undo", "redo", "llm"
+        CreateSlideCommand.NAME, DeleteSlideCommand.NAME, ListSlidesCommand.NAME, AddShapeCommand.NAME, AddAnimationCommand.NAME,
+        ContentEditCommand.NAME, "load", "save", ShowSlideCommand.NAME, UndoCommand.NAME, RedoCommand.NAME, "llm"
     );
 
     // ========== Critical Command Presence ==========
@@ -33,32 +43,32 @@ public class CommandRegistryTest {
 
     @Test
     public void getSchema_create_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("create-slide"));
+        assertNotNull(CommandRegistry.getSchema(CreateSlideCommand.NAME));
     }
 
     @Test
     public void getSchema_delete_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("delete-slide"));
+        assertNotNull(CommandRegistry.getSchema(DeleteSlideCommand.NAME));
     }
 
     @Test
     public void getSchema_list_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("list-slides"));
+        assertNotNull(CommandRegistry.getSchema(ListSlidesCommand.NAME));
     }
 
     @Test
     public void getSchema_addShape_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("add-shape"));
+        assertNotNull(CommandRegistry.getSchema(AddShapeCommand.NAME));
     }
 
     @Test
     public void getSchema_undo_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("undo"));
+        assertNotNull(CommandRegistry.getSchema(UndoCommand.NAME));
     }
 
     @Test
     public void getSchema_redo_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("redo"));
+        assertNotNull(CommandRegistry.getSchema(RedoCommand.NAME));
     }
 
     @Test
@@ -125,7 +135,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_hasNonEmptyDescription() {
-        CommandSchema schema = CommandRegistry.getSchema("create-slide");
+        CommandSchema schema = CommandRegistry.getSchema(CreateSlideCommand.NAME);
         assertNotNull(schema.getDescription());
         assertFalse("'create' schema must have a non-empty description",
                 schema.getDescription().trim().isEmpty());
@@ -133,7 +143,7 @@ public class CommandRegistryTest {
 
     @Test
     public void addShapeSchema_hasNonEmptyDescription() {
-        CommandSchema schema = CommandRegistry.getSchema("add-shape");
+        CommandSchema schema = CommandRegistry.getSchema(AddShapeCommand.NAME);
         assertNotNull(schema.getDescription());
         assertFalse("'add-shape' schema must have a non-empty description",
                 schema.getDescription().trim().isEmpty());
@@ -161,7 +171,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_hasRequiredParameters() {
-        CommandSchema schema = CommandRegistry.getSchema("create-slide");
+        CommandSchema schema = CommandRegistry.getSchema(CreateSlideCommand.NAME);
         List<Parameter<?>> params = schema.getParameters();
 
         assertNotNull(params);
@@ -173,7 +183,7 @@ public class CommandRegistryTest {
 
     @Test
     public void addShapeSchema_hasParameters() {
-        CommandSchema schema = CommandRegistry.getSchema("add-shape");
+        CommandSchema schema = CommandRegistry.getSchema(AddShapeCommand.NAME);
         List<Parameter<?>> params = schema.getParameters();
 
         assertNotNull(params);
@@ -182,7 +192,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_firstParameterIsPositionOrSlideNumber() {
-        CommandSchema schema = CommandRegistry.getSchema("create-slide");
+        CommandSchema schema = CommandRegistry.getSchema(CreateSlideCommand.NAME);
         List<Parameter<?>> params = schema.getParameters();
 
         assertFalse(params.isEmpty());
@@ -194,7 +204,7 @@ public class CommandRegistryTest {
 
     @Test
     public void addShapeSchema_firstParameterIsSlide() {
-        CommandSchema schema = CommandRegistry.getSchema("add-shape");
+        CommandSchema schema = CommandRegistry.getSchema(AddShapeCommand.NAME);
         List<Parameter<?>> params = schema.getParameters();
 
         assertFalse(params.isEmpty());

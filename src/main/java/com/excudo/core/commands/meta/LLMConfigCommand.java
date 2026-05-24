@@ -1,5 +1,6 @@
 package com.excudo.core.commands.meta;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.LLMHandler;
@@ -27,7 +28,7 @@ public class LLMConfigCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo", "Config commands cannot be undone");
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Config commands cannot be undone");
     }
 
     @Override

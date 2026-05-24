@@ -1,5 +1,6 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.CommandFactory;
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.llm.ToolDispatcher;
@@ -45,7 +46,7 @@ public class AddShapeTextBoxRoundTripTest {
 
     @Test
     public void addShapeTextBoxAliasSetsTxBoxMarker() throws Exception {
-        CommandParameters parsed = new CommandParameters("add-shape", Map.of(
+        CommandParameters parsed = new CommandParameters(AddShapeCommand.NAME, Map.of(
             "slide", "1",
             "shape-type", "TEXT_BOX",
             "text", "I am a text box",
@@ -65,7 +66,7 @@ public class AddShapeTextBoxRoundTripTest {
 
     @Test
     public void addShapeRectangleDoesNotSetTxBoxMarker() throws Exception {
-        CommandParameters parsed = new CommandParameters("add-shape", Map.of(
+        CommandParameters parsed = new CommandParameters(AddShapeCommand.NAME, Map.of(
             "slide", "1",
             "shape-type", "RECTANGLE",
             "text", "Just a rectangle",
@@ -84,10 +85,10 @@ public class AddShapeTextBoxRoundTripTest {
     public void getSlideShapesDisplaysTextBoxLabel() throws Exception {
         // Add one TEXT_BOX and one styled RECTANGLE; verify the
         // get_slide_shapes MCP tool labels them differently.
-        CommandClassRegistry.createFromParameters(new CommandParameters("add-shape", Map.of(
+        CommandClassRegistry.createFromParameters(new CommandParameters(AddShapeCommand.NAME, Map.of(
             "slide", "1", "shape-type", "TEXT_BOX", "text", "TXTBOX_LABEL",
             "x", "0", "y", "0", "width", "1000000", "height", "500000")), ctx).execute();
-        CommandClassRegistry.createFromParameters(new CommandParameters("add-shape", Map.of(
+        CommandClassRegistry.createFromParameters(new CommandParameters(AddShapeCommand.NAME, Map.of(
             "slide", "1", "shape-type", "RECTANGLE", "text", "RECT_LABEL",
             "x", "0", "y", "1000000", "width", "1000000", "height", "500000")), ctx).execute();
 

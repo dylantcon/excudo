@@ -1,5 +1,6 @@
 package com.excudo.core.commands.readonly;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.AnimationParameterRequirement;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandDisplay;
@@ -187,7 +188,7 @@ public class HelpCommand implements Command {
     
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo", 
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME, 
             "HelpCommand is read-only and does not support undo");
     }
     

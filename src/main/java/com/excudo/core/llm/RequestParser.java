@@ -1,5 +1,6 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.EnhancedContentCommand;
 import com.excudo.core.commands.RequestSchema;
 import com.excudo.core.validation.ValidationResult;
 import com.excudo.core.results.ExecutionResult;
@@ -432,7 +433,7 @@ public class RequestParser {
             String editType = (String) params.get("editType");
             validateBulletPointEditOperation(editType, params, builder);
         }
-        if ("enhanced-content".equals(resolvedType) && params.containsKey("geometry")) {
+        if (EnhancedContentCommand.NAME.equals(resolvedType) && params.containsKey("geometry")) {
             Map<?, ?> geometry = (Map<?, ?>) params.get("geometry");
             validateGeometry(geometry, builder);
         }

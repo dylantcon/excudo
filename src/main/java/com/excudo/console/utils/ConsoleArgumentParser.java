@@ -1,5 +1,7 @@
 package com.excudo.console.utils;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -89,7 +91,7 @@ public class ConsoleArgumentParser {
      * Examples:
      * - "create 1 'New Slide Title'" → ["create", "1", "New Slide Title"]
      * - "edit-content 1 2 \"Hello World\"" → ["edit-content", "1", "2", "Hello World"]
-     * - "add-shape 1 text 100 200 300 400" → ["add-shape", "1", "text", "100", "200", "300", "400"]
+     * - "add-shape 1 text 100 200 300 400" → [AddShapeCommand.NAME, "1", "text", "100", "200", "300", "400"]
      * 
      * @param command the command string to parse
      * @return array of parsed tokens

@@ -1,5 +1,8 @@
 package com.excudo.core.orchestration;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -17,7 +20,7 @@ public class BatchExecutionResultTest {
     public void allSuccessful() {
         BatchExecutionResult result = new BatchExecutionResult(
             3, 3, 0,
-            Arrays.asList("add-shape", "edit-text", "add-animation"),
+            Arrays.asList(AddShapeCommand.NAME, "edit-text", AddAnimationCommand.NAME),
             Collections.emptyMap());
 
         assertTrue(result.isSuccess());

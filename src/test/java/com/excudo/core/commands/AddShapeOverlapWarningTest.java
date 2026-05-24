@@ -114,7 +114,7 @@ public class AddShapeOverlapWarningTest {
         // should be suppressed.
         orchestrator.createSlide(2, "Placeholder Test", "slideLayout2");
         display.clear();
-        var parsed = new com.excudo.core.parsing.CommandParameters("add-shape", java.util.Map.of(
+        var parsed = new com.excudo.core.parsing.CommandParameters(AddShapeCommand.NAME, java.util.Map.of(
             "slide", "2", "shape-type", "RECTANGLE", "text", "in-placeholder",
             "x", "1000000", "y", "2000000", "width", "5000000", "height", "2000000"));
         Command cmd = CommandClassRegistry.createFromParameters(parsed,

@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.UndoCommand;
+
 import java.util.Stack;
 import java.util.List;
 import java.util.ArrayList;
@@ -108,7 +110,7 @@ public class CommandInvoker {
             executedCommands.push(command);
             throw new CommandExecutionException(
                 command.getDescription(), 
-                "undo", 
+                UndoCommand.NAME, 
                 "Command does not support undo operation"
             );
         }
@@ -123,7 +125,7 @@ public class CommandInvoker {
             executedCommands.push(command);
             throw new CommandExecutionException(
                 command.getDescription(), 
-                "undo", 
+                UndoCommand.NAME, 
                 e.getMessage(), 
                 e
             );

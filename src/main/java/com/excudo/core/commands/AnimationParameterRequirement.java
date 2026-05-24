@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+
 import com.excudo.core.model.AnimationType;
 import java.util.*;
 
@@ -241,7 +243,7 @@ public class AnimationParameterRequirement {
 
         if (args.length < requiredCount) {
             return ValidationResult.error("Insufficient arguments. Required: " + requiredCount + ", provided: " + args.length +
-                                        "\nUsage: " + requirement.generateUsageString("add-animation") +
+                                        "\nUsage: " + requirement.generateUsageString(AddAnimationCommand.NAME) +
                                         "\nExample: " + requirement.getUsageExample());
         }
 
@@ -269,7 +271,7 @@ public class AnimationParameterRequirement {
 
         StringBuilder help = new StringBuilder();
         help.append("Animation Type: ").append(animationType.getUserFriendlyName()).append("\n");
-        help.append("Usage: ").append(requirement.generateUsageString("add-animation")).append("\n");
+        help.append("Usage: ").append(requirement.generateUsageString(AddAnimationCommand.NAME)).append("\n");
         help.append("Example: ").append(requirement.getUsageExample()).append("\n\n");
         help.append("Parameters:\n");
 

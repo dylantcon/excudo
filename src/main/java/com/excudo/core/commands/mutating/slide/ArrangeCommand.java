@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -71,8 +72,8 @@ public class ArrangeCommand implements Command {
 
     @Override
     public void undo() {
-        if (!executed) throw new CommandExecutionException(getDescription(), "undo", "Not executed");
-        if (!canUndo()) throw new CommandExecutionException(getDescription(), "undo", "Cannot undo");
+        if (!executed) throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Not executed");
+        if (!canUndo()) throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Cannot undo");
 
         // Restore all original geometries (reverse order for safety)
         for (int i = results.size() - 1; i >= 0; i--) {
@@ -80,7 +81,7 @@ public class ArrangeCommand implements Command {
             ExecutionResult<Void> restoreResult = orchestrator.updateShapeGeometry(
                 slideNumber, result.spid(), result.original());
             if (!restoreResult.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "undo",
+                throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                     "Failed to restore shape " + result.spid() + ": " + restoreResult.getMessage());
             }
         }

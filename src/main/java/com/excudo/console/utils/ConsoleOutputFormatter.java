@@ -1,5 +1,16 @@
 package com.excudo.console.utils;
 
+import com.excudo.core.commands.readonly.HistoryCommand;
+import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
+import com.excudo.core.commands.mutating.slide.RemoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.InjectIconCommand;
+import com.excudo.core.commands.mutating.slide.EnhancedContentCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.meta.RedoCommand;
+
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.LayoutInfo;
@@ -140,8 +151,8 @@ public class ConsoleOutputFormatter {
         help.add("");
         help.add("  " + getCommandHelp("list-spids"));
         help.add("  " + getCommandHelp("show-shape"));
-        help.add("  " + getCommandHelp("add-shape"));
-        help.add("  " + getCommandHelp("remove-shape"));
+        help.add("  " + getCommandHelp(AddShapeCommand.NAME));
+        help.add("  " + getCommandHelp(RemoveShapeCommand.NAME));
         help.add("  " + getCommandHelp("edit-content"));
         help.add("  " + getCommandHelp("edit-bullet"));
         help.add("  " + getCommandHelp("list-shape-types"));
@@ -168,9 +179,9 @@ public class ConsoleOutputFormatter {
         help.add("");
         help.add("  " + getCommandHelp("list-animations"));
         help.add("  " + getCommandHelp("list-animation-types"));
-        help.add("  " + getCommandHelp("add-animation"));
-        help.add("  " + getCommandHelp("remove-animation"));
-        help.add("  " + getCommandHelp("update-animation"));
+        help.add("  " + getCommandHelp(AddAnimationCommand.NAME));
+        help.add("  " + getCommandHelp(RemoveAnimationCommand.NAME));
+        help.add("  " + getCommandHelp(UpdateAnimationCommand.NAME));
         help.add("");
         help.add("Examples:");
         help.add("  list-animations 1");
@@ -236,8 +247,8 @@ public class ConsoleOutputFormatter {
         help.add("AI & Smart Content:");
         help.add("");
         help.add("  " + getCommandHelp("llm"));
-        help.add("  " + getCommandHelp("inject-icon"));
-        help.add("  " + getCommandHelp("enhanced-content"));
+        help.add("  " + getCommandHelp(InjectIconCommand.NAME));
+        help.add("  " + getCommandHelp(EnhancedContentCommand.NAME));
         help.add("");
         help.add("Examples:");
         help.add("  llm edit add fade animations to all titles");
@@ -254,9 +265,9 @@ public class ConsoleOutputFormatter {
         help.add("Session & History:");
         help.add("");
         help.add("  " + getCommandHelp("session"));
-        help.add("  " + getCommandHelp("undo"));
-        help.add("  " + getCommandHelp("redo"));
-        help.add("  " + getCommandHelp("history"));
+        help.add("  " + getCommandHelp(UndoCommand.NAME));
+        help.add("  " + getCommandHelp(RedoCommand.NAME));
+        help.add("  " + getCommandHelp(HistoryCommand.NAME));
         help.add("");
         help.add("Examples:");
         help.add("  session create presentation.pptx");

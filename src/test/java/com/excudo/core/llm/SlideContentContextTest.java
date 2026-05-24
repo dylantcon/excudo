@@ -1,5 +1,8 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+
 import com.excudo.core.model.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -159,8 +162,8 @@ public class SlideContentContextTest {
         assertTrue(json.contains("\"shapeOperations\":"));
         assertTrue(json.contains("\"animationOperations\":"));
         assertTrue(json.contains("\"animationTypes\":"));
-        assertTrue(json.contains("add-shape"));
-        assertTrue(json.contains("add-animation"));
+        assertTrue(json.contains(AddShapeCommand.NAME));
+        assertTrue(json.contains(AddAnimationCommand.NAME));
     }
     
     @Test

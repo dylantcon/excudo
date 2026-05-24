@@ -1,5 +1,16 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.readonly.ShowSlideCommand;
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.mutating.slide.RemoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+import com.excudo.core.commands.meta.UndoCommand;
+import com.excudo.core.commands.meta.RedoCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -60,10 +71,10 @@ public class CommandRegistryAutocompleteTest {
         // refactor silently drops a core command.
         Set<String> names = CommandRegistry.getCommandNames();
         String[] mustHave = {
-            "load", "save", "new", "list-slides", "show-slide", "create-slide", "delete-slide",
-            "add-shape", "remove-shape", "add-animation", "remove-animation",
+            "load", "save", "new", ListSlidesCommand.NAME, ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME,
+            AddShapeCommand.NAME, RemoveShapeCommand.NAME, AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
             "list-layouts", "list-themes", "apply-theme",
-            "undo", "redo", "arrange", "help"
+            UndoCommand.NAME, RedoCommand.NAME, "arrange", "help"
         };
         for (String cmd : mustHave) {
             assertTrue("CommandRegistry must expose '" + cmd + "'", names.contains(cmd));

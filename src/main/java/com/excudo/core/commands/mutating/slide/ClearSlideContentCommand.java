@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -82,11 +83,11 @@ public class ClearSlideContentCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         if (preClearSnapshot == null) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "No pre-clear snapshot available for undo");
         }
         // Build a restore-script that re-adds everything present in the
@@ -94,7 +95,7 @@ public class ClearSlideContentCommand implements Command {
         SlideStateBuilder builder = new SlideStateBuilder(orchestrator);
         SlideState nowState = builder.current(slideNumber);
         if (nowState == null) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Slide state unavailable for undo");
         }
         CommandScript restoreScript = buildRestoreScript(nowState, preClearSnapshot);
@@ -102,7 +103,7 @@ public class ClearSlideContentCommand implements Command {
             ScriptRunner runner = new ScriptRunner(orchestrator);
             ExecutionResult<Void> r = runner.run(restoreScript, "Undo clear slide " + slideNumber);
             if (!r.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "undo", r.getMessage());
+                throw new CommandExecutionException(getDescription(), UndoCommand.NAME, r.getMessage());
             }
         }
         executed = false;

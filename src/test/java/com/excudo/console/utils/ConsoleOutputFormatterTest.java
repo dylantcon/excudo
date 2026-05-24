@@ -1,5 +1,7 @@
 package com.excudo.console.utils;
 
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.AnimationType;
 import com.excudo.core.model.LayoutInfo;
@@ -25,7 +27,7 @@ public class ConsoleOutputFormatterTest {
 
     @Test
     public void getCommandHelp_knownCommand_returnsHelpString() {
-        String help = ConsoleOutputFormatter.getCommandHelp("create-slide");
+        String help = ConsoleOutputFormatter.getCommandHelp(CreateSlideCommand.NAME);
         assertNotNull("Should return non-null help for known command", help);
         assertFalse("Should not return empty string", help.isEmpty());
         assertFalse("Should not be the unknown-command fallback", help.startsWith("Unknown command:"));

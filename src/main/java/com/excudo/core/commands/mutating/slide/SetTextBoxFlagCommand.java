@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -68,16 +69,16 @@ public class SetTextBoxFlagCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Command has not been executed");
         }
         if (originalFlag == null) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "No captured original flag for undo");
         }
         ExecutionResult<Void> r = orchestrator.updateShapeTextBoxFlag(slideNumber, spid, originalFlag);
         if (!r.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo", r.getMessage());
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, r.getMessage());
         }
         executed = false;
     }

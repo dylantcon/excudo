@@ -1,7 +1,8 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.deck.DeleteSlideCommand;
 import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
-
 import com.excudo.core.commands.RequestSchema;
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -56,7 +57,7 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCreateSlideCommandFromLLMRequest() {
-        RequestSchema.LLMRequest request = createTestLLMRequest("create-slide",
+        RequestSchema.LLMRequest request = createTestLLMRequest(CreateSlideCommand.NAME,
             Map.of("position", 2, "title", "Test Slide from LLM"));
 
         List<Command> commands = commandFactory.createFromLLMRequest(request, slideCreator, null);
@@ -91,7 +92,7 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCommandInvokerWithLLMCommands() {
-        RequestSchema.LLMRequest request = createTestLLMRequest("create-slide",
+        RequestSchema.LLMRequest request = createTestLLMRequest(CreateSlideCommand.NAME,
             Map.of("position", 3, "title", "Invoker Test Slide"));
 
         List<Command> commands = commandFactory.createFromLLMRequest(
@@ -126,7 +127,7 @@ public class CommandFactoryIntegrationTest {
     @Test
     void testDeleteCommandCreation() {
         // Use a real command name that CommandRegistry knows
-        RequestSchema.LLMRequest request = createTestLLMRequest("delete-slide",
+        RequestSchema.LLMRequest request = createTestLLMRequest(DeleteSlideCommand.NAME,
             Map.of("slideNumber", 1));
 
         List<Command> commands = commandFactory.createFromLLMRequest(
@@ -142,7 +143,7 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testAddShapeCommandCreation() {
-        RequestSchema.LLMRequest request = createTestLLMRequest("add-shape",
+        RequestSchema.LLMRequest request = createTestLLMRequest(AddShapeCommand.NAME,
             Map.of("slideNumber", 1, "shapeType", "RECTANGLE",
                    "x", 1000000, "y", 1000000, "width", 2000000, "height", 1000000));
 
@@ -154,9 +155,9 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCommandHistoryAndDescription() {
-        RequestSchema.LLMRequest request1 = createTestLLMRequest("create-slide",
+        RequestSchema.LLMRequest request1 = createTestLLMRequest(CreateSlideCommand.NAME,
             Map.of("position", 4, "title", "History Test 1"));
-        RequestSchema.LLMRequest request2 = createTestLLMRequest("create-slide",
+        RequestSchema.LLMRequest request2 = createTestLLMRequest(CreateSlideCommand.NAME,
             Map.of("position", 5, "title", "History Test 2"));
 
         List<Command> commands1 = commandFactory.createFromLLMRequest(

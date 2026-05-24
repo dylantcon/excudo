@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.layout;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -48,7 +49,7 @@ public class RenameLayoutCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
             "Layout rename undo not supported");
     }
 

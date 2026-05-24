@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -75,7 +76,7 @@ public class UpdateAnimationTimingCommand implements Command {
     }
 
     @Override public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
             "Undo not yet supported for animation timing update");
     }
 

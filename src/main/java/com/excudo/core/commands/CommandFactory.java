@@ -522,7 +522,7 @@ public class CommandFactory extends AbstractCommandFactory {
         
         switch (commandName) {
 
-            // "add-animation"/"add-animation", "remove-animation", "update-animation"
+            // AddAnimationCommand.NAME/AddAnimationCommand.NAME, RemoveAnimationCommand.NAME, UpdateAnimationCommand.NAME
             // migrated to class registry (AddAnimationCommand, RemoveAnimationCommand,
             // UpdateAnimationCommand).
 

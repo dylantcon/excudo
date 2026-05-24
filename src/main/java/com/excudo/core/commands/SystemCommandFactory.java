@@ -62,7 +62,7 @@ public class SystemCommandFactory extends AbstractCommandFactory {
             case "?":
                 return createHelp(parameters, displayAdapter);
                 
-            // "undo", "redo", "history" migrated to class registry
+            // UndoCommand.NAME, RedoCommand.NAME, HistoryCommand.NAME migrated to class registry
                 
             default:
                 return null;

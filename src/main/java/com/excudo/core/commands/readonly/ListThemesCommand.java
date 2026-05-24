@@ -1,5 +1,6 @@
 package com.excudo.core.commands.readonly;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -76,7 +77,7 @@ public class ListThemesCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Cannot undo a read-only list operation");
     }
 

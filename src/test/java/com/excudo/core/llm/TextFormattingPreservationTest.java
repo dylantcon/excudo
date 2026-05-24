@@ -1,5 +1,7 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 import com.excudo.core.llm.RequestParser;

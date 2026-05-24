@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.slide;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -55,15 +56,15 @@ public class UngroupCommand implements Command {
     @Override
     public void undo() {
         if (!executed) {
-            throw new CommandExecutionException(getDescription(), "undo", "Command has not been executed");
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Command has not been executed");
         }
         if (!canUndo()) {
-            throw new CommandExecutionException(getDescription(), "undo", "No child SPIDs available for undo");
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "No child SPIDs available for undo");
         }
 
         ExecutionResult<Integer> result = orchestrator.groupShapes(slideNumber, childSpids);
         if (!result.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Failed to re-group shapes on undo: " + result.getMessage());
         }
 

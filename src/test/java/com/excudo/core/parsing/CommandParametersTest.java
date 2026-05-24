@@ -1,5 +1,9 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.mutating.slide.MoveShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+
 import org.junit.Test;
 
 import java.util.Map;
@@ -13,10 +17,10 @@ public class CommandParametersTest {
 
     @Test
     public void basicConstruction() {
-        CommandParameters cmd = new CommandParameters("add-shape",
+        CommandParameters cmd = new CommandParameters(AddShapeCommand.NAME,
             Map.of("type", "rect", "slide", "1"));
 
-        assertEquals("add-shape", cmd.getCommandName());
+        assertEquals(AddShapeCommand.NAME, cmd.getCommandName());
         assertEquals("rect", cmd.getString("type"));
         assertEquals("1", cmd.getString("slide"));
     }
@@ -45,7 +49,7 @@ public class CommandParametersTest {
 
     @Test
     public void getIntegerParsesNumbers() {
-        CommandParameters cmd = CommandParameters.builder("move-shape")
+        CommandParameters cmd = CommandParameters.builder(MoveShapeCommand.NAME)
             .addParam("x", 914400)
             .addParam("y", 457200)
             .build();
@@ -85,8 +89,8 @@ public class CommandParametersTest {
 
     @Test
     public void commandNamePreserved() {
-        CommandParameters cmd = CommandParameters.builder("add-animation").build();
-        assertEquals("add-animation", cmd.getCommandName());
+        CommandParameters cmd = CommandParameters.builder(AddAnimationCommand.NAME).build();
+        assertEquals(AddAnimationCommand.NAME, cmd.getCommandName());
     }
 
     @Test

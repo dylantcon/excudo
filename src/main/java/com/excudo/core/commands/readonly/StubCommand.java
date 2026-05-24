@@ -1,5 +1,6 @@
 package com.excudo.core.commands.readonly;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -49,7 +50,7 @@ public class StubCommand implements Command {
     public void undo() {
         throw new CommandExecutionException(
             getDescription(),
-            "undo", 
+            UndoCommand.NAME, 
             "Stub commands cannot be undone"
         );
     }

@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.layout;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -51,12 +52,12 @@ public class DuplicateLayoutCommand implements Command {
     @Override
     public void undo() {
         if (!executed || createdLayoutId == null) {
-            throw new CommandExecutionException(getDescription(), "undo", "Command has not been executed");
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME, "Command has not been executed");
         }
 
         ExecutionResult<Void> result = orchestrator.deleteLayout(createdLayoutId);
         if (!result.isSuccess()) {
-            throw new CommandExecutionException(getDescription(), "undo",
+            throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Failed to undo layout duplication: " + result.getMessage());
         }
 

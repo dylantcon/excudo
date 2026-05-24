@@ -1,5 +1,7 @@
 package com.excudo.core.parsing;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -207,7 +209,7 @@ public class CommandSchemaTest {
 
     @Test
     public void toLLMToolSchemaReturnsJsonLikeStringForLlmEnabledSchema() {
-        CommandSchema schema = CommandSchema.builder("add-shape")
+        CommandSchema schema = CommandSchema.builder(AddShapeCommand.NAME)
                 .description("Adds a shape to a slide")
                 .llmEnabled(true)
                 .llmDescription("Insert a new shape on the specified slide")
@@ -218,7 +220,7 @@ public class CommandSchemaTest {
 
         assertNotNull(json);
         assertTrue(json.contains("\"name\""));
-        assertTrue(json.contains("add-shape"));
+        assertTrue(json.contains(AddShapeCommand.NAME));
         assertTrue(json.contains("\"description\""));
         assertTrue(json.contains("\"parameters\""));
         assertTrue(json.contains("\"properties\""));

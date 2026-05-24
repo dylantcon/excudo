@@ -1,5 +1,7 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.meta.UndoCommand;
+
 /**
  * Exception thrown when a Command cannot be executed or undone.
  * 
@@ -10,13 +12,13 @@ package com.excudo.core.commands;
 public class CommandExecutionException extends RuntimeException {
     
     private final String commandDescription;
-    private final String operation; // "execute" or "undo"
+    private final String operation; // "execute" or UndoCommand.NAME
     
     /**
      * Create a new CommandExecutionException.
      * 
      * @param commandDescription description of the command that failed
-     * @param operation the operation that failed ("execute" or "undo")
+     * @param operation the operation that failed ("execute" or UndoCommand.NAME)
      * @param message detailed error message
      */
     public CommandExecutionException(String commandDescription, String operation, String message) {
@@ -29,7 +31,7 @@ public class CommandExecutionException extends RuntimeException {
      * Create a new CommandExecutionException with a cause.
      * 
      * @param commandDescription description of the command that failed
-     * @param operation the operation that failed ("execute" or "undo")
+     * @param operation the operation that failed ("execute" or UndoCommand.NAME)
      * @param message detailed error message
      * @param cause the underlying exception that caused the failure
      */
@@ -51,7 +53,7 @@ public class CommandExecutionException extends RuntimeException {
     /**
      * Get the operation that failed.
      * 
-     * @return "execute" or "undo"
+     * @return "execute" or UndoCommand.NAME
      */
     public String getOperation() {
         return operation;

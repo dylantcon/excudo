@@ -1,5 +1,6 @@
 package com.excudo.core.commands.meta;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
@@ -121,7 +122,7 @@ public class NewPresentationCommand implements Command {
 
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
                 "Cannot undo new presentation creation");
     }
 

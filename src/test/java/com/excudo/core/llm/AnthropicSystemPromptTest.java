@@ -1,5 +1,9 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.ContentEditCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -38,9 +42,9 @@ public class AnthropicSystemPromptTest {
         String prompt = AnthropicSystemPrompt.POWERPOINT_EDITOR_PROMPT;
 
         assertTrue("Should contain create command", prompt.contains("create"));
-        assertTrue("Should contain content-edit command", prompt.contains("content-edit"));
-        assertTrue("Should contain add-shape command", prompt.contains("add-shape"));
-        assertTrue("Should contain add-animation command", prompt.contains("add-animation"));
+        assertTrue("Should contain content-edit command", prompt.contains(ContentEditCommand.NAME));
+        assertTrue("Should contain add-shape command", prompt.contains(AddShapeCommand.NAME));
+        assertTrue("Should contain add-animation command", prompt.contains(AddAnimationCommand.NAME));
     }
 
     @Test

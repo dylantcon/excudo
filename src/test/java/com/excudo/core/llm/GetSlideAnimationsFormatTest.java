@@ -1,5 +1,7 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
 import com.excudo.core.commands.CommandFactory;
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.model.PPTXDocument;
@@ -85,7 +87,7 @@ public class GetSlideAnimationsFormatTest {
     private int addRect(int slide, String text) {
         com.excudo.core.commands.Command cmd =
             com.excudo.core.commands.CommandClassRegistry.createFromParameters(
-                new CommandParameters("add-shape", Map.of(
+                new CommandParameters(AddShapeCommand.NAME, Map.of(
                     "slide", String.valueOf(slide),
                     "shape-type", "RECTANGLE",
                     "text", text,
@@ -102,7 +104,7 @@ public class GetSlideAnimationsFormatTest {
     }
 
     private void addAnimation(int slide, int spid, String type, String trigger) {
-        var cmdParams = CommandParameters.builder("add-animation")
+        var cmdParams = CommandParameters.builder(AddAnimationCommand.NAME)
             .addParam("slide", slide)
             .addParam("spid", spid)
             .addParam("type", type)

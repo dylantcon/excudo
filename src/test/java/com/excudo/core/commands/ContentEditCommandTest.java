@@ -213,9 +213,9 @@ public class ContentEditCommandTest {
         // Dispatch-path enforcement -- fromParameters throws when both flags
         // are set, with a clear error message. After the class-registry sweep
         // the dispatch path is CommandClassRegistry.createFromParameters,
-        // keyed on the derived name "content-edit".
+        // keyed on the derived name ContentEditCommand.NAME.
         try {
-            var parsed = new com.excudo.core.parsing.CommandParameters("content-edit",
+            var parsed = new com.excudo.core.parsing.CommandParameters(ContentEditCommand.NAME,
                 java.util.Map.of("slide", "1", "spid", "3", "text", "x",
                                  "prepend", "true", "append", "true"));
             com.excudo.core.commands.CommandClassRegistry.createFromParameters(

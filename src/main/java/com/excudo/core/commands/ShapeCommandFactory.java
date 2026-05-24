@@ -1,5 +1,6 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.mutating.slide.RemoveTransitionCommand;
 import com.excudo.core.commands.mutating.layout.AddLayoutCommand;
 import com.excudo.core.commands.mutating.layout.AddPlaceholderCommand;
 import com.excudo.core.commands.mutating.layout.DeleteLayoutCommand;
@@ -107,25 +108,25 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             // "edit-content" migrated to class registry (ContentEditCommand)
 
 
-            // "add-shape" intentionally absent: routed via the
+            // AddShapeCommand.NAME intentionally absent: routed via the
             // class-keyed registry in CommandRegistry / CommandFactory
             // (AddShapeCommand.SCHEMA + AddShapeCommand.fromParameters).
 
-            // "remove-shape" migrated to class registry (RemoveShapeCommand)
+            // RemoveShapeCommand.NAME migrated to class registry (RemoveShapeCommand)
 
             // "edit-bullet" migrated to class registry (BulletPointEditCommand)
 
-            // "set-body-props" migrated to class registry (SetBodyPropsCommand)
+            // SetBodyPropsCommand.NAME migrated to class registry (SetBodyPropsCommand)
 
-            // "set-text" migrated to class registry (SetTextCommand)
+            // SetTextCommand.NAME migrated to class registry (SetTextCommand)
 
-            // "add-notes" migrated to class registry (AddNotesCommand)
+            // AddNotesCommand.NAME migrated to class registry (AddNotesCommand)
 
-            // "add-connector" migrated to class registry (AddConnectorCommand)
+            // AddConnectorCommand.NAME migrated to class registry (AddConnectorCommand)
 
-            // "set-action" migrated to class registry (SetActionCommand)
+            // SetActionCommand.NAME migrated to class registry (SetActionCommand)
 
-            // "set-transition" / "remove-transition" migrated to class registry
+            // SetTransitionCommand.NAME / RemoveTransitionCommand.NAME migrated to class registry
 
             // "move" migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
 
@@ -241,8 +242,8 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             // "duplicate" migrated to class registry (DuplicateShapeCommand.SCHEMA / fromParameters)
 
-            // "inject" -> "inject-icon" (InjectIconCommand) and
-            // "enhance" -> "enhanced-content" (EnhancedContentCommand)
+            // "inject" -> InjectIconCommand.NAME (InjectIconCommand) and
+            // "enhance" -> EnhancedContentCommand.NAME (EnhancedContentCommand)
             // migrated to class registry.
 
             // "group" migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)

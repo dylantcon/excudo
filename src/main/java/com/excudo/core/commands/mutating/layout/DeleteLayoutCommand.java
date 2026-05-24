@@ -1,5 +1,6 @@
 package com.excudo.core.commands.mutating.layout;
 
+import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -46,7 +47,7 @@ public class DeleteLayoutCommand implements Command {
     public void undo() {
         // Layout deletion undo would require storing the full layout XML + rels
         // which is complex. For now, undo is not supported.
-        throw new CommandExecutionException(getDescription(), "undo",
+        throw new CommandExecutionException(getDescription(), UndoCommand.NAME,
             "Layout deletion cannot be undone");
     }
 

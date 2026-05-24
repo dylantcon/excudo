@@ -1,5 +1,6 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
 import com.excudo.core.commands.*;
 import com.excudo.core.orchestration.*;
 import com.excudo.core.services.ContextService;
@@ -780,7 +781,7 @@ public class AgenticLLMService {
 
     /**
      * Convert a kebab-case command type to a human-readable label.
-     * E.g. "add-shape" -> "Add shape", "edit-content" -> "Edit content"
+     * E.g. AddShapeCommand.NAME -> "Add shape", "edit-content" -> "Edit content"
      */
     private static String humanizeCommandType(String type) {
         if (type == null || type.isEmpty()) return type;

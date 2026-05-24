@@ -1,5 +1,7 @@
 package com.excudo.console.utils;
 
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -15,7 +17,7 @@ public class ConsoleArgumentParserTest {
             "add-shape 1 rect", 10);
         assertNotNull(args);
         assertTrue(args.getArgCount() >= 3);
-        assertEquals("add-shape", args.getArg(0));
+        assertEquals(AddShapeCommand.NAME, args.getArg(0));
         assertEquals("1", args.getArg(1));
         assertEquals("rect", args.getArg(2));
     }
@@ -50,7 +52,7 @@ public class ConsoleArgumentParserTest {
     public void parseWithExtraSpaces() {
         ConsoleArgumentParser.ParsedArgs args = ConsoleArgumentParser.parseQuotedArgs(
             "  add-shape   1   rect  ", 10);
-        assertEquals("add-shape", args.getArg(0));
+        assertEquals(AddShapeCommand.NAME, args.getArg(0));
     }
 
     @Test
@@ -67,7 +69,7 @@ public class ConsoleArgumentParserTest {
         String[] tokens = ConsoleArgumentParser.parseCommand("add-shape 1 rect");
         assertNotNull(tokens);
         assertEquals(3, tokens.length);
-        assertEquals("add-shape", tokens[0]);
+        assertEquals(AddShapeCommand.NAME, tokens[0]);
     }
 
     @Test

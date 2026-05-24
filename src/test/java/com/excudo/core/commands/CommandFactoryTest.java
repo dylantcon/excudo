@@ -1,5 +1,12 @@
 package com.excudo.core.commands;
 
+import com.excudo.core.commands.readonly.ListSlidesCommand;
+import com.excudo.core.commands.mutating.slide.UpdateAnimationCommand;
+import com.excudo.core.commands.mutating.slide.RemoveAnimationCommand;
+import com.excudo.core.commands.mutating.slide.AddShapeCommand;
+import com.excudo.core.commands.mutating.slide.AddAnimationCommand;
+import com.excudo.core.commands.mutating.deck.CreateSlideCommand;
+
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.test.utils.StubPPTXOrchestrator;
 import org.junit.Before;
@@ -47,7 +54,7 @@ public class CommandFactoryTest {
         // by any sub-factory, so CommandFactory.handlesCommand returns true
         // via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand("list-slides"));
+        assertTrue(factory.handlesCommand(ListSlidesCommand.NAME));
     }
 
     @Test
@@ -61,13 +68,13 @@ public class CommandFactoryTest {
     public void addShapeRoutedThroughClassRegistry() {
         // After the class-keyed registry migration, AddShapeCommand owns its
         // SCHEMA + fromParameters and dispatches via CommandClassRegistry --
-        // ShapeCommandFactory no longer claims "add-shape" in HANDLED_COMMANDS.
+        // ShapeCommandFactory no longer claims AddShapeCommand.NAME in HANDLED_COMMANDS.
         // CommandFactory.handlesCommand falls through to true for any name no
         // sub-factory claims, but actual dispatch goes through the class
         // registry first (verified separately by the round-trip tests).
         assertNotNull("AddShapeCommand must be class-registered",
                 CommandClassRegistry.createFromParameters(
-                    CommandParameters.builder("add-shape")
+                    CommandParameters.builder(AddShapeCommand.NAME)
                         .addParam("slide", 1)
                         .addParam("x", 0)
                         .addParam("y", 0)
@@ -83,7 +90,7 @@ public class CommandFactoryTest {
         // by any sub-factory, so CommandFactory.handlesCommand returns true
         // via the fallback path. Dispatch routes through CommandClassRegistry.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand("create-slide"));
+        assertTrue(factory.handlesCommand(CreateSlideCommand.NAME));
     }
 
     @Test
@@ -99,19 +106,19 @@ public class CommandFactoryTest {
         // claimed by any sub-factory, so CommandFactory.handlesCommand
         // returns true via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand("add-animation"));
+        assertTrue(factory.handlesCommand(AddAnimationCommand.NAME));
     }
 
     @Test
     public void handlesCommandReturnsTrueForRemoveAnimation() {
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand("remove-animation"));
+        assertTrue(factory.handlesCommand(RemoveAnimationCommand.NAME));
     }
 
     @Test
     public void handlesCommandReturnsTrueForUpdateAnimation() {
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand("update-animation"));
+        assertTrue(factory.handlesCommand(UpdateAnimationCommand.NAME));
     }
 
     @Test
