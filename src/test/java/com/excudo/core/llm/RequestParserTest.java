@@ -21,7 +21,7 @@ public class RequestParserTest {
         "{" +
         "\"schemaVersion\": \"" + RequestSchema.SCHEMA_VERSION + "\"," +
         "\"operations\": [" +
-        "  {\"type\": \"create\", \"parameters\": {\"position\": 1}}" +
+        "  {\"type\": \"create-slide\", \"parameters\": {\"position\": 1}}" +
         "]" +
         "}";
 
@@ -127,7 +127,7 @@ public class RequestParserTest {
             "{" +
             "\"schemaVersion\": \"99.99\"," +
             "\"operations\": [" +
-            "  {\"type\": \"create\", \"parameters\": {\"position\": 1}}" +
+            "  {\"type\": \"create-slide\", \"parameters\": {\"position\": 1}}" +
             "]" +
             "}";
         ExecutionResult<RequestSchema.LLMRequest> result = parser.parseRequest(json);
@@ -140,8 +140,8 @@ public class RequestParserTest {
             "{" +
             "\"schemaVersion\": \"" + RequestSchema.SCHEMA_VERSION + "\"," +
             "\"operations\": [" +
-            "  {\"type\": \"create\", \"parameters\": {\"position\": 1}}," +
-            "  {\"type\": \"create\", \"parameters\": {\"position\": 2}}" +
+            "  {\"type\": \"create-slide\", \"parameters\": {\"position\": 1}}," +
+            "  {\"type\": \"create-slide\", \"parameters\": {\"position\": 2}}" +
             "]" +
             "}";
         ExecutionResult<RequestSchema.LLMRequest> result = parser.parseRequest(json);
@@ -217,7 +217,7 @@ public class RequestParserTest {
             "{" +
             "\"schemaVersion\": \"99.99\"," +
             "\"operations\": [" +
-            "  {\"type\": \"create\", \"parameters\": {\"position\": 1}}" +
+            "  {\"type\": \"create-slide\", \"parameters\": {\"position\": 1}}" +
             "]" +
             "}";
         RequestParser lenient = new RequestParser(false);

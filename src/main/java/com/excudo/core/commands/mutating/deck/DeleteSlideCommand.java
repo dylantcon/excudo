@@ -1,11 +1,15 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.OrchestrationContext;
 import com.excudo.core.orchestration.SessionManager;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import java.util.UUID;
@@ -18,11 +22,28 @@ import java.nio.file.StandardCopyOption;
 
 /**
  * GoF Command implementation for deleting slides.
- * 
+ *
  * This command encapsulates all the business logic for deleting
  * a slide from the presentation with optional safety checks.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code delete-slide} derives from the class name.
  */
 public class DeleteSlideCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number to delete").llmName("slideNumber").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Delete a slide")
+        .llmEnabled(true)
+        .parameter(SLIDE)
+        .example("delete-slide 3")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DeleteSlideCommand(p.get(SLIDE), false, "Console delete command", ctx.orchestrator());
+    }
     
     private final String actionId;
     private final int slideNumber;

@@ -76,10 +76,12 @@ public class CommandFactoryTest {
     }
 
     @Test
-    public void handlesCommandReturnsFalseForCreateHandledBySlideFactory() {
+    public void handlesCommandReturnsTrueForCreateSlide() {
+        // 'create-slide' is class-registered (CreateSlideCommand); not claimed
+        // by any sub-factory, so CommandFactory.handlesCommand returns true
+        // via the fallback path. Dispatch routes through CommandClassRegistry.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertFalse("'create' is handled by SlideCommandFactory, not CommandFactory",
-                factory.handlesCommand("create"));
+        assertTrue(factory.handlesCommand("create-slide"));
     }
 
     @Test

@@ -60,7 +60,7 @@ public class CommandRegistryAutocompleteTest {
         // refactor silently drops a core command.
         Set<String> names = CommandRegistry.getCommandNames();
         String[] mustHave = {
-            "load", "save", "new", "list", "show", "create", "delete",
+            "load", "save", "new", "list", "show", "create-slide", "delete-slide",
             "add-shape", "remove-shape", "add-animation", "remove-animation",
             "list-layouts", "list-themes", "apply-theme",
             "undo", "redo", "arrange", "help"

@@ -73,6 +73,9 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.RemoveTransitionCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.InjectIconCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.EnhancedContentCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.deck.CreateSlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.deck.DeleteSlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.deck.CopySlideCommand.class);
     }
 
     private CommandClassRegistry() {}

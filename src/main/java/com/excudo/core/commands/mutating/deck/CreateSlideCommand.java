@@ -1,10 +1,14 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
 
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -18,12 +22,63 @@ import com.excudo.core.utils.ComponentLogger;
 
 /**
  * GoF Command for creating new slides.
- * 
+ *
  * This is a pure Command pattern implementation that handles slide creation
  * directly using the orchestrator. Provides undo support by tracking created
  * slides and removing them on rollback.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code create-slide} derives from the class name.
+ * Dual-path construction: console (REPL) uses {@link CommandSessionContext}
+ * to fetch the active orchestrator; the LLM/MCP path pulls {@link SlideCreator}
+ * from the orchestrator's context directly. {@code fromParameters} branches
+ * on whether the {@link CommandContext} carries a session.
  */
 public class CreateSlideCommand implements Command {
+
+    static final Parameter<Integer> POSITION = Parameter.ofInt("position")
+        .slideNumber().description("Position to insert slide (1-based)")
+        .llmName("slideNumber").required().build();
+    static final Parameter<String> TITLE = Parameter.ofString("title")
+        .description("Slide title").required().build();
+    static final Parameter<String> LAYOUT = Parameter.ofString("layout")
+        .description("Slide layout ID (e.g. slideLayout1)")
+        .llmName("layoutId").def("slideLayout1").build();
+    static final Parameter<String> CONTENT = Parameter.ofString("content")
+        .description("JSON array of strings, one per content placeholder. e.g. "
+            + "[\"- Bullet 1\\n- Bullet 2\"] for 1-content layouts, "
+            + "[\"Left col\",\"Right col\"] for 2-content layouts. Supports markdown.")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Create a new slide")
+        .llmEnabled(true)
+        .llmDescription("Create slide with title and content. ALWAYS pass content as a JSON array of markdown strings, one per placeholder.")
+        .parameter(POSITION).parameter(TITLE).parameter(LAYOUT).parameter(CONTENT)
+        .example("create-slide 2 \"My New Slide\"")
+        .example("create-slide 2 \"My Slide\" slideLayout2")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        int position = p.get(POSITION);
+        String title = p.get(TITLE);
+        String layoutId = p.get(LAYOUT);
+        String content = p.opt(CONTENT).orElse(null);
+
+        if (ctx.displayAdapter() instanceof CommandSessionContext) {
+            // Console path: session-backed orchestrator + display sink.
+            return new CreateSlideCommand(
+                ctx.requireSession(), ctx.requireDisplay(),
+                position, title, layoutId, content);
+        }
+        // LLM path: orchestrator already wired; pull SlideCreator from its context.
+        SlideCreator slideCreator = null;
+        if (ctx.orchestrator() != null && ctx.orchestrator().getContext().isPresent()) {
+            slideCreator = ctx.orchestrator().getContext().get().getSlideCreator();
+        }
+        return new CreateSlideCommand(position, title, layoutId, content,
+            slideCreator, null, ctx.orchestrator());
+    }
     
     private final int position;
     private final String title;

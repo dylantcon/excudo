@@ -1,9 +1,13 @@
 package com.excudo.core.commands.mutating.deck;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.results.SlideExecutionResult;
 import java.util.Map;
@@ -11,11 +15,34 @@ import java.util.UUID;
 
 /**
  * GoF Command implementation for copying slides.
- * 
+ *
  * This command encapsulates all the business logic for copying
  * a slide from one position to another with optional modifications.
+ *
+ * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
+ * the canonical name {@code copy-slide} derives from the class name.
  */
 public class CopySlideCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Source slide number").llmName("sourceSlide").required().build();
+    static final Parameter<Integer> POSITION = Parameter.ofInt("position")
+        .description("Target position for the copy").llmName("targetPosition").required().build();
+    static final Parameter<String> TITLE = Parameter.ofString("title")
+        .description("New title for the copied slide").llmName("newTitle").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Copy a slide to a new position")
+        .llmEnabled(true)
+        .parameter(SLIDE).parameter(POSITION).parameter(TITLE)
+        .example("copy-slide 1 3")
+        .example("copy-slide 2 5 \"Updated Title\"")
+        .build();
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new CopySlideCommand(p.get(SLIDE), p.get(POSITION),
+            p.opt(TITLE).orElse(null), null, true, ctx.orchestrator());
+    }
     
     private final String actionId;
     private final int sourceSlide;

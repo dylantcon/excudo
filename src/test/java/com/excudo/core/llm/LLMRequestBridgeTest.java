@@ -18,8 +18,8 @@ public class LLMRequestBridgeTest {
     @Test
     public void testResolveCanonicalCommandName() {
         // Direct command name should work
-        assertEquals("create", LLMRequestBridge.resolveCommandName("create"));
-        assertEquals("delete", LLMRequestBridge.resolveCommandName("delete"));
+        assertEquals("create-slide", LLMRequestBridge.resolveCommandName("create-slide"));
+        assertEquals("delete-slide", LLMRequestBridge.resolveCommandName("delete-slide"));
         assertEquals("content-edit", LLMRequestBridge.resolveCommandName("content-edit"));
     }
 
@@ -40,7 +40,7 @@ public class LLMRequestBridgeTest {
 
     @Test
     public void testIsRecognizedActionType() {
-        assertTrue(LLMRequestBridge.isRecognizedActionType("create"));
+        assertTrue(LLMRequestBridge.isRecognizedActionType("create-slide"));
         // content-edit is the canonical name (derived from ContentEditCommand)
         // after the class-registry sweep; the old "edit-content" alias was
         // intentionally not preserved.
@@ -55,13 +55,13 @@ public class LLMRequestBridgeTest {
     @Test
     public void testBridgeCreate() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "create",
+            "create-slide",
             Map.of("position", 3, "title", "My Slide", "layoutId", "slideLayout2"),
             "Create a slide", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("create", cmd.getCommandName());
+        assertEquals("create-slide", cmd.getCommandName());
         assertEquals("3", cmd.getString("position"));
         assertEquals("My Slide", cmd.getString("title"));
         // layoutId -> layout (via llmName mapping on the schema parameter)
@@ -87,26 +87,26 @@ public class LLMRequestBridgeTest {
     @Test
     public void testBridgeDelete() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "delete",
+            "delete-slide",
             Map.of("slideNumber", 3),
             "Delete slide", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("delete", cmd.getCommandName());
+        assertEquals("delete-slide", cmd.getCommandName());
         assertEquals("3", cmd.getString("slide"));
     }
 
     @Test
     public void testBridgeCopy() {
         RequestSchema.ActionRequest action = new RequestSchema.ActionRequest(
-            "copy",
+            "copy-slide",
             Map.of("sourceSlide", 2, "targetPosition", 5, "newTitle", "Copy"),
             "Copy slide", null
         );
 
         CommandParameters cmd = LLMRequestBridge.bridge(action);
-        assertEquals("copy", cmd.getCommandName());
+        assertEquals("copy-slide", cmd.getCommandName());
         assertEquals("2", cmd.getString("slide"));
         assertEquals("5", cmd.getString("position"));
         assertEquals("Copy", cmd.getString("title"));
@@ -181,7 +181,7 @@ public class LLMRequestBridgeTest {
         RequestSchema.LLMRequest request = new RequestSchema.LLMRequest(
             "1.0",
             List.of(
-                new RequestSchema.ActionRequest("create",
+                new RequestSchema.ActionRequest("create-slide",
                     Map.of("position", 1, "title", "Intro"), "Create", null),
                 new RequestSchema.ActionRequest("content-edit",
                     Map.of("slideNumber", 1, "targetSpid", 2, "newText", "Hello"), "Edit", null)
@@ -191,7 +191,7 @@ public class LLMRequestBridgeTest {
 
         List<CommandParameters> commands = LLMRequestBridge.bridgeAll(request);
         assertEquals(2, commands.size());
-        assertEquals("create", commands.get(0).getCommandName());
+        assertEquals("create-slide", commands.get(0).getCommandName());
         assertEquals("content-edit", commands.get(1).getCommandName());
     }
 
@@ -204,7 +204,7 @@ public class LLMRequestBridgeTest {
         assertTrue(schema.startsWith("["));
         assertTrue(schema.endsWith("]"));
         // Should contain LLM-enabled commands
-        assertTrue(schema.contains("\"create\""));
+        assertTrue(schema.contains("\"create-slide\""));
         assertTrue(schema.contains("\"content-edit\""));
         assertTrue(schema.contains("\"add-shape\""));
     }
@@ -214,7 +214,7 @@ public class LLMRequestBridgeTest {
         String ref = LLMRequestBridge.generateLLMCommandReference();
         assertNotNull(ref);
         assertTrue(ref.contains("COMMANDS:"));
-        assertTrue(ref.contains("create"));
+        assertTrue(ref.contains("create-slide"));
         assertTrue(ref.contains("content-edit"));
         assertTrue(ref.contains("add-animation"));
         assertTrue(ref.contains("arrange"));
@@ -224,7 +224,7 @@ public class LLMRequestBridgeTest {
     public void testGetLLMEnabledCommandNames() {
         List<String> names = LLMRequestBridge.getLLMEnabledCommandNames();
         assertFalse(names.isEmpty());
-        assertTrue(names.contains("create"));
+        assertTrue(names.contains("create-slide"));
         assertTrue(names.contains("content-edit"));
         assertTrue(names.contains("add-shape"));
         assertTrue(names.contains("add-animation"));

@@ -17,7 +17,7 @@ public class CommandRegistryTest {
 
     // Commands that must be present for the console to function correctly
     private static final List<String> CRITICAL_COMMANDS = Arrays.asList(
-        "create", "delete", "list", "add-shape", "add-animation",
+        "create-slide", "delete-slide", "list", "add-shape", "add-animation",
         "content-edit", "load", "save", "show", "undo", "redo", "llm"
     );
 
@@ -33,12 +33,12 @@ public class CommandRegistryTest {
 
     @Test
     public void getSchema_create_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("create"));
+        assertNotNull(CommandRegistry.getSchema("create-slide"));
     }
 
     @Test
     public void getSchema_delete_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("delete"));
+        assertNotNull(CommandRegistry.getSchema("delete-slide"));
     }
 
     @Test
@@ -125,7 +125,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_hasNonEmptyDescription() {
-        CommandSchema schema = CommandRegistry.getSchema("create");
+        CommandSchema schema = CommandRegistry.getSchema("create-slide");
         assertNotNull(schema.getDescription());
         assertFalse("'create' schema must have a non-empty description",
                 schema.getDescription().trim().isEmpty());
@@ -161,7 +161,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_hasRequiredParameters() {
-        CommandSchema schema = CommandRegistry.getSchema("create");
+        CommandSchema schema = CommandRegistry.getSchema("create-slide");
         List<Parameter<?>> params = schema.getParameters();
 
         assertNotNull(params);
@@ -182,7 +182,7 @@ public class CommandRegistryTest {
 
     @Test
     public void createSchema_firstParameterIsPositionOrSlideNumber() {
-        CommandSchema schema = CommandRegistry.getSchema("create");
+        CommandSchema schema = CommandRegistry.getSchema("create-slide");
         List<Parameter<?>> params = schema.getParameters();
 
         assertFalse(params.isEmpty());

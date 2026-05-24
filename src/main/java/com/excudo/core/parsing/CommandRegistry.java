@@ -43,8 +43,8 @@ public class CommandRegistry {
     static {
         // Legacy schema-only registrations.
         // add-animation: migrated to class registry (AddAnimationCommand)
-        registerCreateCommand();
-        registerDeleteCommand();
+        // create-slide, delete-slide: migrated to class registry
+        // (CreateSlideCommand, DeleteSlideCommand)
         registerListCommand();
         // content-edit: migrated to class registry (ContentEditCommand)
         
@@ -86,7 +86,7 @@ public class CommandRegistry {
         // add-notes: migrated to class registry (AddNotesCommand)
         // add-connector: migrated to class registry (AddConnectorCommand)
         // set-action: migrated to class registry (SetActionCommand)
-        registerCopySlideCommand();
+        // copy-slide: migrated to class registry (CopySlideCommand)
         // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
         // set-transition, remove-transition: migrated to class registry
         // (SetTransitionCommand, RemoveTransitionCommand)
@@ -142,56 +142,6 @@ public class CommandRegistry {
     /**
      * Register the create command
      */
-    private static void registerCreateCommand() {
-        CommandSchema schema = CommandSchema.builder("create")
-            .description("Create a new slide")
-            .llmEnabled(true)
-            .llmDescription("Create slide with title and content. ALWAYS pass content as a JSON array of markdown strings, one per placeholder.")
-            .parameter(Parameter.builder("position")
-                .description("Position to insert slide (1-based)")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("title")
-                .description("Slide title")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("layout")
-                .description("Slide layout ID (e.g. slideLayout1)")
-                .llmName("layoutId")
-                .defaultValue("slideLayout1")
-                .build())
-            .parameter(Parameter.builder("content")
-                .description("JSON array of strings, one per content placeholder. e.g. [\"- Bullet 1\\n- Bullet 2\"] for 1-content layouts, [\"Left col\",\"Right col\"] for 2-content layouts. Supports markdown.")
-                .required(false)
-                .build())
-            .example("create 2 \"My New Slide\"")
-            .example("create 2 \"My Slide\" slideLayout2")
-            .build();
-
-        schemas.put("create", schema);
-    }
-    
-    /**
-     * Register the delete command
-     */
-    private static void registerDeleteCommand() {
-        CommandSchema schema = CommandSchema.builder("delete")
-            .description("Delete a slide")
-            .llmEnabled(true)
-            .parameter(Parameter.builder("slide")
-                .description("Slide number to delete")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .example("delete 3")
-            .build();
-
-        schemas.put("delete", schema);
-    }
-    
     /**
      * Register the list command
      */
@@ -733,33 +683,6 @@ public class CommandRegistry {
 
 
 
-    private static void registerCopySlideCommand() {
-        CommandSchema schema = CommandSchema.builder("copy")
-            .description("Copy a slide to a new position")
-            .llmEnabled(true)
-            .parameter(Parameter.builder("slide")
-                .description("Source slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("sourceSlide")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("position")
-                .description("Target position for the copy")
-                .type(ParameterType.INTEGER)
-                .llmName("targetPosition")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("title")
-                .description("New title for the copied slide")
-                .llmName("newTitle")
-                .required(false)
-                .build())
-            .example("copy 1 3")
-            .example("copy 2 5 \"Updated Title\"")
-            .build();
-
-        schemas.put("copy", schema);
-    }
 
 
     private static void registerListTransitionTypesCommand() {

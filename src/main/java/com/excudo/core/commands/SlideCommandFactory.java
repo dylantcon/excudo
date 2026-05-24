@@ -23,10 +23,10 @@ public class SlideCommandFactory extends AbstractCommandFactory {
     private static final Set<String> HANDLED_COMMANDS = new HashSet<>();
 
     static {
-        HANDLED_COMMANDS.add("create");
-        HANDLED_COMMANDS.add("delete");
-        HANDLED_COMMANDS.add("copy");
-        // move: migrated to class registry (MoveSlideCommand)
+        // create-slide, delete-slide, copy-slide, move-slide: all migrated
+        // to class registry. SlideCommandFactory is now drained -- the
+        // public factory helpers below remain only for direct programmatic
+        // callers (see public createSlide* / createSlideCopy / createSlideDeletion).
     }
     
     /**
@@ -47,21 +47,9 @@ public class SlideCommandFactory extends AbstractCommandFactory {
     public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
         String commandName = parameters.getCommandName();
         
-        switch (commandName) {
-            case "create":
-                return createSlideCreation(parameters, displayAdapter);
-                
-            case "delete":
-                return createSlideDeletion(parameters);
-
-            case "copy":
-                return createSlideCopyFromConsole(parameters);
-
-            // "move" migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
-
-            default:
-                return null;
-        }
+        // All slide-deck commands (create-slide, delete-slide, copy-slide,
+        // move-slide) are class-registered; this dispatch path is unreachable.
+        return null;
     }
     
     // ========== CONSOLE + LLM COMMAND CREATION ==========

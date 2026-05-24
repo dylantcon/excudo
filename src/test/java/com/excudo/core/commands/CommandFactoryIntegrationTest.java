@@ -56,7 +56,7 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCreateSlideCommandFromLLMRequest() {
-        RequestSchema.LLMRequest request = createTestLLMRequest("create",
+        RequestSchema.LLMRequest request = createTestLLMRequest("create-slide",
             Map.of("position", 2, "title", "Test Slide from LLM"));
 
         List<Command> commands = commandFactory.createFromLLMRequest(request, slideCreator, null);
@@ -91,7 +91,7 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCommandInvokerWithLLMCommands() {
-        RequestSchema.LLMRequest request = createTestLLMRequest("create",
+        RequestSchema.LLMRequest request = createTestLLMRequest("create-slide",
             Map.of("position", 3, "title", "Invoker Test Slide"));
 
         List<Command> commands = commandFactory.createFromLLMRequest(
@@ -126,7 +126,7 @@ public class CommandFactoryIntegrationTest {
     @Test
     void testDeleteCommandCreation() {
         // Use a real command name that CommandRegistry knows
-        RequestSchema.LLMRequest request = createTestLLMRequest("delete",
+        RequestSchema.LLMRequest request = createTestLLMRequest("delete-slide",
             Map.of("slideNumber", 1));
 
         List<Command> commands = commandFactory.createFromLLMRequest(
@@ -154,9 +154,9 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testCommandHistoryAndDescription() {
-        RequestSchema.LLMRequest request1 = createTestLLMRequest("create",
+        RequestSchema.LLMRequest request1 = createTestLLMRequest("create-slide",
             Map.of("position", 4, "title", "History Test 1"));
-        RequestSchema.LLMRequest request2 = createTestLLMRequest("create",
+        RequestSchema.LLMRequest request2 = createTestLLMRequest("create-slide",
             Map.of("position", 5, "title", "History Test 2"));
 
         List<Command> commands1 = commandFactory.createFromLLMRequest(
