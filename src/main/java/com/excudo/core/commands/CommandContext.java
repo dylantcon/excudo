@@ -77,4 +77,11 @@ public record CommandContext(PPTXOrchestrator orchestrator, Object displayAdapte
         throw new IllegalStateException(
             "LLM commands require LLMContext support; none on this dispatch path.");
     }
+
+    /** Icon context (icon command). */
+    public IconContext requireIconContext() {
+        if (displayAdapter instanceof IconContext c) return c;
+        throw new IllegalStateException(
+            "Icon commands require IconContext support; none on this dispatch path.");
+    }
 }

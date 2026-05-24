@@ -1,26 +1,24 @@
 package com.excudo.core.parsing;
 
-import com.excudo.core.commands.mutating.slide.AddShapeCommand;
-
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Utility class for parsing command line input into tokens, handling quoted strings properly.
- * 
+ *
  * This is a core parsing utility that doesn't depend on console-specific classes,
  * avoiding compilation order issues between core.parsing and console.utils packages.
  */
 public class CommandLineParser {
-    
+
     /**
      * Parse a command string into tokens, handling quoted strings.
      * Supports both single and double quotes.
-     * 
+     *
      * Examples:
      * - "create 1 'New Slide Title'" → ["create", "1", "New Slide Title"]
      * - "edit-content 1 2 \"Hello World\"" → ["edit-content", "1", "2", "Hello World"]
-     * - "add-shape 1 text 100 200 300 400" → [AddShapeCommand.NAME, "1", "text", "100", "200", "300", "400"]
+     * - "add-shape 1 text 100 200 300 400" → ["add-shape", "1", "text", "100", "200", "300", "400"]
      * 
      * @param command the command string to parse
      * @return array of parsed tokens

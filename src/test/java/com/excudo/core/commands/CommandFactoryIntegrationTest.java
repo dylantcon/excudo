@@ -75,15 +75,15 @@ public class CommandFactoryIntegrationTest {
 
     @Test
     void testSimpleCompositeInvokerDebug() {
-        CreateSlideCommand singleCommand = commandFactory.createSlideCreation(
-            5, "Single Test Slide", slideCreator, null);
+        CreateSlideCommand singleCommand = new CreateSlideCommand(
+            5, "Single Test Slide", null, slideCreator, null, orchestrator);
         assertNotNull(singleCommand);
 
         commandInvoker.executeCommand(singleCommand);
         assertTrue(singleCommand.isExecuted());
 
-        List<Command> commands = List.of(commandFactory.createSlideCreation(
-            6, "Composite Test Slide", slideCreator, null));
+        List<Command> commands = List.of(new CreateSlideCommand(
+            6, "Composite Test Slide", null, slideCreator, null, orchestrator));
         CompositeCommand composite = new CompositeCommand(commands, "Test composite");
 
         commandInvoker.executeCommand(composite);

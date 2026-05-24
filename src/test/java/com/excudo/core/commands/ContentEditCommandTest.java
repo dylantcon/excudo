@@ -128,9 +128,8 @@ public class ContentEditCommandTest {
         TextBody before = readTextBody(3);
         assertEquals("seed produces 3 paragraphs", 3, before.getParagraphs().size());
 
-        ShapeCommandFactory factory = new ShapeCommandFactory(orchestrator);
-        ContentEditCommand cmd = factory.createContentEdit(
-            1, 3, "- four", ContentEditCommand.Mode.APPEND, null);
+        
+        ContentEditCommand cmd = new ContentEditCommand(1, 3, "- four", ContentEditCommand.Mode.APPEND, orchestrator, null);
         cmd.execute();
 
         TextBody after = readTextBody(3);
@@ -154,9 +153,8 @@ public class ContentEditCommandTest {
         TextBody before = readTextBody(3);
         assertEquals(2, before.getParagraphs().size());
 
-        ShapeCommandFactory factory = new ShapeCommandFactory(orchestrator);
-        ContentEditCommand cmd = factory.createContentEdit(
-            1, 3, "- zero", ContentEditCommand.Mode.PREPEND, null);
+        
+        ContentEditCommand cmd = new ContentEditCommand(1, 3, "- zero", ContentEditCommand.Mode.PREPEND, orchestrator, null);
         cmd.execute();
 
         TextBody after = readTextBody(3);
@@ -172,9 +170,8 @@ public class ContentEditCommandTest {
         TextBody before = readTextBody(3);
         assertEquals(2, before.getParagraphs().size());
 
-        ShapeCommandFactory factory = new ShapeCommandFactory(orchestrator);
-        ContentEditCommand cmd = factory.createContentEdit(
-            1, 3, "3. third", ContentEditCommand.Mode.APPEND, null);
+        
+        ContentEditCommand cmd = new ContentEditCommand(1, 3, "3. third", ContentEditCommand.Mode.APPEND, orchestrator, null);
         cmd.execute();
 
         TextBody after = readTextBody(3);
@@ -193,9 +190,8 @@ public class ContentEditCommandTest {
         orchestrator.editShapeText(1, 3, "- one\n- two");
         TextBody before = readTextBody(3);
 
-        ShapeCommandFactory factory = new ShapeCommandFactory(orchestrator);
-        ContentEditCommand cmd = factory.createContentEdit(
-            1, 3, "", ContentEditCommand.Mode.PREPEND, null);
+        
+        ContentEditCommand cmd = new ContentEditCommand(1, 3, "", ContentEditCommand.Mode.PREPEND, orchestrator, null);
         cmd.execute();
 
         TextBody after = readTextBody(3);

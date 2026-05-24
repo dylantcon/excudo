@@ -1,7 +1,13 @@
 package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.IconContext;
 
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.smartcontent.IconRepository;
 import com.excudo.core.smartcontent.IconRepository.IconAsset;
@@ -16,10 +22,48 @@ import java.util.*;
 /**
  * Console command for icon management: search, upload, list, remove.
  * Interactive prompts (e.g. attribution on upload) go through the DisplayAdapter.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name {@code icon}
+ * derives from the class. Kept as an umbrella over its internal subcommand
+ * switch (search / upload / list / sources / help) -- the subcommands are all
+ * string-arg operations, so an internal dispatch keeps things compact without
+ * distorting the one-class-per-name principle.
  */
 public class IconCommand implements Command {
 
     private static final ComponentLogger logger = Logger.getLogger(IconCommand.class);
+
+    static final Parameter<String> SUBCOMMAND = Parameter.ofString("subcommand")
+        .description("Operation: search, upload, list, sources, help")
+        .validValues("search", "upload", "list", "sources", "help").required().build();
+    static final Parameter<String> ARGS = Parameter.ofString("args")
+        .description("Subcommand arguments").required(false).variableLength(true).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Icon management: search, upload, list, sources")
+        .parameter(SUBCOMMAND).parameter(ARGS)
+        .example("icon search database")
+        .example("icon upload ~/icons/logo.svg company-logo")
+        .example("icon list")
+        .example("icon sources")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(IconCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        IconContext iconCtx = ctx.requireIconContext();
+        IconRepository repo = iconCtx.getIconRepository();
+        if (repo == null) {
+            throw new IllegalStateException("Icon repository not initialized. Load a presentation first.");
+        }
+        String[] argArr = p.opt(ARGS).map(s -> s.isEmpty() ? new String[0] : s.split("\\s+"))
+            .orElse(new String[0]);
+        return new IconCommand(repo, p.get(SUBCOMMAND), argArr, new DisplayAdapter() {
+            @Override public void displayMessage(String msg) { iconCtx.displayMessage(msg); }
+            @Override public void displayError(String msg) { iconCtx.displayError(msg); }
+            @Override public String promptUser(String prompt) { return iconCtx.promptUser(prompt); }
+        });
+    }
 
     private final IconRepository repository;
     private final String subcommand;
