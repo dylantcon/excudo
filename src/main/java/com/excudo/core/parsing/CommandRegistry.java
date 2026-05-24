@@ -45,15 +45,15 @@ public class CommandRegistry {
         // add-animation: migrated to class registry (AddAnimationCommand)
         // create-slide, delete-slide: migrated to class registry
         // (CreateSlideCommand, DeleteSlideCommand)
-        registerListCommand();
+        // list-slides: migrated to class registry (ListSlidesCommand)
         // content-edit: migrated to class registry (ContentEditCommand)
         
         // Add missing command schemas identified in Phase 1 audit
         registerHelpCommand();
         registerLoadCommand();
         registerSaveCommand();
-        registerRenderCommand();
-        registerShowCommand();
+        // render-slide, show-slide: migrated to class registry
+        // (RenderSlideCommand, ShowSlideCommand)
         registerListLayoutsCommand();
         registerListSpidsCommand();
         registerListAnimationsCommand();
@@ -68,8 +68,7 @@ public class CommandRegistry {
         // inject-icon, enhanced-content: migrated to class registry
         // (InjectIconCommand, EnhancedContentCommand)
         // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
-        registerRedoCommand();
-        registerHistoryCommand();
+        // redo, history: migrated to class registry (RedoCommand, HistoryCommand)
         registerListNotesCommand();
         registerApplyThemeCommand();
         registerListThemesCommand();
@@ -145,21 +144,6 @@ public class CommandRegistry {
     /**
      * Register the list command
      */
-    private static void registerListCommand() {
-        CommandSchema schema = CommandSchema.builder("list")
-            .description("List slides in the presentation")
-            .parameter(Parameter.builder("verbose")
-                .description("Show detailed information")
-                .type(ParameterType.BOOLEAN)
-                .defaultValue("false")
-                .build())
-            .example("list")
-            .example("list --verbose true")
-            .build();
-        
-        schemas.put("list", schema);
-    }
-    
     /**
      * Register edit-content command
      */
@@ -228,58 +212,9 @@ public class CommandRegistry {
         schemas.put("save", schema);
     }
 
-    private static void registerRenderCommand() {
-        CommandSchema schema = CommandSchema.builder("render")
-            .description("Render a slide to a PNG image file")
-            .llmEnabled(true)
-            .llmDescription("Render a slide to PNG for visual inspection.")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number to render (1-based)")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("output")
-                .description("Output PNG file path")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("width")
-                .description("Image width in pixels")
-                .type(ParameterType.INTEGER)
-                .defaultValue("1280")
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("height")
-                .description("Image height in pixels")
-                .type(ParameterType.INTEGER)
-                .defaultValue("720")
-                .required(false)
-                .build())
-            .example("render 1 slide1.png")
-            .example("render 3 /tmp/slide3.png 1920 1080")
-            .build();
-
-        schemas.put("render", schema);
-    }
-    
     /**
      * Register the show command with proper schema
      */
-    private static void registerShowCommand() {
-        CommandSchema schema = CommandSchema.builder("show")
-            .description("Show slide details")
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .required(true)
-                .build())
-            .example("show 1")
-            .build();
-        
-        schemas.put("show", schema);
-    }
-    
     /**
      * Register the list-layouts command with optional themeId parameter
      */
@@ -481,27 +416,6 @@ public class CommandRegistry {
     /**
      * Register the redo command with proper schema
      */
-    private static void registerRedoCommand() {
-        CommandSchema schema = CommandSchema.builder("redo")
-            .description("Redo the last undone command")
-            .example("redo")
-            .build();
-        
-        schemas.put("redo", schema);
-    }
-    
-    /**
-     * Register the history command with proper schema
-     */
-    private static void registerHistoryCommand() {
-        CommandSchema schema = CommandSchema.builder("history")
-            .description("Show command history")
-            .example("history")
-            .build();
-        
-        schemas.put("history", schema);
-    }
-    
     /**
      * Register the list-notes command with proper schema
      */

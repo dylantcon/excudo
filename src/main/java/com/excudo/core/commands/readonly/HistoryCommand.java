@@ -2,17 +2,35 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
 
 /**
  * GoF Command for displaying command history.
- * 
+ *
  * This command shows the command execution history from the CommandInvoker,
  * providing visibility into undo/redo operations and executed commands.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code history} derives from the class.
  */
 public class HistoryCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Show command history")
+        .example("history")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(HistoryCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new HistoryCommand(ctx.requireSession(), ctx.requireDisplay());
+    }
     
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;

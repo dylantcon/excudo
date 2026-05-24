@@ -25,10 +25,10 @@ public class ConsoleOutputFormatter {
             case "new" -> "new [themeId] - Create a new presentation from scratch (default: minimal)";
             case "load" -> "load <file.pptx> - Load a PowerPoint presentation";
             case "save" -> "save [file.pptx] - Save the current presentation";
-            case "list" -> "list - Show all slides in the presentation";
-            case "show" -> "show <slide#> - Display detailed slide information";
-            case "create" -> "create <position> [title] [layout] - Create a new slide";
-            case "delete" -> "delete <slide#> - Delete a slide";
+            case "list-slides" -> "list-slides - Show all slides in the presentation";
+            case "show-slide" -> "show-slide <slide#> - Display detailed slide information";
+            case "create-slide" -> "create-slide <position> [title] [layout] - Create a new slide";
+            case "delete-slide" -> "delete-slide <slide#> - Delete a slide";
             case "llm" -> "llm <subcommand> - AI-powered editing commands";
             case "session" -> "session <create|list|info|close|switch> - Manage presentation sessions";
             case "inject-icon" -> "inject <slide> <query> - Inject icon into slide using SmartContent";

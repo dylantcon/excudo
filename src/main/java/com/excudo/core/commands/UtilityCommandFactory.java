@@ -105,8 +105,7 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
     
     static {
         // Query commands
-        HANDLED_COMMANDS.add("list");
-        HANDLED_COMMANDS.add("show");
+        // list -> list-slides, show -> show-slide: migrated to class registry
         HANDLED_COMMANDS.add("list-layouts");
         HANDLED_COMMANDS.add("list-spids");
         HANDLED_COMMANDS.add("list-animations");
@@ -128,7 +127,7 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("list-arrange-ops");
 
         // Render command
-        HANDLED_COMMANDS.add("render");
+        // render -> render-slide: migrated to class registry
 
         // Theme commands
         HANDLED_COMMANDS.add("list-themes");
@@ -159,11 +158,8 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
         CommandDisplay display = (CommandDisplay) displayAdapter;
         
         switch (commandName) {
-            case "list":
-                return createListSlides(parameters, display);
-                
-            case "show":
-                return createShowSlide(parameters, display);
+            // "list" -> list-slides (ListSlidesCommand) migrated to class registry
+            // "show" -> show-slide (ShowSlideCommand) migrated to class registry
                 
             case "list-layouts":
                 String layoutThemeId = parameters.getString("themeId");
@@ -206,16 +202,7 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
                 String themeId = parameters.getString("themeId");
                 return new ApplyThemeCommand(themeId, orchestrator, (CommandDisplay) displayAdapter);
 
-            case "render":
-                int renderSlide = parameters.getInteger("slide") != null ? parameters.getInteger("slide") : 1;
-                String renderOutput = parameters.getString("output");
-                int renderWidth = parameters.getInteger("width") != null ? parameters.getInteger("width") : 1280;
-                int renderHeight = parameters.getInteger("height") != null ? parameters.getInteger("height") : 720;
-                if (slideRenderFunction == null) {
-                    throw new IllegalStateException("Render function not registered. Call setSlideRenderFunction() first.");
-                }
-                return new RenderSlideCommand(orchestrator, renderSlide, renderOutput,
-                    renderWidth, renderHeight, slideRenderFunction);
+            // "render" -> render-slide (RenderSlideCommand) migrated to class registry
 
             case "show-theme":
                 return new ShowThemeCommand(parameters.getString("themeId"), display);

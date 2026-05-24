@@ -42,10 +42,12 @@ public class CommandFactoryTest {
     // ========== handlesCommand ==========
 
     @Test
-    public void handlesCommandReturnsFalseForListHandledByUtilityFactory() {
+    public void handlesCommandReturnsTrueForListSlides() {
+        // 'list-slides' is class-registered (ListSlidesCommand); not claimed
+        // by any sub-factory, so CommandFactory.handlesCommand returns true
+        // via the fallback path.
         CommandFactory factory = new CommandFactory(orchestrator);
-        assertFalse("'list' is handled by UtilityCommandFactory, not CommandFactory",
-                factory.handlesCommand("list"));
+        assertTrue(factory.handlesCommand("list-slides"));
     }
 
     @Test

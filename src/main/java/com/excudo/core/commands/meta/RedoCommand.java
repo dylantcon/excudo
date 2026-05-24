@@ -2,19 +2,37 @@ package com.excudo.core.commands.meta;
 
 import com.excudo.core.commands.CommandInvoker;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
 
 /**
  * GoF Command for redoing the last undone command.
- * 
+ *
  * This is a system operation that delegates to CommandInvoker.redo().
  * Since redo is the negation of undo, it cannot itself be undone
  * (use UndoCommand instead). This prevents philosophical paradoxes
  * and infinite recursion.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code redo} derives from the class.
  */
 public class RedoCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Redo the last undone command")
+        .example("redo")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RedoCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new RedoCommand(ctx.requireSession(), ctx.requireDisplay());
+    }
     
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;

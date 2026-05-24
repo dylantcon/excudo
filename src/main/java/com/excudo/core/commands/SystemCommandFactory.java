@@ -36,10 +36,7 @@ public class SystemCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("help");
         HANDLED_COMMANDS.add("?");
         
-        // Command pattern operations
-        // undo: migrated to class registry (UndoCommand)
-        HANDLED_COMMANDS.add("redo");
-        HANDLED_COMMANDS.add("history");
+        // undo, redo, history: migrated to class registry
     }
     
     /**
@@ -65,13 +62,7 @@ public class SystemCommandFactory extends AbstractCommandFactory {
             case "?":
                 return createHelp(parameters, displayAdapter);
                 
-            // "undo" migrated to class registry (UndoCommand.SCHEMA / fromParameters)
-
-            case "redo":
-                return createRedo(displayAdapter);
-                
-            case "history":
-                return createHistory(displayAdapter);
+            // "undo", "redo", "history" migrated to class registry
                 
             default:
                 return null;

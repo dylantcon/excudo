@@ -17,8 +17,8 @@ public class CommandRegistryTest {
 
     // Commands that must be present for the console to function correctly
     private static final List<String> CRITICAL_COMMANDS = Arrays.asList(
-        "create-slide", "delete-slide", "list", "add-shape", "add-animation",
-        "content-edit", "load", "save", "show", "undo", "redo", "llm"
+        "create-slide", "delete-slide", "list-slides", "add-shape", "add-animation",
+        "content-edit", "load", "save", "show-slide", "undo", "redo", "llm"
     );
 
     // ========== Critical Command Presence ==========
@@ -43,7 +43,7 @@ public class CommandRegistryTest {
 
     @Test
     public void getSchema_list_returnsNonNull() {
-        assertNotNull(CommandRegistry.getSchema("list"));
+        assertNotNull(CommandRegistry.getSchema("list-slides"));
     }
 
     @Test

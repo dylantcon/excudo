@@ -76,6 +76,11 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.deck.CreateSlideCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.deck.DeleteSlideCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.deck.CopySlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListSlidesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ShowSlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.RenderSlideCommand.class);
+        registerCommandClass(com.excudo.core.commands.meta.RedoCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.HistoryCommand.class);
     }
 
     private CommandClassRegistry() {}

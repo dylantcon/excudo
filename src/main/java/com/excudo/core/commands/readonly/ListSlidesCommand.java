@@ -1,22 +1,46 @@
 package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.PresentationMetadata;
 import com.excudo.core.orchestration.SlideMetadata;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import java.util.Optional;
 
 /**
  * GoF Command for listing slides in a presentation.
- * 
+ *
  * This is a read-only query command that displays slide information
  * using existing console utilities. Does not support undo since it
  * performs no mutations.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code list-slides} derives from the class.
  */
 public class ListSlidesCommand implements Command {
+
+    static final Parameter<Boolean> VERBOSE = Parameter.ofBool("verbose")
+        .description("Show detailed information").defaultValue("false").build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List slides in the presentation")
+        .parameter(VERBOSE)
+        .example("list-slides")
+        .example("list-slides --verbose true")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListSlidesCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListSlidesCommand(ctx.orchestrator(), ctx.requireDisplay(), p.get(VERBOSE));
+    }
     
     private final PPTXOrchestrator orchestrator;
     private final CommandDisplay display;

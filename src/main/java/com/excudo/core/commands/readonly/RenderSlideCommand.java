@@ -1,10 +1,16 @@
 package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
+import com.excudo.core.commands.UtilityCommandFactory;
 
 import com.excudo.core.model.PPTXDocument;
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.themes.ThemeDefinition;
 import com.excudo.core.themes.ThemeLoader;
 
@@ -13,8 +19,42 @@ import java.io.File;
 /**
  * Renders a slide to a PNG image file.
  * Uses a SlideRenderFunction to avoid compile-time dependency on the view layer.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code render-slide} derives from the class.
  */
 public class RenderSlideCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number to render (1-based)")
+        .llmName("slideNumber").required().build();
+    static final Parameter<String> OUTPUT = Parameter.ofString("output")
+        .description("Output PNG file path").required().build();
+    static final Parameter<Integer> WIDTH = Parameter.ofInt("width")
+        .description("Image width in pixels").defaultValue("1280").build();
+    static final Parameter<Integer> HEIGHT = Parameter.ofInt("height")
+        .description("Image height in pixels").defaultValue("720").build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Render a slide to a PNG image file")
+        .llmEnabled(true)
+        .llmDescription("Render a slide to PNG for visual inspection.")
+        .parameter(SLIDE).parameter(OUTPUT).parameter(WIDTH).parameter(HEIGHT)
+        .example("render-slide 1 slide1.png")
+        .example("render-slide 3 /tmp/slide3.png 1920 1080")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RenderSlideCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        SlideRenderFunction fn = UtilityCommandFactory.getSlideRenderFunction();
+        if (fn == null) {
+            throw new IllegalStateException(
+                "Render function not registered. Call UtilityCommandFactory.setSlideRenderFunction() first.");
+        }
+        return new RenderSlideCommand(ctx.orchestrator(), p.get(SLIDE), p.get(OUTPUT),
+            p.get(WIDTH), p.get(HEIGHT), fn);
+    }
 
     /**
      * Functional interface for slide rendering, implemented by the view layer.

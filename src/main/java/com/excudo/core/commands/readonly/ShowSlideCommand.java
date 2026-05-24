@@ -1,6 +1,8 @@
 package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -8,17 +10,38 @@ import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.orchestration.SlideMetadata;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.inspection.SlideInspector;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * GoF Command for displaying detailed information about a specific slide.
- * 
+ *
  * This is a read-only query command that shows slide content, shapes,
  * and metadata using existing console utilities. Does not support undo
  * since it performs no mutations.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: canonical name
+ * {@code show-slide} derives from the class.
  */
 public class ShowSlideCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Show slide details")
+        .parameter(SLIDE)
+        .example("show-slide 1")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ShowSlideCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ShowSlideCommand(ctx.orchestrator(), ctx.requireDisplay(), p.get(SLIDE));
+    }
     
     private final PPTXOrchestrator orchestrator;
     private final CommandDisplay display;

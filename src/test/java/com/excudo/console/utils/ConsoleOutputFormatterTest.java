@@ -25,7 +25,7 @@ public class ConsoleOutputFormatterTest {
 
     @Test
     public void getCommandHelp_knownCommand_returnsHelpString() {
-        String help = ConsoleOutputFormatter.getCommandHelp("create");
+        String help = ConsoleOutputFormatter.getCommandHelp("create-slide");
         assertNotNull("Should return non-null help for known command", help);
         assertFalse("Should not return empty string", help.isEmpty());
         assertFalse("Should not be the unknown-command fallback", help.startsWith("Unknown command:"));
