@@ -33,27 +33,17 @@ import java.util.List;
  *       of constructed commands.</li>
  * </ul>
  */
-public class CommandFactory extends AbstractCommandFactory {
+public class CommandFactory {
 
     private final PPTXOrchestrator orchestrator;
     private final com.excudo.xml.writers.animations.GroupIdManager sessionGroupIdManager;
 
     public CommandFactory(PPTXOrchestrator orchestrator) {
-        super(orchestrator);
+        if (orchestrator == null) {
+            throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
+        }
         this.orchestrator = orchestrator;
         this.sessionGroupIdManager = new com.excudo.xml.writers.animations.SequentialGroupIdManager();
-    }
-
-    @Override
-    public boolean handlesCommand(String commandName) {
-        // All commands route through the class registry; CommandFactory is
-        // the universal entry point, so it claims every name.
-        return true;
-    }
-
-    @Override
-    public Command createFromParameters(CommandParameters parameters, Object displayAdapter) {
-        return createCommand(parameters, displayAdapter);
     }
 
     /**

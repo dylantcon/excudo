@@ -53,22 +53,6 @@ public class CommandFactoryTest {
     // ========== handlesCommand ==========
 
     @Test
-    public void handlesCommandReturnsTrueForListSlides() {
-        // 'list-slides' is class-registered (ListSlidesCommand); not claimed
-        // by any sub-factory, so CommandFactory.handlesCommand returns true
-        // via the fallback path.
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(ListSlidesCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsFalseForHelpHandledBySystemFactory() {
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertFalse("'help' is handled by SystemCommandFactory, not CommandFactory",
-                factory.handlesCommand("help"));
-    }
-
-    @Test
     public void addShapeRoutedThroughClassRegistry() {
         // After the class-keyed registry migration, AddShapeCommand owns its
         // SCHEMA + fromParameters and dispatches via CommandClassRegistry --
@@ -86,52 +70,6 @@ public class CommandFactoryTest {
                         .addParam("height", 50)
                         .build(),
                     new CommandContext(orchestrator, null)));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForCreateSlide() {
-        // 'create-slide' is class-registered (CreateSlideCommand); not claimed
-        // by any sub-factory, so CommandFactory.handlesCommand returns true
-        // via the fallback path. Dispatch routes through CommandClassRegistry.
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(CreateSlideCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForLoad() {
-        // 'load' is class-registered (LoadCommand); no sub-factory claims it,
-        // so CommandFactory.handlesCommand returns true via the fallback path.
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(LoadCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForAnimationEdit() {
-        // 'add-animation' is class-registered (AddAnimationCommand); not
-        // claimed by any sub-factory, so CommandFactory.handlesCommand
-        // returns true via the fallback path.
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(AddAnimationCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForRemoveAnimation() {
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(RemoveAnimationCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForUpdateAnimation() {
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(UpdateAnimationCommand.NAME));
-    }
-
-    @Test
-    public void handlesCommandReturnsTrueForLlm() {
-        // 'llm' is class-registered (LLMCommand); no sub-factory claims it,
-        // so CommandFactory.handlesCommand returns true via the fallback path.
-        CommandFactory factory = new CommandFactory(orchestrator);
-        assertTrue(factory.handlesCommand(LLMCommand.NAME));
     }
 
     // ========== createComposite ==========

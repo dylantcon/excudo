@@ -1,88 +1,30 @@
 package com.excudo.core.parsing;
 
 import java.util.*;
-import com.excudo.core.parsing.Parameter.ParameterType;
 import com.excudo.utils.FuzzyMatcher;
 
 /**
- * Registry of all command schemas.
- * Single source of truth for command definitions.
+ * Schema lookup for all registered commands.
  *
- * <p>Two parallel registration paths exist during the magic-string-removal
- * migration:
- * <ol>
- *   <li>The legacy {@code register…Command()} static methods below — each
- *       hardcodes the canonical name as a string in
- *       {@code CommandSchema.builder("name")} and writes directly into
- *       {@link #schemas}.</li>
- *   <li>The new class-keyed path in
- *       {@code com.excudo.core.commands.CommandClassRegistry}. A Command
- *       opts in by declaring a {@code public static final CommandSchema SCHEMA}
- *       field and a
- *       {@code public static Command fromParameters(CommandParameters, CommandContext)}
- *       factory. Name derives from the class via {@link Object#getClass()}
- *       (PascalCase → kebab-case, trailing {@code "Command"} stripped). The
- *       class registry calls {@link #addSchema(String, CommandSchema)} so
- *       schema lookups (validators, system-prompt generators, dispatcher)
- *       continue to find the schema uniformly.</li>
- * </ol>
+ * <p>Every command in the system is class-registered: each {@code XCommand}
+ * declares a {@code public static final CommandSchema SCHEMA} field and a
+ * {@code public static Command fromParameters(CommandParameters, CommandContext)}
+ * factory. {@code com.excudo.core.commands.CommandClassRegistry} derives the
+ * canonical name from the class (PascalCase → kebab-case, trailing
+ * {@code "Command"} stripped), stamps it onto the schema, and calls
+ * {@link #addSchema(String, CommandSchema)} to populate the lookup map here.
  *
- * <p>The {@code Class.forName} call in the static block triggers
- * {@code CommandClassRegistry}'s static init so its registrations land in
- * {@link #schemas} before any external lookup. The reflection hop exists
- * because {@code core/parsing} (this package) compiles before
- * {@code core/commands} where the class registry lives.
- *
- * <p>Once every command is migrated to (2), the {@code register…Command()}
- * methods can be deleted and the schema map populated entirely via the
- * class registry.
+ * <p>This class is a pure schema map + a static-init reflection hop into
+ * {@code CommandClassRegistry}. The reflection exists only because
+ * {@code core/parsing} (this package) compiles before {@code core/commands}
+ * in the build order, so a direct import would be cyclic.
  */
 public class CommandRegistry {
     private static final Map<String, CommandSchema> schemas = new HashMap<>();
 
     static {
-        // Legacy schema-only registrations.
-        // add-animation: migrated to class registry (AddAnimationCommand)
-        // create-slide, delete-slide: migrated to class registry
-        // (CreateSlideCommand, DeleteSlideCommand)
-        // list-slides: migrated to class registry (ListSlidesCommand)
-        // content-edit: migrated to class registry (ContentEditCommand)
-        
-        // Add missing command schemas identified in Phase 1 audit
-        // load, save: migrated to class registry (LoadCommand, SaveCommand)
-        // render-slide, show-slide: migrated to class registry
-        // (RenderSlideCommand, ShowSlideCommand)
-        // remove-animation, update-animation: migrated to class registry
-        // (RemoveAnimationCommand, UpdateAnimationCommand).
-        // llm, llm-config: migrated to class registry (LLMCommand, LLMConfigCommand)
-        // session-create/list/info/close/switch: migrated to class registry
-        // (split from the legacy "session" umbrella; each subcommand is now a
-        // top-level command keyed on its class derivation).
-        // inject-icon, enhanced-content: migrated to class registry
-        // (InjectIconCommand, EnhancedContentCommand)
-        // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
-        // redo, history: migrated to class registry (RedoCommand, HistoryCommand)
-        // new-presentation: migrated to class registry (NewPresentationCommand)
-        // remove-shape: migrated to class registry (RemoveShapeCommand)
-        // bullet-point-edit: migrated to class registry (BulletPointEditCommand)
-        // set-body-props: migrated to class registry (SetBodyPropsCommand)
-        // set-text: migrated to class registry (SetTextCommand)
-        // add-notes: migrated to class registry (AddNotesCommand)
-        // add-connector: migrated to class registry (AddConnectorCommand)
-        // set-action: migrated to class registry (SetActionCommand)
-        // copy-slide: migrated to class registry (CopySlideCommand)
-        // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
-        // set-transition, remove-transition: migrated to class registry
-        // (SetTransitionCommand, RemoveTransitionCommand)
-        // move-shape: migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
-        // resize-shape: migrated to class registry (ResizeShapeCommand)
-        // reorder-shape: migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
-        // duplicate-shape: migrated to class registry (DuplicateShapeCommand)
-        // group-shapes: migrated to class registry (GroupShapesCommand)
-
-        // Trigger the class-keyed registry so its self-describing Commands
-        // populate the schemas map. Reflection because core/parsing
-        // compiles before core/commands.
+        // Trigger CommandClassRegistry's static init so its self-describing
+        // Commands populate the schemas map before any external lookup.
         try {
             Class.forName("com.excudo.core.commands.CommandClassRegistry");
         } catch (ClassNotFoundException e) {
