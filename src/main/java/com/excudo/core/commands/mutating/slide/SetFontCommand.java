@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -15,6 +20,49 @@ import java.util.Map;
  * restore it exactly. Delegates to orchestrator.updateShapeTextProperties().
  */
 public class SetFontCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").llmName("targetSpid").required().build();
+    static final Parameter<String> FAMILY = Parameter.ofString("family")
+        .description("Font family name (e.g. Arial, Calibri)").required(false).build();
+    static final Parameter<Integer> SIZE = Parameter.ofInt("size")
+        .description("Font size in points").required(false).build();
+    static final Parameter<String> BOLD = Parameter.ofString("bold")
+        .description("Bold: true or false").required(false).build();
+    static final Parameter<String> ITALIC = Parameter.ofString("italic")
+        .description("Italic: true or false").required(false).build();
+    static final Parameter<String> UNDERLINE = Parameter.ofString("underline")
+        .description("Underline: true or false").required(false).build();
+    static final Parameter<String> COLOR = Parameter.ofString("color")
+        .description("Font color as hex (e.g. FF0000) or scheme name (e.g. accent1)")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Set font properties on a shape's text")
+        .llmEnabled(true)
+        .llmDescription("Set font properties on a shape.")
+        .parameter(SLIDE).parameter(SPID)
+        .parameter(FAMILY).parameter(SIZE).parameter(BOLD).parameter(ITALIC)
+        .parameter(UNDERLINE).parameter(COLOR)
+        .example("set-font 1 2 --family Arial --size 24 --bold true")
+        .example("set-font 1 2 --color FF0000 --italic true")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetFontCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        java.util.Map<String, Object> props = new java.util.HashMap<>();
+        p.opt(FAMILY).ifPresent(v -> props.put("family", v));
+        p.opt(SIZE).ifPresent(v -> props.put("size", v));
+        p.opt(BOLD).ifPresent(v -> props.put("bold", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        p.opt(ITALIC).ifPresent(v -> props.put("italic", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        p.opt(UNDERLINE).ifPresent(v -> props.put("underline", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        p.opt(COLOR).ifPresent(v -> props.put("color", v));
+        return new SetFontCommand(p.get(SLIDE), p.get(SPID), props, ctx.orchestrator());
+    }
+
 
     private final int slideNumber;
     private final int spid;

@@ -3,6 +3,11 @@ package com.excudo.core.commands.readonly;
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.AnimationParameterRequirement;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -17,6 +22,28 @@ import com.excudo.console.utils.ConsoleOutputFormatter;
  * since it performs no mutations.
  */
 public class HelpCommand implements Command {
+
+    static final Parameter<String> TOPIC = Parameter.ofString("topic")
+        .description("Specific help topic").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Show help information")
+        .parameter(TOPIC)
+        .example("help")
+        .example("help animations")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(HelpCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        // HelpCommand currently takes only display; topic is consumed via the
+        // legacy createHelp dispatch on the topic-aware help text. For the
+        // class-registry path we mirror that: ignore topic for now (general
+        // help) -- detail-topic dispatch can be added if HelpCommand grows
+        // a constructor that takes a topic.
+        return new HelpCommand(ctx.requireDisplay());
+    }
+
     
     private final CommandDisplay display;
     private final String topic;

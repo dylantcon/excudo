@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -15,6 +20,18 @@ import java.util.Optional;
  * Read-only -- does not support undo.
  */
 public class ShowMasterCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Show the slide master details")
+        .example("show-master")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ShowMasterCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ShowMasterCommand(ctx.orchestrator(), ctx.requireDisplay());
+    }
+
 
     private final PPTXOrchestrator orchestrator;
     private final CommandDisplay display;

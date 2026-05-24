@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.theme;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -12,6 +17,31 @@ import com.excudo.core.themes.ThemeDefinition;
  * GoF Command for creating a new theme by duplicating an existing one.
  */
 public class CreateThemeCommand implements Command {
+
+    static final Parameter<String> ID = Parameter.ofString("id")
+        .description("New theme ID").required().build();
+    static final Parameter<String> BASE_THEME = Parameter.ofString("baseTheme")
+        .description("Base theme to duplicate (default: minimal)")
+        .required(false).build();
+    static final Parameter<String> DISPLAY_NAME = Parameter.ofString("displayName")
+        .description("Display name for the new theme").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Create a new theme by duplicating an existing one")
+        .parameter(ID).parameter(BASE_THEME).parameter(DISPLAY_NAME)
+        .example("create-theme my-theme")
+        .example("create-theme my-theme corporate \"My Custom Theme\"")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(CreateThemeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new CreateThemeCommand(p.get(ID),
+            p.opt(BASE_THEME).orElse(null),
+            p.opt(DISPLAY_NAME).orElse(null),
+            ctx.requireDisplay());
+    }
+
 
     private final String newId;
     private final String baseThemeId;

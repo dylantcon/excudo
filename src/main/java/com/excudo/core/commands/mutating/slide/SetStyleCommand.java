@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.model.ShapeStyle;
@@ -15,6 +20,45 @@ import com.excudo.core.results.ExecutionResult;
  * restore it exactly. Delegates to orchestrator.updateShapeStyle().
  */
 public class SetStyleCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Shape ID").llmName("targetSpid").required().build();
+    static final Parameter<String> FILL_COLOR = Parameter.ofString("fill-color")
+        .description("Fill color: hex (FF0000) or scheme name (accent1)")
+        .llmName("fillColor").required(false).build();
+    static final Parameter<String> LINE_COLOR = Parameter.ofString("line-color")
+        .description("Line/border color: hex (FF0000) or scheme name (accent1)")
+        .llmName("lineColor").required(false).build();
+    static final Parameter<Integer> FILL_ALPHA = Parameter.ofInt("fill-alpha")
+        .description("Fill opacity 0-100 (percent)")
+        .llmName("fillAlpha").required(false).build();
+    static final Parameter<Integer> LINE_ALPHA = Parameter.ofInt("line-alpha")
+        .description("Line opacity 0-100 (percent)")
+        .llmName("lineAlpha").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Set fill and line style on an existing shape")
+        .llmEnabled(true)
+        .llmDescription("Set fill and line style on a shape.")
+        .parameter(SLIDE).parameter(SPID)
+        .parameter(FILL_COLOR).parameter(LINE_COLOR).parameter(FILL_ALPHA).parameter(LINE_ALPHA)
+        .example("set-style 1 3 --fill-color FF5733")
+        .example("set-style 1 3 --fill-color accent2 --line-color dk1")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(SetStyleCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        com.excudo.core.model.ShapeStyle style =
+            com.excudo.core.commands.ShapeCommandFactory.parseShapeStyle(
+                p.opt(FILL_COLOR).orElse(null), p.opt(LINE_COLOR).orElse(null),
+                p.opt(FILL_ALPHA).orElse(null), p.opt(LINE_ALPHA).orElse(null));
+        if (style == null) style = com.excudo.core.model.ShapeStyle.defaultStyle();
+        return new SetStyleCommand(p.get(SLIDE), p.get(SPID), style, ctx.orchestrator());
+    }
+
 
     private final int slideNumber;
     private final int spid;

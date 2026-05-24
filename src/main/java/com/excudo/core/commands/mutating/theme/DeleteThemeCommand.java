@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.theme;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -11,6 +16,22 @@ import com.excudo.core.themes.ThemeLoader;
  * GoF Command for deleting a custom theme. Refuses to delete builtin themes.
  */
 public class DeleteThemeCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Theme ID to delete").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Delete a custom theme")
+        .parameter(THEME_ID)
+        .example("delete-theme my-theme")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DeleteThemeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DeleteThemeCommand(p.get(THEME_ID), ctx.requireDisplay());
+    }
+
 
     private final String themeId;
     private final CommandDisplay display;

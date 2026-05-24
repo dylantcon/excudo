@@ -49,14 +49,12 @@ public class CommandRegistry {
         // content-edit: migrated to class registry (ContentEditCommand)
         
         // Add missing command schemas identified in Phase 1 audit
-        registerHelpCommand();
         // load, save: migrated to class registry (LoadCommand, SaveCommand)
         // render-slide, show-slide: migrated to class registry
         // (RenderSlideCommand, ShowSlideCommand)
         registerListLayoutsCommand();
         registerListSpidsCommand();
         registerListAnimationsCommand();
-        registerListAnimationTypesCommand();
         // remove-animation, update-animation: migrated to class registry
         // (RemoveAnimationCommand, UpdateAnimationCommand).
         registerDumpTimingCommand();
@@ -71,16 +69,11 @@ public class CommandRegistry {
         // undo: migrated to class registry (UndoCommand.SCHEMA / fromParameters)
         // redo, history: migrated to class registry (RedoCommand, HistoryCommand)
         registerListNotesCommand();
-        registerApplyThemeCommand();
-        registerListThemesCommand();
         // new-presentation: migrated to class registry (NewPresentationCommand)
-        registerShowThemeCommand();
         registerCreateThemeCommand();
         registerEditThemeCommand();
-        registerDeleteThemeCommand();
         // remove-shape: migrated to class registry (RemoveShapeCommand)
         // bullet-point-edit: migrated to class registry (BulletPointEditCommand)
-        registerListShapeTypesCommand();
         // set-body-props: migrated to class registry (SetBodyPropsCommand)
         // set-text: migrated to class registry (SetTextCommand)
         // add-notes: migrated to class registry (AddNotesCommand)
@@ -90,29 +83,20 @@ public class CommandRegistry {
         // move-slide: migrated to class registry (MoveSlideCommand.SCHEMA / fromParameters)
         // set-transition, remove-transition: migrated to class registry
         // (SetTransitionCommand, RemoveTransitionCommand)
-        registerListTransitionTypesCommand();
         // move-shape: migrated to class registry (MoveShapeCommand.SCHEMA / fromParameters)
         // resize-shape: migrated to class registry (ResizeShapeCommand)
         registerArrangeCommand();
         // reorder-shape: migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
-        registerDuplicateLayoutCommand();
         registerAddLayoutCommand();
-        registerDeleteLayoutCommand();
-        registerRenameLayoutCommand();
         registerAddPlaceholderCommand();
-        registerRemovePlaceholderCommand();
-        registerListArrangeOpsCommand();
         registerSetFontCommand();
         registerSetStyleCommand();
         // duplicate-shape: migrated to class registry (DuplicateShapeCommand)
         // group-shapes: migrated to class registry (GroupShapesCommand)
-        registerUngroupCommand();
         registerCopyStyleCommand();
         registerIconCommand();
         registerEditMasterStyleCommand();
         registerEditMasterClrMapCommand();
-        registerEditMasterBgCommand();
-        registerShowMasterCommand();
         registerSetObjectDefaultsCommand();
 
         // Trigger the class-keyed registry so its self-describing Commands
@@ -151,21 +135,6 @@ public class CommandRegistry {
     /**
      * Register the help command with proper schema
      */
-    private static void registerHelpCommand() {
-        CommandSchema schema = CommandSchema.builder("help")
-            .description("Show help information")
-            .parameter(Parameter.builder("topic")
-                .description("Specific help topic")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("help")
-            .example("help animations")
-            .build();
-        
-        schemas.put("help", schema);
-        schemas.put("?", schema);
-    }
     
     /**
      * Register the load command with proper schema
@@ -229,14 +198,6 @@ public class CommandRegistry {
     /**
      * Register the list-animation-types command with proper schema
      */
-    private static void registerListAnimationTypesCommand() {
-        CommandSchema schema = CommandSchema.builder("list-animation-types")
-            .description("List available animation types")
-            .example("list-animation-types")
-            .build();
-        
-        schemas.put("list-animation-types", schema);
-    }
     
     /**
      * Register the dump-timing command with proper schema
@@ -376,47 +337,9 @@ public class CommandRegistry {
         return Collections.unmodifiableMap(schemas);
     }
 
-    private static void registerApplyThemeCommand() {
-        CommandSchema schema = CommandSchema.builder("apply-theme")
-            .description("Apply a bundled theme to the presentation")
-            .llmEnabled(true)
-            .llmDescription("Apply a theme to the presentation.")
-            .parameter(Parameter.builder("themeId")
-                .description("Theme ID")
-                .validValues("minimal", "corporate", "academic", "excudo")
-                .required(true)
-                .build())
-            .example("apply-theme minimal")
-            .example("apply-theme corporate")
-            .build();
-
-        schemas.put("apply-theme", schema);
-    }
-
-    private static void registerListThemesCommand() {
-        CommandSchema schema = CommandSchema.builder("list-themes")
-            .description("List available bundled themes")
-            .example("list-themes")
-            .build();
-
-        schemas.put("list-themes", schema);
-    }
 
 
-    private static void registerShowThemeCommand() {
-        CommandSchema schema = CommandSchema.builder("show-theme")
-            .description("Show complete theme details")
-            .parameter(Parameter.builder("themeId")
-                .description("Theme ID to inspect")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .example("show-theme minimal")
-            .example("show-theme corporate")
-            .build();
 
-        schemas.put("show-theme", schema);
-    }
 
     private static void registerCreateThemeCommand() {
         CommandSchema schema = CommandSchema.builder("create-theme")
@@ -468,42 +391,13 @@ public class CommandRegistry {
         schemas.put("edit-theme", schema);
     }
 
-    private static void registerDeleteThemeCommand() {
-        CommandSchema schema = CommandSchema.builder("delete-theme")
-            .description("Delete a custom theme")
-            .parameter(Parameter.builder("themeId")
-                .description("Theme ID to delete")
-                .type(ParameterType.STRING)
-                .required(true)
-                .build())
-            .example("delete-theme my-theme")
-            .build();
-
-        schemas.put("delete-theme", schema);
-    }
-
-
-    private static void registerListShapeTypesCommand() {
-        CommandSchema schema = CommandSchema.builder("list-shape-types")
-            .description("List all available shape types by category")
-            .example("list-shape-types")
-            .build();
-
-        schemas.put("list-shape-types", schema);
-    }
 
 
 
 
 
-    private static void registerListTransitionTypesCommand() {
-        CommandSchema schema = CommandSchema.builder("list-transition-types")
-            .description("List all available transition types")
-            .example("list-transition-types")
-            .build();
 
-        schemas.put("list-transition-types", schema);
-    }
+
 
     /**
      * Parse a command line input
@@ -573,24 +467,6 @@ public class CommandRegistry {
         schemas.put("arrange", schema);
     }
 
-    private static void registerDuplicateLayoutCommand() {
-        CommandSchema schema = CommandSchema.builder("duplicate-layout")
-            .description("Duplicate an existing slide layout with a new name")
-            .llmEnabled(true)
-            .llmDescription("Duplicate a slide layout. Use to create custom layouts before creating slides.")
-            .parameter(Parameter.builder("sourceLayoutId")
-                .description("Source layout ID (e.g., slideLayout2)")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("name")
-                .description("Display name for the new layout")
-                .required(true)
-                .build())
-            .example("duplicate-layout slideLayout2 \"Custom Title and Image\"")
-            .build();
-
-        schemas.put("duplicate-layout", schema);
-    }
 
     private static void registerAddLayoutCommand() {
         CommandSchema schema = CommandSchema.builder("add-layout")
@@ -615,39 +491,7 @@ public class CommandRegistry {
         schemas.put("add-layout", schema);
     }
 
-    private static void registerDeleteLayoutCommand() {
-        CommandSchema schema = CommandSchema.builder("delete-layout")
-            .description("Delete a slide layout (fails if in use)")
-            .llmEnabled(true)
-            .llmDescription("Delete a layout. Fails if any slides use it.")
-            .parameter(Parameter.builder("layoutId")
-                .description("Layout ID to delete (e.g., slideLayout11)")
-                .required(true)
-                .build())
-            .example("delete-layout slideLayout11")
-            .build();
 
-        schemas.put("delete-layout", schema);
-    }
-
-    private static void registerRenameLayoutCommand() {
-        CommandSchema schema = CommandSchema.builder("rename-layout")
-            .description("Rename a layout's display name")
-            .llmEnabled(true)
-            .llmDescription("Rename a layout.")
-            .parameter(Parameter.builder("layoutId")
-                .description("Layout ID to rename")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("name")
-                .description("New display name")
-                .required(true)
-                .build())
-            .example("rename-layout slideLayout2 \"Title and Image\"")
-            .build();
-
-        schemas.put("rename-layout", schema);
-    }
 
     private static void registerAddPlaceholderCommand() {
         CommandSchema schema = CommandSchema.builder("add-placeholder")
@@ -693,33 +537,7 @@ public class CommandRegistry {
         schemas.put("add-placeholder", schema);
     }
 
-    private static void registerRemovePlaceholderCommand() {
-        CommandSchema schema = CommandSchema.builder("remove-placeholder")
-            .description("Remove a placeholder from a layout by idx")
-            .llmEnabled(true)
-            .llmDescription("Remove a placeholder shape from a layout.")
-            .parameter(Parameter.builder("layoutId")
-                .description("Layout ID (e.g., slideLayout11)")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("idx")
-                .description("Placeholder index to remove")
-                .type(ParameterType.INTEGER)
-                .required(true)
-                .build())
-            .example("remove-placeholder slideLayout11 2")
-            .build();
 
-        schemas.put("remove-placeholder", schema);
-    }
-
-    private static void registerListArrangeOpsCommand() {
-        CommandSchema schema = CommandSchema.builder("list-arrange-ops")
-            .description("List available arrange operations")
-            .build();
-
-        schemas.put("list-arrange-ops", schema);
-    }
 
     private static void registerSetFontCommand() {
         CommandSchema schema = CommandSchema.builder("set-font")
@@ -851,27 +669,6 @@ public class CommandRegistry {
      * Register the ungroup command schema.
      * Usage: ungroup &lt;slide&gt; --spid &lt;spid&gt;
      */
-    private static void registerUngroupCommand() {
-        CommandSchema schema = CommandSchema.builder("ungroup")
-            .description("Dissolve a group shape back into individual child shapes")
-            .llmEnabled(true)
-            .parameter(Parameter.builder("slide")
-                .description("Slide number")
-                .type(ParameterType.SLIDE_NUMBER)
-                .llmName("slideNumber")
-                .required(true)
-                .build())
-            .parameter(Parameter.builder("spid")
-                .description("SPID of the group shape to dissolve")
-                .type(ParameterType.SPID)
-                .llmName("targetSpid")
-                .required(true)
-                .build())
-            .example("ungroup 1 --spid 5")
-            .build();
-
-        schemas.put("ungroup", schema);
-    }
 
     /**
      * Register the copy-style command schema.
@@ -1017,37 +814,7 @@ public class CommandRegistry {
         schemas.put("edit-master-clrmap", schema);
     }
 
-    private static void registerEditMasterBgCommand() {
-        CommandSchema schema = CommandSchema.builder("edit-master-bg")
-            .description("Change slide master background")
-            .llmEnabled(true)
-            .llmDescription("Set the slide master background fill index and scheme color.")
-            .parameter(Parameter.builder("fill-idx")
-                .description("Background fill index (e.g., 1001)")
-                .type(ParameterType.INTEGER)
-                .required(false)
-                .build())
-            .parameter(Parameter.builder("color")
-                .description("Scheme color reference (e.g., bg1)")
-                .type(ParameterType.STRING)
-                .required(false)
-                .build())
-            .example("edit-master-bg --fill-idx 1001 --color bg1")
-            .build();
 
-        schemas.put("edit-master-bg", schema);
-    }
-
-    private static void registerShowMasterCommand() {
-        CommandSchema schema = CommandSchema.builder("show-master")
-            .description("Display current slide master state")
-            .llmEnabled(true)
-            .llmDescription("Display clrMap, txStyles, background, placeholders, and object defaults.")
-            .example("show-master")
-            .build();
-
-        schemas.put("show-master", schema);
-    }
 
     private static void registerSetObjectDefaultsCommand() {
         CommandSchema schema = CommandSchema.builder("set-object-defaults")

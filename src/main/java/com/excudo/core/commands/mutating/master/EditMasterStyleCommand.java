@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.master;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -13,6 +18,51 @@ import java.util.Map;
  * Modifies p:txStyles (titleStyle/bodyStyle/otherStyle) in slideMaster1.xml.
  */
 public class EditMasterStyleCommand implements Command {
+
+    static final Parameter<String> TARGET = Parameter.ofString("target")
+        .description("Style target: title, body, or other")
+        .validValues("title", "body", "other").required().build();
+    static final Parameter<Integer> LEVEL = Parameter.ofInt("level")
+        .description("Style level (1-9)").required().build();
+    static final Parameter<Integer> FONT_SIZE = Parameter.ofInt("fontSize")
+        .description("Font size in points").required(false).build();
+    static final Parameter<String> BOLD = Parameter.ofString("bold")
+        .description("Bold text (true/false)").required(false).build();
+    static final Parameter<String> COLOR = Parameter.ofString("color")
+        .description("Color scheme reference (e.g., tx1, dk1)").required(false).build();
+    static final Parameter<String> BULLET = Parameter.ofString("bullet")
+        .description("Bullet character").required(false).build();
+    static final Parameter<String> BULLET_FONT = Parameter.ofString("bulletFont")
+        .description("Bullet font name").required(false).build();
+    static final Parameter<Integer> MARGIN = Parameter.ofInt("margin")
+        .description("Left margin in EMUs").required(false).build();
+    static final Parameter<Integer> INDENT = Parameter.ofInt("indent")
+        .description("Text indent in EMUs").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Edit text style levels on the slide master")
+        .llmEnabled(true)
+        .llmDescription("Edit slide master text styles (titleStyle, bodyStyle, otherStyle) per level.")
+        .parameter(TARGET).parameter(LEVEL)
+        .parameter(FONT_SIZE).parameter(BOLD).parameter(COLOR)
+        .parameter(BULLET).parameter(BULLET_FONT).parameter(MARGIN).parameter(INDENT)
+        .example("edit-master-style title --level 1 --fontSize 36 --bold true --color tx1")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(EditMasterStyleCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+        p.opt(FONT_SIZE).ifPresent(v -> updates.put("fontSize", v));
+        p.opt(BOLD).ifPresent(v -> updates.put("bold", v));
+        p.opt(COLOR).ifPresent(v -> updates.put("color", v));
+        p.opt(BULLET).ifPresent(v -> updates.put("bullet", v));
+        p.opt(BULLET_FONT).ifPresent(v -> updates.put("bulletFont", v));
+        p.opt(MARGIN).ifPresent(v -> updates.put("margin", v));
+        p.opt(INDENT).ifPresent(v -> updates.put("indent", v));
+        return new EditMasterStyleCommand(p.get(TARGET), p.get(LEVEL), updates, ctx.orchestrator());
+    }
+
 
     private final String target;
     private final int level;

@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.master;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -12,6 +17,24 @@ import com.excudo.core.results.ExecutionResult;
  * Updates p:bg/p:bgRef in slideMaster1.xml.
  */
 public class EditMasterBgCommand implements Command {
+
+    static final Parameter<Integer> FILL_IDX = Parameter.ofInt("fill-idx")
+        .description("Background fill index (default 1001)").defaultValue("1001").build();
+    static final Parameter<String> COLOR = Parameter.ofString("color")
+        .description("Scheme color name (e.g. bg1, accent1) or hex").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Edit the master-slide background fill")
+        .parameter(FILL_IDX).parameter(COLOR)
+        .example("edit-master-bg accent1")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(EditMasterBgCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new EditMasterBgCommand(p.get(FILL_IDX), p.get(COLOR), ctx.orchestrator());
+    }
+
 
     private final int fillIndex;
     private final String schemeColor;

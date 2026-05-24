@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -16,6 +21,18 @@ import java.util.Map;
  * Displays theme names, color palette, and font families.
  */
 public class ListThemesCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List available bundled themes")
+        .example("list-themes")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListThemesCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListThemesCommand(ctx.requireDisplay());
+    }
+
 
     private final CommandDisplay display;
     private boolean executed = false;

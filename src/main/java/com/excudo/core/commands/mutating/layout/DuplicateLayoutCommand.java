@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.layout;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -11,6 +16,26 @@ import com.excudo.core.results.ExecutionResult;
  * GoF Command for duplicating a slide layout.
  */
 public class DuplicateLayoutCommand implements Command {
+
+    static final Parameter<String> SOURCE_LAYOUT_ID = Parameter.ofString("sourceLayoutId")
+        .description("Source layout ID (e.g., slideLayout2)").required().build();
+    static final Parameter<String> NEW_NAME = Parameter.ofString("name")
+        .description("Display name for the new layout").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Duplicate an existing slide layout with a new name")
+        .llmEnabled(true)
+        .llmDescription("Duplicate a slide layout. Use to create custom layouts before creating slides.")
+        .parameter(SOURCE_LAYOUT_ID).parameter(NEW_NAME)
+        .example("duplicate-layout slideLayout2 \"My Custom Layout\"")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DuplicateLayoutCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DuplicateLayoutCommand(p.get(SOURCE_LAYOUT_ID), p.get(NEW_NAME), ctx.orchestrator());
+    }
+
 
     private final String sourceLayoutId;
     private final String newName;

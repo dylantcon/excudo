@@ -109,7 +109,6 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("list-layouts");
         HANDLED_COMMANDS.add("list-spids");
         HANDLED_COMMANDS.add("list-animations");
-        HANDLED_COMMANDS.add("list-animation-types");
         HANDLED_COMMANDS.add("list-notes");
         
         // Dump/debug commands
@@ -118,24 +117,17 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
         HANDLED_COMMANDS.add("show-shape");
 
         // Shape type listing
-        HANDLED_COMMANDS.add("list-shape-types");
 
         // Transition type listing
-        HANDLED_COMMANDS.add("list-transition-types");
 
         // Arrange operations listing
-        HANDLED_COMMANDS.add("list-arrange-ops");
 
         // Render command
         // render -> render-slide: migrated to class registry
 
         // Theme commands
-        HANDLED_COMMANDS.add("list-themes");
-        HANDLED_COMMANDS.add("apply-theme");
-        HANDLED_COMMANDS.add("show-theme");
         HANDLED_COMMANDS.add("create-theme");
         HANDLED_COMMANDS.add("edit-theme");
-        HANDLED_COMMANDS.add("delete-theme");
     }
     
     /**
@@ -170,16 +162,6 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
                 
             case "list-animations":
                 return createListAnimations(parameters, display);
-                
-            case "list-animation-types":
-                return createListAnimationTypesInternal(display);
-
-            case "list-shape-types":
-                return new ListShapeTypesCommand(display);
-
-            case "list-transition-types":
-                return new ListTransitionTypesCommand(display);
-                
             case "list-notes":
                 return createListNotes(parameters, displayAdapter);
                 
@@ -192,20 +174,7 @@ public class UtilityCommandFactory extends AbstractCommandFactory {
             case "show-shape":
                 return createShowShape(parameters, displayAdapter);
 
-            case "list-arrange-ops":
-                return new ListArrangeOpsCommand(display);
-
-            case "list-themes":
-                return new ListThemesCommand((CommandDisplay) displayAdapter);
-
-            case "apply-theme":
-                String themeId = parameters.getString("themeId");
-                return new ApplyThemeCommand(themeId, orchestrator, (CommandDisplay) displayAdapter);
-
             // "render" -> render-slide (RenderSlideCommand) migrated to class registry
-
-            case "show-theme":
-                return new ShowThemeCommand(parameters.getString("themeId"), display);
 
             case "create-theme":
                 return new CreateThemeCommand(

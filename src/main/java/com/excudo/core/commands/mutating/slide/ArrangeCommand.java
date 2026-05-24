@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -15,6 +20,38 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class ArrangeCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<String> OPERATION = Parameter.ofString("operation")
+        .description("Arrange operation")
+        .validValues("align-left", "align-right", "align-top", "align-bottom",
+            "align-center-h", "align-center-v", "distribute-h", "distribute-v",
+            "match-width", "match-height", "match-size", "center-on-slide", "snap-to-grid")
+        .required().build();
+    static final Parameter<String> TARGETS = Parameter.ofString("targets")
+        .description("Shape selector: SPIDs (2,3,4), all, type:rectangle, text:*, name:Title*")
+        .required().build();
+    static final Parameter<Integer> ANCHOR = Parameter.ofInt("anchor")
+        .spid().description("Anchor shape SPID for alignment/match reference").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Arrange shapes on a slide (align, distribute, match, center, snap)")
+        .llmEnabled(true)
+        .llmDescription("Arrange shapes: align, distribute, match, center, snap.")
+        .parameter(SLIDE).parameter(OPERATION).parameter(TARGETS).parameter(ANCHOR)
+        .example("arrange 1 align-left 2,3,4,5")
+        .example("arrange 1 distribute-h type:rectangle")
+        .example("arrange 1 match-width all --anchor 3")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ArrangeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ArrangeCommand(p.get(SLIDE), p.get(OPERATION), p.get(TARGETS),
+            p.opt(ANCHOR).orElse(null), ctx.orchestrator());
+    }
+
 
     private final int slideNumber;
     private final String operation;    // e.g. "align-left", "distribute-h"

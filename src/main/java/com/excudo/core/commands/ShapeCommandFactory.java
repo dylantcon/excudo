@@ -72,22 +72,15 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
         // resize: migrated to class registry (ResizeShapeCommand)
         HANDLED_COMMANDS.add("arrange");
         // reorder: migrated to class registry (ReorderShapeCommand)
-        HANDLED_COMMANDS.add("duplicate-layout");
         HANDLED_COMMANDS.add("add-layout");
-        HANDLED_COMMANDS.add("delete-layout");
-        HANDLED_COMMANDS.add("rename-layout");
         HANDLED_COMMANDS.add("add-placeholder");
-        HANDLED_COMMANDS.add("remove-placeholder");
         HANDLED_COMMANDS.add("set-font");
         HANDLED_COMMANDS.add("set-style");
         // duplicate: migrated to class registry (DuplicateShapeCommand)
         // group: migrated to class registry (GroupShapesCommand)
-        HANDLED_COMMANDS.add("ungroup");
         HANDLED_COMMANDS.add("copy-style");
         HANDLED_COMMANDS.add("edit-master-style");
         HANDLED_COMMANDS.add("edit-master-clrmap");
-        HANDLED_COMMANDS.add("edit-master-bg");
-        HANDLED_COMMANDS.add("show-master");
         HANDLED_COMMANDS.add("set-object-defaults");
     }
     
@@ -132,113 +125,7 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
 
             // "resize" migrated to class registry (ResizeShapeCommand.SCHEMA / fromParameters)
 
-            case "arrange": {
-                Integer arrSlide = parameters.getInteger("slide");
-                String arrOp = parameters.getString("operation");
-                String arrTargets = parameters.getString("targets");
-                String arrAnchorStr = parameters.getString("anchor");
-                Integer arrAnchor = arrAnchorStr != null ? Integer.parseInt(arrAnchorStr) : null;
-                return new ArrangeCommand(arrSlide != null ? arrSlide : 1, arrOp, arrTargets, arrAnchor, orchestrator);
-            }
-
             // "reorder" migrated to class registry (ReorderShapeCommand.SCHEMA / fromParameters)
-
-            case "duplicate-layout": {
-                String dlSource = parameters.getString("sourceLayoutId");
-                String dlName = parameters.getString("name");
-                return new DuplicateLayoutCommand(
-                    dlSource != null ? dlSource : "slideLayout1",
-                    dlName != null ? dlName : "Custom Layout",
-                    orchestrator);
-            }
-
-            case "add-layout": {
-                String alName = parameters.getString("name");
-                String alType = parameters.getString("type");
-                String alPlaceholders = parameters.getString("placeholders");
-                return new AddLayoutCommand(
-                    alName != null ? alName : "New Layout",
-                    alType, alPlaceholders, orchestrator);
-            }
-
-            case "delete-layout": {
-                String delLayoutId = parameters.getString("layoutId");
-                return new DeleteLayoutCommand(
-                    delLayoutId != null ? delLayoutId : "slideLayout1",
-                    orchestrator);
-            }
-
-            case "rename-layout": {
-                String rnLayoutId = parameters.getString("layoutId");
-                String rnName = parameters.getString("name");
-                return new RenameLayoutCommand(
-                    rnLayoutId != null ? rnLayoutId : "slideLayout1",
-                    rnName != null ? rnName : "Renamed Layout",
-                    orchestrator);
-            }
-
-            case "add-placeholder": {
-                String apLayoutId = parameters.getString("layoutId");
-                String apType = parameters.getString("type");
-                Integer apIdx = parameters.getInteger("idx");
-                Double apX = parameters.getDouble("x");
-                Double apY = parameters.getDouble("y");
-                Double apCx = parameters.getDouble("cx");
-                Double apCy = parameters.getDouble("cy");
-                return new AddPlaceholderCommand(
-                    apLayoutId != null ? apLayoutId : "slideLayout1",
-                    apType != null ? apType : "obj",
-                    apIdx != null ? apIdx : 1,
-                    apX != null ? apX.longValue() : 0L,
-                    apY != null ? apY.longValue() : 0L,
-                    apCx != null ? apCx.longValue() : 4572000L,
-                    apCy != null ? apCy.longValue() : 3429000L,
-                    orchestrator);
-            }
-
-            case "remove-placeholder": {
-                String rpLayoutId = parameters.getString("layoutId");
-                Integer rpIdx = parameters.getInteger("idx");
-                return new RemovePlaceholderCommand(
-                    rpLayoutId != null ? rpLayoutId : "slideLayout1",
-                    rpIdx != null ? rpIdx : 1,
-                    orchestrator);
-            }
-
-            case "set-font": {
-                Integer fontSlide = parameters.getInteger("slide");
-                String fontSpidStr = parameters.getString("spid");
-                int fontSpid = fontSpidStr != null ? Integer.parseInt(fontSpidStr) : 0;
-                Map<String, Object> fontProps = new HashMap<>();
-                String family = parameters.getString("family");
-                Integer fontSize = parameters.getInteger("size");
-                String boldStr = parameters.getString("bold");
-                String italicStr = parameters.getString("italic");
-                String underlineStr = parameters.getString("underline");
-                String fontColor = parameters.getString("color");
-                if (family != null) fontProps.put("family", family);
-                if (fontSize != null) fontProps.put("size", fontSize);
-                if (boldStr != null) fontProps.put("bold", "true".equalsIgnoreCase(boldStr) || "1".equals(boldStr));
-                if (italicStr != null) fontProps.put("italic", "true".equalsIgnoreCase(italicStr) || "1".equals(italicStr));
-                if (underlineStr != null) fontProps.put("underline", "true".equalsIgnoreCase(underlineStr) || "1".equals(underlineStr));
-                if (fontColor != null) fontProps.put("color", fontColor);
-                return new SetFontCommand(fontSlide != null ? fontSlide : 1, fontSpid, fontProps, orchestrator);
-            }
-
-            case "set-style": {
-                Integer styleSlide = parameters.getInteger("slide");
-                String styleSpidStr = parameters.getString("spid");
-                int styleSpid = styleSpidStr != null ? Integer.parseInt(styleSpidStr) : 0;
-                String styleFillColor = parameters.getString("fill-color");
-                String styleLineColor = parameters.getString("line-color");
-                Integer styleFillAlpha = parameters.getInteger("fill-alpha");
-                Integer styleLineAlpha = parameters.getInteger("line-alpha");
-                ShapeStyle parsedNewStyle = parseShapeStyle(
-                    styleFillColor, styleLineColor, styleFillAlpha, styleLineAlpha);
-                if (parsedNewStyle == null) parsedNewStyle = ShapeStyle.defaultStyle();
-                return new SetStyleCommand(styleSlide != null ? styleSlide : 1, styleSpid,
-                    parsedNewStyle, orchestrator);
-            }
 
             // "duplicate" migrated to class registry (DuplicateShapeCommand.SCHEMA / fromParameters)
 
@@ -247,90 +134,6 @@ public class ShapeCommandFactory extends AbstractCommandFactory {
             // migrated to class registry.
 
             // "group" migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)
-
-            case "ungroup": {
-                Integer ungroupSlide = parameters.getInteger("slide");
-                String ungroupSpidStr = parameters.getString("spid");
-                int ungroupSpid = ungroupSpidStr != null ? Integer.parseInt(ungroupSpidStr) : 0;
-                return new UngroupCommand(ungroupSlide != null ? ungroupSlide : 1, ungroupSpid, orchestrator);
-            }
-
-            case "copy-style": {
-                Integer csSlide = parameters.getInteger("slide");
-                String csSourceStr = parameters.getString("source");
-                String csTargetsStr = parameters.getString("targets");
-                if (csSourceStr == null) {
-                    throw new IllegalArgumentException("copy-style command requires a 'source' parameter");
-                }
-                if (csTargetsStr == null || csTargetsStr.trim().isEmpty()) {
-                    throw new IllegalArgumentException("copy-style command requires a 'targets' parameter (comma-separated SPIDs)");
-                }
-                int csSource = Integer.parseInt(csSourceStr.trim());
-                java.util.List<Integer> csTargets = new java.util.ArrayList<>();
-                for (String part : csTargetsStr.split(",")) {
-                    csTargets.add(Integer.parseInt(part.trim()));
-                }
-                return new CopyStyleCommand(csSlide != null ? csSlide : 1, csSource, csTargets, orchestrator);
-            }
-
-            case "edit-master-style": {
-                String msTarget = parameters.getString("target");
-                Integer msLevel = parameters.getInteger("level");
-                Map<String, Object> msUpdates = new HashMap<>();
-                Integer msFontSize = parameters.getInteger("fontSize");
-                String msBold = parameters.getString("bold");
-                String msColor = parameters.getString("color");
-                String msBullet = parameters.getString("bullet");
-                String msBulletFont = parameters.getString("bulletFont");
-                Integer msMargin = parameters.getInteger("margin");
-                Integer msIndent = parameters.getInteger("indent");
-                if (msFontSize != null) msUpdates.put("fontSize", msFontSize);
-                if (msBold != null) msUpdates.put("bold", msBold);
-                if (msColor != null) msUpdates.put("color", msColor);
-                if (msBullet != null) msUpdates.put("bullet", msBullet);
-                if (msBulletFont != null) msUpdates.put("bulletFont", msBulletFont);
-                if (msMargin != null) msUpdates.put("margin", msMargin);
-                if (msIndent != null) msUpdates.put("indent", msIndent);
-                return new EditMasterStyleCommand(
-                    msTarget != null ? msTarget : "body",
-                    msLevel != null ? msLevel : 1,
-                    msUpdates, orchestrator);
-            }
-
-            case "edit-master-clrmap": {
-                Map<String, String> clrMappings = new java.util.LinkedHashMap<>();
-                String cmBg1 = parameters.getString("bg1");
-                String cmTx1 = parameters.getString("tx1");
-                String cmBg2 = parameters.getString("bg2");
-                String cmTx2 = parameters.getString("tx2");
-                if (cmBg1 != null) clrMappings.put("bg1", cmBg1);
-                if (cmTx1 != null) clrMappings.put("tx1", cmTx1);
-                if (cmBg2 != null) clrMappings.put("bg2", cmBg2);
-                if (cmTx2 != null) clrMappings.put("tx2", cmTx2);
-                if (clrMappings.isEmpty()) {
-                    throw new IllegalArgumentException("edit-master-clrmap requires at least one mapping (--bg1, --tx1, --bg2, --tx2)");
-                }
-                return new EditMasterClrMapCommand(clrMappings, orchestrator);
-            }
-
-            case "edit-master-bg": {
-                Integer bgFillIdx = parameters.getInteger("fill-idx");
-                String bgColor = parameters.getString("color");
-                return new EditMasterBgCommand(
-                    bgFillIdx != null ? bgFillIdx : 1001,
-                    bgColor, orchestrator);
-            }
-
-            case "show-master": {
-                return new ShowMasterCommand(orchestrator, (CommandDisplay) displayAdapter);
-            }
-
-            case "set-object-defaults": {
-                String odFontColor = parameters.getString("font-color");
-                Integer odLineWidth = parameters.getInteger("line-width");
-                String odFillColor = parameters.getString("fill-color");
-                return new SetObjectDefaultsCommand(odFontColor, odLineWidth, odFillColor, orchestrator);
-            }
 
             default:
                 throw new IllegalArgumentException("Unknown shape command: " + commandName);

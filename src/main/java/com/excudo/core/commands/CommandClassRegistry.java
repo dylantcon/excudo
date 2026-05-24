@@ -91,6 +91,40 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.meta.SessionSwitchCommand.class);
         registerCommandClass(com.excudo.core.commands.meta.LLMCommand.class);
         registerCommandClass(com.excudo.core.commands.meta.LLMConfigCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListAnimationTypesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListShapeTypesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListTransitionTypesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListArrangeOpsCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListThemesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.HelpCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ShowThemeCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ShowMasterCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.theme.ApplyThemeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.theme.DeleteThemeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.DeleteLayoutCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.RenameLayoutCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.DuplicateLayoutCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.RemovePlaceholderCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.UngroupCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.master.EditMasterBgCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListLayoutsCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListSpidsCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListAnimationsCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ListNotesCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.DumpShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.DumpTimingCommand.class);
+        registerCommandClass(com.excudo.core.commands.readonly.ShowShapeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.theme.CreateThemeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.theme.EditThemeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.theme.SetObjectDefaultsCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.AddLayoutCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.layout.AddPlaceholderCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.ArrangeCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetFontCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetStyleCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.CopyStyleCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.master.EditMasterStyleCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.master.EditMasterClrMapCommand.class);
     }
 
     private CommandClassRegistry() {}

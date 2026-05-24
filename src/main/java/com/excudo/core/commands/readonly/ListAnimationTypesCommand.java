@@ -2,6 +2,10 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -17,6 +21,18 @@ import java.util.List;
  * Does not support undo since it performs no mutations.
  */
 public class ListAnimationTypesCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List all available animation types")
+        .example("list-animation-types")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListAnimationTypesCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListAnimationTypesCommand(ctx.requireDisplay());
+    }
+
     
     private final CommandDisplay display;
     private boolean executed = false;

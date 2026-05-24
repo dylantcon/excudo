@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -16,6 +21,22 @@ import java.util.Map;
  * Gives LLM agents full inspection before editing.
  */
 public class ShowThemeCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Theme ID to inspect").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Show complete theme details")
+        .parameter(THEME_ID)
+        .example("show-theme minimal")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ShowThemeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ShowThemeCommand(p.get(THEME_ID), ctx.requireDisplay());
+    }
+
 
     private final String themeId;
     private final CommandDisplay display;

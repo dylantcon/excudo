@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -28,6 +33,22 @@ import java.util.Set;
  * performs no mutations.
  */
 public class ListAnimationsCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List animations on a slide")
+        .parameter(SLIDE)
+        .example("list-animations 1")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListAnimationsCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListAnimationsCommand(ctx.orchestrator(), ctx.requireDisplay(), p.get(SLIDE));
+    }
+
 
     private final PPTXOrchestrator orchestrator;
     private final CommandDisplay display;

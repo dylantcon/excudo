@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.layout;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -16,6 +21,34 @@ import java.util.List;
  * GoF Command for creating a new slide layout from scratch.
  */
 public class AddLayoutCommand implements Command {
+
+    static final Parameter<String> LAYOUT_NAME = Parameter.ofString("name")
+        .description("Display name for the layout").required().build();
+    static final Parameter<String> TYPE = Parameter.ofString("type")
+        .description("Layout type")
+        .validValues("BLANK", "TITLE_SLIDE", "TITLE_CONTENT", "TWO_CONTENT",
+            "COMPARISON", "TITLE_ONLY", "SECTION_HEADER")
+        .required(false).build();
+    static final Parameter<String> PLACEHOLDERS = Parameter.ofString("placeholders")
+        .description("JSON array of placeholder definitions").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Create a new layout from scratch")
+        .llmEnabled(true)
+        .llmDescription("Create a layout by duplicating the closest existing layout type.")
+        .parameter(LAYOUT_NAME).parameter(TYPE).parameter(PLACEHOLDERS)
+        .example("add-layout \"Full Bleed\" --type BLANK")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(AddLayoutCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new AddLayoutCommand(p.get(LAYOUT_NAME),
+            p.opt(TYPE).orElse(null),
+            p.opt(PLACEHOLDERS).orElse(null),
+            ctx.orchestrator());
+    }
+
 
     private final String name;
     private final String typeStr;

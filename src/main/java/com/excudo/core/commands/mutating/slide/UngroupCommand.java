@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -15,6 +20,25 @@ import java.util.List;
  * receive a fresh SPID but is functionally equivalent to the original.
  */
 public class UngroupCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("Group SPID to dissolve").llmName("targetSpid").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Ungroup a previously grouped shape")
+        .llmEnabled(true)
+        .parameter(SLIDE).parameter(SPID)
+        .example("ungroup 1 5")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(UngroupCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new UngroupCommand(p.get(SLIDE), p.get(SPID), ctx.orchestrator());
+    }
+
 
     private final int slideNumber;
     private final int spid;

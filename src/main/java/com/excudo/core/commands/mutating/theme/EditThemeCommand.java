@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.theme;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -16,6 +21,29 @@ import java.util.Map;
  * Refuses to edit builtin themes directly.
  */
 public class EditThemeCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Theme ID to edit").required().build();
+    static final Parameter<String> PROPERTY = Parameter.ofString("property")
+        .description("Property to edit (color.<name>, majorFont, minorFont, displayName)")
+        .required().build();
+    static final Parameter<String> VALUE = Parameter.ofString("value")
+        .description("New value").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Edit a custom theme property")
+        .parameter(THEME_ID).parameter(PROPERTY).parameter(VALUE)
+        .example("edit-theme my-theme color.accent1 FF5733")
+        .example("edit-theme my-theme majorFont Georgia")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(EditThemeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new EditThemeCommand(p.get(THEME_ID), p.get(PROPERTY), p.get(VALUE),
+            ctx.requireDisplay());
+    }
+
 
     private final String themeId;
     private final String property;

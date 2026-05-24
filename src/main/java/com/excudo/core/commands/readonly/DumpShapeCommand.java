@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -16,6 +21,25 @@ import com.excudo.core.results.ExecutionResult;
  * and analysis. Does not support undo since it performs no mutations.
  */
 public class DumpShapeCommand implements Command {
+
+    static final Parameter<String> RANGE = Parameter.ofString("range")
+        .description("Slide range: single number (1), range (1-5), or 'all'")
+        .defaultValue("1").build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Dump shape structure for a slide range")
+        .parameter(RANGE)
+        .example("dump-shape 1")
+        .example("dump-shape 1-5")
+        .example("dump-shape all")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DumpShapeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DumpShapeCommand(ctx.requireDisplay(), ctx.orchestrator(), p.get(RANGE), true);
+    }
+
     
     private final CommandDisplay display;
     private final PPTXOrchestrator orchestrator;

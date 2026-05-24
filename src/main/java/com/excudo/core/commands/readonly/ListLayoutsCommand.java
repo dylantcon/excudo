@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -21,6 +26,27 @@ import java.util.Optional;
  * - Without themeId: show layouts from the loaded presentation (requires session)
  */
 public class ListLayoutsCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Optional theme ID to list layouts from (no session needed)")
+        .required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List available slide layouts")
+        .parameter(THEME_ID)
+        .example("list-layouts")
+        .example("list-layouts corporate")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListLayoutsCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        String themeId = p.opt(THEME_ID).orElse(null);
+        return themeId != null
+            ? new ListLayoutsCommand(ctx.orchestrator(), ctx.requireDisplay(), themeId)
+            : new ListLayoutsCommand(ctx.orchestrator(), ctx.requireDisplay());
+    }
+
 
     private final PPTXOrchestrator orchestrator;
     private final CommandDisplay display;

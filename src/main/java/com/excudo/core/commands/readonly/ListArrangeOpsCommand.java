@@ -2,6 +2,10 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -10,6 +14,18 @@ import com.excudo.core.commands.CommandExecutionException;
  * Sessionless -- works without a loaded presentation.
  */
 public class ListArrangeOpsCommand implements Command {
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List all available arrange operations")
+        .example("list-arrange-ops")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListArrangeOpsCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListArrangeOpsCommand(ctx.requireDisplay());
+    }
+
 
     private final CommandDisplay display;
     private boolean executed = false;

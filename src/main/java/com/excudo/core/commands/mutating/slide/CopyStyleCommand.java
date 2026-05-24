@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -18,6 +23,32 @@ import java.util.Map;
  * Undo removes each restyled shape and restores the original captured element.
  */
 public class CopyStyleCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").required().build();
+    static final Parameter<Integer> SOURCE = Parameter.ofInt("source")
+        .spid().description("SPID of the shape whose style will be copied").required().build();
+    static final Parameter<java.util.List<Integer>> TARGETS = Parameter.ofSpidList("targets")
+        .description("Comma-separated list of target SPIDs that will receive the copied style")
+        .required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Copy the visual style (fill, line) from one shape to one or more target shapes")
+        .parameter(SLIDE).parameter(SOURCE).parameter(TARGETS)
+        .example("copy-style 1 --source 2 --targets 3,4,5")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(CopyStyleCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        java.util.List<Integer> tgts = p.get(TARGETS);
+        if (tgts.isEmpty()) {
+            throw new IllegalArgumentException(
+                "copy-style requires a non-empty 'targets' list (comma-separated SPIDs)");
+        }
+        return new CopyStyleCommand(p.get(SLIDE), p.get(SOURCE), tgts, ctx.orchestrator());
+    }
+
 
     private final int slideNumber;
     private final int sourceSpid;

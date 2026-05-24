@@ -2,6 +2,11 @@ package com.excudo.core.commands.readonly;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 import com.excudo.core.commands.CommandSessionContext;
@@ -17,6 +22,24 @@ import com.excudo.core.inspection.NotesManager;
  * in the presentation. Provides read-only access to slide notes without modification.
  */
 public class ListNotesCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Filter by slide number (optional)").required(false).build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("List presentation notes")
+        .parameter(SLIDE)
+        .example("list-notes")
+        .example("list-notes 2")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ListNotesCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ListNotesCommand(ctx.requireSession(), ctx.requireDisplay(),
+            p.opt(SLIDE).orElse(null));
+    }
+
     
     private final CommandSessionContext sessionContext;
     private final CommandDisplay display;

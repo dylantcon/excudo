@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.theme;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
@@ -31,6 +36,23 @@ import java.util.List;
  * 5. Reload ThemeManager to pick up new theme
  */
 public class ApplyThemeCommand implements Command {
+
+    static final Parameter<String> THEME_ID = Parameter.ofString("themeId")
+        .description("Theme ID").llmName("themeId").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Apply a bundled theme to the presentation")
+        .llmEnabled(true)
+        .parameter(THEME_ID)
+        .example("apply-theme minimal")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ApplyThemeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ApplyThemeCommand(p.get(THEME_ID), ctx.orchestrator(), ctx.requireDisplay());
+    }
+
 
     private static final ComponentLogger logger = Logger.console();
 

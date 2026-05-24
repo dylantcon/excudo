@@ -2,6 +2,11 @@ package com.excudo.core.commands.mutating.layout;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.parsing.Parameter;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.commands.CommandContext;
+import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -12,6 +17,22 @@ import com.excudo.core.results.ExecutionResult;
  * Deletion fails if any slides reference the layout.
  */
 public class DeleteLayoutCommand implements Command {
+
+    static final Parameter<String> LAYOUT_ID = Parameter.ofString("layoutId")
+        .description("Layout ID to delete (e.g. slideLayout2)").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Delete a slide layout")
+        .parameter(LAYOUT_ID)
+        .example("delete-layout slideLayout2")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DeleteLayoutCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DeleteLayoutCommand(p.get(LAYOUT_ID), ctx.orchestrator());
+    }
+
 
     private final String layoutId;
     private final PPTXOrchestrator orchestrator;
