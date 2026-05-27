@@ -8,6 +8,7 @@ import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.ShapeStyleExtractor;
 import com.excudo.view.rendering.SlideRenderContext;
+import com.excudo.core.rendering.surface.BulletFontMapper;
 import com.excudo.core.rendering.surface.RenderSurface;
 import com.excudo.core.rendering.surface.SurfaceFont;
 import com.excudo.core.rendering.surface.SurfacePaint;
@@ -249,18 +250,32 @@ public final class TextPainter {
                 }
             }
             if (bulletChar != null) {
-                // Use the bullet-specific font (Wingdings, Symbol, Arial, etc.)
+                // Wingdings / Wingdings 2 / Wingdings 3 / Symbol bullets are
+                // stored in OOXML as ASCII-range codepoints that only render
+                // correctly when the corresponding symbol font is installed.
+                // On Linux hosts (and headless CI) those fonts usually aren't
+                // present, so a literal 'l' renders as the letter "l" instead
+                // of "●". Translate to Unicode equivalents and render in the
+                // body font, which has the geometric/check/cross glyphs
+                // natively. PowerPoint-style appearance, host-font-independent.
+                String renderedBulletChar = bulletChar;
+                String renderedBulletFontFamily = bulletFontFamily;
+                if (BulletFontMapper.isSymbolFont(bulletFontFamily)) {
+                    renderedBulletChar = BulletFontMapper.translate(bulletFontFamily, bulletChar);
+                    renderedBulletFontFamily = null; // fall through to body font
+                }
+
                 SurfaceFont bulletFont;
                 double bulletSizePt = themeStyle != null ? themeStyle.getFontSize() / 100.0 : 18.0;
-                if (bulletFontFamily != null && !bulletFontFamily.isEmpty()) {
-                    bulletFont = SurfaceFont.of(bulletFontFamily, bulletSizePt * zoom);
+                if (renderedBulletFontFamily != null && !renderedBulletFontFamily.isEmpty()) {
+                    bulletFont = SurfaceFont.of(renderedBulletFontFamily, bulletSizePt * zoom);
                 } else {
                     bulletFont = resolveFont(null, slideCtx, zoom, level, isTitle);
                 }
                 surface.setFont(bulletFont);
                 SurfacePaint textColor = resolveDefaultTextColor(slideCtx, placeholderType);
                 surface.setFill(textColor);
-                surface.fillText(bulletChar, textX + indentPx, currentY + bulletFont.sizePx());
+                surface.fillText(renderedBulletChar, textX + indentPx, currentY + bulletFont.sizePx());
             }
         } else if (para.getBulletType() == BulletType.AUTONUMBER && autoNumber > 0) {
             // Auto-numbered list. PowerPoint renders these as "1.", "2.",
