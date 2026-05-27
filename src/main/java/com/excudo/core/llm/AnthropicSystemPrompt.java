@@ -1,5 +1,14 @@
 package com.excudo.core.llm;
 
+import com.excudo.core.parsing.CommandRegistry;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 /**
  * System prompt for PowerPoint OOXML-aware LLM interactions.
  * Command reference is auto-generated from CommandSchema definitions.
@@ -10,7 +19,61 @@ public class AnthropicSystemPrompt {
      * Generate the full system prompt with auto-generated command reference.
      */
     public static String generatePrompt() {
-        return PROMPT_HEADER + "\n\n" + LLMRequestBridge.generateLLMCommandReference() + "\n" + PROMPT_FOOTER;
+        return PROMPT_HEADER + "\n\n" + generateCommandReference() + "\n" + PROMPT_FOOTER;
+    }
+
+    /**
+     * Human-readable per-command reference for the system prompt.
+     * One line per LLM-enabled command: name, parameter list with types and
+     * defaults/enums/optionality markers, then the LLM description.
+     */
+    private static String generateCommandReference() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("COMMANDS:\n");
+
+        List<CommandSchema> sorted = new ArrayList<>(CommandRegistry.getAllSchemas().values());
+        sorted.sort(Comparator.comparing(CommandSchema::getName));
+
+        for (CommandSchema schema : sorted) {
+            if (!schema.isLlmEnabled()) continue;
+
+            sb.append("- ").append(schema.getName()).append(": ");
+
+            boolean firstParam = true;
+            for (Parameter<?> p : schema.getParameters()) {
+                if (!firstParam) sb.append(", ");
+                firstParam = false;
+
+                String llmName = p.getEffectiveLlmName();
+                sb.append(llmName).append("(").append(promptTypeOf(p.getType())).append(")");
+
+                if (p.getValidValues() != null && !p.getValidValues().isEmpty()) {
+                    List<String> vals = new ArrayList<>(p.getValidValues());
+                    Collections.sort(vals);
+                    sb.append("[").append(String.join("|", vals)).append("]");
+                } else if (p.getDefaultValue() != null) {
+                    sb.append("=").append(p.getDefaultValue());
+                }
+                if (!p.isRequired()) sb.append("?");
+            }
+
+            String llmDesc = schema.getLlmDescription();
+            if (llmDesc != null && !llmDesc.isEmpty()) {
+                sb.append(" -- ").append(llmDesc);
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
+    }
+
+    private static String promptTypeOf(Parameter.ParameterType type) {
+        return switch (type) {
+            case INTEGER, SLIDE_NUMBER, SPID -> "integer";
+            case DOUBLE -> "number";
+            case BOOLEAN -> "boolean";
+            default -> "string";
+        };
     }
 
     private static final String PROMPT_HEADER = """

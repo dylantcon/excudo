@@ -170,7 +170,8 @@ public class CommandSchema {
 
     /**
      * Build a reverse mapping from LLM parameter names to canonical parameter names.
-     * Used by LLMRequestBridge to convert LLM requests to CommandParameters.
+     * Used by {@link #bridgeLlmParams(Map)} to canonicalize incoming LLM action
+     * parameter keys.
      */
     public Map<String, String> buildLlmToCanonicalParamMap() {
         Map<String, String> map = new HashMap<>();
@@ -183,6 +184,32 @@ public class CommandSchema {
             }
         }
         return map;
+    }
+
+    /**
+     * Convert a raw LLM parameter map (JSON-decoded, value types are {@code
+     * Object}) into a {@link CommandParameters} keyed by this schema's
+     * canonical parameter names.
+     *
+     * <p>LLM-aliased keys are resolved through {@link
+     * #buildLlmToCanonicalParamMap()}; values are coerced to {@code String}
+     * to fit CommandParameters' string-only payload. Null values are dropped.
+     *
+     * <p>This is the LLM-side inverse of {@link #parse(String[])} (which works
+     * from a tokenized CLI line). The result is ready to feed into
+     * {@code CommandFactory.createCommand}.
+     */
+    public CommandParameters bridgeLlmParams(Map<String, Object> llmParams) {
+        if (llmParams == null) llmParams = Collections.emptyMap();
+        Map<String, String> mapping = buildLlmToCanonicalParamMap();
+        Map<String, String> canonical = new HashMap<>();
+        for (Map.Entry<String, Object> e : llmParams.entrySet()) {
+            Object value = e.getValue();
+            if (value == null) continue;
+            String canonicalKey = mapping.getOrDefault(e.getKey(), e.getKey());
+            canonical.put(canonicalKey, String.valueOf(value));
+        }
+        return new CommandParameters(name, canonical);
     }
 
     /**

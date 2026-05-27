@@ -2,7 +2,8 @@ package com.excudo.core.commands;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.CommandParameters;
-import com.excudo.core.llm.LLMRequestBridge;
+import com.excudo.core.parsing.CommandRegistry;
+import com.excudo.core.parsing.CommandSchema;
 import com.excudo.xml.writers.SlideCreator;
 import java.io.File;
 import java.util.ArrayList;
@@ -28,9 +29,9 @@ import java.util.List;
  *       {@link CommandContext#groupIdManager()}.</li>
  *   <li>{@link #createComposite} -- wraps a list of commands as a single
  *       undo unit; used by the LLM batch path and test harnesses.</li>
- *   <li>{@link #createFromLLMRequest} -- bridges an LLM {@code LLMRequest}
- *       (multi-action payload) through {@link LLMRequestBridge} to a list
- *       of constructed commands.</li>
+ *   <li>{@link #createFromLLMRequest} -- per-action: schema lookup,
+ *       {@link CommandSchema#bridgeLlmParams(java.util.Map)} for parameter
+ *       canonicalization, then dispatch through {@link #createCommand}.</li>
  * </ul>
  */
 public class CommandFactory {
@@ -65,9 +66,9 @@ public class CommandFactory {
 
     /**
      * Convert an LLM multi-action request into a list of constructed Commands.
-     * {@link LLMRequestBridge} canonicalizes llmName parameter keys and
-     * resolves action types; each action is then dispatched through
-     * {@link #createCommand}.
+     * For each action: look up its schema by action type, canonicalize the
+     * llmName-keyed parameters via {@link CommandSchema#bridgeLlmParams},
+     * then dispatch through {@link #createCommand}.
      */
     public List<Command> createFromLLMRequest(
             com.excudo.core.commands.RequestSchema.LLMRequest request,
@@ -75,10 +76,17 @@ public class CommandFactory {
         if (request == null || request.getActions() == null) {
             throw new IllegalArgumentException("LLM request and actions cannot be null");
         }
-        List<CommandParameters> bridged = LLMRequestBridge.bridgeAll(request);
         List<Command> commands = new ArrayList<>();
-        for (CommandParameters parameters : bridged) {
-            commands.add(createCommand(parameters, null));
+        for (RequestSchema.ActionRequest action : request.getActions()) {
+            String actionType = action.getType();
+            CommandSchema schema = CommandRegistry.getSchema(actionType);
+            if (schema == null) {
+                throw new IllegalArgumentException(
+                    "Unknown LLM action type: '" + actionType + "'. Known commands: "
+                    + String.join(", ", CommandRegistry.getLlmEnabledCommandNames()));
+            }
+            CommandParameters parsed = schema.bridgeLlmParams(action.getParameters());
+            commands.add(createCommand(parsed, null));
         }
         return commands;
     }

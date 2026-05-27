@@ -139,6 +139,21 @@ public class CommandRegistry {
         return Collections.unmodifiableMap(schemas);
     }
 
+    /**
+     * All LLM-enabled command names, sorted alphabetically. Used for
+     * "valid types: ..." error messages and the system-prompt command reference.
+     */
+    public static List<String> getLlmEnabledCommandNames() {
+        List<String> names = new ArrayList<>();
+        for (CommandSchema schema : schemas.values()) {
+            if (schema.isLlmEnabled()) {
+                names.add(schema.getName());
+            }
+        }
+        Collections.sort(names);
+        return names;
+    }
+
 
 
 

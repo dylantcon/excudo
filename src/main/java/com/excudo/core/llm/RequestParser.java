@@ -363,9 +363,9 @@ public class RequestParser {
         if (operation.getType() == null || operation.getType().trim().isEmpty()) {
             builder.addError(prefix + "Missing operation type");
         } else {
-            if (!LLMRequestBridge.isRecognizedActionType(operation.getType())) {
+            if (!CommandRegistry.hasCommand(operation.getType())) {
                 builder.addError(prefix + "Invalid operation type: " + operation.getType()
-                    + ". Valid types: " + String.join(", ", LLMRequestBridge.getLLMEnabledCommandNames()));
+                    + ". Valid types: " + String.join(", ", CommandRegistry.getLlmEnabledCommandNames()));
             }
         }
 
@@ -389,12 +389,10 @@ public class RequestParser {
         ValidationResult.Builder builder = ValidationResult.builder();
         Map<String, Object> params = operation.getParameters();
 
-        // Resolve to canonical command name so both legacy (slide-creation)
-        // and current (create) type names hit the right validation branch
-        String resolvedType;
-        try {
-            resolvedType = LLMRequestBridge.resolveCommandName(operation.getType());
-        } catch (IllegalArgumentException e) {
+        // Schema lookup by action type. Unknown types short-circuit; the
+        // earlier validateAction call has already flagged them as errors.
+        String resolvedType = operation.getType();
+        if (!CommandRegistry.hasCommand(resolvedType)) {
             return builder.build();
         }
 

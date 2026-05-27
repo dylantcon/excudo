@@ -1279,7 +1279,10 @@ public class ToolDispatcher {
                         continue;
                     }
 
-                    com.excudo.core.parsing.CommandParameters parsed = LLMRequestBridge.bridge(action);
+                    com.excudo.core.parsing.CommandSchema actionSchema =
+                        com.excudo.core.parsing.CommandRegistry.getSchema(actionType);
+                    com.excudo.core.parsing.CommandParameters parsed =
+                        actionSchema.bridgeLlmParams(action.getParameters());
                     Command command = commandFactory.createCommand(parsed, displayAdapter);
                     commandInvoker.executeCommand(command);
                     succeeded++;
@@ -1407,24 +1410,18 @@ public class ToolDispatcher {
             return "Missing 'type' field on command.";
         }
 
-        // Resolve to canonical command name. The bridge throws on truly
-        // unknown types; catch it and add a fuzzy "did you mean" suggestion.
-        String commandName;
-        try {
-            commandName = LLMRequestBridge.resolveCommandName(actionType);
-        } catch (IllegalArgumentException e) {
+        // Look up the schema. Unknown action types get a fuzzy "did you mean"
+        // suggestion against the LLM-enabled command set.
+        com.excudo.core.parsing.CommandSchema schema =
+            com.excudo.core.parsing.CommandRegistry.getSchema(actionType);
+        if (schema == null) {
             String closest = com.excudo.utils.FuzzyMatcher.findClosestMatch(
-                actionType, LLMRequestBridge.getLLMEnabledCommandNames(), 4);
+                actionType, com.excudo.core.parsing.CommandRegistry.getLlmEnabledCommandNames(), 4);
             return "Unknown command type '" + actionType + "'."
                 + (closest != null ? " Did you mean '" + closest + "'?" : "")
                 + " Use list_commands to see available commands.";
         }
-
-        com.excudo.core.parsing.CommandSchema schema =
-            com.excudo.core.parsing.CommandRegistry.getSchema(commandName);
-        if (schema == null) {
-            return "Internal error: schema for '" + commandName + "' not found.";
-        }
+        String commandName = actionType;
 
         // Reject REPL-only commands. show-shape, show, list, etc. are
         // registered in CommandRegistry for the REPL but aren't llmEnabled,
@@ -1435,8 +1432,7 @@ public class ToolDispatcher {
         }
 
         // Build the set of accepted parameter keys: canonical names + llmName
-        // aliases + any nested-wrapper keys the bridge knows how to flatten
-        // for this action type.
+        // aliases. CommandSchema.bridgeLlmParams will resolve either form.
         Set<String> accepted = new HashSet<>();
         for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
             accepted.add(p.getName());
@@ -1470,33 +1466,28 @@ public class ToolDispatcher {
     }
 
     private String validateActionParameters(RequestSchema.ActionRequest action) {
-        try {
-            String commandName = LLMRequestBridge.resolveCommandName(action.getType());
-            com.excudo.core.parsing.CommandSchema schema =
-                com.excudo.core.parsing.CommandRegistry.getSchema(commandName);
-            if (schema == null) return null;
+        com.excudo.core.parsing.CommandSchema schema =
+            com.excudo.core.parsing.CommandRegistry.getSchema(action.getType());
+        if (schema == null) return null;
 
-            Map<String, Object> params = action.getParameters();
-            if (params == null) return null;
+        Map<String, Object> params = action.getParameters();
+        if (params == null) return null;
 
-            for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
-                if (p.getValidValues() == null || p.getValidValues().isEmpty()) continue;
+        for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
+            if (p.getValidValues() == null || p.getValidValues().isEmpty()) continue;
 
-                String llmName = p.getEffectiveLlmName();
-                String canonicalName = p.getName();
-                Object value = params.containsKey(llmName) ? params.get(llmName) : params.get(canonicalName);
-                if (value == null) continue;
+            String llmName = p.getEffectiveLlmName();
+            String canonicalName = p.getName();
+            Object value = params.containsKey(llmName) ? params.get(llmName) : params.get(canonicalName);
+            if (value == null) continue;
 
-                String strValue = String.valueOf(value);
-                if (!p.getValidValues().contains(strValue)) {
-                    return "Invalid value for " + llmName + ": \"" + strValue
-                        + "\". Must be one of: " + String.join(", ", p.getValidValues());
-                }
+            String strValue = String.valueOf(value);
+            if (!p.getValidValues().contains(strValue)) {
+                return "Invalid value for " + llmName + ": \"" + strValue
+                    + "\". Must be one of: " + String.join(", ", p.getValidValues());
             }
-            return null;
-        } catch (IllegalArgumentException e) {
-            return e.getMessage();
         }
+        return null;
     }
 
     /**
