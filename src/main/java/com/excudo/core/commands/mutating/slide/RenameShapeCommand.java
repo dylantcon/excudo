@@ -2,19 +2,51 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.model.ShapeRegistry;
 import com.excudo.core.model.SlideShape;
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
  * Rename a shape's {@code cNvPr/@name}. Snapshot-based undo: captures
  * the previous name at execute time and restores it on undo, mirroring
  * other shape-mutation commands.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: the canonical name
+ * {@code rename-shape} derives from the class name.
  */
 public class RenameShapeCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("SPID of the shape to rename").llmName("targetSpid").required().build();
+    static final Parameter<String> NEW_NAME = Parameter.ofString("name")
+        .description("New cNvPr/@name value for the shape").llmName("newName").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Rename a shape's cNvPr/@name")
+        .llmEnabled(true)
+        .llmDescription("Rename a shape's cNvPr/@name attribute. SPID and all other "
+            + "shape attributes are preserved. Undoable.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .parameter(NEW_NAME)
+        .example("rename-shape 1 5 \"Title Banner\"")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(RenameShapeCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new RenameShapeCommand(p.get(SLIDE), p.get(SPID), p.get(NEW_NAME), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int spid;

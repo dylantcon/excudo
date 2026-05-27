@@ -126,6 +126,11 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.master.EditMasterStyleCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.master.EditMasterClrMapCommand.class);
         registerCommandClass(com.excudo.core.commands.readonly.IconCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.AddToGroupCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.DetachFromGroupCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.SetTextBoxFlagCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.ClearSlideContentCommand.class);
+        registerCommandClass(com.excudo.core.commands.mutating.slide.RenameShapeCommand.class);
     }
 
     private CommandClassRegistry() {}

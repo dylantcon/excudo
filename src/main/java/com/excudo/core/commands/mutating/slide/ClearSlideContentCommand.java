@@ -2,9 +2,14 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.core.synthesis.CommandScript;
 import com.excudo.core.synthesis.ScriptRunner;
@@ -28,8 +33,30 @@ import java.util.List;
  * snapshot. "Clear-slide-content is a UX wrapper around
  * synthesize-then-invert-then-run," and that's literally what this
  * class does.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: the canonical name
+ * {@code clear-slide-content} derives from the class name.
  */
 public class ClearSlideContentCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Revert a slide to its layout baseline (remove user-added shapes, animations, transition)")
+        .llmEnabled(true)
+        .llmDescription("Revert a slide to its layout baseline: remove every user-added "
+            + "shape, every animation, and any slide-level transition override. Layout-"
+            + "originated placeholders are preserved. Undoable.")
+        .parameter(SLIDE)
+        .example("clear-slide-content 3")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(ClearSlideContentCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new ClearSlideContentCommand(p.get(SLIDE), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final PPTXOrchestrator orchestrator;

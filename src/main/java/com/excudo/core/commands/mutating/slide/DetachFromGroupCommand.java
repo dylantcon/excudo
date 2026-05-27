@@ -2,10 +2,15 @@ package com.excudo.core.commands.mutating.slide;
 
 import com.excudo.core.commands.meta.UndoCommand;
 import com.excudo.core.commands.Command;
+import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.model.ShapeRegistry;
 import com.excudo.core.orchestration.PPTXOrchestrator;
+import com.excudo.core.parsing.CommandParameters;
+import com.excudo.core.parsing.CommandSchema;
+import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 
 /**
@@ -15,8 +20,34 @@ import com.excudo.core.results.ExecutionResult;
  *
  * <p>Snapshot-based undo: captures the parent group's SPID at execute
  * time so undo re-groups the child cleanly.
+ *
+ * <p>Self-registers via {@link CommandClassRegistry}: the canonical name
+ * {@code detach-from-group} derives from the class name.
  */
 public class DetachFromGroupCommand implements Command {
+
+    static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<Integer> SPID = Parameter.ofInt("spid")
+        .spid().description("SPID of the grouped child shape to detach")
+        .llmName("targetSpid").required().build();
+
+    public static final CommandSchema SCHEMA = CommandSchema.builder()
+        .description("Move a grouped child shape out to the top-level spTree, preserving its visual position")
+        .llmEnabled(true)
+        .llmDescription("Detach a child shape from its parent group, moving it to the "
+            + "top level. Visual slide-space position is preserved via the group's forward "
+            + "coordinate transform. Fails if the shape is already at the top level.")
+        .parameter(SLIDE)
+        .parameter(SPID)
+        .example("detach-from-group 1 7")
+        .build();
+
+    public static final String NAME = CommandClassRegistry.nameOf(DetachFromGroupCommand.class);
+
+    public static Command fromParameters(CommandParameters p, CommandContext ctx) {
+        return new DetachFromGroupCommand(p.get(SLIDE), p.get(SPID), ctx.orchestrator());
+    }
 
     private final int slideNumber;
     private final int childSpid;
