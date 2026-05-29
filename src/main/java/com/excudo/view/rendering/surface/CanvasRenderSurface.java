@@ -1,6 +1,7 @@
 package com.excudo.view.rendering.surface;
 
 import com.excudo.core.rendering.surface.FontSubstitutionTracker;
+import com.excudo.core.rendering.surface.ImageDecodeScaler;
 import com.excudo.core.rendering.surface.RenderSurface;
 import com.excudo.core.rendering.surface.StrokeCap;
 import com.excudo.core.rendering.surface.StrokeJoin;
@@ -27,9 +28,14 @@ import javafx.scene.text.FontWeight;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 /**
  * {@link RenderSurface} backed by a JavaFX {@link Canvas} + {@link GraphicsContext}.
@@ -225,10 +231,45 @@ public final class CanvasRenderSurface implements RenderSurface {
     @Override
     public SurfaceImage decodeImage(byte[] bytes, String mimeType) {
         if (bytes == null || bytes.length == 0) return null;
-        Image img = new Image(new ByteArrayInputStream(bytes));
+        Image img = null;
+        // Peek dimensions from the header (no full decode) so an oversized
+        // source can be decoded straight to a reduced size -- keeping large
+        // media out of the Monocle/Prism native buffers. For an animated GIF
+        // this shrinks every frame.
+        int[] dims = peekDimensions(bytes);
+        if (dims != null) {
+            int sub = ImageDecodeScaler.subsampleFactor(dims[0], dims[1],
+                (int) Math.round(canvas.getWidth()), (int) Math.round(canvas.getHeight()));
+            if (sub > 1) {
+                img = new Image(new ByteArrayInputStream(bytes),
+                    (double) (dims[0] / sub), (double) (dims[1] / sub), true, true);
+            }
+        }
+        if (img == null) {
+            img = new Image(new ByteArrayInputStream(bytes));
+        }
         int w = (int) img.getWidth();
         int h = (int) img.getHeight();
         return new FxSurfaceImage(img, w, h);
+    }
+
+    /** Read just the image header to get source dimensions, or null if no
+     *  reader handles the format (e.g. WMF/EMF). */
+    private static int[] peekDimensions(byte[] bytes) {
+        try (ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (iis == null) return null;
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext()) return null;
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(iis, true, true);
+                return new int[]{reader.getWidth(0), reader.getHeight(0)};
+            } finally {
+                reader.dispose();
+            }
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     // ========== STATE + TRANSFORMS ==========

@@ -25,8 +25,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 /**
  * {@link RenderSurface} backed by an AWT {@link Graphics2D} drawing to
@@ -414,10 +418,31 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     @Override
     public SurfaceImage decodeImage(byte[] bytes, String mimeType) {
         if (bytes == null || bytes.length == 0) return null;
-        try {
-            BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(bytes));
-            if (decoded == null) return null;
-            return new AwtSurfaceImage(decoded, decoded.getWidth(), decoded.getHeight());
+        try (ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            if (iis == null) return null;
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext()) return null; // e.g. WMF/EMF -- caller draws a placeholder
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(iis, true, true);
+                // Header-only dimension read; the full raster isn't decoded yet.
+                int srcW = reader.getWidth(0);
+                int srcH = reader.getHeight(0);
+
+                ImageReadParam param = reader.getDefaultReadParam();
+                int sub = ImageDecodeScaler.subsampleFactor(srcW, srcH, widthPx, heightPx);
+                if (sub > 1) {
+                    // The reader skips pixels during decode, so the full-res
+                    // raster is never materialized -- this is where the memory
+                    // saving actually happens, not a post-decode resize.
+                    param.setSourceSubsampling(sub, sub, 0, 0);
+                }
+                BufferedImage decoded = reader.read(0, param);
+                if (decoded == null) return null;
+                return new AwtSurfaceImage(decoded, decoded.getWidth(), decoded.getHeight());
+            } finally {
+                reader.dispose();
+            }
         } catch (IOException e) {
             logger.debug("Failed to decode image (mime={}): {}", mimeType, e.getMessage());
             return null;
