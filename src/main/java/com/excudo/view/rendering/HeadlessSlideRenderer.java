@@ -37,20 +37,26 @@ public class HeadlessSlideRenderer {
     // real baseline instead of eyeballing wall-clock from outside.
     private static final boolean TIMING_ENABLED = timingEnabled();
 
-    // Rendering backend selection. Default is "canvas" (JavaFX Canvas
-    // + WritableImage snapshot + SwingFXUtils conversion -- same as
-    // pre-Phase-D behaviour). Set EXCUDO_RENDER_BACKEND=awt to use the
-    // Graphics2D backend which skips the FX-thread hop, writes
-    // directly to BufferedImage, and uses TextLayout for sub-pixel
-    // typography. Phase E flips this default to "awt".
+    // Rendering backend selection. Default is "awt" (Graphics2DRenderSurface):
+    // it skips the FX-thread hop, writes directly to a BufferedImage, and uses
+    // TextLayout for sub-pixel typography. Crucially, every allocation is
+    // on-heap and bounded by -Xmx, so a too-large render fails as a catchable
+    // OutOfMemoryError rather than exhausting off-heap native memory.
+    //
+    // The legacy "canvas" backend (JavaFX Canvas + WritableImage snapshot +
+    // SwingFXUtils conversion) decodes images into Monocle/Prism native
+    // buffers that bypass the heap cap; a dense, image-heavy slide could push
+    // the process past physical RAM and take down the whole machine. Opt back
+    // into it with EXCUDO_RENDER_BACKEND=canvas only if a render needs the
+    // exact JavaFX text rasterization.
     private static final Backend BACKEND = selectBackend();
 
     private enum Backend { CANVAS, AWT }
 
     private static Backend selectBackend() {
         String v = System.getenv("EXCUDO_RENDER_BACKEND");
-        if (v != null && "awt".equalsIgnoreCase(v.trim())) return Backend.AWT;
-        return Backend.CANVAS;
+        if (v != null && "canvas".equalsIgnoreCase(v.trim())) return Backend.CANVAS;
+        return Backend.AWT;
     }
 
     private static boolean timingEnabled() {
