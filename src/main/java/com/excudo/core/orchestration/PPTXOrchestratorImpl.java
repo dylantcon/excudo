@@ -102,10 +102,13 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     public ExecutionResult<OrchestrationContext> initialize(PPTXDocument pptxDocument) {
         try {
             SPIDManager.resetInstance();
+            boolean timing = com.excudo.core.model.PPTXDocument.LOAD_TIMING;
+            long t0 = timing ? System.nanoTime() : 0;
 
             // Parse all derived state from in-memory DOMs in a single pass
             com.excudo.core.model.PPTXDocumentParser.ParsedPresentationState parsedState =
                 com.excudo.core.model.PPTXDocumentParser.parse(pptxDocument);
+            long t1 = timing ? System.nanoTime() : 0;
 
             // Construct managers from parsed state -- no File, no disk
             com.excudo.core.model.LayoutManager layoutManager =
@@ -126,6 +129,12 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             // Layout/theme init from PPTXDocument
             com.excudo.xml.parsers.SlideXMLParser.SlideLayoutParser.initialize(pptxDocument);
             com.excudo.core.themes.ThemeManager.initialize(pptxDocument);
+
+            if (timing) {
+                long t2 = System.nanoTime();
+                logger.info("load-timing: parse()={}ms managers+theme={}ms",
+                    (t1 - t0) / 1_000_000, (t2 - t1) / 1_000_000);
+            }
 
             Map<String, Object> contextData = new HashMap<>();
             contextData.put("initialized", true);

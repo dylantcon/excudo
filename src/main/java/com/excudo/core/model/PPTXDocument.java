@@ -29,6 +29,14 @@ public class PPTXDocument implements AutoCloseable {
 
     private static final ComponentLogger logger = Logger.getLogger(PPTXDocument.class);
 
+    /** Phase timing for the load path. Enable with EXCUDO_LOAD_TIMING=1.
+     *  Mirrors the EXCUDO_RENDER_TIMING flag in HeadlessSlideRenderer. */
+    public static final boolean LOAD_TIMING = loadTimingEnabled();
+    private static boolean loadTimingEnabled() {
+        String v = System.getenv("EXCUDO_LOAD_TIMING");
+        return v != null && !v.isBlank() && !"0".equals(v) && !"false".equalsIgnoreCase(v);
+    }
+
     // Universal OPC part store
     private final Map<String, Document> xmlParts;
     private final Map<String, MediaElement> mediaParts;
@@ -155,6 +163,9 @@ public class PPTXDocument implements AutoCloseable {
             ZipInputStream zis = new ZipInputStream(zipStream);
             ZipEntry entry;
 
+            long unzipNanos = 0, parseNanos = 0;
+            int xmlCount = 0;
+
             while ((entry = zis.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
 
@@ -163,12 +174,16 @@ public class PPTXDocument implements AutoCloseable {
                 if (compressionMethod < 0) compressionMethod = ZipEntry.DEFLATED;
                 doc.compressionMethods.put(entryName, compressionMethod);
 
+                long t0 = LOAD_TIMING ? System.nanoTime() : 0;
                 byte[] bytes = zis.readAllBytes();
+                if (LOAD_TIMING) unzipNanos += System.nanoTime() - t0;
 
                 if (entryName.endsWith(".xml") || entryName.endsWith(".rels")) {
+                    long t1 = LOAD_TIMING ? System.nanoTime() : 0;
                     try {
                         Document xmlDoc = builder.parse(new ByteArrayInputStream(bytes));
                         doc.xmlParts.put(entryName, xmlDoc);
+                        if (LOAD_TIMING) { parseNanos += System.nanoTime() - t1; xmlCount++; }
                     } catch (Exception e) {
                         // Not parseable XML, store as binary
                         doc.binaryParts.put(entryName, bytes);
@@ -182,6 +197,10 @@ public class PPTXDocument implements AutoCloseable {
                 }
             }
 
+            if (LOAD_TIMING) {
+                logger.info("load-timing: unzip={}ms dom-parse={}ms ({} xml parts)",
+                    unzipNanos / 1_000_000, parseNanos / 1_000_000, xmlCount);
+            }
             logger.info("Loaded PPTXDocument from ZIP: {} XML parts, {} media parts, {} binary parts",
                         doc.xmlParts.size(), doc.mediaParts.size(), doc.binaryParts.size());
             return doc;

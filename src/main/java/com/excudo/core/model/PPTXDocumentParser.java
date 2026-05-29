@@ -1,13 +1,11 @@
 package com.excudo.core.model;
 
 import com.excudo.core.utils.XMLConstants;
-import com.excudo.core.utils.XMLFactoryProvider;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.exceptions.XMLParsingException;
 import org.w3c.dom.*;
 
-import javax.xml.xpath.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -165,29 +163,46 @@ public final class PPTXDocumentParser {
             List<Integer> slideNumbers = doc.getSlideNumbers();
             ParsedPresentationState state = new ParsedPresentationState(slideNumbers.size());
 
-            XPath xpath = XMLFactoryProvider.createXPath();
-            XPath xpathNoNs = XMLFactoryProvider.createXPathWithoutNamespace();
+            boolean timing = PPTXDocument.LOAD_TIMING;
+            long[] t = new long[8];
+            int ti = 0;
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 1. Scan all .rels parts for relationships
             scanRelationships(doc, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 2. Scan all slide DOMs for SPIDs
-            scanSpids(doc, slideNumbers, state, xpath);
+            scanSpids(doc, slideNumbers, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 3. Resolve slide-to-layout mappings from slide .rels
-            resolveSlideLayouts(doc, slideNumbers, state, xpathNoNs);
+            resolveSlideLayouts(doc, slideNumbers, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 4. Parse layout DOMs for capabilities (title, content, geometry)
-            parseLayouts(doc, state, xpath);
+            parseLayouts(doc, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 4b. Resolve layout -> master via each layout's .rels
-            resolveLayoutMasters(doc, state, xpathNoNs);
+            resolveLayoutMasters(doc, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 4c. Resolve master -> theme via each master's .rels
-            resolveMasterThemes(doc, state, xpathNoNs);
+            resolveMasterThemes(doc, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
 
             // 5. Scan notes .rels for notes-to-slide mappings
             scanNotes(doc, state);
+            t[ti++] = timing ? System.nanoTime() : 0;
+
+            if (timing) {
+                logger.info("parse-timing: relationships={}ms spids={}ms slideLayouts={}ms "
+                    + "parseLayouts={}ms layoutMasters={}ms masterThemes={}ms notes={}ms",
+                    (t[1]-t[0])/1_000_000, (t[2]-t[1])/1_000_000, (t[3]-t[2])/1_000_000,
+                    (t[4]-t[3])/1_000_000, (t[5]-t[4])/1_000_000, (t[6]-t[5])/1_000_000,
+                    (t[7]-t[6])/1_000_000);
+            }
 
             logger.info("Parsed PPTXDocument: {} relationships, {} SPIDs, {} layouts, {} slides, {} notes, {} masters",
                         state.globalRelationships.size(), state.spidRegistry.size(),
@@ -243,15 +258,19 @@ public final class PPTXDocumentParser {
     // ========== SPID SCANNING ==========
 
     private static void scanSpids(PPTXDocument doc, List<Integer> slideNumbers,
-                                   ParsedPresentationState state, XPath xpath) throws Exception {
+                                   ParsedPresentationState state) {
         for (int slideNum : slideNumbers) {
             Document slideDom = doc.getSlideDocument(slideNum);
-            NodeList spidNodes = (NodeList) xpath.evaluate("//p:cNvPr/@id", slideDom, XPathConstants.NODESET);
-
-            for (int i = 0; i < spidNodes.getLength(); i++) {
+            if (slideDom == null) continue;
+            // Direct DOM traversal -- getElementsByTagNameNS is a native, indexed
+            // descendant scan; far cheaper than an XPath "//p:cNvPr" evaluated
+            // over a wrapped w3c DOM (which builds a Xalan DTM per query).
+            NodeList cNvPrs = slideDom.getElementsByTagNameNS(XMLConstants.PRESENTATION_NS, "cNvPr");
+            for (int i = 0; i < cNvPrs.getLength(); i++) {
+                String id = ((Element) cNvPrs.item(i)).getAttribute("id");
+                if (id.isEmpty()) continue;
                 try {
-                    int spid = Integer.parseInt(spidNodes.item(i).getNodeValue());
-                    state.spidRegistry.put(spid, new SpidEntry(slideNum, "existing_shape"));
+                    state.spidRegistry.put(Integer.parseInt(id), new SpidEntry(slideNum, "existing_shape"));
                 } catch (NumberFormatException ignored) {}
             }
         }
@@ -260,30 +279,30 @@ public final class PPTXDocumentParser {
     // ========== SLIDE-TO-LAYOUT RESOLUTION ==========
 
     private static void resolveSlideLayouts(PPTXDocument doc, List<Integer> slideNumbers,
-                                             ParsedPresentationState state, XPath xpath) {
+                                             ParsedPresentationState state) {
         for (int slideNum : slideNumbers) {
             String relsPartName = "ppt/slides/_rels/slide" + slideNum + ".xml.rels";
             Document relsDom = doc.getXmlPart(relsPartName);
             if (relsDom == null) continue;
+            String target = firstRelTarget(relsDom, XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT);
+            String layoutId = idFromTarget(target); // "../slideLayouts/slideLayout1.xml" -> "slideLayout1"
+            if (layoutId != null) state.slideToLayoutId.put(slideNum, layoutId);
+        }
+    }
 
-            try {
-                NodeList rels = (NodeList) xpath.evaluate(
-                    "//*[local-name()='Relationship'][@Type='" +
-                    XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT + "']",
-                    relsDom, XPathConstants.NODESET);
-
-                if (rels.getLength() > 0) {
-                    String target = ((Element) rels.item(0)).getAttribute("Target");
-                    // Target is typically "../slideLayouts/slideLayout1.xml"
-                    String filename = target.substring(target.lastIndexOf('/') + 1);
-                    String layoutId = filename.endsWith(".xml")
-                        ? filename.substring(0, filename.length() - 4) : filename;
-                    state.slideToLayoutId.put(slideNum, layoutId);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to resolve layout for slide {}: {}", slideNum, e.getMessage());
+    /** Target of the first {@code <Relationship>} with the given Type in a
+     *  .rels DOM, or null. Mirrors {@link #scanRelationships}'s direct
+     *  getElementsByTagName walk rather than paying XPath over the DOM. */
+    private static String firstRelTarget(Document relsDom, String type) {
+        NodeList rels = relsDom.getElementsByTagName("Relationship");
+        for (int i = 0; i < rels.getLength(); i++) {
+            Element rel = (Element) rels.item(i);
+            if (type.equals(rel.getAttribute("Type"))) {
+                String t = rel.getAttribute("Target");
+                return (t == null || t.isEmpty()) ? null : t;
             }
         }
+        return null;
     }
 
     // ========== LAYOUT -> MASTER RESOLUTION ==========
@@ -294,24 +313,14 @@ public final class PPTXDocumentParser {
      * one slideMaster relationship. Multi-master decks point different layouts
      * at different masters; single-master decks all point at slideMaster1.
      */
-    private static void resolveLayoutMasters(PPTXDocument doc, ParsedPresentationState state, XPath xpath) {
+    private static void resolveLayoutMasters(PPTXDocument doc, ParsedPresentationState state) {
         for (String layoutId : state.layouts.keySet()) {
             String relsPartName = "ppt/slideLayouts/_rels/" + layoutId + ".xml.rels";
             Document relsDom = doc.getXmlPart(relsPartName);
             if (relsDom == null) continue;
-            try {
-                NodeList rels = (NodeList) xpath.evaluate(
-                    "//*[local-name()='Relationship'][@Type='" +
-                    XMLConstants.RELATIONSHIP_TYPE_SLIDE_MASTER + "']",
-                    relsDom, XPathConstants.NODESET);
-                if (rels.getLength() > 0) {
-                    String target = ((Element) rels.item(0)).getAttribute("Target");
-                    String masterId = idFromTarget(target);
-                    if (masterId != null) state.layoutToMasterId.put(layoutId, masterId);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to resolve master for layout {}: {}", layoutId, e.getMessage());
-            }
+            String masterId = idFromTarget(
+                firstRelTarget(relsDom, XMLConstants.RELATIONSHIP_TYPE_SLIDE_MASTER));
+            if (masterId != null) state.layoutToMasterId.put(layoutId, masterId);
         }
     }
 
@@ -323,26 +332,16 @@ public final class PPTXDocumentParser {
      * so color/fmtScheme resolution must follow this per-master mapping rather
      * than assuming theme1.
      */
-    private static void resolveMasterThemes(PPTXDocument doc, ParsedPresentationState state, XPath xpath) {
+    private static void resolveMasterThemes(PPTXDocument doc, ParsedPresentationState state) {
         Set<String> masters = new HashSet<>(state.layoutToMasterId.values());
         for (String masterId : masters) {
             String relsPartName = "ppt/slideMasters/_rels/" + masterId + ".xml.rels";
             Document relsDom = doc.getXmlPart(relsPartName);
             if (relsDom == null) continue;
-            try {
-                NodeList rels = (NodeList) xpath.evaluate(
-                    "//*[local-name()='Relationship'][@Type='" +
-                    XMLConstants.RELATIONSHIP_TYPE_THEME + "']",
-                    relsDom, XPathConstants.NODESET);
-                if (rels.getLength() > 0) {
-                    String target = ((Element) rels.item(0)).getAttribute("Target");
-                    // Target is relative to ppt/slideMasters/, e.g. "../theme/theme2.xml"
-                    String themePart = resolveRelativePart("ppt/slideMasters", target);
-                    if (themePart != null) state.masterToThemePart.put(masterId, themePart);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to resolve theme for master {}: {}", masterId, e.getMessage());
-            }
+            // Target is relative to ppt/slideMasters/, e.g. "../theme/theme2.xml"
+            String target = firstRelTarget(relsDom, XMLConstants.RELATIONSHIP_TYPE_THEME);
+            String themePart = resolveRelativePart("ppt/slideMasters", target);
+            if (themePart != null) state.masterToThemePart.put(masterId, themePart);
         }
     }
 
@@ -369,7 +368,7 @@ public final class PPTXDocumentParser {
 
     // ========== LAYOUT PARSING ==========
 
-    private static void parseLayouts(PPTXDocument doc, ParsedPresentationState state, XPath xpath) {
+    private static void parseLayouts(PPTXDocument doc, ParsedPresentationState state) {
         Set<String> layoutParts = doc.getPartNamesByPrefix("ppt/slideLayouts/");
 
         for (String partName : layoutParts) {
@@ -384,20 +383,20 @@ public final class PPTXDocumentParser {
                 String layoutId = filename.substring(0, filename.length() - 4);
 
                 // Parse layout name
-                String name = parseLayoutName(layoutDom, xpath);
+                String name = parseLayoutName(layoutDom);
                 if (name == null || name.isEmpty()) name = layoutId;
 
                 // Analyze placeholders
-                boolean hasTitle = hasPlaceholderType(layoutDom, xpath, "title", "ctrTitle");
-                boolean hasContent = hasPlaceholderType(layoutDom, xpath, "body", "obj")
-                    || hasIndexedContent(layoutDom, xpath);
-                boolean hasSubtitle = hasPlaceholderType(layoutDom, xpath, "subTitle");
-                String titleType = detectTitleType(layoutDom, xpath);
-                int contentCount = countPlaceholderType(layoutDom, xpath, "body", "obj")
-                    + countIndexedContent(layoutDom, xpath);
+                boolean hasTitle = hasPlaceholderType(layoutDom, "title", "ctrTitle");
+                boolean hasContent = hasPlaceholderType(layoutDom, "body", "obj")
+                    || hasIndexedContent(layoutDom);
+                boolean hasSubtitle = hasPlaceholderType(layoutDom, "subTitle");
+                String titleType = detectTitleType(layoutDom);
+                int contentCount = countPlaceholderType(layoutDom, "body", "obj")
+                    + countIndexedContent(layoutDom);
 
                 // Parse placeholder geometries
-                List<PlaceholderGeometry> geometries = parsePlaceholderGeometries(layoutDom, xpath, layoutId);
+                List<PlaceholderGeometry> geometries = parsePlaceholderGeometries(layoutDom, layoutId);
 
                 String description = generateDescription(hasTitle, hasContent, hasSubtitle);
                 String filePath = "slideLayouts/" + filename;
@@ -453,7 +452,7 @@ public final class PPTXDocumentParser {
 
     // ========== LAYOUT PARSING HELPERS ==========
 
-    private static String parseLayoutName(Document doc, XPath xpath) {
+    private static String parseLayoutName(Document doc) {
         try {
             NodeList cSldList = doc.getElementsByTagName("p:cSld");
             if (cSldList.getLength() > 0) {
@@ -464,99 +463,100 @@ public final class PPTXDocumentParser {
         return null;
     }
 
-    private static boolean hasPlaceholderType(Document doc, XPath xpath, String... types) {
-        try {
-            for (String type : types) {
-                NodeList nodes = (NodeList) xpath.evaluate(
-                    "//p:sp[.//p:ph[@type='" + type + "']]", doc, XPathConstants.NODESET);
-                if (nodes.getLength() > 0) return true;
-            }
-        } catch (Exception ignored) {}
+    // All placeholder analysis below walks p:ph / p:sp via getElementsByTagNameNS
+    // rather than XPath. A p:ph only ever lives inside a p:sp's nvSpPr, so
+    // "an sp containing a ph of type X" is equivalent to "a ph of type X
+    // exists" -- the DOM scan is a fraction of the cost of evaluating
+    // "//p:sp[.//p:ph[...]]" against a Xalan-wrapped w3c DOM per layout.
+
+    private static NodeList phElements(Document doc) {
+        return doc.getElementsByTagNameNS(XMLConstants.PRESENTATION_NS, "ph");
+    }
+
+    private static boolean hasPlaceholderType(Document doc, String... types) {
+        NodeList phs = phElements(doc);
+        for (int i = 0; i < phs.getLength(); i++) {
+            String t = ((Element) phs.item(i)).getAttribute("type");
+            for (String type : types) if (type.equals(t)) return true;
+        }
         return false;
     }
 
-    private static boolean hasIndexedContent(Document doc, XPath xpath) {
-        try {
-            // Only count indexed placeholders that don't have an explicit type (not already counted by hasPlaceholderType)
-            NodeList nodes = (NodeList) xpath.evaluate(
-                "//p:sp[.//p:ph[@idx and not(@type)]]",
-                doc, XPathConstants.NODESET);
-            return nodes.getLength() > 0;
-        } catch (Exception ignored) {}
+    private static boolean hasIndexedContent(Document doc) {
+        // Indexed placeholders without an explicit type (not covered by hasPlaceholderType).
+        NodeList phs = phElements(doc);
+        for (int i = 0; i < phs.getLength(); i++) {
+            Element ph = (Element) phs.item(i);
+            if (ph.hasAttribute("idx") && !ph.hasAttribute("type")) return true;
+        }
         return false;
     }
 
-    private static int countPlaceholderType(Document doc, XPath xpath, String... types) {
+    private static int countPlaceholderType(Document doc, String... types) {
         int count = 0;
-        try {
-            for (String type : types) {
-                NodeList nodes = (NodeList) xpath.evaluate(
-                    "//p:sp[.//p:ph[@type='" + type + "']]", doc, XPathConstants.NODESET);
-                count += nodes.getLength();
-            }
-        } catch (Exception ignored) {}
+        NodeList phs = phElements(doc);
+        for (int i = 0; i < phs.getLength(); i++) {
+            String t = ((Element) phs.item(i)).getAttribute("type");
+            for (String type : types) if (type.equals(t)) { count++; break; }
+        }
         return count;
     }
 
-    private static int countIndexedContent(Document doc, XPath xpath) {
-        try {
-            // Count indexed placeholders that don't have an explicit type (not already counted by countPlaceholderType)
-            NodeList nodes = (NodeList) xpath.evaluate(
-                "//p:sp[.//p:ph[@idx and not(@type)]]",
-                doc, XPathConstants.NODESET);
-            return nodes.getLength();
-        } catch (Exception ignored) {}
-        return 0;
+    private static int countIndexedContent(Document doc) {
+        int count = 0;
+        NodeList phs = phElements(doc);
+        for (int i = 0; i < phs.getLength(); i++) {
+            Element ph = (Element) phs.item(i);
+            if (ph.hasAttribute("idx") && !ph.hasAttribute("type")) count++;
+        }
+        return count;
     }
 
-    private static String detectTitleType(Document doc, XPath xpath) {
-        try {
-            NodeList ctrTitle = (NodeList) xpath.evaluate(
-                "//p:sp[.//p:ph[@type='ctrTitle']]", doc, XPathConstants.NODESET);
-            if (ctrTitle.getLength() > 0) return "ctrTitle";
-            NodeList title = (NodeList) xpath.evaluate(
-                "//p:sp[.//p:ph[@type='title']]", doc, XPathConstants.NODESET);
-            if (title.getLength() > 0) return "title";
-        } catch (Exception ignored) {}
-        return null;
+    private static String detectTitleType(Document doc) {
+        // ctrTitle takes priority over title when both are present.
+        NodeList phs = phElements(doc);
+        boolean hasTitle = false;
+        for (int i = 0; i < phs.getLength(); i++) {
+            String t = ((Element) phs.item(i)).getAttribute("type");
+            if ("ctrTitle".equals(t)) return "ctrTitle";
+            if ("title".equals(t)) hasTitle = true;
+        }
+        return hasTitle ? "title" : null;
     }
 
-    private static List<PlaceholderGeometry> parsePlaceholderGeometries(Document doc, XPath xpath, String layoutId) {
+    private static List<PlaceholderGeometry> parsePlaceholderGeometries(Document doc, String layoutId) {
         List<PlaceholderGeometry> geometries = new ArrayList<>();
         try {
-            NodeList placeholders = (NodeList) xpath.evaluate("//p:sp[.//p:ph]", doc, XPathConstants.NODESET);
-
-            for (int i = 0; i < placeholders.getLength(); i++) {
-                Element sp = (Element) placeholders.item(i);
-                Element ph = (Element) ((NodeList) xpath.evaluate(".//p:ph", sp, XPathConstants.NODESET)).item(0);
+            NodeList sps = doc.getElementsByTagNameNS(XMLConstants.PRESENTATION_NS, "sp");
+            for (int i = 0; i < sps.getLength(); i++) {
+                Element sp = (Element) sps.item(i);
+                NodeList phNodes = sp.getElementsByTagNameNS(XMLConstants.PRESENTATION_NS, "ph");
+                if (phNodes.getLength() == 0) continue; // not a placeholder shape
+                Element ph = (Element) phNodes.item(0);
                 String type = ph.getAttribute("type");
                 String idx = ph.getAttribute("idx");
 
-                // Find xfrm
-                NodeList xfrmNodes = (NodeList) xpath.evaluate(".//a:xfrm", sp, XPathConstants.NODESET);
-                if (xfrmNodes.getLength() > 0) {
-                    Element xfrm = (Element) xfrmNodes.item(0);
-                    NodeList offNodes = xfrm.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "off");
-                    NodeList extNodes = xfrm.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "ext");
+                NodeList xfrmNodes = sp.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "xfrm");
+                if (xfrmNodes.getLength() == 0) continue;
+                Element xfrm = (Element) xfrmNodes.item(0);
+                NodeList offNodes = xfrm.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "off");
+                NodeList extNodes = xfrm.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "ext");
+                if (offNodes.getLength() == 0 || extNodes.getLength() == 0) continue;
 
-                    if (offNodes.getLength() > 0 && extNodes.getLength() > 0) {
-                        Element off = (Element) offNodes.item(0);
-                        Element ext = (Element) extNodes.item(0);
+                Element off = (Element) offNodes.item(0);
+                Element ext = (Element) extNodes.item(0);
+                long x = Long.parseLong(off.getAttribute("x"));
+                long y = Long.parseLong(off.getAttribute("y"));
+                long cx = Long.parseLong(ext.getAttribute("cx"));
+                long cy = Long.parseLong(ext.getAttribute("cy"));
 
-                        long x = Long.parseLong(off.getAttribute("x"));
-                        long y = Long.parseLong(off.getAttribute("y"));
-                        long cx = Long.parseLong(ext.getAttribute("cx"));
-                        long cy = Long.parseLong(ext.getAttribute("cy"));
-
-                        // Store by type key for getPlaceholderGeometryByType() lookups
-                        if (type != null && !type.isEmpty()) {
-                            geometries.add(new PlaceholderGeometry(x, y, cx, cy, "type:" + type, type));
-                        }
-                        // Also store by idx for getPlaceholderGeometryByIndex() lookups
-                        if (idx != null && !idx.isEmpty()) {
-                            geometries.add(new PlaceholderGeometry(x, y, cx, cy, idx, type));
-                        }
-                    }
+                // Store by type key for getPlaceholderGeometryByType() lookups
+                if (type != null && !type.isEmpty()) {
+                    geometries.add(new PlaceholderGeometry(x, y, cx, cy, "type:" + type, type));
+                }
+                // Also store by idx for getPlaceholderGeometryByIndex() lookups
+                if (idx != null && !idx.isEmpty()) {
+                    geometries.add(new PlaceholderGeometry(x, y, cx, cy, idx, type));
                 }
             }
         } catch (Exception e) {
