@@ -50,6 +50,14 @@ public final class PPTXDocumentParser {
         private final Map<Integer, String> slideToLayoutId;
         private final Map<String, Boolean> layoutHasTitle;
 
+        // --- Master / theme chain ---
+        // layoutId ("slideLayout3") -> masterId ("slideMaster2"), via each
+        // layout's rels. masterId -> theme part name ("ppt/theme/theme2.xml"),
+        // via each master's rels. Together these complete the
+        // slide -> layout -> master -> theme walk for multi-master decks.
+        private final Map<String, String> layoutToMasterId;
+        private final Map<String, String> masterToThemePart;
+
         // --- Notes ---
         private final Map<Integer, Integer> notesToSlideMap;
 
@@ -57,14 +65,7 @@ public final class PPTXDocumentParser {
         private final int slideCount;
 
         private ParsedPresentationState() {
-            this.globalRelationships = new LinkedHashMap<>();
-            this.perFileMaxRId = new HashMap<>();
-            this.spidRegistry = new ConcurrentHashMap<>();
-            this.layouts = new LinkedHashMap<>();
-            this.slideToLayoutId = new HashMap<>();
-            this.layoutHasTitle = new HashMap<>();
-            this.notesToSlideMap = new TreeMap<>();
-            this.slideCount = 0;
+            this(0);
         }
 
         private ParsedPresentationState(int slideCount) {
@@ -74,6 +75,8 @@ public final class PPTXDocumentParser {
             this.layouts = new LinkedHashMap<>();
             this.slideToLayoutId = new HashMap<>();
             this.layoutHasTitle = new HashMap<>();
+            this.layoutToMasterId = new HashMap<>();
+            this.masterToThemePart = new HashMap<>();
             this.notesToSlideMap = new TreeMap<>();
             this.slideCount = slideCount;
         }
@@ -85,8 +88,42 @@ public final class PPTXDocumentParser {
         public Map<String, LayoutInfo> getLayouts() { return layouts; }
         public Map<Integer, String> getSlideToLayoutId() { return slideToLayoutId; }
         public Map<String, Boolean> getLayoutHasTitle() { return layoutHasTitle; }
+        public Map<String, String> getLayoutToMasterId() { return layoutToMasterId; }
+        public Map<String, String> getMasterToThemePart() { return masterToThemePart; }
         public Map<Integer, Integer> getNotesToSlideMap() { return notesToSlideMap; }
         public int getSlideCount() { return slideCount; }
+
+        /**
+         * Master id (e.g. {@code "slideMaster2"}) backing the given slide,
+         * resolved through its layout. Falls back to {@code "slideMaster1"}
+         * when the chain can't be resolved -- single-master decks and
+         * malformed rels both land on the conventional master rather than
+         * null, matching the legacy hardcoded behavior.
+         */
+        public String getMasterIdForSlide(int slideNumber) {
+            String layoutId = slideToLayoutId.get(slideNumber);
+            if (layoutId != null) {
+                String masterId = layoutToMasterId.get(layoutId);
+                if (masterId != null) return masterId;
+            }
+            return "slideMaster1";
+        }
+
+        /** Full part name of the slide's master, e.g. {@code "ppt/slideMasters/slideMaster2.xml"}. */
+        public String getMasterPartForSlide(int slideNumber) {
+            return "ppt/slideMasters/" + getMasterIdForSlide(slideNumber) + ".xml";
+        }
+
+        /**
+         * Theme part name (e.g. {@code "ppt/theme/theme2.xml"}) for the given
+         * slide's master. Falls back to {@code "ppt/theme/theme1.xml"} when
+         * unresolved, matching legacy behavior.
+         */
+        public String getThemePartForSlide(int slideNumber) {
+            String masterId = getMasterIdForSlide(slideNumber);
+            String themePart = masterToThemePart.get(masterId);
+            return themePart != null ? themePart : "ppt/theme/theme1.xml";
+        }
     }
 
     public static class RelationshipEntry {
@@ -143,12 +180,19 @@ public final class PPTXDocumentParser {
             // 4. Parse layout DOMs for capabilities (title, content, geometry)
             parseLayouts(doc, state, xpath);
 
+            // 4b. Resolve layout -> master via each layout's .rels
+            resolveLayoutMasters(doc, state, xpathNoNs);
+
+            // 4c. Resolve master -> theme via each master's .rels
+            resolveMasterThemes(doc, state, xpathNoNs);
+
             // 5. Scan notes .rels for notes-to-slide mappings
             scanNotes(doc, state);
 
-            logger.info("Parsed PPTXDocument: {} relationships, {} SPIDs, {} layouts, {} slides, {} notes",
+            logger.info("Parsed PPTXDocument: {} relationships, {} SPIDs, {} layouts, {} slides, {} notes, {} masters",
                         state.globalRelationships.size(), state.spidRegistry.size(),
-                        state.layouts.size(), state.slideCount, state.notesToSlideMap.size());
+                        state.layouts.size(), state.slideCount, state.notesToSlideMap.size(),
+                        new java.util.HashSet<>(state.layoutToMasterId.values()).size());
 
             return state;
 
@@ -240,6 +284,87 @@ public final class PPTXDocumentParser {
                 logger.warn("Failed to resolve layout for slide {}: {}", slideNum, e.getMessage());
             }
         }
+    }
+
+    // ========== LAYOUT -> MASTER RESOLUTION ==========
+
+    /**
+     * Resolve each layout to its backing master via the layout's .rels file.
+     * Each {@code ppt/slideLayouts/_rels/slideLayoutN.xml.rels} carries exactly
+     * one slideMaster relationship. Multi-master decks point different layouts
+     * at different masters; single-master decks all point at slideMaster1.
+     */
+    private static void resolveLayoutMasters(PPTXDocument doc, ParsedPresentationState state, XPath xpath) {
+        for (String layoutId : state.layouts.keySet()) {
+            String relsPartName = "ppt/slideLayouts/_rels/" + layoutId + ".xml.rels";
+            Document relsDom = doc.getXmlPart(relsPartName);
+            if (relsDom == null) continue;
+            try {
+                NodeList rels = (NodeList) xpath.evaluate(
+                    "//*[local-name()='Relationship'][@Type='" +
+                    XMLConstants.RELATIONSHIP_TYPE_SLIDE_MASTER + "']",
+                    relsDom, XPathConstants.NODESET);
+                if (rels.getLength() > 0) {
+                    String target = ((Element) rels.item(0)).getAttribute("Target");
+                    String masterId = idFromTarget(target);
+                    if (masterId != null) state.layoutToMasterId.put(layoutId, masterId);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to resolve master for layout {}: {}", layoutId, e.getMessage());
+            }
+        }
+    }
+
+    // ========== MASTER -> THEME RESOLUTION ==========
+
+    /**
+     * Resolve each distinct master to its theme part via the master's .rels
+     * file. Multi-master decks typically pair each master with its own theme,
+     * so color/fmtScheme resolution must follow this per-master mapping rather
+     * than assuming theme1.
+     */
+    private static void resolveMasterThemes(PPTXDocument doc, ParsedPresentationState state, XPath xpath) {
+        Set<String> masters = new HashSet<>(state.layoutToMasterId.values());
+        for (String masterId : masters) {
+            String relsPartName = "ppt/slideMasters/_rels/" + masterId + ".xml.rels";
+            Document relsDom = doc.getXmlPart(relsPartName);
+            if (relsDom == null) continue;
+            try {
+                NodeList rels = (NodeList) xpath.evaluate(
+                    "//*[local-name()='Relationship'][@Type='" +
+                    XMLConstants.RELATIONSHIP_TYPE_THEME + "']",
+                    relsDom, XPathConstants.NODESET);
+                if (rels.getLength() > 0) {
+                    String target = ((Element) rels.item(0)).getAttribute("Target");
+                    // Target is relative to ppt/slideMasters/, e.g. "../theme/theme2.xml"
+                    String themePart = resolveRelativePart("ppt/slideMasters", target);
+                    if (themePart != null) state.masterToThemePart.put(masterId, themePart);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to resolve theme for master {}: {}", masterId, e.getMessage());
+            }
+        }
+    }
+
+    /** Extract a part id from a rels Target, e.g. "../slideMasters/slideMaster2.xml" -> "slideMaster2". */
+    private static String idFromTarget(String target) {
+        if (target == null || target.isEmpty()) return null;
+        String filename = target.substring(target.lastIndexOf('/') + 1);
+        return filename.endsWith(".xml") ? filename.substring(0, filename.length() - 4) : filename;
+    }
+
+    /** Resolve a relative rels Target against a base directory into an OPC part name. */
+    private static String resolveRelativePart(String baseDir, String target) {
+        if (target == null || target.isEmpty()) return null;
+        if (target.startsWith("/")) return target.substring(1);
+        Deque<String> stack = new ArrayDeque<>();
+        for (String s : baseDir.split("/")) if (!s.isEmpty()) stack.addLast(s);
+        for (String seg : target.split("/")) {
+            if (seg.isEmpty() || ".".equals(seg)) continue;
+            if ("..".equals(seg)) { if (!stack.isEmpty()) stack.removeLast(); }
+            else stack.addLast(seg);
+        }
+        return String.join("/", stack);
     }
 
     // ========== LAYOUT PARSING ==========
