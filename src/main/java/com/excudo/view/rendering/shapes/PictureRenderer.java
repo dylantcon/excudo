@@ -7,6 +7,7 @@ import com.excudo.core.model.SlideShape;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.view.rendering.RenderingContext;
+import com.excudo.view.rendering.ShapeStyleExtractor;
 import com.excudo.view.rendering.SlideRenderContext;
 import com.excudo.core.rendering.surface.RenderSurface;
 import com.excudo.core.rendering.surface.SurfaceFont;
@@ -76,6 +77,19 @@ public class PictureRenderer implements ModelShapeRenderer {
         if (image == null) {
             drawPlaceholder(surface, bounds, partName.substring(partName.lastIndexOf('/') + 1));
             return;
+        }
+
+        // Shadow pass: pictures are always rectangular, so a rect silhouette
+        // is shape-correct. Done before the image so the actual picture
+        // covers the shadow underneath where the picture itself overlaps.
+        ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
+        if (shadow != null) {
+            surface.save();
+            surface.translate(shadow.offsetX(), shadow.offsetY());
+            surface.setFill(shadow.color());
+            surface.fillRect(bounds.getMinX(), bounds.getMinY(),
+                bounds.getWidth(), bounds.getHeight());
+            surface.restore();
         }
 
         surface.drawImage(image, bounds.getMinX(), bounds.getMinY(), bounds.getWidth(), bounds.getHeight());

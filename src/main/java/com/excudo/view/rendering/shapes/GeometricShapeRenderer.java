@@ -28,6 +28,58 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         }
     }
 
+    /**
+     * Fill the shape silhouette for {@code preset} at {@code bounds} with
+     * the surface's current fill paint. Used by both the body fill and the
+     * shadow pass -- they share path geometry, only the paint and the
+     * translation differ.
+     */
+    private static void fillShape(RenderSurface surface, String preset, Rectangle2D bounds) {
+        double x = bounds.getMinX(), y = bounds.getMinY();
+        double w = bounds.getWidth(), h = bounds.getHeight();
+        switch (preset) {
+            case "ellipse", "flowChartConnector" -> surface.fillOval(x, y, w, h);
+            case "roundRect" -> {
+                double arc = Math.min(w, h) * 0.15;
+                surface.fillRoundRect(x, y, w, h, arc, arc);
+            }
+            default -> {
+                PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
+                if (drawer != null) {
+                    drawer.draw(surface, x, y, w, h);
+                    surface.fillPath();
+                } else {
+                    surface.fillRect(x, y, w, h);
+                }
+            }
+        }
+    }
+
+    /**
+     * Stroke the shape silhouette for {@code preset} at {@code bounds}
+     * with the surface's current stroke style. Sister to {@link #fillShape}.
+     */
+    private static void strokeShape(RenderSurface surface, String preset, Rectangle2D bounds) {
+        double x = bounds.getMinX(), y = bounds.getMinY();
+        double w = bounds.getWidth(), h = bounds.getHeight();
+        switch (preset) {
+            case "ellipse", "flowChartConnector" -> surface.strokeOval(x, y, w, h);
+            case "roundRect" -> {
+                double arc = Math.min(w, h) * 0.15;
+                surface.strokeRoundRect(x, y, w, h, arc, arc);
+            }
+            default -> {
+                PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
+                if (drawer != null) {
+                    drawer.draw(surface, x, y, w, h);
+                    surface.strokePath();
+                } else {
+                    surface.strokeRect(x, y, w, h);
+                }
+            }
+        }
+    }
+
     @Override
     public void render(SlideShape shape, RenderingContext ctx, SlideRenderContext slideCtx) {
         ShapeGeometry geom = shape.getGeometry();
@@ -54,17 +106,6 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         ShapeStyleExtractor.LineStyle line = ShapeStyleExtractor.resolveLineStyle(shape, slideCtx);
         boolean hasFill = surfaceFill != SurfacePaint.Transparent.INSTANCE;
 
-        // Shadow: draw offset copy of the shape before the real one
-        ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
-        if (shadow != null) {
-            surface.save();
-            surface.translate(shadow.offsetX(), shadow.offsetY());
-            surface.setFill(shadow.color());
-            surface.fillRect(bounds.getMinX(), bounds.getMinY(),
-                bounds.getWidth(), bounds.getHeight());
-            surface.restore();
-        }
-
         // Connectors: draw as lines, not filled shapes
         SlideShape.ShapeType type = shape.getType();
         if (type == SlideShape.ShapeType.CONNECTION) {
@@ -80,67 +121,32 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             return;
         }
 
-        // Draw shape based on type category
         String preset = type.hasOoxmlPreset() ? type.getOoxmlPreset() : "rect";
 
-        switch (preset) {
-            case "ellipse", "flowChartConnector" -> {
-                if (hasFill) {
-                    surface.setFill(surfaceFill);
-                    surface.fillOval(bounds.getMinX(), bounds.getMinY(),
-                        bounds.getWidth(), bounds.getHeight());
-                }
-                if (line.isVisible()) {
-                    applyLineStyle(surface, line);
-                    surface.strokeOval(bounds.getMinX(), bounds.getMinY(),
-                        bounds.getWidth(), bounds.getHeight());
-                    surface.setLineDashes((double[]) null);
-                }
-            }
-            case "roundRect" -> {
-                double arc = Math.min(bounds.getWidth(), bounds.getHeight()) * 0.15;
-                if (hasFill) {
-                    surface.setFill(surfaceFill);
-                    surface.fillRoundRect(bounds.getMinX(), bounds.getMinY(),
-                        bounds.getWidth(), bounds.getHeight(), arc, arc);
-                }
-                if (line.isVisible()) {
-                    applyLineStyle(surface, line);
-                    surface.strokeRoundRect(bounds.getMinX(), bounds.getMinY(),
-                        bounds.getWidth(), bounds.getHeight(), arc, arc);
-                    surface.setLineDashes((double[]) null);
-                }
-            }
-            default -> {
-                // Try preset geometry path first
-                PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
-                if (drawer != null) {
-                    drawer.draw(surface, bounds.getMinX(), bounds.getMinY(),
-                        bounds.getWidth(), bounds.getHeight());
-                    if (hasFill) {
-                        surface.setFill(surfaceFill);
-                        surface.fillPath();
-                    }
-                    if (line.isVisible()) {
-                        applyLineStyle(surface, line);
-                        surface.strokePath();
-                        surface.setLineDashes((double[]) null);
-                    }
-                } else {
-                    // Bounding box fallback for unmapped presets
-                    if (hasFill) {
-                        surface.setFill(surfaceFill);
-                        surface.fillRect(bounds.getMinX(), bounds.getMinY(),
-                            bounds.getWidth(), bounds.getHeight());
-                    }
-                    if (line.isVisible()) {
-                        applyLineStyle(surface, line);
-                        surface.strokeRect(bounds.getMinX(), bounds.getMinY(),
-                            bounds.getWidth(), bounds.getHeight());
-                        surface.setLineDashes((double[]) null);
-                    }
-                }
-            }
+        // Shadow pass: paint the same shape silhouette offset behind the
+        // body. Reusing fillShape with the preset means an mathPlus, ellipse,
+        // or arrow casts a shadow shaped like itself -- not a bounding-box
+        // rect, which is what the previous implementation did and which
+        // showed up as ugly dark squares behind the math symbols on the
+        // JavaScript-events deck.
+        ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
+        if (shadow != null) {
+            surface.save();
+            surface.translate(shadow.offsetX(), shadow.offsetY());
+            surface.setFill(shadow.color());
+            fillShape(surface, preset, bounds);
+            surface.restore();
+        }
+
+        // Body pass: fill then stroke
+        if (hasFill) {
+            surface.setFill(surfaceFill);
+            fillShape(surface, preset, bounds);
+        }
+        if (line.isVisible()) {
+            applyLineStyle(surface, line);
+            strokeShape(surface, preset, bounds);
+            surface.setLineDashes((double[]) null);
         }
 
         // Paint text if the shape has any
