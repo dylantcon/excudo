@@ -65,7 +65,8 @@ public sealed interface CommandSpec permits
         CommandSpec.AddToGroupSpec,
         CommandSpec.DetachFromGroupSpec,
         CommandSpec.CreateCodeBoxSpec,
-        CommandSpec.CreateDiagramSpec {
+        CommandSpec.CreateDiagramSpec,
+        CommandSpec.AddConnectorSpec {
 
     /** Slide number this spec targets. Every spec carries it, so the
      *  DAG's node-to-slide mapping is self-contained. */
@@ -430,6 +431,48 @@ public sealed interface CommandSpec permits
             if (mermaidSource.isBlank()) {
                 throw new IllegalArgumentException("mermaidSource cannot be blank");
             }
+        }
+    }
+
+    // ============================================================
+    // Connectors
+    // ============================================================
+
+    /**
+     * Re-create a connector ({@code <p:cxnSp>}) including its endpoint
+     * bindings. Mirrors {@code AddConnectorCommand}'s parameter surface:
+     * the preset family ({@code connectorType}), the geometry, the
+     * arrowhead types, the line color override, and the two endpoint
+     * SPID + index pairs. Either endpoint may be null when the connector
+     * floats untethered.
+     *
+     * <p>{@code sourceSpidHint} works like
+     * {@link AddShapeSpec#sourceSpidHint}: the connector's source-slide
+     * SPID is remapped to its allocated post-add SPID so downstream
+     * specs (animation targets, reorder calls) referencing the
+     * source-slide SPID rewrite cleanly. Endpoint SPIDs (startSpid,
+     * endSpid) are remapped by {@link com.excudo.core.synthesis.SpecRewriter}
+     * via the same spidMap, so a connector bound to a freshly added
+     * shape resolves to its allocated SPID at execute time.
+     */
+    record AddConnectorSpec(
+            int slideNumber,
+            String connectorType,
+            ShapeGeometry geometry,
+            String headEnd,
+            String tailEnd,
+            String lineColor,
+            Integer startSpid,
+            Integer startIdx,
+            Integer endSpid,
+            Integer endIdx,
+            String customPath,
+            String name,
+            Integer sourceSpidHint) implements CommandSpec {
+        public AddConnectorSpec {
+            validateSlide(slideNumber);
+            Objects.requireNonNull(geometry, "geometry");
+            if (connectorType == null || connectorType.isBlank()) connectorType = "line";
         }
     }
 

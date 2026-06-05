@@ -73,6 +73,10 @@ public final class SpecFormDialog {
             case CommandSpec.CreateGroupSpec g -> false;
             case CommandSpec.CreateCodeBoxSpec c -> false;
             case CommandSpec.CreateDiagramSpec d -> false;
+            // AddConnector carries endpoint bindings (startSpid/endSpid
+            // pairs, headEnd/tailEnd, customPath) — a JSON editor is the
+            // right surface until someone needs a richer typed form.
+            case CommandSpec.AddConnectorSpec c -> false;
         };
     }
 
@@ -109,6 +113,7 @@ public final class SpecFormDialog {
             case CommandSpec.CreateGroupSpec g -> Optional.empty();
             case CommandSpec.CreateCodeBoxSpec c -> Optional.empty();
             case CommandSpec.CreateDiagramSpec d -> Optional.empty();
+            case CommandSpec.AddConnectorSpec c -> Optional.empty();
         };
     }
 

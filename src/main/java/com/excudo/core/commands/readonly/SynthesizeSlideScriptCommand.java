@@ -171,6 +171,11 @@ public class SynthesizeSlideScriptCommand implements Command {
             case CommandSpec.CreateDiagramSpec d ->
                 "CreateDiagram mermaidSource=("
                     + d.mermaidSource().length() + " chars)";
+            case CommandSpec.AddConnectorSpec c ->
+                String.format("AddConnector type=%s start=%s end=%s",
+                    c.connectorType(),
+                    c.startSpid() != null ? c.startSpid() + ":" + c.startIdx() : "free",
+                    c.endSpid()   != null ? c.endSpid()   + ":" + c.endIdx()   : "free");
         };
     }
 }

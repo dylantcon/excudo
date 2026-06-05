@@ -98,15 +98,107 @@ public final class SlideStateBuilder {
             int parentSpid = registry.getParentSpid(s.getSpid());
             Integer parent = parentSpid > 0 ? parentSpid : null;
             TextBody body = extractTextBody(s);
+            com.excudo.core.model.ConnectorAttachment conn =
+                s.getType() == SlideShape.ShapeType.CONNECTION
+                    ? extractConnectorAttachment(s)
+                    : null;
             out.put(s.getSpid(), new ShapeSnapshot(
                 s.getSpid(), s.getName(), s.getType(),
                 s.getGeometry(),
                 introspector.getShapeStyle(slideNumber, s.getSpid()),
                 body,
                 s.isTextBox(),
-                parent));
+                parent,
+                conn));
         }
         return out;
+    }
+
+    /**
+     * Read the connector-specific structural attributes the writer
+     * emits in {@code <p:cxnSp>}: preset family (from {@code prstGeom@prst}),
+     * start/end SPID + idx bindings (from {@code <a:stCxn>}/{@code <a:endCxn>}),
+     * arrowhead types (from {@code <a:ln><a:headEnd>}/{@code <a:tailEnd>}),
+     * and any freeform path geometry (from {@code <a:custGeom><a:pathLst>}).
+     */
+    private static com.excudo.core.model.ConnectorAttachment extractConnectorAttachment(SlideShape s) {
+        if (s == null || s.getXmlElement() == null) return null;
+        org.w3c.dom.Element root = s.getXmlElement();
+
+        String connectorType = mapPresetToType(findPresetGeom(root));
+
+        org.w3c.dom.Element nvCxnSpPr = firstDescendantElement(root, "nvCxnSpPr");
+        Integer startSpid = null, startIdx = null, endSpid = null, endIdx = null;
+        if (nvCxnSpPr != null) {
+            org.w3c.dom.Element cNvCxn = firstDescendantElement(nvCxnSpPr, "cNvCxnSpPr");
+            if (cNvCxn != null) {
+                org.w3c.dom.Element st = firstDescendantElement(cNvCxn, "stCxn");
+                if (st != null) {
+                    startSpid = parseIntOrNull(st.getAttribute("id"));
+                    startIdx  = parseIntOrNull(st.getAttribute("idx"));
+                }
+                org.w3c.dom.Element en = firstDescendantElement(cNvCxn, "endCxn");
+                if (en != null) {
+                    endSpid = parseIntOrNull(en.getAttribute("id"));
+                    endIdx  = parseIntOrNull(en.getAttribute("idx"));
+                }
+            }
+        }
+
+        org.w3c.dom.Element ln = firstDescendantElement(firstDescendantElement(root, "spPr"), "ln");
+        String headEnd = ln != null ? lineEndType(ln, "headEnd") : null;
+        String tailEnd = ln != null ? lineEndType(ln, "tailEnd") : null;
+
+        // Custom path: presence of <a:custGeom>/<a:pathLst>; we don't
+        // round-trip the path text yet (the writer's AddConnectorCommand
+        // surface accepts an M/L/C-style string), so leave null until
+        // the freeform case lands a real consumer.
+        String customPath = null;
+
+        return new com.excudo.core.model.ConnectorAttachment(
+            connectorType, startSpid, startIdx, endSpid, endIdx,
+            headEnd, tailEnd, customPath);
+    }
+
+    private static String findPresetGeom(org.w3c.dom.Element shape) {
+        org.w3c.dom.Element spPr = firstDescendantElement(shape, "spPr");
+        if (spPr == null) return null;
+        org.w3c.dom.Element prst = firstDescendantElement(spPr, "prstGeom");
+        if (prst == null) return null;
+        String attr = prst.getAttribute("prst");
+        return attr.isEmpty() ? null : attr;
+    }
+
+    /** Preset names emitted by ShapeWriter -> the AddConnectorCommand
+     *  "type" vocabulary. Default to {@code "line"} for unknown presets
+     *  so the connector survives even if a future writer adds new ones. */
+    private static String mapPresetToType(String preset) {
+        if (preset == null) return "line";
+        return switch (preset) {
+            case "straightConnector1" -> "straight";
+            case "bentConnector3"     -> "elbow";
+            case "curvedConnector3"   -> "curved";
+            case "line"               -> "line";
+            default                   -> "line";
+        };
+    }
+
+    private static String lineEndType(org.w3c.dom.Element ln, String localName) {
+        org.w3c.dom.Element end = firstDescendantElement(ln, localName);
+        if (end == null) return null;
+        String t = end.getAttribute("type");
+        return t.isEmpty() ? null : t;
+    }
+
+    private static Integer parseIntOrNull(String s) {
+        if (s == null || s.isEmpty()) return null;
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
+    }
+
+    private static org.w3c.dom.Element firstDescendantElement(org.w3c.dom.Element parent, String localName) {
+        if (parent == null) return null;
+        org.w3c.dom.NodeList kids = parent.getElementsByTagNameNS("*", localName);
+        return kids.getLength() > 0 ? (org.w3c.dom.Element) kids.item(0) : null;
     }
 
     private static TextBody extractTextBody(SlideShape s) {

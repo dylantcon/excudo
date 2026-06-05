@@ -66,6 +66,11 @@ public final class RetargetToSlide {
             case CommandSpec.CreateDiagramSpec s -> new CommandSpec.CreateDiagramSpec(
                 targetSlide, s.mermaidSource(), s.x(), s.y(),
                 s.width(), s.height(), s.sourceSpidHint());
+            case CommandSpec.AddConnectorSpec s  -> new CommandSpec.AddConnectorSpec(
+                targetSlide, s.connectorType(), s.geometry(),
+                s.headEnd(), s.tailEnd(), s.lineColor(),
+                s.startSpid(), s.startIdx(), s.endSpid(), s.endIdx(),
+                s.customPath(), s.name(), s.sourceSpidHint());
         };
     }
 }

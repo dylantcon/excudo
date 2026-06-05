@@ -79,7 +79,20 @@ public final class SpecRewriter {
                                                         s.childSpid());
             case CommandSpec.CreateCodeBoxSpec s -> s; // creates SPIDs, doesn't reference any
             case CommandSpec.CreateDiagramSpec s -> s; // creates SPIDs, doesn't reference any
+            case CommandSpec.AddConnectorSpec s  -> rewriteAddConnector(s, spidMap);
         };
+    }
+
+    private static CommandSpec rewriteAddConnector(CommandSpec.AddConnectorSpec s,
+            Map<Integer, Integer> spidMap) {
+        Integer mappedStart = s.startSpid() != null ? spidMap.get(s.startSpid()) : null;
+        Integer mappedEnd   = s.endSpid()   != null ? spidMap.get(s.endSpid())   : null;
+        if (mappedStart == null && mappedEnd == null) return s;
+        return new CommandSpec.AddConnectorSpec(s.slideNumber(), s.connectorType(),
+            s.geometry(), s.headEnd(), s.tailEnd(), s.lineColor(),
+            mappedStart != null ? mappedStart : s.startSpid(), s.startIdx(),
+            mappedEnd   != null ? mappedEnd   : s.endSpid(),   s.endIdx(),
+            s.customPath(), s.name(), s.sourceSpidHint());
     }
 
     /** If {@code oldSpid} is in the map, apply the factory to produce a

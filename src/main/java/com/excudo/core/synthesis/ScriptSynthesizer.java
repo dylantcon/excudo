@@ -88,7 +88,24 @@ public final class ScriptSynthesizer {
             }
         }
 
+        // CONNECTION shapes are claimed by consumedSpids here so the
+        // regular AddShapeSpec path skips them. The actual connector
+        // spec emit runs AFTER emitShapeAdds so the addShapeBySpid map
+        // has the endpoint shapes registered for DAG-edge wiring.
+        java.util.List<ShapeSnapshot> deferredConnectors = new java.util.ArrayList<>();
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            ShapeSnapshot s = added.shape();
+            if (consumedSpids.contains(s.spid())) continue;
+            if (s.type() == com.excudo.core.model.SlideShape.ShapeType.CONNECTION
+                    && s.connectorAttachment() != null) {
+                consumedSpids.add(s.spid());
+                deferredConnectors.add(s);
+            }
+        }
+
         emitShapeAdds(diff, slideNumber, builder, addShapeBySpid, consumedSpids);
+
+        emitConnectorAdds(deferredConnectors, slideNumber, builder, addShapeBySpid);
         emitShapeRemovals(diff, slideNumber, builder, warnings);
         emitShapeModifications(diff, slideNumber, builder, warnings);
         emitAnimationAdds(diff, slideNumber, builder, addShapeBySpid);
@@ -252,6 +269,60 @@ public final class ScriptSynthesizer {
             }
         }
         return null;
+    }
+
+    // ========== Connector adds ==========
+
+    /**
+     * Emit an {@link CommandSpec.AddConnectorSpec} for every connector
+     * snapshot, registering a DAG edge from the connector to each of
+     * its endpoint shapes' AddShapeSpec. The edge guarantees the
+     * connector executes <em>after</em> its endpoints are allocated, so
+     * the SPID-remap step in {@link com.excudo.core.commands.mutating.slide.RunSlideScriptCommand}
+     * can rewrite {@code startSpid}/{@code endSpid} to the freshly
+     * allocated SPIDs before the connector executes.
+     */
+    private static void emitConnectorAdds(java.util.List<ShapeSnapshot> connectors,
+            int slideNumber, CommandScript.Builder builder,
+            Map<Integer, CommandSpec> addShapeBySpid) {
+        for (ShapeSnapshot s : connectors) {
+            com.excudo.core.model.ConnectorAttachment c = s.connectorAttachment();
+            String lineColor = extractLineColor(s.style());
+            CommandSpec.AddConnectorSpec spec = new CommandSpec.AddConnectorSpec(
+                slideNumber, c.connectorType(), s.geometry(),
+                c.headEnd(), c.tailEnd(), lineColor,
+                c.startSpid(), c.startIdx(), c.endSpid(), c.endIdx(),
+                c.customPath(), s.name(), s.spid());
+            builder.add(spec);
+            addShapeBySpid.put(s.spid(), spec);
+
+            // Wire dependencies so the endpoints execute before the
+            // connector. Only when the endpoint is itself a freshly
+            // added shape (in addShapeBySpid) -- pre-existing endpoints
+            // on baseline shapes don't need an edge.
+            if (c.startSpid() != null) {
+                CommandSpec startAdd = addShapeBySpid.get(c.startSpid());
+                if (startAdd != null && startAdd != spec) {
+                    builder.dependsOn(spec, startAdd);
+                }
+            }
+            if (c.endSpid() != null) {
+                CommandSpec endAdd = addShapeBySpid.get(c.endSpid());
+                if (endAdd != null && endAdd != spec) {
+                    builder.dependsOn(spec, endAdd);
+                }
+            }
+        }
+    }
+
+    /** Resolve the hex color of a connector's line stroke from its
+     *  ShapeStyle. Returns null when no override was captured -- the
+     *  writer will pick a default rather than mis-render. */
+    private static String extractLineColor(com.excudo.core.model.ShapeStyle style) {
+        if (style == null || style.getLine() == null) return null;
+        com.excudo.core.model.TextColor c = style.getLine().getColor();
+        if (c == null || c.isScheme()) return null;
+        return c.getHexVal();
     }
 
     // ========== Shape adds ==========

@@ -120,7 +120,7 @@ public final class XMLConstants {
   // groups, so including descendant-or-self ("//" under spTree) would
   // double-walk every grouped shape and register each child twice in the
   // flat ShapeRegistry.
-  public static final String XPATH_ALL_SHAPES_AND_PICTURES = "//p:spTree/p:sp | //p:spTree/p:pic | //p:spTree/p:grpSp";
+  public static final String XPATH_ALL_SHAPES_AND_PICTURES = "//p:spTree/p:sp | //p:spTree/p:pic | //p:spTree/p:grpSp | //p:spTree/p:cxnSp";
   public static final String XPATH_SHAPE_ID_ATTRIBUTE = ".//p:cNvPr/@id";
   public static final String XPATH_SHAPE_NAME_ATTRIBUTE = ".//p:cNvPr/@name";
   public static final String XPATH_SHAPE_TEXT_CONTENT = ".//a:t/text()";

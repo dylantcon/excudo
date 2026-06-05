@@ -797,6 +797,12 @@ public class SlideSpecController {
             case CommandSpec.CreateCodeBoxSpec c -> "CreateCodeBox lang=" + c.language();
             case CommandSpec.CreateDiagramSpec d ->
                 "CreateDiagram mermaidSource=(" + d.mermaidSource().length() + " chars)";
+            case CommandSpec.AddConnectorSpec c ->
+                "AddConnector type=" + c.connectorType()
+                + (c.startSpid() != null || c.endSpid() != null
+                    ? " " + (c.startSpid() != null ? c.startSpid() : "free")
+                        + "->" + (c.endSpid() != null ? c.endSpid() : "free")
+                    : "");
         };
     }
 

@@ -95,6 +95,12 @@ public final class SpecToCommandMapper {
                                                         s.slideNumber(), s.mermaidSource(),
                                                         s.x(), s.y(), s.width(), s.height(),
                                                         orchestrator);
+            case CommandSpec.AddConnectorSpec s  -> new com.excudo.core.commands.mutating.slide.AddConnectorCommand(
+                                                        s.slideNumber(), s.connectorType(), s.geometry(),
+                                                        s.headEnd(), s.tailEnd(), s.lineColor(), null,
+                                                        s.startSpid(), s.startIdx(),
+                                                        s.endSpid(), s.endIdx(),
+                                                        s.customPath(), orchestrator);
         };
     }
 

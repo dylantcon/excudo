@@ -299,13 +299,15 @@ public class SynthesisStressTest {
     // ===================================================================
 
     /**
-     * Add a connector between two shapes via the connector command, then
-     * run it through synthesis. AddShapeSpec carries no startSpid/endSpid
-     * fields, so connector endpoints degenerate into floating lines on
-     * replay. Documents the gap.
+     * Add a connector between two shapes via the connector command and
+     * run it through synthesis. The synthesizer must emit a typed
+     * {@link CommandSpec.AddConnectorSpec} carrying both endpoint SPID
+     * bindings -- not an {@code AddShapeSpec} (which has no endpoint
+     * channel) and not nothing at all (which is what happened before
+     * the parser XPath was widened to include {@code p:cxnSp}).
      */
     @Test
-    public void connectorEndpoints_areLostInSynthesis() {
+    public void connectorEndpoints_preservedInSynthesis() {
         PPTXOrchestratorImpl orch = newScaffolded();
         orch.createSlide(1, "Connectors", "slideLayout7");
         var r1 = orch.addShape(1, SlideShape.ShapeType.RECTANGLE,
@@ -319,9 +321,6 @@ public class SynthesisStressTest {
         assertNotNull(aSpid);
         assertNotNull(bSpid);
 
-        // Use the orchestrator's connector entry point so endpoints are
-        // explicitly bound. If this method is missing, the gap is even
-        // larger than just the synthesis spec.
         var conn = orch.addConnector(1, "straight",
             new ShapeGeometry(1_000_000, 500_000, 2_000_000, 0),
             "none", "triangle", "000000", "solid",
@@ -333,32 +332,27 @@ public class SynthesisStressTest {
         List<CommandSpec> specs = ScriptSynthesizer.synthesize(diff, 1)
             .script().topologicalOrder();
 
-        // Find the AddShapeSpec corresponding to the connector. It will
-        // carry only geometry -- no startSpid/endSpid -- so a replay
-        // produces a free-floating line.
-        Optional<CommandSpec.AddShapeSpec> connectorSpec = specs.stream()
+        // Exactly one AddConnectorSpec, with the expected endpoint
+        // bindings round-tripped from the snapshot's ConnectorAttachment.
+        List<CommandSpec.AddConnectorSpec> connSpecs = specs.stream()
+            .filter(s -> s instanceof CommandSpec.AddConnectorSpec)
+            .map(s -> (CommandSpec.AddConnectorSpec) s)
+            .toList();
+        assertEquals("Synthesizer must emit exactly one AddConnectorSpec. specs=" + specs,
+            1, connSpecs.size());
+        CommandSpec.AddConnectorSpec spec = connSpecs.get(0);
+        assertEquals("startSpid round-trips", aSpid, spec.startSpid());
+        assertEquals("endSpid round-trips",   bSpid, spec.endSpid());
+        assertEquals("connector preset preserved", "straight", spec.connectorType());
+
+        // The connector must not double-emit through the generic
+        // AddShapeSpec path.
+        boolean stray = specs.stream()
             .filter(s -> s instanceof CommandSpec.AddShapeSpec)
             .map(s -> (CommandSpec.AddShapeSpec) s)
-            .filter(s -> s.shapeType().name().contains("CONNECTOR")
-                || s.shapeType() == SlideShape.ShapeType.LINE)
-            .findFirst();
-
-        if (connectorSpec.isPresent()) {
-            // If the snapshot path goes through AddShapeSpec, the endpoint
-            // SPIDs are by construction not in the spec. Document the gap.
-            fail("Connector flowed through AddShapeSpec, which has no "
-                + "startSpid/endSpid fields. Endpoint bindings to SPIDs "
-                + aSpid + " and " + bSpid + " were lost. spec=" + connectorSpec.get()
-                + " -- replay would produce a floating line.");
-        }
-        // If no AddShapeSpec was emitted for a connector type, then the
-        // snapshot probably skipped the connector entirely (because the
-        // parser may classify <p:cxnSp> as a non-shape, or
-        // ShapeRegistry doesn't enumerate it). Either way the connector
-        // is dropped from synthesis output.
-        fail("No AddShapeSpec for the connector appeared in the synthesized "
-            + "script. The connector was silently dropped by the snapshot/diff "
-            + "pipeline. specs=" + specs);
+            .anyMatch(s -> s.shapeType() == SlideShape.ShapeType.CONNECTION);
+        assertFalse("Connector must not also appear as a generic AddShapeSpec. specs=" + specs,
+            stray);
     }
 
     // ===================================================================

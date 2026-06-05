@@ -121,6 +121,13 @@ public class RunSlideScriptCommand implements Command {
                     if (allocated != null && source != null) {
                         spidMap.put(source, allocated);
                     }
+                } else if (rewritten instanceof CommandSpec.AddConnectorSpec connSpec
+                        && cmd instanceof com.excudo.core.commands.mutating.slide.AddConnectorCommand connCmd) {
+                    Integer allocated = connCmd.getCreatedSpid();
+                    Integer source = connSpec.sourceSpidHint();
+                    if (allocated != null && source != null) {
+                        spidMap.put(source, allocated);
+                    }
                 }
                 appliedSpecCount++;
             }

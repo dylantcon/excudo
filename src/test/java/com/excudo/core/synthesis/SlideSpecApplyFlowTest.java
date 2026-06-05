@@ -182,11 +182,21 @@ public class SlideSpecApplyFlowTest {
     }
 
     // ===================================================================
-    // Connector: the silent-drop case the GUI inherits
+    // Connector: endpoints round-trip through the full GUI flow
     // ===================================================================
 
+    /**
+     * Add a connector between two shapes and apply through the GUI flow.
+     * Before the connector channel landed, the parser dropped p:cxnSp at
+     * the XPath, snapshots had no connector data, and the target slide
+     * received 0 connectors. After: the synthesizer emits
+     * {@code AddConnectorSpec} with the endpoint SPIDs; the script
+     * topologically orders the endpoints' AddShapeSpecs before the
+     * connector via the DAG edges; the runner remaps the endpoint SPIDs
+     * through the spidMap; the connector lands on the target slide.
+     */
     @Test
-    public void connector_applyToNewSlide_isSilentlyDropped() {
+    public void connector_applyToNewSlide_carriesEndpointsToTarget() {
         PPTXOrchestratorImpl orch = newScaffolded();
         orch.createSlide(1, "Source", "slideLayout7");
         orch.createSlide(2, "Target", "slideLayout7");
@@ -207,16 +217,10 @@ public class SlideSpecApplyFlowTest {
 
         applyViaGuiFlow(orch, 1, 2);
 
-        int connectorsOnTarget = countConnectors(orch, 2);
-        int rectsOnTarget = countShapesOfType(orch, 2, SlideShape.ShapeType.RECTANGLE);
-
-        // Ideal: connector on target. Current: connector silently dropped,
-        // only the two rectangles round-trip.
-        assertEquals("Target should have both rectangles", 2, rectsOnTarget);
-        assertTrue("After GUI apply the target should have at least one "
-            + "connector (currently dropped silently by SlideStateBuilder/"
-            + "ScriptSynthesizer). count=" + connectorsOnTarget,
-            connectorsOnTarget >= 1);
+        assertEquals("Target must have both rectangles",
+            2, countShapesOfType(orch, 2, SlideShape.ShapeType.RECTANGLE));
+        assertEquals("Target must have exactly one connector",
+            1, countConnectors(orch, 2));
     }
 
     // ===================================================================
@@ -301,7 +305,7 @@ public class SlideSpecApplyFlowTest {
         ShapeRegistry reg = parsedReg(orch, slideNumber);
         if (reg == null) return 0;
         return (int) reg.getAllShapes().stream()
-            .filter(s -> s.getType().name().contains("CONNECTOR"))
+            .filter(s -> s.getType() == SlideShape.ShapeType.CONNECTION)
             .count();
     }
 
