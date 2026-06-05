@@ -248,6 +248,23 @@ public class AddShapeCommand implements Command {
             throw new CommandExecutionException(getDescription(), "execute", "Command has already been executed");
         }
 
+        // PICTURE shapes need a media payload (rId to a media part) that
+        // AddShapeSpec / add-shape don't carry. Routing PICTURE through
+        // the basic-shape injector below fails opaquely at SPID allocation
+        // ("Failed to inject basic shape with Microsoft SPID allocation"),
+        // which is the user-visible bug when the GUI's apply-to-new-slide
+        // hands a synthesized picture spec to this command. Short-circuit
+        // with a clear message until the picture-channel work lands a
+        // proper AddPictureCommand + media-aware spec.
+        if (shapeType == SlideShape.ShapeType.PICTURE) {
+            throw new CommandExecutionException(getDescription(), "execute",
+                "PICTURE shapes cannot be added via add-shape: the command "
+                + "surface has no media channel yet. Use DuplicateShapeCommand "
+                + "to clone an existing picture in place, or the template / "
+                + "smart-content paths to insert from disk. Tracked as task "
+                + "#42 (picture channel for synthesis).");
+        }
+
         try {
             // Add shape using orchestrator - this will delegate to SlideXMLWriter which uses ShapeFactory
             ExecutionResult<Integer> result = orchestrator

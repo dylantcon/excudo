@@ -54,13 +54,14 @@ public class SynthesisStressTest {
 
     /**
      * Loads a deck that contains a picture, snapshots it, and runs the
-     * synthesizer over the diff. AddShapeSpec is emitted with type=PICTURE
-     * but no media reference of any kind — the new picture frame ends up
-     * empty when replayed. Documents the gap concretely so the fix scope
-     * is unambiguous.
+     * synthesizer over the diff. Since AddShapeSpec carries no media
+     * field, the synthesizer must SKIP the picture with a visible
+     * warning rather than emit an unrunnable spec that would abort
+     * the apply. Until the picture-channel work lands, this is the
+     * correct intermediate behavior.
      */
     @Test
-    public void pictureDuplication_synthesisPath_emitsAddShapeSpecWithoutMedia() throws Exception {
+    public void pictureDuplication_synthesisPath_skipsWithVisibleWarning() throws Exception {
         assumeTrue("Picture fixture not present: " + PICTURE_FIXTURE, PICTURE_FIXTURE.exists());
         PPTXOrchestratorImpl orch = loadOrchestratorFromFile(PICTURE_FIXTURE);
 
@@ -76,30 +77,25 @@ public class SynthesisStressTest {
         SlideState baseline = builder.baseline(pic.slideNumber);
         SlideStateDiff diff = SlideStateDiffer.diff(baseline, current);
 
-        // Find the AddShapeSpec for the picture in the synthesized script.
         ScriptSynthesizer.Result result = ScriptSynthesizer.synthesize(diff, pic.slideNumber);
-        Optional<CommandSpec.AddShapeSpec> pictureAdd = result.script().topologicalOrder().stream()
+
+        // No AddShapeSpec for PICTURE -- the synthesizer must skip it.
+        boolean anyPictureSpec = result.script().topologicalOrder().stream()
             .filter(s -> s instanceof CommandSpec.AddShapeSpec)
             .map(s -> (CommandSpec.AddShapeSpec) s)
-            .filter(s -> s.shapeType() == SlideShape.ShapeType.PICTURE)
-            .findFirst();
+            .anyMatch(s -> s.shapeType() == SlideShape.ShapeType.PICTURE);
+        assertFalse("Synthesizer must not emit AddShapeSpec(PICTURE,...) -- "
+            + "AddShapeCommand would reject it and abort the whole script. "
+            + "Skip with a warning instead.", anyPictureSpec);
 
-        assertTrue("Synthesizer must produce an AddShapeSpec for the picture",
-            pictureAdd.isPresent());
-
-        // The IDEAL state: an AddShapeSpec for a PICTURE carries enough
-        // information to recreate the picture (a media reference of some
-        // form -- relId, in-document media path, or an embedded payload).
-        // CURRENT state: AddShapeSpec has none of those fields. This
-        // assertion fails today and pins the gap. When picture support
-        // lands (an addImage path or a new AddPictureSpec), revisit.
-        CommandSpec.AddShapeSpec spec = pictureAdd.get();
-        fail("AddShapeSpec for PICTURE carries no media reference -- spec="
-            + spec + ". Replaying this spec on a fresh deck produces an "
-            + "empty picture frame. Fields available on AddShapeSpec: "
-            + "slideNumber, shapeType, geometry, text, name, style, "
-            + "alignment, isTextBox, sourceSpidHint. None can carry a "
-            + "blip target.");
+        // A warning naming the picture must be present so the user sees
+        // exactly what was dropped (no silent fallback per CLAUDE.md).
+        boolean warned = result.warnings().stream()
+            .anyMatch(w -> w.toLowerCase().contains("picture")
+                && w.contains(String.valueOf(pic.spid)));
+        assertTrue("Synthesizer must emit a visible warning naming the "
+            + "skipped picture SPID. warnings=" + result.warnings(),
+            warned);
     }
 
     // ===================================================================

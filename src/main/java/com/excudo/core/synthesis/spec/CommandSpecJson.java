@@ -105,6 +105,7 @@ public final class CommandSpecJson {
         .registerTypeAdapter(CommandSpec.class, new CommandSpecAdapter())
         .registerTypeAdapter(AnimationBinding.class, new AnimationBindingAdapter())
         .registerTypeAdapter(TextBody.class, new TextBodyAdapter())
+        .registerTypeAdapter(com.excudo.core.model.BodyProperties.class, new BodyPropertiesAdapter())
         .registerTypeAdapter(TextParagraph.class, new TextParagraphAdapter())
         .registerTypeAdapter(TextRun.class, new TextRunAdapter())
         .registerTypeAdapter(TextColor.class, new TextColorAdapter())
@@ -424,6 +425,13 @@ public final class CommandSpecJson {
                 paras.add(ctx.serialize(p, TextParagraph.class));
             }
             o.add("paragraphs", paras);
+            // bodyProperties carries insets / anchor / autofit -- TextBody's
+            // equality includes it, so round-trip must preserve it or
+            // value-equal specs diverge post-JSON.
+            if (tb.getBodyProperties() != null) {
+                o.add("bodyProperties", ctx.serialize(tb.getBodyProperties(),
+                    com.excudo.core.model.BodyProperties.class));
+            }
             return o;
         }
         @Override
@@ -436,6 +444,50 @@ public final class CommandSpecJson {
                     b.addParagraph(ctx.deserialize(pe, TextParagraph.class));
                 }
             }
+            if (o.has("bodyProperties")) {
+                b.bodyProperties(ctx.deserialize(o.get("bodyProperties"),
+                    com.excudo.core.model.BodyProperties.class));
+            }
+            return b.build();
+        }
+    }
+
+    private static final class BodyPropertiesAdapter
+            implements JsonSerializer<com.excudo.core.model.BodyProperties>,
+                       JsonDeserializer<com.excudo.core.model.BodyProperties> {
+        @Override
+        public JsonElement serialize(com.excudo.core.model.BodyProperties bp,
+                Type t, JsonSerializationContext ctx) {
+            JsonObject o = new JsonObject();
+            if (bp.getVerticalAlignment() != null) o.addProperty("verticalAlignment", bp.getVerticalAlignment());
+            if (bp.getWrap()              != null) o.addProperty("wrap",              bp.getWrap());
+            if (bp.getVerticalText()      != null) o.addProperty("verticalText",      bp.getVerticalText());
+            if (bp.getAutofit()           != null) o.addProperty("autofit",           bp.getAutofit().name());
+            if (bp.getFontScale()         != null) o.addProperty("fontScale",         bp.getFontScale());
+            if (bp.getLeftInset()         != null) o.addProperty("leftInset",         bp.getLeftInset());
+            if (bp.getTopInset()          != null) o.addProperty("topInset",          bp.getTopInset());
+            if (bp.getRightInset()        != null) o.addProperty("rightInset",        bp.getRightInset());
+            if (bp.getBottomInset()       != null) o.addProperty("bottomInset",       bp.getBottomInset());
+            if (bp.getNumColumns()        != null) o.addProperty("numColumns",        bp.getNumColumns());
+            if (bp.isRtlCol())                     o.addProperty("rtlCol",            true);
+            return o;
+        }
+        @Override
+        public com.excudo.core.model.BodyProperties deserialize(JsonElement el, Type t,
+                JsonDeserializationContext ctx) {
+            JsonObject o = el.getAsJsonObject();
+            com.excudo.core.model.BodyProperties.Builder b = com.excudo.core.model.BodyProperties.builder();
+            if (o.has("verticalAlignment")) b.verticalAlignment(o.get("verticalAlignment").getAsString());
+            if (o.has("wrap"))              b.wrap(o.get("wrap").getAsString());
+            if (o.has("verticalText"))      b.verticalText(o.get("verticalText").getAsString());
+            if (o.has("autofit"))           b.autofit(com.excudo.core.model.AutofitType.valueOf(o.get("autofit").getAsString()));
+            if (o.has("fontScale"))         b.fontScale(o.get("fontScale").getAsInt());
+            if (o.has("leftInset"))         b.leftInset(o.get("leftInset").getAsInt());
+            if (o.has("topInset"))          b.topInset(o.get("topInset").getAsInt());
+            if (o.has("rightInset"))        b.rightInset(o.get("rightInset").getAsInt());
+            if (o.has("bottomInset"))       b.bottomInset(o.get("bottomInset").getAsInt());
+            if (o.has("numColumns"))        b.numColumns(o.get("numColumns").getAsInt());
+            if (o.has("rtlCol"))            b.rtlCol(o.get("rtlCol").getAsBoolean());
             return b.build();
         }
     }

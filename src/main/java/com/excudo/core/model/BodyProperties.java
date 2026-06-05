@@ -51,6 +51,29 @@ public final class BodyProperties {
         return new Builder();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BodyProperties that)) return false;
+        return rtlCol == that.rtlCol
+            && java.util.Objects.equals(verticalAlignment, that.verticalAlignment)
+            && java.util.Objects.equals(wrap, that.wrap)
+            && java.util.Objects.equals(verticalText, that.verticalText)
+            && autofit == that.autofit
+            && java.util.Objects.equals(fontScale, that.fontScale)
+            && java.util.Objects.equals(leftInset, that.leftInset)
+            && java.util.Objects.equals(topInset, that.topInset)
+            && java.util.Objects.equals(rightInset, that.rightInset)
+            && java.util.Objects.equals(bottomInset, that.bottomInset)
+            && java.util.Objects.equals(numColumns, that.numColumns);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(verticalAlignment, wrap, verticalText, autofit,
+            fontScale, leftInset, topInset, rightInset, bottomInset, numColumns, rtlCol);
+    }
+
     public static final class Builder {
         private String verticalAlignment;
         private String wrap;

@@ -69,6 +69,25 @@ public final class ScriptSynthesizer {
         Set<Integer> consumedSpids = new HashSet<>();
         emitCompoundPrimitives(diff, slideNumber, builder, consumedSpids, warnings);
 
+        // PICTURE shapes can't survive the synthesis path -- AddShapeSpec
+        // has no media field, so re-emitting them as add-shapes would abort
+        // the apply at AddShapeCommand's PICTURE check. Skip with a visible
+        // warning so the rest of the slide replays cleanly and the user
+        // can see exactly what was dropped.
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            ShapeSnapshot s = added.shape();
+            if (s.type() == com.excudo.core.model.SlideShape.ShapeType.PICTURE
+                    && !consumedSpids.contains(s.spid())) {
+                consumedSpids.add(s.spid());
+                warnings.add("Picture SPID " + s.spid()
+                    + " (" + (s.name() != null ? s.name() : "unnamed")
+                    + ") skipped: the synthesizer can't carry a picture's "
+                    + "media reference through AddShapeSpec. Track via task "
+                    + "#42 (picture channel). Use the direct duplicate "
+                    + "command on the source slide instead.");
+            }
+        }
+
         emitShapeAdds(diff, slideNumber, builder, addShapeBySpid, consumedSpids);
         emitShapeRemovals(diff, slideNumber, builder, warnings);
         emitShapeModifications(diff, slideNumber, builder, warnings);
