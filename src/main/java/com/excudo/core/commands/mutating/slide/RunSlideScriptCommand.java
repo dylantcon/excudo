@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Apply a serialized CommandSpec script to a target slide.
@@ -61,6 +62,12 @@ public class RunSlideScriptCommand implements Command {
      *  SlideState equality after apply). Empty when execute hasn't run
      *  or no Add* specs allocated SPIDs. */
     private Map<Integer, Integer> finalSpidMap = new HashMap<>();
+    /** Runner-level warnings for specs skipped at apply time (e.g.
+     *  cross-layout retarget where a referenced SPID doesn't exist on
+     *  the target slide). Surfaced via {@link #getRuntimeWarnings} so
+     *  the GUI / agent can display what was dropped. */
+    private final List<String> runtimeWarnings = new ArrayList<>();
+    private int skippedSpecCount = 0;
 
     public RunSlideScriptCommand(int slideNumber, String scriptJson,
                                  PPTXOrchestrator orchestrator, Object displayAdapter) {
@@ -118,6 +125,31 @@ public class RunSlideScriptCommand implements Command {
         try {
             for (CommandSpec original : order) {
                 CommandSpec rewritten = SpecRewriter.rewrite(original, spidMap);
+
+                // Cross-layout retarget guard: a spec may reference a
+                // SPID that exists on the SOURCE slide (a placeholder
+                // SPID baked in at synth time) but not on the TARGET
+                // (different layout, different SPID space). Without this
+                // check the command would throw with a low-level SPID-
+                // not-found message and abort the whole script -- the
+                // exact bug surfaced before this guard landed. Skip
+                // with a visible warning so the rest of the script
+                // still applies.
+                Set<Integer> required = referencedSpids(rewritten);
+                if (!required.isEmpty()) {
+                    Set<Integer> live = liveSpids(slideNumber);
+                    Set<Integer> missing = new java.util.LinkedHashSet<>();
+                    for (Integer r : required) if (!live.contains(r)) missing.add(r);
+                    if (!missing.isEmpty()) {
+                        runtimeWarnings.add("Skipped " + rewritten.getClass().getSimpleName()
+                            + " on target slide " + slideNumber
+                            + ": references SPID(s) " + missing
+                            + " not present on the target (cross-layout retarget).");
+                        skippedSpecCount++;
+                        continue;
+                    }
+                }
+
                 Command cmd = mapper.toCommand(rewritten);
                 cmd.execute();
                 executedLocal.add(cmd);
@@ -161,6 +193,73 @@ public class RunSlideScriptCommand implements Command {
      *  Returns an empty map before execute or after a rollback. */
     public Map<Integer, Integer> getSpidMap() {
         return finalSpidMap;
+    }
+
+    /** Specs the runner skipped at apply time (cross-layout retarget,
+     *  missing SPIDs). Empty when every spec applied cleanly. */
+    public List<String> getRuntimeWarnings() {
+        return List.copyOf(runtimeWarnings);
+    }
+
+    /** Specs that applied vs. specs skipped. {@link #getAppliedSpecCount}
+     *  reports the successful subset; this reports the runner-skipped
+     *  ones for cross-layout introspection. */
+    public int getSkippedSpecCount() {
+        return skippedSpecCount;
+    }
+
+    /** SPIDs the rewritten spec references on the target slide. Empty
+     *  for SPID-creating specs (Add*, Create*) -- their primary SPID
+     *  is freshly allocated, never validated against the target. */
+    private static Set<Integer> referencedSpids(CommandSpec spec) {
+        return switch (spec) {
+            case CommandSpec.AddShapeSpec s        -> Set.of();
+            case CommandSpec.AddPictureSpec s      -> Set.of();
+            case CommandSpec.CreateCodeBoxSpec s   -> Set.of();
+            case CommandSpec.CreateDiagramSpec s   -> Set.of();
+            case CommandSpec.AddConnectorSpec s    -> nonNullSpids(s.startSpid(), s.endSpid());
+            case CommandSpec.RemoveShapeSpec s     -> Set.of(s.spid());
+            case CommandSpec.MoveSpec s            -> Set.of(s.spid());
+            case CommandSpec.ResizeSpec s          -> Set.of(s.spid());
+            case CommandSpec.RotateSpec s          -> Set.of(s.spid());
+            case CommandSpec.RenameShapeSpec s     -> Set.of(s.spid());
+            case CommandSpec.SetTextBoxFlagSpec s  -> Set.of(s.spid());
+            case CommandSpec.SetRunFormatSpec s    -> Set.of(s.spid());
+            case CommandSpec.SetTextSpec s         -> Set.of(s.spid());
+            case CommandSpec.SetShapeStyleSpec s   -> Set.of(s.spid());
+            case CommandSpec.ReorderSpec s         -> Set.of(s.spid());
+            case CommandSpec.AddAnimationSpec s    -> Set.of(s.binding().getTargetSpid());
+            case CommandSpec.RemoveAnimationSpec s -> Set.of();
+            case CommandSpec.SetAnimationTimingSpec s -> Set.of();
+            case CommandSpec.SetTransitionSpec s   -> Set.of();
+            case CommandSpec.ClearTransitionSpec s -> Set.of();
+            case CommandSpec.CreateGroupSpec s     -> Set.copyOf(s.childSpids());
+            case CommandSpec.UngroupSpec s         -> Set.of(s.groupSpid());
+            case CommandSpec.AddToGroupSpec s      -> Set.of(s.groupSpid(), s.childSpid());
+            case CommandSpec.DetachFromGroupSpec s -> Set.of(s.childSpid());
+        };
+    }
+
+    private static Set<Integer> nonNullSpids(Integer... vs) {
+        Set<Integer> out = new java.util.LinkedHashSet<>();
+        for (Integer v : vs) if (v != null) out.add(v);
+        return out;
+    }
+
+    /** Read the SPIDs currently present on the target slide's
+     *  shape registry. Re-parses on demand so any SPIDs added by
+     *  earlier specs in this same script are visible. */
+    private Set<Integer> liveSpids(int slideNumber) {
+        var ctxOpt = orchestrator.getContext();
+        if (ctxOpt.isEmpty()) return Set.of();
+        var doc = ctxOpt.get().getDocument();
+        if (doc == null) return Set.of();
+        var parsed = doc.getParsedSlideData(slideNumber,
+            (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+        if (parsed == null || parsed.getShapeRegistry() == null) return Set.of();
+        Set<Integer> out = new java.util.LinkedHashSet<>();
+        for (var s : parsed.getShapeRegistry().getAllShapes()) out.add(s.getSpid());
+        return out;
     }
 
     @Override

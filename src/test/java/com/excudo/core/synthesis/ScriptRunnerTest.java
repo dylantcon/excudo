@@ -110,6 +110,84 @@ public class ScriptRunnerTest {
     }
 
     @Test
+    public void multipleConnectorsAndShapes_executeInDependencyOrder() {
+        // Stress the topo-sort with a richer DAG: three rectangles each
+        // anchored to a connector. The connectors depend on their endpoint
+        // shapes via dependsOn edges. The runner must execute every
+        // AddShape before the corresponding AddConnector.
+        CommandSpec.AddShapeSpec a = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(0, 0, 1_000_000, 1_000_000),
+            "", "A", null, null, false, 100);
+        CommandSpec.AddShapeSpec b = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(2_000_000, 0, 1_000_000, 1_000_000),
+            "", "B", null, null, false, 101);
+        CommandSpec.AddShapeSpec c = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(4_000_000, 0, 1_000_000, 1_000_000),
+            "", "C", null, null, false, 102);
+        // Connector spec uses sourceSpidHints 100/101/102; SpecRewriter
+        // remaps via spidMap during execute. Use 100/101 as endpoints
+        // for ab, 101/102 for bc.
+        CommandSpec.AddConnectorSpec ab = new CommandSpec.AddConnectorSpec(
+            1, "straight",
+            new ShapeGeometry(1_000_000, 500_000, 1_000_000, 0),
+            null, "triangle", null, 100, 1, 101, 1, null, "AB", 200);
+        CommandSpec.AddConnectorSpec bc = new CommandSpec.AddConnectorSpec(
+            1, "straight",
+            new ShapeGeometry(3_000_000, 500_000, 1_000_000, 0),
+            null, "triangle", null, 101, 1, 102, 1, null, "BC", 201);
+
+        CommandScript script = CommandScript.builder()
+            .add(ab).add(bc).add(a).add(b).add(c)  // INSERT connectors first
+            .dependsOn(ab, a).dependsOn(ab, b)     // ab depends on a, b
+            .dependsOn(bc, b).dependsOn(bc, c)     // bc depends on b, c
+            .build();
+
+        ExecutionResult<Void> r = runner.run(script, "multi-dep");
+        assertTrue("Script must succeed despite reverse insertion order: "
+            + r.getMessage(), r.isSuccess());
+
+        // 5 user shapes added (3 rectangles + 2 connectors); confirm
+        // structural totals.
+        var doc = orchestrator.getContext().get().getDocument();
+        var parsed = doc.getParsedSlideData(1,
+            (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+        long rects = parsed.getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.RECTANGLE).count();
+        long conns = parsed.getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.CONNECTION).count();
+        assertEquals("All three rectangles must be present", 3, rects);
+        assertEquals("Both connectors must be present", 2, conns);
+    }
+
+    @Test
+    public void rollback_revertsAddedShapesInLifo() {
+        // Add three shapes then fail. All three must be undone.
+        int baseShapes = currentShapeCount();
+        CommandSpec.AddShapeSpec a = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(0, 0, 1_000_000, 1_000_000),
+            "", "A", null, null, false);
+        CommandSpec.AddShapeSpec b = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.ELLIPSE,
+            new ShapeGeometry(2_000_000, 0, 1_000_000, 1_000_000),
+            "", "B", null, null, false);
+        CommandSpec.AddShapeSpec c = new CommandSpec.AddShapeSpec(
+            1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(4_000_000, 0, 1_000_000, 1_000_000),
+            "", "C", null, null, false);
+        CommandSpec.RemoveShapeSpec poison = new CommandSpec.RemoveShapeSpec(1, 999_999);
+
+        CommandScript s = CommandScript.ofFlat(java.util.List.of(a, b, c, poison));
+        ExecutionResult<Void> r = runner.run(s, "should-rollback-multi");
+        assertFalse(r.isSuccess());
+        assertEquals("Every added shape must be undone after rollback",
+            baseShapes, currentShapeCount());
+    }
+
+    @Test
     public void nullScriptReturnsFailureNotException() {
         ExecutionResult<Void> r = runner.run(null, null);
         assertFalse(r.isSuccess());
