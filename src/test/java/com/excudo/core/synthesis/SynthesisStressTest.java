@@ -54,48 +54,48 @@ public class SynthesisStressTest {
 
     /**
      * Loads a deck that contains a picture, snapshots it, and runs the
-     * synthesizer over the diff. Since AddShapeSpec carries no media
-     * field, the synthesizer must SKIP the picture with a visible
-     * warning rather than emit an unrunnable spec that would abort
-     * the apply. Until the picture-channel work lands, this is the
-     * correct intermediate behavior.
+     * synthesizer over the diff. With the picture channel in place the
+     * synthesizer must emit a typed {@link CommandSpec.AddPictureSpec}
+     * carrying the source picture's {@link com.excudo.core.model.BlipRef}
+     * (resolved canonical OPC part name) rather than skipping the
+     * picture or emitting an unrunnable AddShapeSpec.
      */
     @Test
-    public void pictureDuplication_synthesisPath_skipsWithVisibleWarning() throws Exception {
+    public void pictureDuplication_synthesisPath_emitsAddPictureSpec() throws Exception {
         assumeTrue("Picture fixture not present: " + PICTURE_FIXTURE, PICTURE_FIXTURE.exists());
         PPTXOrchestratorImpl orch = loadOrchestratorFromFile(PICTURE_FIXTURE);
 
         SlidePictureRef pic = firstPicture(orch);
         assumeTrue("Fixture has no picture shape", pic != null);
 
-        // Build a diff that "adds" the picture: source = current state,
-        // baseline = empty baseline (i.e. layout-only). This is exactly
-        // the synthesizer's view when the agent says "recreate this slide
-        // on a new deck".
         SlideStateBuilder builder = new SlideStateBuilder(orch);
-        SlideState current = builder.current(pic.slideNumber);
-        SlideState baseline = builder.baseline(pic.slideNumber);
-        SlideStateDiff diff = SlideStateDiffer.diff(baseline, current);
-
+        SlideStateDiff diff = SlideStateDiffer.diff(
+            builder.baseline(pic.slideNumber), builder.current(pic.slideNumber));
         ScriptSynthesizer.Result result = ScriptSynthesizer.synthesize(diff, pic.slideNumber);
 
-        // No AddShapeSpec for PICTURE -- the synthesizer must skip it.
-        boolean anyPictureSpec = result.script().topologicalOrder().stream()
+        // No AddShapeSpec for PICTURE -- still verboten because
+        // AddShapeCommand's PICTURE guard would reject it.
+        boolean strayShapeSpec = result.script().topologicalOrder().stream()
             .filter(s -> s instanceof CommandSpec.AddShapeSpec)
             .map(s -> (CommandSpec.AddShapeSpec) s)
             .anyMatch(s -> s.shapeType() == SlideShape.ShapeType.PICTURE);
-        assertFalse("Synthesizer must not emit AddShapeSpec(PICTURE,...) -- "
-            + "AddShapeCommand would reject it and abort the whole script. "
-            + "Skip with a warning instead.", anyPictureSpec);
+        assertFalse("PICTURE must NOT flow through AddShapeSpec",
+            strayShapeSpec);
 
-        // A warning naming the picture must be present so the user sees
-        // exactly what was dropped (no silent fallback per CLAUDE.md).
-        boolean warned = result.warnings().stream()
-            .anyMatch(w -> w.toLowerCase().contains("picture")
-                && w.contains(String.valueOf(pic.spid)));
-        assertTrue("Synthesizer must emit a visible warning naming the "
-            + "skipped picture SPID. warnings=" + result.warnings(),
-            warned);
+        // AddPictureSpec for the source picture carrying its BlipRef.
+        List<CommandSpec.AddPictureSpec> picSpecs = result.script().topologicalOrder().stream()
+            .filter(s -> s instanceof CommandSpec.AddPictureSpec)
+            .map(s -> (CommandSpec.AddPictureSpec) s)
+            .filter(s -> s.sourceSpidHint() != null && s.sourceSpidHint() == pic.spid)
+            .toList();
+        assertEquals("Synthesizer must emit exactly one AddPictureSpec for "
+            + "the source picture SPID " + pic.spid, 1, picSpecs.size());
+        CommandSpec.AddPictureSpec spec = picSpecs.get(0);
+        assertNotNull("BlipRef.mediaPartName must be populated",
+            spec.blipRef().mediaPartName());
+        assertTrue("mediaPartName must look like an OPC media path: "
+            + spec.blipRef().mediaPartName(),
+            spec.blipRef().mediaPartName().startsWith("ppt/media/"));
     }
 
     // ===================================================================
@@ -147,32 +147,14 @@ public class SynthesisStressTest {
     // ===================================================================
 
     /**
-     * Verifies the structural gap: {@code ShapeSnapshot} has no field
-     * capable of carrying a picture's media reference or a shape's
-     * image-fill. Two completely different pictures at the same SPID
-     * would compare equal via the differ. This is a *compile-time*
-     * assertion via reflection -- so if someone adds a field for it
-     * later, the test fails and forces a rethink of the differ logic.
+     * Picture-channel landed: ShapeSnapshot now has a blipRef field.
+     * Lock the contract here so a future refactor that drops it (or
+     * renames it without updating SlideStateBuilder + ScriptSynthesizer
+     * + AddPictureSpec atomically) fails loudly.
      */
     @Test
-    public void shapeSnapshot_hasNoMediaOrBlipField() {
-        // If any of these reflection lookups SUCCEEDS, ShapeSnapshot has
-        // grown a media-bearing field and the differ + AddShapeSpec
-        // need to be updated to match. Until then, the gap is real.
-        String[] mediaFieldCandidates = {
-            "blip", "blipRef", "mediaPath", "mediaRef",
-            "pictureRef", "imageRef", "imagePath", "blipFill", "image"
-        };
-        for (String field : mediaFieldCandidates) {
-            try {
-                ShapeSnapshot.class.getDeclaredField(field);
-                fail("ShapeSnapshot now has a '" + field + "' field -- the "
-                    + "differ + ScriptSynthesizer + AddShapeSpec all need "
-                    + "to use it, and SlideStateBuilder must populate it.");
-            } catch (NoSuchFieldException ignored) {
-                // expected for now
-            }
-        }
+    public void shapeSnapshot_hasBlipRefField() throws Exception {
+        ShapeSnapshot.class.getDeclaredField("blipRef");
     }
 
     @Test

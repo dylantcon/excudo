@@ -1,5 +1,6 @@
 package com.excudo.core.synthesis;
 
+import com.excudo.core.model.BlipRef;
 import com.excudo.core.model.ConnectorAttachment;
 import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.ShapeStyle;
@@ -29,17 +30,27 @@ public record ShapeSnapshot(
         TextBody textBody,
         boolean isTextBox,
         Integer parentGroupSpid,
-        ConnectorAttachment connectorAttachment) {
+        ConnectorAttachment connectorAttachment,
+        BlipRef blipRef) {
 
     public ShapeSnapshot {
         if (spid <= 0) throw new IllegalArgumentException("spid must be positive");
         Objects.requireNonNull(type, "type");
     }
 
-    /** Back-compat constructor for non-connector callers. */
+    /** Back-compat constructor: pre-connector callers. */
     public ShapeSnapshot(int spid, String name, SlideShape.ShapeType type,
             ShapeGeometry geometry, ShapeStyle style, TextBody textBody,
             boolean isTextBox, Integer parentGroupSpid) {
-        this(spid, name, type, geometry, style, textBody, isTextBox, parentGroupSpid, null);
+        this(spid, name, type, geometry, style, textBody, isTextBox, parentGroupSpid, null, null);
+    }
+
+    /** Back-compat constructor: connector callers without blipRef. */
+    public ShapeSnapshot(int spid, String name, SlideShape.ShapeType type,
+            ShapeGeometry geometry, ShapeStyle style, TextBody textBody,
+            boolean isTextBox, Integer parentGroupSpid,
+            ConnectorAttachment connectorAttachment) {
+        this(spid, name, type, geometry, style, textBody, isTextBox, parentGroupSpid,
+            connectorAttachment, null);
     }
 }

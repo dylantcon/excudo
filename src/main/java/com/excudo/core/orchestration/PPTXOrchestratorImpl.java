@@ -641,6 +641,12 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     }
 
     @Override
+    public ExecutionResult<Integer> addPictureShape(int slideNumber,
+            com.excudo.core.model.BlipRef blipRef, ShapeGeometry geometry, String name) {
+        return shapeOrchestrationManager.addPictureShape(slideNumber, blipRef, geometry, name);
+    }
+
+    @Override
     public ExecutionResult<org.w3c.dom.Element> captureShapeElement(int slideNumber, int spid) {
         return shapeOrchestrationManager.captureShapeElement(slideNumber, spid);
     }

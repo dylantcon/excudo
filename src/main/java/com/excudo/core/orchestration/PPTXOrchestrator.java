@@ -250,6 +250,28 @@ public interface PPTXOrchestrator {
         Integer startSpid, Integer startIdx, Integer endSpid, Integer endIdx, String customPath);
 
     /**
+     * Add a picture ({@code <p:pic>}) to a slide pointing at media bytes
+     * that already live in the deck. The {@code blipRef.mediaPartName}
+     * must resolve to an existing {@link com.excudo.core.model.MediaElement}
+     * in {@link com.excudo.core.model.PPTXDocument}; the implementation
+     * allocates a fresh slide-local rId via the relationship manager,
+     * allocates a SPID, and writes the {@code <p:pic>} element via the
+     * shape writer. Fails loudly if the media part is missing -- never
+     * silently produces an empty picture frame.
+     *
+     * @param slideNumber 1-based slide number
+     * @param blipRef     the canonical media-part reference (mediaPartName required)
+     * @param geometry    position + size on the slide
+     * @param name        optional name for the cNvPr element; null falls
+     *                    back to "Picture {SPID}"
+     * @return Result containing the allocated picture SPID
+     */
+    ExecutionResult<Integer> addPictureShape(int slideNumber,
+        com.excudo.core.model.BlipRef blipRef,
+        ShapeGeometry geometry,
+        String name);
+
+    /**
      * Get the current text content of a shape.
      *
      * @param slideNumber The slide number (1-based)

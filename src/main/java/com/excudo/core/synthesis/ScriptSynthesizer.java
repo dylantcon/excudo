@@ -69,24 +69,13 @@ public final class ScriptSynthesizer {
         Set<Integer> consumedSpids = new HashSet<>();
         emitCompoundPrimitives(diff, slideNumber, builder, consumedSpids, warnings);
 
-        // PICTURE shapes can't survive the synthesis path -- AddShapeSpec
-        // has no media field, so re-emitting them as add-shapes would abort
-        // the apply at AddShapeCommand's PICTURE check. Skip with a visible
-        // warning so the rest of the slide replays cleanly and the user
-        // can see exactly what was dropped.
-        for (SlideStateDiff.ShapeAdded added : diff.added()) {
-            ShapeSnapshot s = added.shape();
-            if (s.type() == com.excudo.core.model.SlideShape.ShapeType.PICTURE
-                    && !consumedSpids.contains(s.spid())) {
-                consumedSpids.add(s.spid());
-                warnings.add("Picture SPID " + s.spid()
-                    + " (" + (s.name() != null ? s.name() : "unnamed")
-                    + ") skipped: the synthesizer can't carry a picture's "
-                    + "media reference through AddShapeSpec. Track via task "
-                    + "#42 (picture channel). Use the direct duplicate "
-                    + "command on the source slide instead.");
-            }
-        }
+        // PICTURE shapes route to AddPictureSpec when the snapshot
+        // captured a BlipRef (embedded media). PICTUREs without a
+        // BlipRef -- linked-not-embedded, or a parser miss -- can't be
+        // recreated; skip them with a visible warning so the rest of
+        // the slide replays and the user knows exactly what dropped.
+        emitPictureAdds(diff, slideNumber, builder, addShapeBySpid,
+            consumedSpids, warnings);
 
         // CONNECTION shapes are claimed by consumedSpids here so the
         // regular AddShapeSpec path skips them. The actual connector
@@ -269,6 +258,41 @@ public final class ScriptSynthesizer {
             }
         }
         return null;
+    }
+
+    // ========== Picture adds ==========
+
+    /**
+     * Emit an {@link CommandSpec.AddPictureSpec} for every PICTURE-typed
+     * snapshot with a non-null BlipRef. PICTUREs without a BlipRef
+     * (linked-not-embedded, parser miss) get a visible warning and are
+     * marked consumed so the regular AddShapeSpec emit doesn't
+     * incorrectly route them through the basic-shape path (where
+     * AddShapeCommand's PICTURE guard would throw).
+     */
+    private static void emitPictureAdds(SlideStateDiff diff, int slideNumber,
+            CommandScript.Builder builder, Map<Integer, CommandSpec> addShapeBySpid,
+            Set<Integer> consumedSpids, java.util.List<String> warnings) {
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            ShapeSnapshot s = added.shape();
+            if (s.type() != com.excudo.core.model.SlideShape.ShapeType.PICTURE) continue;
+            if (consumedSpids.contains(s.spid())) continue;
+
+            consumedSpids.add(s.spid());
+
+            if (s.blipRef() == null) {
+                warnings.add("Picture SPID " + s.spid()
+                    + " (" + (s.name() != null ? s.name() : "unnamed")
+                    + ") skipped: snapshot has no BlipRef (linked-not-embedded "
+                    + "or parser miss). Replay would produce an empty frame.");
+                continue;
+            }
+
+            CommandSpec.AddPictureSpec spec = new CommandSpec.AddPictureSpec(
+                slideNumber, s.blipRef(), s.geometry(), s.name(), s.spid());
+            builder.add(spec);
+            addShapeBySpid.put(s.spid(), spec);
+        }
     }
 
     // ========== Connector adds ==========

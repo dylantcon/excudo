@@ -176,6 +176,10 @@ public class SynthesizeSlideScriptCommand implements Command {
                     c.connectorType(),
                     c.startSpid() != null ? c.startSpid() + ":" + c.startIdx() : "free",
                     c.endSpid()   != null ? c.endSpid()   + ":" + c.endIdx()   : "free");
+            case CommandSpec.AddPictureSpec p ->
+                "AddPicture media=" + p.blipRef().mediaPartName()
+                    + " geom=(" + p.geometry().getX() + "," + p.geometry().getY()
+                    + " " + p.geometry().getWidth() + "x" + p.geometry().getHeight() + ")";
         };
     }
 }

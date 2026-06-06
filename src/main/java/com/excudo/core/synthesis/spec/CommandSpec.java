@@ -66,7 +66,8 @@ public sealed interface CommandSpec permits
         CommandSpec.DetachFromGroupSpec,
         CommandSpec.CreateCodeBoxSpec,
         CommandSpec.CreateDiagramSpec,
-        CommandSpec.AddConnectorSpec {
+        CommandSpec.AddConnectorSpec,
+        CommandSpec.AddPictureSpec {
 
     /** Slide number this spec targets. Every spec carries it, so the
      *  DAG's node-to-slide mapping is self-contained. */
@@ -473,6 +474,39 @@ public sealed interface CommandSpec permits
             validateSlide(slideNumber);
             Objects.requireNonNull(geometry, "geometry");
             if (connectorType == null || connectorType.isBlank()) connectorType = "line";
+        }
+    }
+
+    // ============================================================
+    // Pictures
+    // ============================================================
+
+    /**
+     * Recreate an embedded picture ({@code <p:pic>}) on a target slide.
+     * The {@code blipRef.mediaPartName} is the in-deck OPC path of the
+     * media bytes ({@link com.excudo.core.model.PPTXDocument#getMediaPart}
+     * key); the runner allocates a fresh slide-local rId in the target
+     * slide's .rels pointing at the same part. Cross-deck application
+     * requires the media part to be transferred separately -- the apply
+     * path fails loudly if the part is absent, never silently rebuilds
+     * an empty frame.
+     *
+     * <p>{@code sourceSpidHint} mirrors {@link AddShapeSpec#sourceSpidHint}:
+     * the source-slide SPID gets remapped to the freshly allocated SPID
+     * via {@link com.excudo.core.synthesis.SpecRewriter} so downstream
+     * specs (animation targets, reorders, connector endpoints) that
+     * reference this picture's source SPID resolve to the new one.
+     */
+    record AddPictureSpec(
+            int slideNumber,
+            com.excudo.core.model.BlipRef blipRef,
+            ShapeGeometry geometry,
+            String name,
+            Integer sourceSpidHint) implements CommandSpec {
+        public AddPictureSpec {
+            validateSlide(slideNumber);
+            Objects.requireNonNull(blipRef, "blipRef");
+            Objects.requireNonNull(geometry, "geometry");
         }
     }
 

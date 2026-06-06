@@ -101,6 +101,9 @@ public final class SpecToCommandMapper {
                                                         s.startSpid(), s.startIdx(),
                                                         s.endSpid(), s.endIdx(),
                                                         s.customPath(), orchestrator);
+            case CommandSpec.AddPictureSpec s    -> new com.excudo.core.commands.mutating.slide.AddPictureCommand(
+                                                        s.slideNumber(), s.blipRef(), s.geometry(),
+                                                        s.name(), orchestrator);
         };
     }
 

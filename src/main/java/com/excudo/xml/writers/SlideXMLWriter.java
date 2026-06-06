@@ -171,6 +171,11 @@ public class SlideXMLWriter implements com.excudo.xml.writers.animations.TimingN
         startSpid, startIdx, endSpid, endIdx, customPath, slideNumber);
   }
 
+  public int injectPictureShape(String name, String relationshipId,
+      ShapeGeometry geometry, int slideNumber) throws XMLParsingException {
+    return shapeWriter.injectPictureShape(name, relationshipId, geometry, slideNumber);
+  }
+
   public int groupShapes(java.util.List<Integer> spids) throws XMLParsingException {
     return shapeWriter.groupShapes(spids);
   }

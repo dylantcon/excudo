@@ -102,6 +102,10 @@ public final class SlideStateBuilder {
                 s.getType() == SlideShape.ShapeType.CONNECTION
                     ? extractConnectorAttachment(s)
                     : null;
+            com.excudo.core.model.BlipRef blip =
+                s.getType() == SlideShape.ShapeType.PICTURE
+                    ? extractBlipRef(s, slideNumber)
+                    : null;
             out.put(s.getSpid(), new ShapeSnapshot(
                 s.getSpid(), s.getName(), s.getType(),
                 s.getGeometry(),
@@ -109,9 +113,79 @@ public final class SlideStateBuilder {
                 body,
                 s.isTextBox(),
                 parent,
-                conn));
+                conn,
+                blip));
         }
         return out;
+    }
+
+    /**
+     * Read the embedded media reference from a {@code <p:pic>}: walks
+     * {@code <p:blipFill>/<a:blip>@r:embed} to get the rId, resolves it
+     * against the slide's .rels to a canonical OPC part name (the same
+     * key {@link com.excudo.core.model.PPTXDocument#getMediaPart} uses).
+     * Returns null for linked-not-embedded pictures, for pictures whose
+     * blip points at an unresolvable rId, and for non-picture shapes.
+     */
+    private com.excudo.core.model.BlipRef extractBlipRef(SlideShape s, int slideNumber) {
+        if (s == null || s.getXmlElement() == null) return null;
+        org.w3c.dom.Element root = s.getXmlElement();
+        org.w3c.dom.Element blipFill = firstDescendantElement(root, "blipFill");
+        if (blipFill == null) return null;
+        org.w3c.dom.Element blip = firstDescendantElement(blipFill, "blip");
+        if (blip == null) return null;
+
+        String rId = blip.getAttribute("r:embed");
+        if (rId == null || rId.isEmpty()) {
+            rId = blip.getAttributeNS(
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships", "embed");
+        }
+        if (rId == null || rId.isEmpty()) return null;
+
+        var ctxOpt = orchestrator.getContext();
+        if (ctxOpt.isEmpty()) return null;
+        com.excudo.core.model.PPTXDocument doc = ctxOpt.get().getDocument();
+        if (doc == null) return null;
+
+        String partName = resolveRIdToPartName(doc, slideNumber, rId);
+        if (partName == null) return null;
+
+        com.excudo.core.model.MediaElement media = doc.getMediaPart(partName);
+        String mime = media != null ? media.getMimeType() : null;
+
+        // srcRect: <a:srcRect l="..." t="..." r="..." b="..."/> -- a:srcRect
+        // sits as a child of blipFill, NOT blip. Round-trip the attributes
+        // verbatim so cropping intent survives.
+        org.w3c.dom.Element srcRectEl = firstDescendantElement(blipFill, "srcRect");
+        String srcRect = srcRectEl == null ? null
+            : "l=" + srcRectEl.getAttribute("l")
+            + " t=" + srcRectEl.getAttribute("t")
+            + " r=" + srcRectEl.getAttribute("r")
+            + " b=" + srcRectEl.getAttribute("b");
+
+        return new com.excudo.core.model.BlipRef(partName, mime, srcRect);
+    }
+
+    /** Resolve {@code <Relationship Id=rId Target=...>} to a canonical
+     *  OPC part name. Mirrors the renderer's resolver semantics so
+     *  snapshot and render see the same media identity. */
+    private static String resolveRIdToPartName(com.excudo.core.model.PPTXDocument doc,
+            int slideNumber, String rId) {
+        if (slideNumber <= 0) return null;
+        org.w3c.dom.Document relsDoc = doc.getXmlPart(
+            "ppt/slides/_rels/slide" + slideNumber + ".xml.rels");
+        if (relsDoc == null) return null;
+        org.w3c.dom.NodeList rels = relsDoc.getElementsByTagName("Relationship");
+        for (int i = 0; i < rels.getLength(); i++) {
+            org.w3c.dom.Element rel = (org.w3c.dom.Element) rels.item(i);
+            if (!rId.equals(rel.getAttribute("Id"))) continue;
+            String target = rel.getAttribute("Target");
+            if (target == null || target.isEmpty()) return null;
+            if (target.startsWith("../")) return "ppt/" + target.substring(3);
+            if (target.startsWith("/"))   return target.substring(1);
+            return "ppt/slides/" + target;
+        }
+        return null;
     }
 
     /**

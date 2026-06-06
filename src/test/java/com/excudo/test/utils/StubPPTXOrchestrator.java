@@ -188,6 +188,12 @@ public class StubPPTXOrchestrator implements PPTXOrchestrator {
     }
 
     @Override
+    public ExecutionResult<Integer> addPictureShape(int slideNumber,
+            com.excudo.core.model.BlipRef blipRef, ShapeGeometry geometry, String name) {
+        return null;
+    }
+
+    @Override
     public ExecutionResult<Integer> groupShapes(int slideNumber, java.util.List<Integer> spids) {
         return null;
     }

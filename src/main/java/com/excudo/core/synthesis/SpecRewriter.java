@@ -80,6 +80,7 @@ public final class SpecRewriter {
             case CommandSpec.CreateCodeBoxSpec s -> s; // creates SPIDs, doesn't reference any
             case CommandSpec.CreateDiagramSpec s -> s; // creates SPIDs, doesn't reference any
             case CommandSpec.AddConnectorSpec s  -> rewriteAddConnector(s, spidMap);
+            case CommandSpec.AddPictureSpec s    -> s; // creates a SPID, doesn't reference one
         };
     }
 

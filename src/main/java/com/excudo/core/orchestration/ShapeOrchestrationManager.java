@@ -736,6 +736,41 @@ public class ShapeOrchestrationManager {
     }
 
     /**
+     * Add a picture shape (p:pic) to a slide pointing at media that
+     * already exists in the deck. Allocates a fresh slide-local rId
+     * via the relationship manager; fails loudly if {@code blipRef
+     * .mediaPartName} doesn't resolve to a known media part (no silent
+     * empty-frame fallback per CLAUDE.md).
+     */
+    public ExecutionResult<Integer> addPictureShape(int slideNumber,
+            com.excudo.core.model.BlipRef blipRef,
+            ShapeGeometry geometry, String name) {
+        return performShapeXMLOperation(slideNumber, "AddPictureShape", (document, writer) -> {
+            String partName = blipRef.mediaPartName();
+            com.excudo.core.model.MediaElement media = context.getDocument().getMediaPart(partName);
+            if (media == null) {
+                throw new IllegalStateException(
+                    "AddPictureShape: media part '" + partName + "' not in deck. "
+                    + "Cross-deck picture apply requires the media bytes to be "
+                    + "transferred first; tracked as a deferred backlog item.");
+            }
+            // Slide rels live in ppt/slides/_rels/slideN.xml.rels; targets
+            // are relative to that folder, so "ppt/media/imageN.png" becomes
+            // "../media/imageN.png".
+            String target = partName.startsWith("ppt/")
+                ? "../" + partName.substring("ppt/".length())
+                : partName;
+            String mediaType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+            String rId = context.getRelationshipManager()
+                .addMediaRelationship(slideNumber, mediaType, target);
+            int spid = writer.injectPictureShape(name, rId, geometry, slideNumber);
+            logger.info("Added picture SPID {} (rId {} -> {}) to slide {}",
+                spid, rId, partName, slideNumber);
+            return spid;
+        });
+    }
+
+    /**
      * Functional interface for shape XML operations.
      */
     @FunctionalInterface

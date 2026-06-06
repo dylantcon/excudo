@@ -81,22 +81,13 @@ public class SlideSpecApplyFlowTest {
     // ===================================================================
 
     /**
-     * The user said "I can't duplicate images in the GUI." Before fix:
-     * the GUI's serialized spec list included AddShapeSpec(PICTURE,...);
-     * RunSlideScriptCommand handed it to AddShapeCommand which threw at
-     * SPID allocation, aborting the whole apply. After fix: the
-     * synthesizer skips PICTURE with a warning AND AddShapeCommand
-     * fails clean at PICTURE rather than via SPID-allocation noise. The
-     * net result is the GUI's serialized script never contains a PICTURE
-     * AddShape, so the apply doesn't abort for picture-bearing decks.
-     *
-     * <p>Scoped to the JSON layer (not full apply-to-new-slide) because
-     * loaded-fixture slides use different layouts than freshly created
-     * blank slides; cross-layout SPID retarget is a separate concern
-     * tracked outside this test.
+     * GUI apply path for a picture-bearing slide: synth -> JSON ->
+     * deserialize -> AddPictureSpec carries the source's BlipRef
+     * through verbatim. No warnings about dropped pictures; no
+     * stray AddShapeSpec(PICTURE,...) anywhere in the pipeline.
      */
     @Test
-    public void picture_synthAndJsonRoundTrip_dropsAddShapePictureCleanly() throws Exception {
+    public void picture_synthAndJsonRoundTrip_emitsAddPictureSpec() throws Exception {
         assumeTrue("Picture fixture not present: " + PICTURE_FIXTURE, PICTURE_FIXTURE.exists());
         PPTXOrchestratorImpl orch = loadOrchestratorFromFile(PICTURE_FIXTURE);
 
@@ -108,31 +99,32 @@ public class SlideSpecApplyFlowTest {
             builder.baseline(sourceSlide), builder.current(sourceSlide));
         ScriptSynthesizer.Result result = ScriptSynthesizer.synthesize(diff, sourceSlide);
 
-        // No AddShapeSpec(PICTURE,...) in the synthesized output; if it
-        // were there, the GUI's RunSlideScriptCommand would throw at
-        // AddShapeCommand's PICTURE check (the user's GUI failure mode).
-        boolean anyPic = result.script().topologicalOrder().stream()
+        boolean strayShapeSpec = result.script().topologicalOrder().stream()
             .filter(s -> s instanceof CommandSpec.AddShapeSpec)
             .map(s -> (CommandSpec.AddShapeSpec) s)
             .anyMatch(s -> s.shapeType() == SlideShape.ShapeType.PICTURE);
-        assertFalse("Synthesizer must skip PICTURE adds so GUI apply doesn't "
-            + "abort. specs=" + result.script().topologicalOrder(), anyPic);
+        assertFalse("PICTURE must not flow through AddShapeSpec", strayShapeSpec);
 
-        // Warning naming the skipped picture must surface so the user
-        // sees what was dropped -- no silent fallback.
-        assertTrue("A picture-skip warning must be in the synthesizer's "
-            + "warnings list. warnings=" + result.warnings(),
-            result.warnings().stream().anyMatch(w -> w.toLowerCase().contains("picture")));
+        long picSpecCount = result.script().topologicalOrder().stream()
+            .filter(s -> s instanceof CommandSpec.AddPictureSpec).count();
+        assertTrue("Synthesizer must emit at least one AddPictureSpec",
+            picSpecCount >= 1);
 
-        // JSON round-trip preserves the skip (no spec reappears via
-        // serialization noise).
+        // JSON round-trip preserves the picture spec value-equal.
         String json = CommandSpecJson.toJsonArray(result.script().topologicalOrder());
-        boolean picAfterJson = CommandSpecJson.fromJsonArray(json).stream()
-            .filter(s -> s instanceof CommandSpec.AddShapeSpec)
-            .map(s -> (CommandSpec.AddShapeSpec) s)
-            .anyMatch(s -> s.shapeType() == SlideShape.ShapeType.PICTURE);
-        assertFalse("No PICTURE AddShapeSpec must reappear after JSON round-trip",
-            picAfterJson);
+        List<CommandSpec> reparsed = CommandSpecJson.fromJsonArray(json);
+        List<CommandSpec.AddPictureSpec> beforePics = result.script().topologicalOrder().stream()
+            .filter(s -> s instanceof CommandSpec.AddPictureSpec)
+            .map(s -> (CommandSpec.AddPictureSpec) s).toList();
+        List<CommandSpec.AddPictureSpec> afterPics = reparsed.stream()
+            .filter(s -> s instanceof CommandSpec.AddPictureSpec)
+            .map(s -> (CommandSpec.AddPictureSpec) s).toList();
+        assertEquals("Picture spec count must survive JSON round-trip",
+            beforePics.size(), afterPics.size());
+        for (int i = 0; i < beforePics.size(); i++) {
+            assertEquals("AddPictureSpec[" + i + "] must round-trip JSON value-equal",
+                beforePics.get(i), afterPics.get(i));
+        }
     }
 
     // ===================================================================

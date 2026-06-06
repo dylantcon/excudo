@@ -77,6 +77,8 @@ public final class SpecFormDialog {
             // pairs, headEnd/tailEnd, customPath) — a JSON editor is the
             // right surface until someone needs a richer typed form.
             case CommandSpec.AddConnectorSpec c -> false;
+            // AddPicture carries a BlipRef sub-model — JSON editor for now.
+            case CommandSpec.AddPictureSpec p -> false;
         };
     }
 
@@ -114,6 +116,7 @@ public final class SpecFormDialog {
             case CommandSpec.CreateCodeBoxSpec c -> Optional.empty();
             case CommandSpec.CreateDiagramSpec d -> Optional.empty();
             case CommandSpec.AddConnectorSpec c -> Optional.empty();
+            case CommandSpec.AddPictureSpec p -> Optional.empty();
         };
     }
 

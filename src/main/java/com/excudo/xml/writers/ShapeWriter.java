@@ -485,6 +485,26 @@ public class ShapeWriter {
   }
 
   /**
+   * Inject a picture shape, allocating SPID from the SPIDManager
+   * (mirror of {@link #injectConnectorShape}'s self-allocate contract).
+   * Use this from the orchestrator when the caller doesn't already
+   * own a SPID; pre-allocated callers (SmartContent) keep using
+   * {@link #addPictureShape(int, String, String, ShapeGeometry)}.
+   */
+  public int injectPictureShape(String name, String relationshipId,
+      ShapeGeometry geometry, int slideNumber) throws XMLParsingException {
+    int spid;
+    if (spidManager != null) {
+      spid = spidManager.allocateSpidForShape("picture", slideNumber, false, false, null);
+    } else {
+      spid = nextAvailableSpid++;
+    }
+    String resolvedName = (name == null || name.isBlank()) ? "Picture " + spid : name;
+    addPictureShape(spid, resolvedName, relationshipId, geometry);
+    return spid;
+  }
+
+  /**
    * Add a picture shape to the slide with proper OOXML structure
    */
   public void addPictureShape(int spid, String name, String relationshipId, ShapeGeometry geometry) throws XMLParsingException {

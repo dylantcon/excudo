@@ -71,6 +71,8 @@ public final class RetargetToSlide {
                 s.headEnd(), s.tailEnd(), s.lineColor(),
                 s.startSpid(), s.startIdx(), s.endSpid(), s.endIdx(),
                 s.customPath(), s.name(), s.sourceSpidHint());
+            case CommandSpec.AddPictureSpec s    -> new CommandSpec.AddPictureSpec(
+                targetSlide, s.blipRef(), s.geometry(), s.name(), s.sourceSpidHint());
         };
     }
 }

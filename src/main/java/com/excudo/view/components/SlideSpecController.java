@@ -803,6 +803,8 @@ public class SlideSpecController {
                     ? " " + (c.startSpid() != null ? c.startSpid() : "free")
                         + "->" + (c.endSpid() != null ? c.endSpid() : "free")
                     : "");
+            case CommandSpec.AddPictureSpec p ->
+                "AddPicture media=" + p.blipRef().mediaPartName();
         };
     }
 
