@@ -198,9 +198,13 @@ public class ClaudeDesktopConfigWriterTest {
 
     @Test
     public void deregisterRemovesExcudoEntry() throws Exception {
+        // Windows paths use backslashes; raw interpolation into a JSON
+        // string literal produces invalid escape sequences ("\U", "\A",
+        // etc.) and the writer can't parse the file. Escape for JSON.
+        String bridgePath = bridgeScript.toAbsolutePath().toString().replace("\\", "\\\\");
         writeJson(configPath,
             "{\"mcpServers\":{\"excudo\":{\"command\":\"python3\",\"args\":[\""
-            + bridgeScript.toAbsolutePath() + "\"]}}}");
+            + bridgePath + "\"]}}}");
 
         ClaudeDesktopConfigWriter.Result result =
             ClaudeDesktopConfigWriter.deregister(configPath);
