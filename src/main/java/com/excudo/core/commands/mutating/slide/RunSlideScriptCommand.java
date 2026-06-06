@@ -54,6 +54,13 @@ public class RunSlideScriptCommand implements Command {
     private boolean executed = false;
     private List<Command> executedInOrder = new ArrayList<>();
     private int appliedSpecCount = 0;
+    /** Final source-SPID -> target-SPID map populated during execute.
+     *  Exposed for tests / tooling that need to renormalize a target
+     *  snapshot back to source-SPID space (the
+     *  {@code StrictRoundTrip} helper does this to assert full
+     *  SlideState equality after apply). Empty when execute hasn't run
+     *  or no Add* specs allocated SPIDs. */
+    private Map<Integer, Integer> finalSpidMap = new HashMap<>();
 
     public RunSlideScriptCommand(int slideNumber, String scriptJson,
                                  PPTXOrchestrator orchestrator, Object displayAdapter) {
@@ -146,7 +153,14 @@ public class RunSlideScriptCommand implements Command {
                     "Script failed: " + failure.getMessage(), failure);
         }
         executedInOrder = executedLocal;
+        finalSpidMap = Map.copyOf(spidMap);
         executed = true;
+    }
+
+    /** Source-SPID -> allocated-target-SPID map captured during execute.
+     *  Returns an empty map before execute or after a rollback. */
+    public Map<Integer, Integer> getSpidMap() {
+        return finalSpidMap;
     }
 
     @Override

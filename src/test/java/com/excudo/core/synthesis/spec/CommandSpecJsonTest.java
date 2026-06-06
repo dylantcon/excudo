@@ -181,6 +181,54 @@ public class CommandSpecJsonTest {
         assertRoundTrip(new CommandSpec.DetachFromGroupSpec(1, 11));
     }
 
+    // ========== Compound primitives + connector + picture ==========
+
+    @Test
+    public void createCodeBoxSpec_roundTripsAllFields() {
+        assertRoundTrip(new CommandSpec.CreateCodeBoxSpec(
+            1, "java", "int x = 1;\nint y = 2;", 100L, 200L, 800L, 600L, "858585", 7));
+        // Nullable width/height/lineNumberColor variants.
+        assertRoundTrip(new CommandSpec.CreateCodeBoxSpec(
+            1, "python", "print('hi')", 0L, 0L, null, null, null, null));
+    }
+
+    @Test
+    public void createDiagramSpec_roundTripsAllFields() {
+        assertRoundTrip(new CommandSpec.CreateDiagramSpec(
+            1, "graph TD\n  A --> B\n  B --> C", 100L, 200L, 800L, 600L, 7));
+        // Nullable position/size variants.
+        assertRoundTrip(new CommandSpec.CreateDiagramSpec(
+            1, "sequenceDiagram\n  A->>B: hi", null, null, null, null, null));
+    }
+
+    @Test
+    public void addConnectorSpec_roundTripsAllFields() {
+        // With explicit endpoint bindings + arrowheads + line color.
+        assertRoundTrip(new CommandSpec.AddConnectorSpec(
+            1, "elbow",
+            new ShapeGeometry(100, 200, 500, 300),
+            "triangle", "arrow", "FF0000",
+            10, 1, 11, 2,
+            null, "Connector A", 5));
+        // Free-floating connector (no endpoints).
+        assertRoundTrip(new CommandSpec.AddConnectorSpec(
+            1, "straight",
+            new ShapeGeometry(0, 0, 1000, 0),
+            null, null, null, null, null, null, null, null, "Free", null));
+    }
+
+    @Test
+    public void addPictureSpec_roundTripsAllFields() {
+        assertRoundTrip(new CommandSpec.AddPictureSpec(
+            1, com.excudo.core.model.BlipRef.of("ppt/media/image1.png"),
+            new ShapeGeometry(100, 200, 800, 600), "Hero", 7));
+        // With explicit mime + crop rect.
+        assertRoundTrip(new CommandSpec.AddPictureSpec(
+            1, new com.excudo.core.model.BlipRef(
+                "ppt/media/image2.jpeg", "image/jpeg", "l=10 t=10 r=10 b=10"),
+            new ShapeGeometry(0, 0, 100, 100), "Cropped", null));
+    }
+
     // ========== Error paths ==========
 
     @Test(expected = com.google.gson.JsonParseException.class)

@@ -210,6 +210,224 @@ public class SpecToCommandMapperTest {
             parsed.getShapeRegistry().getShape(spid));
     }
 
+    // ========== Coverage-matrix fill (P2) ==========
+
+    @Test
+    public void renameShapeSpec_changesShapeName() {
+        int spid = addRect(0, 0, 1_000_000, 1_000_000);
+        Command cmd = mapper.toCommand(new CommandSpec.RenameShapeSpec(1, spid, "Renamed"));
+        cmd.execute();
+        assertEquals("Renamed", getShape(spid).getName());
+    }
+
+    @Test
+    public void setTextBoxFlagSpec_togglesTxBoxAttribute() {
+        int spid = addRect(0, 0, 1_000_000, 1_000_000);
+        Command cmd = mapper.toCommand(new CommandSpec.SetTextBoxFlagSpec(1, spid, true));
+        cmd.execute();
+        assertTrue("txBox flag must be set after spec applies",
+            getShape(spid).isTextBox());
+    }
+
+    @Test
+    public void setRunFormatSpec_updatesRunFormatting() {
+        // Build a shape with one paragraph containing one run.
+        int spid = addRect(0, 0, 2_000_000, 1_000_000);
+        var body = com.excudo.core.model.TextBody.builder()
+            .addParagraph(com.excudo.core.model.TextParagraph.builder()
+                .addRun(com.excudo.core.model.TextRun.builder("hello").build())
+                .build()).build();
+        var seed = orchestrator.setTextBody(1, spid, body);
+        assertTrue(seed.isSuccess());
+
+        // Rewrite the run with bold + larger font.
+        var newRun = com.excudo.core.model.TextRun.builder("hello")
+            .bold(true).fontSize(28).build();
+        Command cmd = mapper.toCommand(new CommandSpec.SetRunFormatSpec(1, spid, 0, 0, newRun));
+        cmd.execute();
+        // Verify the run carries the new formatting via re-extraction.
+        var shape = getShape(spid);
+        var txBody = firstTxBody(shape);
+        assertNotNull(txBody);
+        var extracted = com.excudo.core.metrics.TextBodyExtractor.extract(txBody);
+        var run = extracted.getParagraphs().get(0).getRuns().get(0);
+        assertEquals(Boolean.TRUE, run.getBold());
+        assertEquals(Integer.valueOf(28), run.getFontSize());
+    }
+
+    @Test
+    public void setTextSpec_replacesTextBody() {
+        int spid = addRect(0, 0, 2_000_000, 1_000_000);
+        var body = com.excudo.core.model.TextBody.builder()
+            .addParagraph(com.excudo.core.model.TextParagraph.builder()
+                .addRun(com.excudo.core.model.TextRun.builder("FromSpec").build())
+                .build()).build();
+        Command cmd = mapper.toCommand(new CommandSpec.SetTextSpec(1, spid, body));
+        cmd.execute();
+        var shape = getShape(spid);
+        var txBody = firstTxBody(shape);
+        var extracted = com.excudo.core.metrics.TextBodyExtractor.extract(txBody);
+        assertEquals("FromSpec", extracted.getParagraphs().get(0).getRuns().get(0).getText());
+    }
+
+    @Test
+    public void createGroupSpec_groupsListedChildren() {
+        int a = addRect(0, 0, 1_000_000, 1_000_000);
+        int b = addRect(2_000_000, 0, 1_000_000, 1_000_000);
+        Command cmd = mapper.toCommand(new CommandSpec.CreateGroupSpec(
+            1, java.util.List.of(a, b), "G1"));
+        cmd.execute();
+        var parsed = lastParsedSlide(1);
+        var groups = parsed.getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.GROUP).toList();
+        assertEquals("Exactly one new group expected", 1, groups.size());
+        int groupSpid = groups.get(0).getSpid();
+        assertEquals("a is now in the group",
+            groupSpid, parsed.getShapeRegistry().getParentSpid(a));
+        assertEquals("b is now in the group",
+            groupSpid, parsed.getShapeRegistry().getParentSpid(b));
+    }
+
+    @Test
+    public void ungroupSpec_dissolvesGroup() {
+        int a = addRect(0, 0, 1_000_000, 1_000_000);
+        int b = addRect(2_000_000, 0, 1_000_000, 1_000_000);
+        var grp = orchestrator.groupShapes(1, java.util.List.of(a, b));
+        assertTrue("groupShapes must succeed: " + grp.getMessage(), grp.isSuccess());
+        int groupSpid = grp.getData().orElseThrow();
+        Command cmd = mapper.toCommand(new CommandSpec.UngroupSpec(1, groupSpid));
+        cmd.execute();
+        var parsed = lastParsedSlide(1);
+        assertNull("Group must be gone after UngroupSpec",
+            parsed.getShapeRegistry().getShape(groupSpid));
+        assertNotNull("Children must remain after ungroup",
+            parsed.getShapeRegistry().getShape(a));
+    }
+
+    @Test
+    public void addToGroupSpec_movesShapeIntoGroup() {
+        int a = addRect(0, 0, 1_000_000, 1_000_000);
+        int b = addRect(2_000_000, 0, 1_000_000, 1_000_000);
+        int c = addRect(4_000_000, 0, 1_000_000, 1_000_000);
+        var grp = orchestrator.groupShapes(1, java.util.List.of(a, b));
+        int groupSpid = grp.getData().orElseThrow();
+        Command cmd = mapper.toCommand(new CommandSpec.AddToGroupSpec(1, groupSpid, c));
+        cmd.execute();
+        var parsed = lastParsedSlide(1);
+        assertEquals("Child c must now be parented by the group",
+            groupSpid, parsed.getShapeRegistry().getParentSpid(c));
+    }
+
+    @Test
+    public void detachFromGroupSpec_movesChildToTopLevel() {
+        int a = addRect(0, 0, 1_000_000, 1_000_000);
+        int b = addRect(2_000_000, 0, 1_000_000, 1_000_000);
+        var grp = orchestrator.groupShapes(1, java.util.List.of(a, b));
+        int groupSpid = grp.getData().orElseThrow();
+        Command cmd = mapper.toCommand(new CommandSpec.DetachFromGroupSpec(1, a));
+        cmd.execute();
+        var parsed = lastParsedSlide(1);
+        assertTrue("Child a must be top-level (no parent SPID) after detach",
+            parsed.getShapeRegistry().getParentSpid(a) <= 0);
+        assertNotNull("Group must still exist with the other child",
+            parsed.getShapeRegistry().getShape(groupSpid));
+    }
+
+    @Test
+    public void removeAnimationSpec_removesByTimingNodeId() {
+        int spid = addRect(0, 0, 1_000_000, 1_000_000);
+        var b = AnimationBinding.builder()
+            .target(spid).type(AnimationType.APPEAR).entrance().durationMs(500).build();
+        var addRes = orchestrator.addAnimation(1, b, null);
+        assertTrue(addRes.isSuccess());
+        // After add, the binding has its timingNodeId; pull it via parsed data.
+        var anims = lastParsedSlide(1).getAnimationBindings();
+        assertFalse(anims.isEmpty());
+        int cTn = anims.get(0).getTimingNodeId();
+        assertTrue(cTn > 0);
+        Command cmd = mapper.toCommand(new CommandSpec.RemoveAnimationSpec(1, cTn));
+        cmd.execute();
+        assertTrue("Animation must be removed after spec applies",
+            lastParsedSlide(1).getAnimationBindings().isEmpty());
+    }
+
+    @Test
+    public void setAnimationTimingSpec_updatesDurationInPlace() {
+        int spid = addRect(0, 0, 1_000_000, 1_000_000);
+        var b = AnimationBinding.builder()
+            .target(spid).type(AnimationType.APPEAR).entrance().durationMs(500).build();
+        orchestrator.addAnimation(1, b, null);
+        int cTn = lastParsedSlide(1).getAnimationBindings().get(0).getTimingNodeId();
+        Command cmd = mapper.toCommand(new CommandSpec.SetAnimationTimingSpec(
+            1, cTn, "1500", null));
+        cmd.execute();
+        var anim = lastParsedSlide(1).getAnimationBindings().get(0);
+        assertEquals("Duration must be updated", "1500", anim.getDuration());
+    }
+
+    @Test
+    public void createCodeBoxSpec_addsTaggedGroup() {
+        Command cmd = mapper.toCommand(new CommandSpec.CreateCodeBoxSpec(
+            1, "java", "int x = 1;\nint y = 2;", 500_000L, 500_000L, null, null, null, null));
+        cmd.execute();
+        var groups = lastParsedSlide(1).getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.GROUP).toList();
+        assertEquals(1, groups.size());
+        assertTrue("Group name must carry code-box marker: " + groups.get(0).getName(),
+            groups.get(0).getName().startsWith("excudo:code_box_v1:"));
+    }
+
+    @Test
+    public void createDiagramSpec_addsTaggedGroup() {
+        Command cmd = mapper.toCommand(new CommandSpec.CreateDiagramSpec(
+            1, "graph TD\n  A --> B", null, null, null, null, null));
+        cmd.execute();
+        var groups = lastParsedSlide(1).getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.GROUP).toList();
+        assertEquals(1, groups.size());
+        assertTrue("Group name must carry diagram marker: " + groups.get(0).getName(),
+            groups.get(0).getName().startsWith("excudo:diagram_v1:"));
+    }
+
+    @Test
+    public void addConnectorSpec_addsConnectorWithEndpoints() {
+        int a = addRect(0, 0, 1_000_000, 1_000_000);
+        int b = addRect(3_000_000, 0, 1_000_000, 1_000_000);
+        Command cmd = mapper.toCommand(new CommandSpec.AddConnectorSpec(
+            1, "straight", new ShapeGeometry(1_000_000, 500_000, 2_000_000, 0),
+            "none", "triangle", "000000",
+            a, 1, b, 1, null, "Conn", null));
+        cmd.execute();
+        var conns = lastParsedSlide(1).getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.CONNECTION).toList();
+        assertEquals(1, conns.size());
+    }
+
+    @Test
+    public void addPictureSpec_addsPictureFromExistingMediaPart() {
+        // Seed a media part in the deck so AddPictureCommand can resolve it.
+        byte[] bytes = new byte[]{1, 2, 3, 4};
+        var media = new com.excudo.core.model.MediaElement(
+            "ppt/media/image1.png", "image/png", bytes);
+        orchestrator.getContext().get().getDocument().putMediaPart(media);
+
+        Command cmd = mapper.toCommand(new CommandSpec.AddPictureSpec(
+            1, com.excudo.core.model.BlipRef.of("ppt/media/image1.png"),
+            new ShapeGeometry(0, 0, 2_000_000, 2_000_000), "Hero", null));
+        cmd.execute();
+        var pics = lastParsedSlide(1).getShapeRegistry().getAllShapes().stream()
+            .filter(s -> s.getType() == SlideShape.ShapeType.PICTURE).toList();
+        assertEquals(1, pics.size());
+    }
+
+    @Test(expected = com.excudo.core.commands.CommandExecutionException.class)
+    public void addPictureSpec_missingMediaPart_throws() {
+        Command cmd = mapper.toCommand(new CommandSpec.AddPictureSpec(
+            1, com.excudo.core.model.BlipRef.of("ppt/media/nonexistent.png"),
+            new ShapeGeometry(0, 0, 1_000_000, 1_000_000), null, null));
+        cmd.execute();
+    }
+
     // ========== Null + unknown guards ==========
 
     @Test(expected = IllegalArgumentException.class)
@@ -243,5 +461,17 @@ public class SpecToCommandMapperTest {
         var doc = orchestrator.getContext().get().getDocument();
         return doc.getParsedSlideData(slideNumber,
             (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+    }
+
+    private static org.w3c.dom.Element firstTxBody(SlideShape s) {
+        org.w3c.dom.NodeList kids = s.getXmlElement().getChildNodes();
+        for (int i = 0; i < kids.getLength(); i++) {
+            org.w3c.dom.Node n = kids.item(i);
+            if (n.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE
+                    && "txBody".equals(n.getLocalName())) {
+                return (org.w3c.dom.Element) n;
+            }
+        }
+        return null;
     }
 }
