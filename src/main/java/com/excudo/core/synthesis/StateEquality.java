@@ -119,19 +119,54 @@ public final class StateEquality {
 
     public static boolean sameStyle(ShapeStyle a, ShapeStyle b) {
         if (a == b) return true;
+        // A hollow style (all fields null) carries zero information --
+        // semantically identical to no style at all. The introspector
+        // returns a hollow ShapeStyle for shapes without an explicit
+        // p:style while PlaceholderProjector projects null; without this
+        // rule every untouched placeholder diffs as STYLE-changed and
+        // the synthesizer emits junk SetShapeStyleSpecs. Fixed-point
+        // contract pinned by SynthesisFixedPointTest.
+        if (isHollowStyle(a) && isHollowStyle(b)) return true;
         if (a == null || b == null) return false;
         return sameFill(a.getFill(), b.getFill())
             && sameLine(a.getLine(), b.getLine())
             && sameThemeStyleRef(a.getThemeStyle(), b.getThemeStyle());
     }
 
+    private static boolean isHollowStyle(ShapeStyle s) {
+        return s == null
+            || (s.getFill() == null && s.getLine() == null && s.getThemeStyle() == null);
+    }
+
     // ========== TextBody ==========
 
     public static boolean sameTextBody(TextBody a, TextBody b) {
         if (a == b) return true;
+        // A body with zero authored characters is "no text" -- equal to
+        // null. Fresh placeholders carry an empty paragraph (PowerPoint
+        // stores prompt text on the layout, not the slide) while the
+        // projector projects null; without this rule every untouched
+        // placeholder diffs as TEXT-changed. A body WITH text still
+        // compares strictly (so authored title text emits its
+        // SetTextSpec). Known tradeoff: bodyProperties-only changes on
+        // an EMPTY shape don't diff -- that's the deferred
+        // SetBodyPropsSpec vocabulary gap, tracked in
+        // project_synthesis_gaps.md.
+        if (hasNoAuthoredText(a) && hasNoAuthoredText(b)) return true;
         if (a == null || b == null) return false;
         if (!sameBodyProperties(a.getBodyProperties(), b.getBodyProperties())) return false;
         return sameParagraphs(a.getParagraphs(), b.getParagraphs());
+    }
+
+    private static boolean hasNoAuthoredText(TextBody t) {
+        if (t == null) return true;
+        if (t.getParagraphs() == null) return true;
+        for (TextParagraph p : t.getParagraphs()) {
+            for (var r : p.getRuns()) {
+                if (r.getText() != null && !r.getText().isEmpty()) return false;
+            }
+        }
+        return true;
     }
 
     private static boolean sameBodyProperties(BodyProperties a, BodyProperties b) {

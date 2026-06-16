@@ -7,92 +7,93 @@ import com.excudo.core.model.ShapeGeometry;
 import com.excudo.core.model.SlideShape;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * Projects the set of {@link ShapeSnapshot}s a slide <em>would</em>
  * have if it were freshly instantiated from its {@link LayoutBaseline}.
  *
- * <p>Excudo's {@code CreateSlideCommand} materializes one shape per
- * placeholder declared on the layout, following the canonical SPID
- * convention: SPID 1 = root group, SPID 2 = title (if present), SPID
- * 3+ = content / subtitle placeholders. This projector reproduces that
- * projection so the diff can distinguish "shape came from the layout"
- * (skip, no CommandSpec needed) from "shape user-added" (emit an
- * {@code AddShapeSpec}).
+ * <p>This is a mirror of
+ * {@code SlideDocumentBuilder.createLayoutShapeTree}'s materialization
+ * plan -- same placeholder set, same SPIDs, same names. The builder is
+ * the reference implementation; if the two drift, the fixed-point
+ * contract breaks: a freshly created slide must diff EMPTY against its
+ * baseline (modulo title text, which is per-slide user content).
+ * {@code SynthesisFixedPointTest} pins that contract, so any divergence
+ * introduced on either side fails CI rather than silently polluting
+ * every synthesized script with phantom placeholder mutations.
  *
- * <p>The projection is intentionally conservative: {@code style},
- * {@code textBody}, and {@code parentGroupSpid} are all {@code null}
- * on placeholder snapshots. When the parser reads a slide that still
- * has its untouched placeholders, {@link StateEquality} compares those
- * against the projected snapshots -- null-vs-null on style means equal
- * (inherit from theme), and an empty {@code TextBody} on the current
- * side diffs as "TEXT field changed" only if there's authored content.
- * That's the expected behavior: authored content SHOULD round-trip as
- * a {@code SetTextSpec} on top of the baseline placeholder.
+ * <p>The builder's plan (and therefore this projection):
+ * <ul>
+ *   <li>Title, when {@code layout.hasTitlePlaceholder()}: SPID 2,
+ *       name {@code "Title Placeholder"}, geometry by title type.</li>
+ *   <li>Content, when {@code layout.hasContentPlaceholder()}:
+ *       {@code max(1, contentPlaceholderCount)} shapes at SPID 3+i,
+ *       name {@code "Content Placeholder "+(i+1)}, geometry by
+ *       1-based index with body/obj type fallback.</li>
+ *   <li>Subtitle, when {@code layout.hasSubtitlePlaceholder()}: next
+ *       sequential SPID, name {@code "Subtitle Shape"}, geometry by
+ *       subTitle type.</li>
+ * </ul>
+ *
+ * <p>{@code style} and {@code textBody} are projected as null --
+ * {@link StateEquality} treats null as equal to a hollow style /
+ * zero-authored-text body, so untouched placeholders diff clean while
+ * authored title text still emits its SetTextSpec.
+ *
+ * <p>Known limitation: decks authored OUTSIDE Excudo use different
+ * placeholder names ("Title 1", etc.), so loaded foreign decks may emit
+ * cosmetic RenameShapeSpecs against this projection. Harmless on apply;
+ * revisit if a foreign-deck fixed-point contract becomes a requirement.
  */
 public final class PlaceholderProjector {
 
     private PlaceholderProjector() {}
 
-    /**
-     * Build the shape map for the layout baseline. SPIDs follow the
-     * canonical {@code CreateSlideCommand} convention. Returns an
-     * insertion-ordered map so downstream diff output is deterministic.
-     */
     public static Map<Integer, ShapeSnapshot> project(LayoutBaseline baseline) {
         if (baseline == null) return Map.of();
         LayoutInfo layout = baseline.layout();
         if (layout == null) return Map.of();
 
         Map<Integer, ShapeSnapshot> out = new LinkedHashMap<>();
-        List<PlaceholderGeometry> geometries = layout.getPlaceholderGeometries();
-        if (geometries == null) return out;
 
-        // Canonical SPID walk: 2 is title when present; then every other
-        // placeholder starts at 3 in the order the layout declared them.
-        // Reproduce by iterating the geometry list once, treating title
-        // as special.
-        int titleSpid = 2;
-        int nextNonTitleSpid = 3;
-
-        for (PlaceholderGeometry g : geometries) {
-            String key = g.getPlaceholderIndex();
-            String type = extractType(key, g);
-            boolean isTitle = isTitleType(type);
-            int spid = isTitle ? titleSpid : nextNonTitleSpid++;
-            String name = deriveName(type);
-            ShapeGeometry geom = new ShapeGeometry(g.getX(), g.getY(), g.getWidth(), g.getHeight());
-            out.put(spid, new ShapeSnapshot(
-                spid, name, SlideShape.ShapeType.PLACEHOLDER,
-                geom, null, null, false, null));
+        if (layout.hasTitlePlaceholder()) {
+            String titleType = layout.getTitlePlaceholderType();
+            PlaceholderGeometry g = layout.getPlaceholderGeometryByType(
+                titleType != null && !titleType.isBlank() ? titleType : "title");
+            if (g == null) g = layout.getPlaceholderGeometryByType("ctrTitle");
+            out.put(2, placeholder(2, "Title Placeholder", g));
         }
+
+        int contentCount = 0;
+        if (layout.hasContentPlaceholder()) {
+            contentCount = Math.max(1, layout.getContentPlaceholderCount());
+            for (int i = 0; i < contentCount; i++) {
+                PlaceholderGeometry g = layout.getPlaceholderGeometryByIndex(
+                    String.valueOf(i + 1));
+                if (g == null) g = layout.getPlaceholderGeometryByType("body");
+                if (g == null) g = layout.getPlaceholderGeometryByType("obj");
+                int spid = 3 + i;
+                out.put(spid, placeholder(spid, "Content Placeholder " + (i + 1), g));
+            }
+        }
+
+        if (layout.hasSubtitlePlaceholder()) {
+            // Builder allocates the subtitle SPID sequentially after the
+            // content placeholders (or right after the title when the
+            // layout has no content).
+            int spid = 3 + contentCount;
+            PlaceholderGeometry g = layout.getPlaceholderGeometryByType("subTitle");
+            out.put(spid, placeholder(spid, "Subtitle Shape", g));
+        }
+
         return out;
     }
 
-    /** Extract the OOXML ph type. PlaceholderGeometry stores it in
-     *  {@code placeholderType} when type-keyed, else the index is
-     *  formatted as {@code "type:XYZ"}. Falls back to the raw index. */
-    private static String extractType(String key, PlaceholderGeometry g) {
-        if (g.getPlaceholderType() != null && !g.getPlaceholderType().isBlank()) {
-            return g.getPlaceholderType();
-        }
-        if (key != null && key.startsWith("type:")) return key.substring(5);
-        return key;
-    }
-
-    private static boolean isTitleType(String type) {
-        return "title".equals(type) || "ctrTitle".equals(type);
-    }
-
-    private static String deriveName(String type) {
-        if (type == null) return "Placeholder";
-        return switch (type) {
-            case "title", "ctrTitle" -> "Title";
-            case "subTitle"          -> "Subtitle";
-            case "body", "obj"       -> "Content";
-            default                  -> "Placeholder_" + type;
-        };
+    private static ShapeSnapshot placeholder(int spid, String name, PlaceholderGeometry g) {
+        ShapeGeometry geom = g == null ? null
+            : new ShapeGeometry(g.getX(), g.getY(), g.getWidth(), g.getHeight());
+        return new ShapeSnapshot(spid, name, SlideShape.ShapeType.PLACEHOLDER,
+            geom, null, null, false, null);
     }
 }
