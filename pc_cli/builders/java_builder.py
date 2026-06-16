@@ -220,6 +220,15 @@ class PCBuilder:
         
         skipped_steps = 0
         compiled_files = 0
+        # Once an upstream step recompiles, every downstream step is suspect:
+        # javac inlines static-final constants into dependents and forward
+        # signature changes ripple, but the per-file mtime check misses both
+        # (the dependent's own .java is untouched). compile_steps is ordered by
+        # dependency, so a change in step N can only affect steps > N -- force a
+        # full recompile of this step and all later ones once anything changes.
+        # This is what let a stale XMLConstants/parser change ship phantom test
+        # failures until a manual clean build.
+        force_rest = False
         for step_name, pattern in compile_steps:
             # Expand glob patterns (handle multiple patterns separated by spaces)
             source_files = []
@@ -232,15 +241,19 @@ class PCBuilder:
                     print(f"  No files found for pattern: {pattern}")
                 continue
 
-            # Incremental: only recompile files whose .class is stale or missing
-            if not clean:
+            # Incremental: only recompile files whose .class is stale or
+            # missing -- until an upstream step changes, after which every
+            # later step recompiles in full (force_rest).
+            if not clean and not force_rest:
                 changed = self._find_changed_sources(source_files)
                 if not changed:
                     skipped_steps += 1
                     if verbose:
                         print(f"Compiling {step_name}... (up to date)")
                     continue
-                source_files = changed
+                # Recompile the whole step (not just `changed`) so intra-step
+                # constant inlining is caught, and invalidate all later steps.
+                force_rest = True
 
             print(f"Compiling {step_name}... ({len(source_files)} file{'s' if len(source_files) != 1 else ''})")
             compiled_files += len(source_files)
@@ -280,8 +293,10 @@ class PCBuilder:
         if skipped_steps > 0 and not clean:
             print(f"Skipped {skipped_steps} unchanged step{'s' if skipped_steps != 1 else ''}, compiled {compiled_files} file{'s' if compiled_files != 1 else ''}")
                 
-        # Compile JavaFX view layer (if available)
-        view_layer_success = self._build_view_layer(verbose)
+        # Compile JavaFX view layer (if available). Force a full view recompile
+        # when an upstream step changed, for the same downstream-invalidation
+        # reason as the steps above.
+        view_layer_success = self._build_view_layer(verbose, force=force_rest)
         
         # Compile main application (skip JavaFX-dependent files if view layer failed)
         main_files = list(self.project_root.glob("src/main/java/com/excudo/*.java"))
@@ -290,8 +305,10 @@ class PCBuilder:
         if not view_layer_success:
             main_files = [f for f in main_files if "ExcudoApp" not in f.name]
 
-        # Incremental: skip if all main files are up to date
-        if main_files and not clean:
+        # Incremental: skip if all main files are up to date -- unless an
+        # upstream step recompiled, since these top-level entry points depend
+        # on everything below them.
+        if main_files and not clean and not force_rest:
             main_files = self._find_changed_sources(main_files)
 
         if main_files:
@@ -398,7 +415,7 @@ public class JavaFXTest extends Application {
         except Exception as e:
             return False, f"JavaFX detection failed: {e}"
 
-    def _build_view_layer(self, verbose: bool) -> bool:
+    def _build_view_layer(self, verbose: bool, force: bool = False) -> bool:
         """Build JavaFX view layer with intelligent environment detection"""
         view_files = list(self.project_root.glob("src/main/java/com/excudo/view/**/*.java"))
         if not view_files:
@@ -409,14 +426,15 @@ public class JavaFXTest extends Application {
             print("Skipping view layer compilation (headless_only=true in config)")
             return False
 
-        # Incremental: skip if all view files are up to date
-        changed_view = self._find_changed_sources(view_files)
-        if not changed_view:
-            if verbose:
-                print("Compiling view layer (JavaFX)... (up to date)")
-            return True
-
-        view_files = changed_view
+        # Incremental: skip if all view files are up to date -- unless an
+        # upstream step recompiled (constant inlining / signature ripple).
+        if not force:
+            changed_view = self._find_changed_sources(view_files)
+            if not changed_view:
+                if verbose:
+                    print("Compiling view layer (JavaFX)... (up to date)")
+                return True
+            view_files = changed_view
         print(f"Compiling view layer (JavaFX)... ({len(view_files)} file{'s' if len(view_files) != 1 else ''})")
         
         # Detect JavaFX availability
