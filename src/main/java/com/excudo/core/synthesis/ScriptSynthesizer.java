@@ -358,6 +358,12 @@ public final class ScriptSynthesizer {
             ShapeSnapshot s = added.shape();
             // Skip shapes already covered by a compound primitive.
             if (consumedSpids.contains(s.spid())) continue;
+            // Group containers are materialized by CreateGroupSpec (emitGroupDeltas),
+            // never by AddShape -- GROUP has no OOXML preset geometry, so an
+            // AddShapeSpec(GROUP) fails injection on apply. The group's children
+            // are still emitted (they carry real shape types) and wired into the
+            // group by CreateGroupSpec's DAG edges.
+            if (s.type() == com.excudo.core.model.SlideShape.ShapeType.GROUP) continue;
             // AddShapeSpec carries only plain text (matching AddShapeCommand's
             // surface). If the target TextBody has multi-paragraph / formatted
             // content, a follow-up SetTextSpec with a DAG edge will apply it.

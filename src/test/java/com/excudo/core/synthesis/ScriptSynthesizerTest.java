@@ -215,13 +215,19 @@ public class ScriptSynthesizerTest {
             state(Map.of(10, group, 11, c1, 12, c2)));
         ScriptSynthesizer.Result r = ScriptSynthesizer.synthesize(diff, 1);
 
-        // 3 AddShape + 1 CreateGroup (the group itself is a RECTANGLE-ish
-        // add -- actually it's type GROUP, but the synthesizer emits
-        // AddShapeSpec for it too since it's in `added`). Plus the group
-        // CreateGroupSpec depending on each child's AddShape.
+        // 2 AddShape (the children only) + 1 CreateGroup. The group
+        // container is NOT emitted as an AddShapeSpec -- GROUP has no OOXML
+        // preset, so it's materialized solely by CreateGroupSpec, which
+        // depends on each child's AddShape.
         long adds = r.script().nodes().stream()
             .filter(n -> n instanceof CommandSpec.AddShapeSpec).count();
-        assertEquals("Three AddShapeSpecs (group + 2 children)", 3L, adds);
+        assertEquals("Two AddShapeSpecs (the children only)", 2L, adds);
+
+        // The group container must never become an AddShapeSpec.
+        boolean groupAddLeaked = r.script().nodes().stream()
+            .anyMatch(n -> n instanceof CommandSpec.AddShapeSpec a
+                && a.shapeType() == SlideShape.ShapeType.GROUP);
+        assertFalse("Group container must not leak an AddShapeSpec(GROUP)", groupAddLeaked);
 
         CommandSpec createGroup = r.script().nodes().stream()
             .filter(n -> n instanceof CommandSpec.CreateGroupSpec).findFirst().orElseThrow();
