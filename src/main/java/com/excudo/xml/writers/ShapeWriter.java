@@ -738,6 +738,16 @@ public class ShapeWriter {
       int spid;
       if (spidManager != null) {
         spid = spidManager.allocateSpidForShape("connector", slideNumber, false, false, null);
+        // Guard against stale registry: if this SPID already exists in the DOM,
+        // recompute the next available SPID directly from the document and
+        // register it (mirrors injectBasicShapeWithSlideContext).
+        if (spidExistsInDocument(spid)) {
+          int conflictingSpid = spid;
+          spid = computeNextAvailableSpidFromDocument();
+          spidManager.registerSpid(spid, slideNumber, "connector");
+          logger.warn("SPID collision detected: {} already in DOM on slide {}, using {} instead",
+              conflictingSpid, slideNumber, spid);
+        }
       } else {
         spid = nextAvailableSpid++;
       }

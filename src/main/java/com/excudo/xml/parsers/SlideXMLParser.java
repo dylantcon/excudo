@@ -725,6 +725,15 @@ public class SlideXMLParser {
      */
     public static void initialize(com.excudo.core.model.PPTXDocument pptxDocument) {
       pptxDocumentRef = pptxDocument;
+      // A new document invalidates the previous deck's cached layout geometry
+      // and parse guards. layoutCache is keyed by layout PATH (e.g.
+      // "ppt/slideLayouts/slideLayout2.xml"), which collides across decks, so
+      // without clearing it a second deck silently reads the first deck's
+      // placeholder geometry. currentLayoutPath gates re-parsing within a
+      // document and must reset too. This static state also coupled test
+      // ordering -- clearing on initialize() makes each load self-contained.
+      layoutCache.clear();
+      currentLayoutPath = null;
       // In-memory mode: parse master from PPTXDocument
       try {
         org.w3c.dom.Document masterDoc = pptxDocument.getXmlPart("ppt/slideMasters/slideMaster1.xml");
