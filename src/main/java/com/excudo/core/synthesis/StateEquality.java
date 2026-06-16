@@ -84,7 +84,10 @@ public final class StateEquality {
         if (a == b) return true;
         if (a == null || b == null) return false;
         if (a.getType() != b.getType()) return false;
-        return sameColor(a.getColor(), b.getColor());
+        // alphaPercent is a user-visible fill property; without comparing it
+        // an opacity-only edit never diffs and the synthesizer emits no spec.
+        return sameColor(a.getColor(), b.getColor())
+            && Objects.equals(a.getAlphaPercent(), b.getAlphaPercent());
     }
 
     // ========== Line ==========

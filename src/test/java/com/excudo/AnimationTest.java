@@ -35,10 +35,7 @@ public class AnimationTest {
             // Check if test file exists before proceeding
             File testPptx = new File(testFile);
             if (!testPptx.exists()) {
-                System.out.println("Test skipped: Required test file not found: " + testFile);
-                System.out.println("This test requires test-pptx-samples/generalist_test_file.pptx to be present.");
-                // Skip test gracefully
-                return;
+                fail("Required fixture not found: " + testPptx.getAbsolutePath());
             }
             
             // orchestrator already created in setUp()

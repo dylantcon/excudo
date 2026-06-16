@@ -41,7 +41,9 @@ public class RenderSurfaceParityTest {
         // enough -- it exercises title + body + background without
         // depending on gitignored decks.
         File pptx = new File("test-pptx-samples/generalist_test_file.pptx");
-        if (!pptx.exists()) return; // skip in worktrees that don't have samples
+        // Canonical sample is git-tracked, so every checkout/worktree has it.
+        // A missing fixture is a real setup problem, not a reason to fake green.
+        if (!pptx.exists()) fail("Required fixture not found: " + pptx.getAbsolutePath());
 
         PPTXOrchestratorImpl orch = new PPTXOrchestratorImpl();
         orch.loadPresentation(pptx);

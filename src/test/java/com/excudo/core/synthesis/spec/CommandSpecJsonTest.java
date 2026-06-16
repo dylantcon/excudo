@@ -82,6 +82,19 @@ public class CommandSpecJsonTest {
     }
 
     @Test
+    public void setShapeStyleSpec_roundTripsFillOpacity() {
+        // alphaPercent must survive JSON. Before the fix the adapter wrote
+        // only type+color, so the deserialized fill came back fully opaque
+        // and a fill-opacity edit silently vanished on apply.
+        CommandSpec spec = new CommandSpec.SetShapeStyleSpec(1, 5,
+            ShapeStyle.of(
+                ShapeFill.solid("FF8800").withAlphaPercent(40),
+                com.excudo.core.model.ShapeLine.solid(19050, TextColor.hex("000000")),
+                com.excudo.core.model.ThemeStyleRef.defaultStyle(false)));
+        assertRoundTrip(spec);
+    }
+
+    @Test
     public void setShapeStyleSpec_withThemeRefNONE() {
         // The NONE sentinel serializes as {"none": true} and deserializes
         // back to the same instance per the adapter contract.

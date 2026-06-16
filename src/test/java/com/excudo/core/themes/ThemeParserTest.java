@@ -25,7 +25,7 @@ public class ThemeParserTest {
 
     @Test
     public void parseThemeFromPPTXExtractsColors() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         Document themeDom = doc.getXmlPart("ppt/theme/theme1.xml");
         assertNotNull("Theme DOM should exist", themeDom);
@@ -46,7 +46,7 @@ public class ThemeParserTest {
 
     @Test
     public void parseThemeExtractsFontScheme() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         Document themeDom = doc.getXmlPart("ppt/theme/theme1.xml");
 
@@ -61,7 +61,7 @@ public class ThemeParserTest {
 
     @Test
     public void getColorSchemeReturnsDefensiveCopy() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         Document themeDom = doc.getXmlPart("ppt/theme/theme1.xml");
 
@@ -107,7 +107,7 @@ public class ThemeParserTest {
 
     @Test
     public void colorSchemeDoesNotAliasTx1Bg1() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         Document themeDom = doc.getXmlPart("ppt/theme/theme1.xml");
 
@@ -124,7 +124,7 @@ public class ThemeParserTest {
 
     @Test
     public void allTwelveSchemeColorsPresent() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         Document themeDom = doc.getXmlPart("ppt/theme/theme1.xml");
 

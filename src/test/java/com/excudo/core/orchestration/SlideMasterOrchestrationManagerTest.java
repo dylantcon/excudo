@@ -29,14 +29,14 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Before
     public void setUp() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         orchestrator = new PPTXOrchestratorImpl();
         orchestrator.loadPresentation(TEST_FILE);
     }
 
     @Test
     public void getClrMapReturnsNonEmpty() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         Map<String, String> clrMap = orchestrator.getClrMap();
 
         assertNotNull(clrMap);
@@ -47,7 +47,7 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Test
     public void getClrMapHasStandardMappings() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         Map<String, String> clrMap = orchestrator.getClrMap();
 
         // generalist_test_file.pptx is a dark theme: bg1=dk1, tx1=lt1
@@ -57,7 +57,7 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Test
     public void getClrMapHasAccentIdentityMappings() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         Map<String, String> clrMap = orchestrator.getClrMap();
 
         // Accent colors map to themselves
@@ -67,7 +67,7 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Test
     public void getBackgroundColorHexReturnsColor() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         String bgHex = orchestrator.getBackgroundColorHex(1);
 
         assertNotNull("Background should be resolved", bgHex);
@@ -79,7 +79,7 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Test
     public void getBackgroundColorHexForAllSlides() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         // All slides in the test file should inherit the master background
         for (int i = 1; i <= 5; i++) {
             String bgHex = orchestrator.getBackgroundColorHex(i);
@@ -89,7 +89,7 @@ public class SlideMasterOrchestrationManagerTest {
 
     @Test
     public void getMasterInfoContainsExpectedKeys() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
 
         // Access through the orchestrator's slide master info
         var context = orchestrator.getContext();

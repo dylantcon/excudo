@@ -22,9 +22,7 @@ public class SimpleAnimationTest {
             // Read slide 2 from the extracted generalist test file
             File slideFile = new File("test-pptx-samples/generalist_extracted/ppt/slides/slide2.xml");
             if (!slideFile.exists()) {
-                System.out.println("Test skipped: Slide file not found: " + slideFile.getPath());
-                System.out.println("This test requires test-pptx-samples/generalist_extracted/ directory to be present.");
-                return; // Exit gracefully
+                fail("Required fixture not found: " + slideFile.getPath());
             }
             
             // Parse the XML

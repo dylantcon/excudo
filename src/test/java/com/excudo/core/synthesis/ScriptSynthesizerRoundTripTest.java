@@ -115,6 +115,32 @@ public class ScriptSynthesizerRoundTripTest {
     }
 
     @Test
+    public void fillOpacity_survivesFullSynthesisRoundTrip() {
+        PPTXOrchestratorImpl orch = newOrchestrator();
+        orch.createSlide(1, "Source", "slideLayout7");
+        orch.createSlide(2, "Target", "slideLayout7");
+        orch.addShape(1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(1_000_000, 1_000_000, 2_000_000, 1_000_000),
+            "", "Translucent",
+            ShapeStyle.withFill(ShapeFill.solid("FF8800").withAlphaPercent(40)));
+
+        // synth slide 1 -> apply to slide 2 (structural bar checked inside).
+        assertRoundTrip(orch, 1, 2);
+
+        // Strong, fidelity-level check the weak structural bar can't make: the
+        // applied fill must carry the same opacity. Exercises reader+sameFill
+        // +JSON+writer end to end -- before the alpha fix this came back null.
+        SlideState target = new SlideStateBuilder(orch).current(2);
+        var filled = target.shapes().values().stream()
+            .filter(s -> "Translucent".equals(s.name()))
+            .findFirst().orElseThrow(() -> new AssertionError("applied shape missing"));
+        assertNotNull("Applied shape must carry a style", filled.style());
+        assertNotNull("Applied shape must carry a fill", filled.style().getFill());
+        assertEquals("Fill opacity must survive synth->apply round-trip",
+            Integer.valueOf(40), filled.style().getFill().getAlphaPercent());
+    }
+
+    @Test
     public void slideTransition_roundTripsAtCorrectLevel() {
         PPTXOrchestratorImpl orch = newOrchestrator();
         orch.createSlide(1, "Source", "slideLayout7");

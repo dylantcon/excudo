@@ -270,17 +270,22 @@ public final class CommandSpecJson {
             JsonObject o = new JsonObject();
             o.addProperty("type", f.getType().name());
             if (f.getColor() != null) o.add("color", ctx.serialize(f.getColor(), TextColor.class));
+            if (f.getAlphaPercent() != null) o.addProperty("alphaPercent", f.getAlphaPercent());
             return o;
         }
         @Override
         public ShapeFill deserialize(JsonElement el, Type t, JsonDeserializationContext ctx) {
             JsonObject o = el.getAsJsonObject();
             FillType ft = FillType.valueOf(o.get("type").getAsString());
-            return switch (ft) {
+            ShapeFill base = switch (ft) {
                 case SOLID    -> ShapeFill.solid((TextColor) ctx.deserialize(o.get("color"), TextColor.class));
                 case NO_FILL  -> ShapeFill.noFill();
-                case GRADIENT -> ShapeFill.noFill(); // TODO: proper gradient JSON when ShapeFill grows it
+                case GRADIENT -> ShapeFill.noFill(); // TODO: proper gradient JSON when ShapeFill grows it (Phase 3c)
             };
+            if (o.has("alphaPercent") && !o.get("alphaPercent").isJsonNull()) {
+                base = base.withAlphaPercent(o.get("alphaPercent").getAsInt());
+            }
+            return base;
         }
     }
 

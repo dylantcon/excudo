@@ -26,7 +26,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void loadFromZipParsesSlides() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         assertTrue("Should have at least one slide", doc.getSlideCount() > 0);
@@ -40,7 +40,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void hasSlideReturnsTrueForExistingSlides() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         assertTrue(doc.hasSlide(1));
@@ -51,7 +51,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void getSlideDocumentReturnsValidDOM() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         Document slideDom = doc.getSlideDocument(1);
@@ -68,7 +68,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void getPresentationXmlReturnsDOM() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         Document pres = doc.getPresentationXml();
@@ -77,7 +77,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void getContentTypesReturnsModel() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         ContentTypesModel ct = doc.getContentTypes();
@@ -87,7 +87,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void getPartNamesReturnsNonEmpty() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         Set<String> parts = doc.getPartNames();
@@ -100,7 +100,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void getPartNamesByPrefixFilters() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         Set<String> slides = doc.getPartNamesByPrefix("ppt/slides/slide");
@@ -112,7 +112,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void hasPartChecksAllPartTypes() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         assertTrue(doc.hasPart("ppt/presentation.xml"));
@@ -158,7 +158,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void saveToStreamAndReload() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument original = PPTXDocument.loadFromZip(TEST_FILE);
         int originalSlideCount = original.getSlideCount();
 
@@ -178,7 +178,7 @@ public class PPTXDocumentTest {
 
     @Test
     public void slideNumbersAreSorted() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
 
         List<Integer> numbers = doc.getSlideNumbers();

@@ -85,7 +85,7 @@ public class ShapeStyleExtractorTest {
         if (!testFile.exists()) {
             testFile = new java.io.File("../../../test-pptx-samples/generalist_test_file.pptx");
         }
-        if (!testFile.exists()) return; // skip if test file unavailable
+        if (!testFile.exists()) fail("Required fixture not found: " + testFile.getAbsolutePath());
 
         com.excudo.core.model.PPTXDocument doc =
             com.excudo.core.model.PPTXDocument.loadFromZip(testFile);

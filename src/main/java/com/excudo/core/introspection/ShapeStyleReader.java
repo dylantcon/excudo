@@ -89,7 +89,9 @@ public final class ShapeStyleReader {
         Element solidFill = firstDmlChild(spPr, "solidFill", DML_NS);
         if (solidFill != null) {
             TextColor c = readColor(solidFill);
-            return c != null ? ShapeFill.solid(c) : null;
+            if (c == null) return null;
+            Integer alpha = readAlphaPercent(solidFill);
+            return alpha != null ? ShapeFill.solid(c).withAlphaPercent(alpha) : ShapeFill.solid(c);
         }
         if (firstDmlChild(spPr, "noFill", DML_NS) != null) {
             return ShapeFill.noFill();
@@ -187,6 +189,25 @@ public final class ShapeStyleReader {
             return TextColor.hex(srgbClr.getAttribute("val"));
         }
         return null;
+    }
+
+    /**
+     * Read an {@code a:alpha} opacity off the fill's color element, decoding
+     * OOXML's positive-fixed-percent ({@code val = percent * 1000}) back to a
+     * 0-100 percent. Returns null when no alpha child is present (fully
+     * opaque) -- mirrors {@code ShapeStyleXMLWriter.appendColorElement}, which
+     * emits {@code a:alpha} only when alphaPercent is non-null. Without this,
+     * fill opacity is silently dropped at introspection time so it never
+     * reaches the diff, the synthesized spec, or JSON.
+     */
+    private Integer readAlphaPercent(Element solidFill) {
+        Element clr = firstDmlChild(solidFill, "schemeClr", DML_NS);
+        if (clr == null) clr = firstDmlChild(solidFill, "srgbClr", DML_NS);
+        if (clr == null) return null;
+        Element alpha = firstDmlChild(clr, "alpha", DML_NS);
+        if (alpha == null || !alpha.hasAttribute("val")) return null;
+        Integer raw = parseIntOrNull(alpha.getAttribute("val"));
+        return raw != null ? raw / 1000 : null;
     }
 
     // ========== Helpers ==========

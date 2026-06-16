@@ -22,7 +22,7 @@ public class ThemeManagerTest {
 
     @Test
     public void initializeFromPPTXLoadsTheme() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
@@ -34,7 +34,7 @@ public class ThemeManagerTest {
 
     @Test
     public void getThemeColorReturnsAccentColors() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
@@ -46,7 +46,7 @@ public class ThemeManagerTest {
 
     @Test
     public void getThemeColorReturnsDkLtColors() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
@@ -58,7 +58,7 @@ public class ThemeManagerTest {
 
     @Test
     public void getThemeFontReturnsFonts() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
@@ -68,7 +68,7 @@ public class ThemeManagerTest {
 
     @Test
     public void getThemeInfoContainsColorData() throws Exception {
-        if (!TEST_FILE.exists()) return;
+        if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
         ThemeManager.initialize(doc);
 
