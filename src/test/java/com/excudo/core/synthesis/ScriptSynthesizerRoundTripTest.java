@@ -13,6 +13,7 @@ import com.excudo.core.model.TransitionType;
 import com.excudo.core.orchestration.PPTXOrchestratorImpl;
 import com.excudo.core.orchestration.PresentationScaffolder;
 import com.excudo.core.results.ExecutionResult;
+import com.excudo.test.utils.StrictRoundTrip;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -211,40 +212,16 @@ public class ScriptSynthesizerRoundTripTest {
         }
     }
 
-    /** The full round-trip assertion: diff (slide A's state) against
-     *  (slide B's baseline) should produce a script that, when applied
-     *  to slide B, makes slide B's state equal to slide A's state. */
+    /** The full round-trip assertion: synth(diff(A's baseline, A)) applied to
+     *  slide B must make B value-equal to A across every field the synthesis
+     *  vocabulary carries -- geometry, style, text, connectors, groups,
+     *  animations, transition -- after SPID renormalization. Delegates to
+     *  {@link StrictRoundTrip}. The prior bar here was count+type+geometry
+     *  only, which silently let style / text / animation drift pass (audit
+     *  finding F). Source and target must share a layout so baseline
+     *  placeholders pair positionally. */
     private static void assertRoundTrip(PPTXOrchestratorImpl orch, int source, int target) {
-        SlideStateBuilder builder = new SlideStateBuilder(orch);
-        ScriptRunner runner = new ScriptRunner(orch);
-
-        SlideState sourceState = builder.current(source);
-        SlideState targetBaseline = builder.current(target); // target slide starts fresh
-
-        assertNotNull("Source slide state must be built", sourceState);
-        assertNotNull("Target slide state must be built", targetBaseline);
-
-        // Diff targetBaseline -> sourceState: what specs would make
-        // target look like source?
-        SlideStateDiff diff = SlideStateDiffer.diff(targetBaseline, sourceState);
-
-        // Synthesize the script targeting the TARGET slide number (not
-        // source's), then apply.
-        ScriptSynthesizer.Result result = ScriptSynthesizer.synthesize(diff, target);
-        ExecutionResult<Void> run = runner.run(result.script(), "round-trip");
-        assertTrue("Script run must succeed: " + run.getMessage(), run.isSuccess());
-
-        // Re-read target state post-apply and compare to source.
-        SlideState after = builder.current(target);
-        assertNotNull(after);
-
-        // Shape-count + type + geometry parity is the minimum bar.
-        // Full SlideState equality is finicky (post-SPID-rewrite bindings
-        // differ by SPID; ShapeSnapshot includes those). For v1 we assert
-        // the structural properties we care about:
-        assertShapeCountAndTypesMatch(orch, source, target);
-        assertGeometriesMatch(orch, source, target);
-        assertTransitionMatches(orch, source, target);
+        StrictRoundTrip.assertStrictRoundTrip(orch, source, target);
     }
 
     private static void assertShapeCountAndTypesMatch(PPTXOrchestratorImpl orch, int a, int b) {
@@ -257,27 +234,6 @@ public class ScriptSynthesizerRoundTripTest {
             shB.values().stream().sorted().toList());
     }
 
-    private static void assertGeometriesMatch(PPTXOrchestratorImpl orch, int a, int b) {
-        var geoA = geometriesByTypeAndIndex(orch, a);
-        var geoB = geometriesByTypeAndIndex(orch, b);
-        assertEquals("Same set of (type, index) keys", geoA.keySet(), geoB.keySet());
-        for (String k : geoA.keySet()) {
-            assertEquals("Geometry for key " + k, geoA.get(k), geoB.get(k));
-        }
-    }
-
-    private static void assertTransitionMatches(PPTXOrchestratorImpl orch, int a, int b) {
-        var introspector = new com.excudo.core.introspection.SlideIntrospector(orch);
-        var tA = introspector.getTransition(a);
-        var tB = introspector.getTransition(b);
-        if (tA == null) {
-            assertNull("No transition on source means no transition on target", tB);
-            return;
-        }
-        assertNotNull("Source has a transition; target must too", tB);
-        assertEquals("Transition type matches", tA.type(), tB.type());
-    }
-
     private static Map<Integer, String> shapesByKey(PPTXOrchestratorImpl orch, int slide) {
         var doc = orch.getContext().get().getDocument();
         var parsed = doc.getParsedSlideData(slide,
@@ -285,27 +241,6 @@ public class ScriptSynthesizerRoundTripTest {
         Map<Integer, String> out = new HashMap<>();
         for (var s : parsed.getShapeRegistry().getAllShapes()) {
             out.put(s.getSpid(), s.getType().name());
-        }
-        return out;
-    }
-
-    /**
-     * Key shapes by (type, ordinal-within-type) so geometry comparisons
-     * across slides work when SPIDs differ. Assumes the layout-created
-     * placeholders are the first N shapes by ordinal within each type
-     * group, which holds for identically-layouted slides.
-     */
-    private static Map<String, ShapeGeometry> geometriesByTypeAndIndex(PPTXOrchestratorImpl orch, int slide) {
-        var doc = orch.getContext().get().getDocument();
-        var parsed = doc.getParsedSlideData(slide,
-            (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
-        Map<String, Integer> typeCounts = new HashMap<>();
-        Map<String, ShapeGeometry> out = new HashMap<>();
-        for (var s : parsed.getShapeRegistry().getAllShapes()) {
-            String type = s.getType().name();
-            int idx = typeCounts.getOrDefault(type, 0);
-            out.put(type + ":" + idx, s.getGeometry());
-            typeCounts.put(type, idx + 1);
         }
         return out;
     }
