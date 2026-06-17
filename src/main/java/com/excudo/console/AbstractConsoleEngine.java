@@ -548,6 +548,22 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
         serverThread.start();
     }
 
+    /**
+     * Bring up the in-process MCP HTTP server for the MCP-launcher path
+     * ({@code pc.py run gui --mcp}, used by the stdio bridge's
+     * {@code launch_excudo}). Seeds an empty session first if none is
+     * active, so {@link #startMCPHttpServer()} has an orchestrator to bind
+     * to instead of erroring out. Idempotent: startMCPHttpServer no-ops
+     * when a server is already running. A plain {@code pc.py run gui} never
+     * calls this -- it stays normal mode with no server.
+     */
+    public void autoStartMcpServer() {
+        if (getCurrentSessionOrchestrator() == null && this.orchestrator == null) {
+            createEmptySessionDirect();
+        }
+        startMCPHttpServer();
+    }
+
     /** Stop the running MCP server, if any. Safe to call when no server is running. */
     public void stopMCPHttpServer() {
         if (activeMcpTransport == null) return;

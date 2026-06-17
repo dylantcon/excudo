@@ -131,7 +131,7 @@ public final class ClaudeDesktopConfigWriter {
         // older Excudo install (e.g. a previous "url" or "mcp-remote"
         // shape) get fully overwritten rather than merged.
         JsonObject entry = new JsonObject();
-        entry.addProperty("command", "python3");
+        entry.addProperty("command", resolvePythonCommand());
         JsonArray args = new JsonArray();
         args.add(bridgeScript.toAbsolutePath().toString());
         entry.add("args", args);
@@ -153,6 +153,44 @@ public final class ClaudeDesktopConfigWriter {
         logger.info("Registered Excudo with Claude Desktop at {}", configPath);
         String verb = fileExisted ? "Updated" : "Created";
         return Result.ok(configPath, verb + " Claude Desktop config with Excudo server URL");
+    }
+
+    /**
+     * Resolve a Python interpreter for the stdio bridge command written into
+     * Claude Desktop's config. Claude Desktop spawns MCP servers with a
+     * minimal environment, so a bare {@code "python3"} often doesn't resolve
+     * -- especially on Windows, where the launcher is usually {@code python}
+     * or {@code py}, not {@code python3}. Prefer the absolute interpreter that
+     * launched Excudo ({@code pc.py} exports {@code EXCUDO_PYTHON=sys.executable}),
+     * else search PATH for an absolute match, else a best-effort fallback.
+     */
+    static String resolvePythonCommand() {
+        return resolvePythonCommand(System.getenv("EXCUDO_PYTHON"),
+            System.getenv("PATH"), System.getProperty("os.name", ""));
+    }
+
+    /** Pure resolution logic, package-private for testing. */
+    static String resolvePythonCommand(String fromLauncher, String pathEnv, String osName) {
+        if (fromLauncher != null && !fromLauncher.isBlank()
+                && Files.isRegularFile(Path.of(fromLauncher))) {
+            return fromLauncher;
+        }
+        boolean windows = osName.toLowerCase().contains("win");
+        java.util.List<String> names = windows
+            ? java.util.List.of("python3.exe", "python.exe", "py.exe")
+            : java.util.List.of("python3", "python");
+        if (pathEnv != null) {
+            for (String dir : pathEnv.split(java.io.File.pathSeparator)) {
+                if (dir.isBlank()) continue;
+                for (String name : names) {
+                    Path candidate = Path.of(dir, name);
+                    if (Files.isRegularFile(candidate)) {
+                        return candidate.toAbsolutePath().toString();
+                    }
+                }
+            }
+        }
+        return windows ? "python" : "python3";
     }
 
     // ========== Deregister ==========

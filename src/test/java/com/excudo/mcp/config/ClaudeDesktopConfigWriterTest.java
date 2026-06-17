@@ -65,7 +65,7 @@ public class ClaudeDesktopConfigWriterTest {
         // Claude Desktop only accepts stdio transport. We hand it our own
         // python bridge script that always presents a healthy handshake
         // and proxies to the live HTTP server when Excudo is up.
-        assertEquals("python3", excudo.get("command").getAsString());
+        assertIsPythonCommand(excudo.get("command").getAsString());
         assertTrue("args should be a JSON array", excudo.get("args").isJsonArray());
         var args = excudo.getAsJsonArray("args");
         assertEquals(1, args.size());
@@ -138,7 +138,7 @@ public class ClaudeDesktopConfigWriterTest {
         JsonObject excudo = read(configPath)
             .getAsJsonObject("mcpServers").getAsJsonObject("excudo");
         assertFalse("stale 'url' key must be gone", excudo.has("url"));
-        assertEquals("python3", excudo.get("command").getAsString());
+        assertIsPythonCommand(excudo.get("command").getAsString());
         assertEquals("args must be replaced, not merged",
             1, excudo.getAsJsonArray("args").size());
         assertEquals(bridgeScript.toAbsolutePath().toString(),
@@ -189,7 +189,7 @@ public class ClaudeDesktopConfigWriterTest {
         assertTrue(result.written());
         JsonObject excudo = read(configPath)
             .getAsJsonObject("mcpServers").getAsJsonObject("excudo");
-        assertEquals("python3", excudo.get("command").getAsString());
+        assertIsPythonCommand(excudo.get("command").getAsString());
         assertEquals(bridgeScript.toAbsolutePath().toString(),
             excudo.getAsJsonArray("args").get(0).getAsString());
     }
@@ -251,6 +251,39 @@ public class ClaudeDesktopConfigWriterTest {
             || result.message().toLowerCase().contains("nothing to deregister"));
     }
 
+    // ========== resolvePythonCommand ==========
+
+    @Test
+    public void resolvePythonPrefersLauncherInterpreterWhenItExists() throws IOException {
+        // EXCUDO_PYTHON pointing at a real file wins outright -- this is the
+        // interpreter pc.py used, guaranteed to exist and carry the stdlib.
+        Path launcher = tempDir.resolve("launcher-python.exe");
+        Files.writeString(launcher, "");
+        assertEquals(launcher.toString(),
+            ClaudeDesktopConfigWriter.resolvePythonCommand(
+                launcher.toString(), "/nonexistent", "Windows 11"));
+    }
+
+    @Test
+    public void resolvePythonSearchesPathWhenLauncherUnset() throws IOException {
+        // No launcher hint: a python on PATH is found and returned absolute.
+        Path binDir = Files.createDirectory(tempDir.resolve("bin"));
+        Path py = binDir.resolve("python3");
+        Files.writeString(py, "");
+        assertEquals(py.toAbsolutePath().toString(),
+            ClaudeDesktopConfigWriter.resolvePythonCommand(
+                null, binDir.toString(), "Linux"));
+    }
+
+    @Test
+    public void resolvePythonFallsBackWhenNothingFound() {
+        // Blank launcher + a PATH with no python -> OS-appropriate fallback.
+        assertEquals("python", ClaudeDesktopConfigWriter.resolvePythonCommand(
+            "", tempDir.resolve("empty").toString(), "Windows 11"));
+        assertEquals("python3", ClaudeDesktopConfigWriter.resolvePythonCommand(
+            null, null, "Linux"));
+    }
+
     // ========== Path detection ==========
 
     @Test
@@ -272,5 +305,15 @@ public class ClaudeDesktopConfigWriterTest {
     private static JsonObject read(Path path) throws IOException {
         return JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8))
             .getAsJsonObject();
+    }
+
+    /** The bridge command is now an environment-resolved python interpreter
+     *  (absolute path, or a "python"/"python3"/"py" fallback), not a fixed
+     *  literal -- assert it references a python rather than a specific value. */
+    private static void assertIsPythonCommand(String command) {
+        assertNotNull(command);
+        assertFalse("bridge command must not be blank", command.isBlank());
+        assertTrue("bridge command must reference a python interpreter: " + command,
+            command.toLowerCase().contains("py"));
     }
 }

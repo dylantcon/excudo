@@ -188,6 +188,24 @@ public class MainController implements Initializable, OrchestrationStateListener
 
         // Setup initial view state
         updateUIState();
+
+        // MCP-launcher path: `pc.py run gui --mcp` sets EXCUDO_AUTO_MCP so the
+        // in-process MCP HTTP server comes up automatically (seeding an empty
+        // session if none is active). A plain `pc.py run gui` is normal mode
+        // and leaves this off.
+        maybeAutoStartMcpServer();
+    }
+
+    /** Start the in-process MCP HTTP server iff launched via the MCP launcher
+     *  (EXCUDO_AUTO_MCP=true, set by `pc.py run gui --mcp`). No-op otherwise.
+     *  Deferred a pulse so the console engine's postSceneReady setup is done. */
+    private void maybeAutoStartMcpServer() {
+        if (!"true".equalsIgnoreCase(System.getenv("EXCUDO_AUTO_MCP"))) return;
+        javafx.application.Platform.runLater(() -> {
+            if (consoleController == null) return;
+            com.excudo.view.console.UIConsoleEngine engine = consoleController.getConsoleEngine();
+            if (engine != null) engine.autoStartMcpServer();
+        });
     }
 
     // ========== OrchestrationStateListener ==========

@@ -9,6 +9,7 @@ import os
 import shutil
 import platform
 import subprocess
+import sys
 
 
 class PCRunner:
@@ -24,6 +25,12 @@ class PCRunner:
         
         # Set up environment variables for logging and flags
         env_vars = os.environ.copy()
+
+        # Hand Excudo the interpreter that launched it, so when it registers
+        # the stdio bridge with Claude Desktop it can write an absolute python
+        # path that resolves under Claude Desktop's minimal spawn environment
+        # (a bare "python3" often won't, especially on Windows).
+        env_vars["EXCUDO_PYTHON"] = sys.executable
         if "log_level" in kwargs:
             env_vars["PC_LOG_LEVEL"] = str(kwargs["log_level"])
         elif self.env.config.get("log_level"):
@@ -32,6 +39,12 @@ class PCRunner:
         # Set auto-approve flag for LLM commands
         if kwargs.get("auto_approve", False):
             env_vars["PC_AUTO_APPROVE"] = "true"
+
+        # MCP-launcher path: gui mode + --mcp brings up the in-process MCP
+        # HTTP server (the stdio bridge's launch_excudo uses this). A plain
+        # 'run gui' is normal mode and never sets this.
+        if mode in ("ui", "gui") and kwargs.get("mcp", False):
+            env_vars["EXCUDO_AUTO_MCP"] = "true"
             
         if "log_console" in kwargs:
             env_vars["PC_LOG_CONSOLE"] = str(kwargs["log_console"]).lower()
@@ -90,7 +103,6 @@ class PCRunner:
             return False
             
         try:
-            import sys
             if mode == "mcp":
                 # MCP mode: stdout is the JSON-RPC channel, status goes to stderr
                 print("Starting MCP server...", file=sys.stderr)

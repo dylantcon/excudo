@@ -266,6 +266,9 @@ def configure_run_parser(subparsers):
     run_parser.add_argument("--auto-approve", action="store_true", help="Auto-approve mode")
     run_parser.add_argument("--log-level", default="INFO", help="Log level")
     run_parser.add_argument("--log-console", action="store_true", help="Log to console")
+    run_parser.add_argument("--mcp", action="store_true",
+                            help="gui mode: also start the in-process MCP HTTP server "
+                                 "(the MCP-launcher path; plain 'run gui' is normal mode)")
     return run_parser
 
 def configure_logs_parser(subparsers):
@@ -380,6 +383,7 @@ def main():
                                auto_approve=args.auto_approve,
                                log_level=args.log_level,
                                log_console=args.log_console,
+                               mcp=getattr(args, 'mcp', False),
                                file=getattr(args, 'file', None))
             return 0 if success else 1
             

@@ -23,6 +23,7 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
     public int startMcpCalls = 0;
     public int stopMcpCalls = 0;
     public int deregisterCalls = 0;
+    public int createEmptySessionCalls = 0;
 
     public record Entry(String message, ConsoleStyle style) {}
 
@@ -87,6 +88,14 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         deregisterCalls++;
     }
 
+    @Override
+    protected void createEmptySessionDirect() {
+        // The real path needs a ConsoleSessionManager (not stood up in these
+        // dispatcher-level tests); just record that autoStartMcpServer asked
+        // to seed a session when none was active.
+        createEmptySessionCalls++;
+    }
+
     // ========== Inspection helpers ==========
 
     public void clearRecordings() {
@@ -97,6 +106,7 @@ public class RecordingConsoleEngine extends AbstractConsoleEngine {
         startMcpCalls = 0;
         stopMcpCalls = 0;
         deregisterCalls = 0;
+        createEmptySessionCalls = 0;
     }
 
     public Entry last() {

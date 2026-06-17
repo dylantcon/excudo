@@ -178,6 +178,19 @@ public class AbstractConsoleEngineTest {
         assertEquals(1, engine.enterArrangeCalls);
     }
 
+    // ========== autoStartMcpServer (MCP-launcher path) ==========
+
+    @Test
+    public void autoStartMcpSeedsSessionThenStartsServer() {
+        // Fresh GUI launched via the MCP launcher: no active session, so
+        // autoStartMcpServer must seed an empty one before starting the
+        // server (else startMCPHttpServer bails "needs an orchestrator").
+        engine.autoStartMcpServer();
+        assertEquals("seeds an empty session when none is active",
+            1, engine.createEmptySessionCalls);
+        assertEquals("starts the MCP HTTP server", 1, engine.startMcpCalls);
+    }
+
     // ========== MCP mode input dispatch ==========
 
     @Test
