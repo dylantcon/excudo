@@ -513,7 +513,26 @@ def write_message(obj):
         sys.stdout.flush()
 
 
+def _force_utf8_stdio():
+    """Force UTF-8 on stdin/stdout regardless of the OS locale.
+
+    The host (Claude Desktop, etc.) speaks UTF-8 JSON-RPC over the pipe, but on
+    Windows Python defaults piped stdio to the ANSI code page (cp1252). That
+    silently mojibake'd any accented text ("café" -> "cafГ©") the moment we read
+    a line -- before json.loads, before we ever forwarded it -- so ESL users
+    couldn't author slides in their own language over MCP. Everything downstream
+    (the Java HTTP read, the XML writer) is already UTF-8; this closes the one
+    gap. reconfigure() exists on TextIOWrapper (3.7+); guard for exotic streams.
+    """
+    for stream in (sys.stdin, sys.stdout):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main():
+    _force_utf8_stdio()
     online = read_endpoint() is not None
     log(f"excudo-bridge {SERVER_VERSION} starting; endpoint file {ENDPOINT_FILE} "
         f"({'present' if online else 'absent'}); python={sys.executable}")
