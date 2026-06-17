@@ -658,6 +658,81 @@ class SlideXMLParserTest {
             "Should have no animation bindings");
     }
 
+    // ========== CONNECTOR FLIP (a:xfrm/@flipH, @flipV) ==========
+
+    @Test
+    @DisplayName("Connector flipH/flipV are parsed into geometry (were silently dropped)")
+    void testConnectorFlipFlagsParsed() throws XMLParsingException, IOException {
+        // A straight connector stores its endpoints as a bounding box plus
+        // flipH/flipV that select which diagonal the line runs along. The parser
+        // used to read only off/ext/rot and drop the flips, so every flipped
+        // connector rendered on the wrong (mirrored) diagonal. Two connectors:
+        // one flipV="1", one unflipped.
+        String slide = """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:cSld>
+                <p:spTree>
+                  <p:nvGrpSpPr>
+                    <p:cNvPr id="1" name=""/>
+                    <p:cNvGrpSpPr/>
+                    <p:nvPr/>
+                  </p:nvGrpSpPr>
+                  <p:grpSpPr/>
+                  <p:cxnSp>
+                    <p:nvCxnSpPr>
+                      <p:cNvPr id="10" name="Flipped"/>
+                      <p:cNvCxnSpPr/>
+                      <p:nvPr/>
+                    </p:nvCxnSpPr>
+                    <p:spPr>
+                      <a:xfrm flipV="1">
+                        <a:off x="100" y="200"/>
+                        <a:ext cx="300" cy="400"/>
+                      </a:xfrm>
+                      <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                    </p:spPr>
+                  </p:cxnSp>
+                  <p:cxnSp>
+                    <p:nvCxnSpPr>
+                      <p:cNvPr id="11" name="Plain"/>
+                      <p:cNvCxnSpPr/>
+                      <p:nvPr/>
+                    </p:nvCxnSpPr>
+                    <p:spPr>
+                      <a:xfrm>
+                        <a:off x="500" y="600"/>
+                        <a:ext cx="700" cy="0"/>
+                      </a:xfrm>
+                      <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+                    </p:spPr>
+                  </p:cxnSp>
+                </p:spTree>
+              </p:cSld>
+            </p:sld>
+            """;
+
+        File slideFile = createTempSlideFile("connector_flip.xml", slide);
+        ParsedSlideData result = parser.parseSlide(slideFile);
+
+        SlideShape flipped = result.getShapeRegistry().getAllShapes().stream()
+            .filter(s -> "Flipped".equals(s.getName())).findFirst()
+            .orElseThrow(() -> new AssertionError("Flipped connector not found in registry"));
+        SlideShape plain = result.getShapeRegistry().getAllShapes().stream()
+            .filter(s -> "Plain".equals(s.getName())).findFirst()
+            .orElseThrow(() -> new AssertionError("Plain connector not found in registry"));
+
+        assertTrue(flipped.getGeometry().isFlipV(), "flipV=\"1\" must parse to isFlipV()=true");
+        assertFalse(flipped.getGeometry().isFlipH(), "absent flipH must parse to isFlipH()=false");
+        assertFalse(plain.getGeometry().isFlipV(), "unflipped connector must have isFlipV()=false");
+        assertFalse(plain.getGeometry().isFlipH(), "unflipped connector must have isFlipH()=false");
+
+        // sanity: the rest of the transform is still parsed alongside the flips
+        assertEquals(100, flipped.getGeometry().getX(), "off/@x still parsed with flip present");
+        assertEquals(400, flipped.getGeometry().getHeight(), "ext/@cy still parsed with flip present");
+    }
+
     // ========== HELPER METHODS ==========
 
     /**

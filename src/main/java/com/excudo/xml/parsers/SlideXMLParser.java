@@ -338,7 +338,22 @@ public class SlideXMLParser {
     String rotStr = (String) xpath.evaluate(".//a:xfrm/@rot", shapeElement, XPathConstants.STRING);
     int rot = (rotStr != null && !rotStr.isEmpty()) ? Integer.parseInt(rotStr) : 0;
 
-    return new ShapeGeometry(x, y, cx, cy, rot);
+    // Extract mirror flags from a:xfrm/@flipH and @flipV. Critical for
+    // connectors: a straight connector stores its endpoints as a bounding
+    // box plus flip flags that pick which diagonal the line runs along.
+    // Dropping them made every flipped connector render on the wrong diagonal.
+    boolean flipH = parseXmlBoolean(
+        (String) xpath.evaluate(".//a:xfrm/@flipH", shapeElement, XPathConstants.STRING));
+    boolean flipV = parseXmlBoolean(
+        (String) xpath.evaluate(".//a:xfrm/@flipV", shapeElement, XPathConstants.STRING));
+
+    return new ShapeGeometry(x, y, cx, cy, rot, flipH, flipV);
+  }
+
+  /** Parse an OOXML xsd:boolean attribute ("1"/"0"/"true"/"false"). Empty/null -> false. */
+  private static boolean parseXmlBoolean(String value) {
+    if (value == null || value.isEmpty()) return false;
+    return value.equals("1") || value.equalsIgnoreCase("true");
   }
 
   /**

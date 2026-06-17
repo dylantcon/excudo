@@ -240,10 +240,56 @@ public class ShapeGeometryTest {
     public void testMinimalShapeDimensions() {
         // Test with very small shape dimensions (1 point each)
         ShapeGeometry geometry = new ShapeGeometry(127000L, 254000L, 12700L, 12700L);
-        
+
         assertEquals("Small shape X position", 10.0, geometry.getXInPoints(), DELTA);
         assertEquals("Small shape Y position", 20.0, geometry.getYInPoints(), DELTA);
         assertEquals("Small shape width (1pt)", 1.0, geometry.getWidthInPoints(), DELTA);
         assertEquals("Small shape height (1pt)", 1.0, geometry.getHeightInPoints(), DELTA);
+    }
+
+    // ===== Flip (a:xfrm/@flipH, @flipV) Tests =====
+
+    @Test
+    public void testFlipDefaultsFalse() {
+        // The pre-flip constructors must keep flip false so the 60+ existing
+        // call sites are unaffected.
+        assertFalse(new ShapeGeometry(1L, 2L, 3L, 4L).isFlipH());
+        assertFalse(new ShapeGeometry(1L, 2L, 3L, 4L).isFlipV());
+        assertFalse(new ShapeGeometry(1L, 2L, 3L, 4L, 90 * 60000).isFlipH());
+        assertFalse(new ShapeGeometry(1L, 2L, 3L, 4L, 90 * 60000).isFlipV());
+    }
+
+    @Test
+    public void testFlipStoredAndRetrieved() {
+        ShapeGeometry hv = new ShapeGeometry(1L, 2L, 3L, 4L, 0, true, true);
+        assertTrue("flipH stored", hv.isFlipH());
+        assertTrue("flipV stored", hv.isFlipV());
+
+        ShapeGeometry vOnly = new ShapeGeometry(1L, 2L, 3L, 4L, 0, false, true);
+        assertFalse("flipH false", vOnly.isFlipH());
+        assertTrue("flipV true", vOnly.isFlipV());
+    }
+
+    @Test
+    public void testEqualsAndHashCodeDistinguishFlip() {
+        ShapeGeometry plain = new ShapeGeometry(1L, 2L, 3L, 4L, 0, false, false);
+        ShapeGeometry flipV = new ShapeGeometry(1L, 2L, 3L, 4L, 0, false, true);
+        ShapeGeometry flipV2 = new ShapeGeometry(1L, 2L, 3L, 4L, 0, false, true);
+
+        assertNotEquals("flip difference must break equality", plain, flipV);
+        assertEquals("same flip must be equal", flipV, flipV2);
+        assertEquals("equal objects share hashCode", flipV.hashCode(), flipV2.hashCode());
+
+        // The no-flip constructor must equal the explicit all-false form, so
+        // existing geometry comparisons don't shift.
+        assertEquals(new ShapeGeometry(1L, 2L, 3L, 4L), plain);
+    }
+
+    @Test
+    public void testToStringShowsFlipOnlyWhenSet() {
+        assertFalse("unflipped toString omits flip",
+            new ShapeGeometry(0L, 0L, 0L, 0L).toString().contains("flip"));
+        String flipped = new ShapeGeometry(0L, 0L, 0L, 0L, 0, true, false).toString();
+        assertTrue("flipped toString surfaces flipH", flipped.contains("flipH=true"));
     }
 }

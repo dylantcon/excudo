@@ -19,6 +19,22 @@ import javafx.geometry.Rectangle2D;
  */
 public class GeometricShapeRenderer implements ModelShapeRenderer {
 
+    /**
+     * Endpoints of a straight connector within its bounding box, honoring
+     * flipH/flipV. A connector runs along one diagonal of the box; the flip
+     * flags pick which. Since no arrowhead is drawn, only the diagonal matters:
+     * {@code flipH == flipV} -> the main diagonal {@code (minX,minY)-(maxX,maxY)};
+     * exactly one flag set -> the anti-diagonal {@code (minX,maxY)-(maxX,minY)}.
+     * Returns {@code {x1, y1, x2, y2}}.
+     */
+    static double[] connectorEndpoints(double minX, double minY, double maxX, double maxY,
+                                       boolean flipH, boolean flipV) {
+        if (flipH ^ flipV) {
+            return new double[]{minX, maxY, maxX, minY}; // anti-diagonal (BL->TR)
+        }
+        return new double[]{minX, minY, maxX, maxY};     // main diagonal (TL->BR)
+    }
+
     /** Apply line color, width, and dash pattern to the surface. */
     private static void applyLineStyle(RenderSurface surface, ShapeStyleExtractor.LineStyle line) {
         surface.setStroke(line.color());
@@ -111,10 +127,12 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         if (type == SlideShape.ShapeType.CONNECTION) {
             if (line.isVisible()) {
                 applyLineStyle(surface, line);
-                // Straight connector: line from one corner to the opposite
-                // flipH/flipV on xfrm determine direction (not yet modeled -- default diagonal)
-                surface.strokeLine(bounds.getMinX(), bounds.getMinY(),
-                    bounds.getMaxX(), bounds.getMaxY());
+                // A straight connector is stored as a bounding box plus flipH/flipV,
+                // which select which diagonal the line runs along. Ignoring the flips
+                // rendered every flipped connector mirrored.
+                double[] e = connectorEndpoints(bounds.getMinX(), bounds.getMinY(),
+                    bounds.getMaxX(), bounds.getMaxY(), geom.isFlipH(), geom.isFlipV());
+                surface.strokeLine(e[0], e[1], e[2], e[3]);
                 surface.setLineDashes((double[]) null);
             }
             if (rotDeg != 0) surface.restore();
