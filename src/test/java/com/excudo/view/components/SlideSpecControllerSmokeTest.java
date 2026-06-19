@@ -11,7 +11,7 @@ import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,20 +26,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Boots the JavaFX runtime and exercises {@link SlideSpecController}'s
- * own wiring: FXML-equivalent initialization, orchestrator binding, the
- * reactive synthesis populating {@code lastResult}, and the Apply
- * button's onAction wiring.
+ * Boots the JavaFX runtime and exercises {@link SlideSpecController}'s own
+ * wiring on the new disclosure-row container: orchestrator binding, the
+ * reactive synthesis populating {@code lastResult} + the rows VBox, the
+ * Apply button's onAction, and the staged/Reset-gating state machine.
  *
- * <p>This is the narrow JavaFX-level safety net under the boundary tests
- * in {@code SlideSpecApplyFlowTest}. The mutation/JSON path is tested
- * cheaply at that boundary; this test makes sure JavaFX doesn't break
- * the wiring that <em>routes</em> a user button click to that path.
- *
- * <p>Why we don't fire the button directly: {@code applyToNewSlide}
- * ends with {@code Alert.showAndWait()}, which would block the FX
- * thread in Monocle headless mode. The button's onAction-not-null
- * assertion plus the boundary tests cover the click together.
+ * <p>Why we don't fire the apply/copy buttons directly: those handlers end
+ * in {@code Alert.showAndWait()}, which would block the FX thread in Monocle
+ * headless mode. We assert wiring + state instead; the mutation path itself
+ * is covered at the boundary by {@code SlideSpecApplyFlowTest}.
  */
 public class SlideSpecControllerSmokeTest {
 
@@ -60,79 +55,19 @@ public class SlideSpecControllerSmokeTest {
 
     /**
      * Full controller wiring round-trip: bind to an orchestrator with a
-     * non-trivial slide, set the active slide, verify the reactive
-     * synthesis produced a result the apply button can act on, and that
-     * the Apply button's onAction is wired (not null). All on the FX
-     * thread because @FXML and reactive subscribers expect it.
+     * non-trivial slide, set the active slide, verify the reactive synthesis
+     * produced a result the apply button can act on, and that the Apply
+     * button's onAction is wired (not null).
      */
     @Test
     void controllerWiresApplyButtonAfterBindAndSetActiveSlide() throws Exception {
-        AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<SlideSpecController> ctrlRef = new AtomicReference<>();
-        AtomicReference<Button> applyButtonRef = new AtomicReference<>();
-        CountDownLatch done = new CountDownLatch(1);
-
-        Platform.runLater(() -> {
-            try {
-                // Source slide with one rectangle => non-trivial synthesis.
-                PPTXOrchestratorImpl orch = newScaffolded();
-                orch.createSlide(1, "Source", "slideLayout7");
-                orch.addShape(1, SlideShape.ShapeType.RECTANGLE,
-                    new ShapeGeometry(1_000_000, 1_000_000, 3_000_000, 2_000_000),
-                    "", "R1", ShapeStyle.defaultStyle());
-
-                SlideSpecController ctrl = new SlideSpecController();
-
-                // Stand in for the FXML loader: every @FXML node the
-                // controller touches must be a live JavaFX node so
-                // initialize() can wire onAction handlers and the
-                // reactive render() can populate the list view.
-                Button applyToNew = new Button("Apply to new slide");
-                Button applyToExisting = new Button("Apply to existing");
-                Button copyJson = new Button("Copy JSON");
-                Button edit = new Button("Edit");
-                Button duplicate = new Button("Duplicate");
-                Button delete = new Button("Delete");
-                Button moveUp = new Button("Up");
-                Button moveDown = new Button("Down");
-                Button reset = new Button("Reset");
-
-                injectField(ctrl, "slideSpecPanel", new VBox());
-                injectField(ctrl, "slideSpecRow1Flow", new FlowPane());
-                injectField(ctrl, "slideSpecRow2Flow", new FlowPane());
-                injectField(ctrl, "slideSpecListView", new ListView<String>());
-                injectField(ctrl, "slideSpecTitle", new Label());
-                injectField(ctrl, "slideSpecWarnings", new Label());
-                injectField(ctrl, "slideSpecStagedBadge", new Label());
-                injectField(ctrl, "slideSpecCopyJsonButton", copyJson);
-                injectField(ctrl, "slideSpecApplyToNewButton", applyToNew);
-                injectField(ctrl, "slideSpecApplyToExistingButton", applyToExisting);
-                injectField(ctrl, "slideSpecEditButton", edit);
-                injectField(ctrl, "slideSpecDuplicateButton", duplicate);
-                injectField(ctrl, "slideSpecDeleteButton", delete);
-                injectField(ctrl, "slideSpecMoveUpButton", moveUp);
-                injectField(ctrl, "slideSpecMoveDownButton", moveDown);
-                injectField(ctrl, "slideSpecResetButton", reset);
-
-                callPrivateNoArg(ctrl, "initialize");
-
-                ctrl.bindInvokerProvider(com.excudo.core.commands.CommandInvoker::new);
-                ctrl.bindToOrchestrator(orch);
-                ctrl.setActiveSlide(1);
-
-                ctrlRef.set(ctrl);
-                applyButtonRef.set(applyToNew);
-            } catch (Throwable t) {
-                failure.set(t);
-            } finally {
-                done.countDown();
-            }
+        runOnFx(() -> {
+            PPTXOrchestratorImpl orch = scaffoldWithRectangle();
+            SlideSpecController ctrl = wireController(orch);
+            ctrl.setActiveSlide(1);
+            ctrlRef.set(ctrl);
         });
-
-        assertTrue(done.await(10, TimeUnit.SECONDS), "FX setup latch must release");
-        if (failure.get() != null) {
-            fail("FX setup threw: " + failure.get(), failure.get());
-        }
 
         SlideSpecController ctrl = ctrlRef.get();
         assertNotNull(ctrl, "Controller must be set up");
@@ -145,17 +80,118 @@ public class SlideSpecControllerSmokeTest {
             + "synthesizeNow path is broken in the controller wiring.");
         assertTrue(lastResult instanceof ScriptSynthesizer.Result);
 
-        // 2. Apply button's onAction is wired by initialize(). If null,
-        //    a user click would be silently swallowed -- exactly the
-        //    kind of regression this smoke test exists to catch.
-        Button apply = applyButtonRef.get();
+        // 2. Apply button's onAction is wired by initialize().
+        Button apply = (Button) getField(ctrl, "slideSpecApplyToNewButton");
         assertNotNull(apply.getOnAction(),
             "slideSpecApplyToNewButton must have an onAction set by initialize()");
     }
 
+    /**
+     * The staged/Reset state machine: Reset starts disabled after a clean
+     * synthesis, a structural edit (Duplicate) stages the script and enables
+     * Reset (and adds a row), and Reset returns to the synthesized rows with
+     * the button disabled again.
+     */
+    @Test
+    void resetGatingAndStagingTrackEdits() throws Exception {
+        AtomicReference<SlideSpecController> ctrlRef = new AtomicReference<>();
+        runOnFx(() -> {
+            SlideSpecController ctrl = wireController(scaffoldWithRectangle());
+            ctrl.setActiveSlide(1);
+            ctrlRef.set(ctrl);
+        });
+        SlideSpecController ctrl = ctrlRef.get();
+        Button reset = (Button) getField(ctrl, "slideSpecResetButton");
+        VBox rowsBox = (VBox) getField(ctrl, "slideSpecRows");
+        int[] synthesizedCount = new int[1];
+
+        runOnFx(() -> {
+            assertTrue(reset.isDisable(), "Reset must be disabled on a clean (un-staged) script");
+            assertFalse(rowsBox.getChildren().isEmpty(), "rows VBox populated by synthesis");
+            synthesizedCount[0] = rowsBox.getChildren().size();
+        });
+
+        // Select row 0, then Duplicate -> stages the script.
+        runOnFx(() -> {
+            ctrl.onActivated(0);
+            callPrivateNoArg(ctrl, "duplicateSelected");
+        });
+        runOnFx(() -> {
+            assertFalse(reset.isDisable(), "Reset must enable once the script is staged");
+            assertEquals(synthesizedCount[0] + 1, rowsBox.getChildren().size(),
+                "Duplicate must add a row view");
+        });
+
+        // Reset -> back to synthesized rows, button disabled.
+        runOnFx(() -> callPrivateNoArg(ctrl, "resetToSynthesized"));
+        runOnFx(() -> {
+            assertTrue(reset.isDisable(), "Reset must disable again after resetToSynthesized");
+            assertEquals(synthesizedCount[0], rowsBox.getChildren().size(),
+                "Reset must restore the synthesized row count");
+        });
+    }
+
     // ===================================================================
-    // Reflection helpers
+    // Setup helpers
     // ===================================================================
+
+    /** A scaffolded orchestrator with one slide carrying a single rectangle
+     *  (non-trivial synthesis). Must be called on the FX thread. */
+    private static PPTXOrchestratorImpl scaffoldWithRectangle() {
+        PPTXOrchestratorImpl orch = newScaffolded();
+        orch.createSlide(1, "Source", "slideLayout7");
+        orch.addShape(1, SlideShape.ShapeType.RECTANGLE,
+            new ShapeGeometry(1_000_000, 1_000_000, 3_000_000, 2_000_000),
+            "", "R1", ShapeStyle.defaultStyle());
+        return orch;
+    }
+
+    /** Stand in for the FXML loader: inject a live node for every @FXML field
+     *  the controller touches, then run initialize() + bind the orchestrator.
+     *  Buttons are retrievable afterward via {@link #getField}. */
+    private static SlideSpecController wireController(PPTXOrchestratorImpl orch) throws Exception {
+        SlideSpecController ctrl = new SlideSpecController();
+        injectField(ctrl, "slideSpecPanel", new VBox());
+        injectField(ctrl, "slideSpecRow1Flow", new FlowPane());
+        injectField(ctrl, "slideSpecRow2Flow", new FlowPane());
+        injectField(ctrl, "slideSpecScroll", new ScrollPane());
+        injectField(ctrl, "slideSpecRows", new VBox());
+        injectField(ctrl, "slideSpecTitle", new Label());
+        injectField(ctrl, "slideSpecWarnings", new Label());
+        injectField(ctrl, "slideSpecStagedBadge", new Label());
+        injectField(ctrl, "slideSpecCopyJsonButton", new Button("Copy JSON"));
+        injectField(ctrl, "slideSpecApplyToNewButton", new Button("Apply to new slide"));
+        injectField(ctrl, "slideSpecApplyToExistingButton", new Button("Apply to existing"));
+        injectField(ctrl, "slideSpecEditButton", new Button("Edit"));
+        injectField(ctrl, "slideSpecDuplicateButton", new Button("Duplicate"));
+        injectField(ctrl, "slideSpecDeleteButton", new Button("Delete"));
+        injectField(ctrl, "slideSpecMoveUpButton", new Button("Up"));
+        injectField(ctrl, "slideSpecMoveDownButton", new Button("Down"));
+        injectField(ctrl, "slideSpecResetButton", new Button("Reset"));
+        callPrivateNoArg(ctrl, "initialize");
+        ctrl.bindInvokerProvider(com.excudo.core.commands.CommandInvoker::new);
+        ctrl.bindToOrchestrator(orch);
+        return ctrl;
+    }
+
+    // ===================================================================
+    // FX + reflection helpers
+    // ===================================================================
+
+    private interface FxBody { void run() throws Exception; }
+
+    private static void runOnFx(FxBody body) throws Exception {
+        AtomicReference<Throwable> err = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try { body.run(); } catch (Throwable t) { err.set(t); } finally { latch.countDown(); }
+        });
+        assertTrue(latch.await(10, TimeUnit.SECONDS), "FX latch must release");
+        if (err.get() != null) {
+            if (err.get() instanceof AssertionError ae) throw ae;
+            throw new RuntimeException(err.get());
+        }
+    }
 
     private static void injectField(Object target, String name, Object value) throws Exception {
         Field f = target.getClass().getDeclaredField(name);

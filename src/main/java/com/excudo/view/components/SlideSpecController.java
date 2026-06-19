@@ -7,15 +7,13 @@ import com.excudo.core.synthesis.ReactiveSynthesizer;
 import com.excudo.core.synthesis.ScriptSynthesizer;
 import com.excudo.core.synthesis.spec.CommandSpec;
 import com.excudo.core.synthesis.spec.CommandSpecJson;
+import com.excudo.core.synthesis.spec.SpecRow;
 import javafx.application.Platform;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 
@@ -25,21 +23,26 @@ import java.util.Optional;
 
 /**
  * Controller for the SlideSpec tab: displays the synthesized
- * {@code CommandScript} for the active slide as an indexed, live-refreshed
- * listing. Consumes {@link ReactiveSynthesizer} so updates are
- * debounced-and-cached rather than raw per-mutation.
+ * {@code CommandScript} for the active slide as a column of
+ * inline-expandable, editable rows ({@link SpecRowView}). Consumes
+ * {@link ReactiveSynthesizer} so updates are debounced-and-cached rather
+ * than raw per-mutation.
  *
- * <p>v1 (6.10a): read-only list + Copy JSON + Apply-to-{new,existing}
- * buttons. Form editing (6.10b-c) and apply-UX polish (6.10d) layer
- * on top.
+ * <p>Editing is in place: expand a row, change a field, and it commits
+ * back into a {@link SpecRow} on focus-loss. Any edit (or a structural
+ * list-op) <em>stages</em> the script — a working copy that diverges from
+ * the synthesized baseline — which lights the badge and enables
+ * "Reset to synthesized". The per-row dirty dot marks exactly which rows
+ * deviate; Reset drops the whole working copy.
  */
-public class SlideSpecController {
+public class SlideSpecController implements SpecRowView.Host {
 
     // @FXML-injected from panels/SlideSpec.fxml.
     @FXML private javafx.scene.layout.VBox slideSpecPanel;
     @FXML private javafx.scene.layout.FlowPane slideSpecRow1Flow;
     @FXML private javafx.scene.layout.FlowPane slideSpecRow2Flow;
-    @FXML private ListView<String> slideSpecListView;
+    @FXML private javafx.scene.control.ScrollPane slideSpecScroll;
+    @FXML private javafx.scene.layout.VBox slideSpecRows;
     @FXML private Label slideSpecTitle;
     @FXML private Label slideSpecWarnings;
     @FXML private Label slideSpecStagedBadge;
@@ -59,28 +62,26 @@ public class SlideSpecController {
      *  that's an architectural bug and we throw so the caller sees it. */
     private java.util.function.Supplier<com.excudo.core.commands.CommandInvoker> invokerProvider;
 
-    private final ObservableList<String> rowLabels = FXCollections.observableArrayList();
     private ReactiveSynthesizer reactive;
     private ScriptSynthesizer.Result lastResult;
     private int activeSlide = -1;
     private PPTXOrchestrator currentOrchestrator;
 
-    // Staged script — the user's edited copy. Null when the synthesized
-    // script is being displayed verbatim. Any edit or list-op switches
-    // the view to the staged script and sets the "Staged" badge; Reset
-    // returns to the synthesized view.
-    private List<CommandSpec> stagedSpecs;
+    // The display model: one SpecRow per command, plus the live views that
+    // render them. `staged` is true once any edit or list-op has produced a
+    // working copy that diverges from the synthesized baseline; while
+    // staged, fresh syntheses update `lastResult` but do NOT clobber the
+    // rows (the user's working copy wins). `activeRow` is the selected row
+    // index (replaces the old ListView selection model).
+    private final List<SpecRow> rows = new ArrayList<>();
+    private final List<SpecRowView> rowViews = new ArrayList<>();
+    private int activeRow = -1;
+    private boolean staged;
 
     /** JavaFX calls this after @FXML injection finishes. Wires up
-     *  button actions + the double-click handler once every node is live. */
+     *  button actions once every node is live. */
     @FXML
     private void initialize() {
-        if (slideSpecListView != null) {
-            slideSpecListView.setItems(rowLabels);
-            slideSpecListView.setOnMouseClicked(e -> {
-                if (e.getClickCount() == 2) editSelected();
-            });
-        }
         if (slideSpecCopyJsonButton != null)
             slideSpecCopyJsonButton.setOnAction(e -> copyJsonToClipboard());
         if (slideSpecApplyToNewButton != null)
@@ -100,6 +101,7 @@ public class SlideSpecController {
         if (slideSpecResetButton != null)
             slideSpecResetButton.setOnAction(e -> resetToSynthesized());
 
+        updateResetGating();
         installDynamicFontScaling();
     }
 
@@ -441,13 +443,12 @@ public class SlideSpecController {
         if (slideNumber == activeSlide) return;
         activeSlide = slideNumber;
         // Staged edits were scoped to the previous slide's baseline —
-        // carrying them onto a different slide doesn't make sense.
-        // Clear so render() doesn't early-return and leave stale content
-        // on screen. User must apply before switching to preserve.
-        if (stagedSpecs != null) {
-            stagedSpecs = null;
-            if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("");
-        }
+        // carrying them onto a different slide doesn't make sense. Drop
+        // the working copy so render() repopulates cleanly. User must
+        // apply before switching to preserve.
+        staged = false;
+        rows.clear();
+        activeRow = -1;
         if (reactive == null || slideNumber <= 0) {
             clearView();
             return;
@@ -466,91 +467,114 @@ public class SlideSpecController {
 
     private void render(int slideNumber, ScriptSynthesizer.Result r) {
         this.lastResult = r;
-        // If the user has a staged edit active, don't clobber it with
-        // a fresh synthesis — the staged list is the user's working
-        // copy. New synthesis results still update `lastResult` so the
-        // "Reset to synthesized" button has fresh data to revert to.
-        if (stagedSpecs != null) {
+        // If the user has a staged working copy, don't clobber it with a
+        // fresh synthesis — the staged rows are the user's edit. New
+        // synthesis still updates `lastResult` so Reset has fresh data.
+        if (staged) {
             return;
         }
         if (slideSpecTitle != null) {
             slideSpecTitle.setText("SlideSpec: slide " + slideNumber
                 + " (" + (r != null ? r.script().size() : 0) + " commands)");
         }
-        rowLabels.clear();
-        if (r == null) {
-            if (slideSpecWarnings != null) slideSpecWarnings.setText("");
-            return;
+        rows.clear();
+        activeRow = -1;
+        if (r != null) {
+            for (CommandSpec spec : r.script().topologicalOrder()) {
+                rows.add(SpecRow.synthesized(spec));
+            }
         }
-        List<CommandSpec> order = r.script().topologicalOrder();
-        for (int i = 0; i < order.size(); i++) {
-            rowLabels.add("[" + i + "] " + summarize(order.get(i)));
-        }
+        rebuildRowViews();
         if (slideSpecWarnings != null) {
-            if (r.warnings().isEmpty()) {
+            if (r == null || r.warnings().isEmpty()) {
                 slideSpecWarnings.setText("");
             } else {
                 slideSpecWarnings.setText("Warnings: " + String.join(" | ", r.warnings()));
             }
         }
-        if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("");
     }
 
-    /** Refresh the list view from the staged script. Called after every
-     *  edit / list-op so the UI reflects current staging. */
-    private void renderStaged() {
-        rowLabels.clear();
-        if (stagedSpecs == null) return;
-        for (int i = 0; i < stagedSpecs.size(); i++) {
-            rowLabels.add("[" + i + "] " + summarize(stagedSpecs.get(i)) + "  (edited)");
+    /** Recreate the row views from the current {@code rows}, preserving
+     *  each row's expanded state (it lives on the SpecRow) and the active
+     *  selection. Called after every render / list-op. Also refreshes the
+     *  staged badge and Reset gating. */
+    private void rebuildRowViews() {
+        rowViews.clear();
+        if (slideSpecRows == null) return;
+        slideSpecRows.getChildren().clear();
+        for (int i = 0; i < rows.size(); i++) {
+            SpecRowView view = new SpecRowView(rows.get(i), i, this);
+            view.setActive(i == activeRow);
+            rowViews.add(view);
+            slideSpecRows.getChildren().add(view);
         }
-        if (slideSpecStagedBadge != null) slideSpecStagedBadge.setText("Staged — edits not yet applied");
+        updateBadge();
+        updateResetGating();
     }
 
-    /** Ensure stagedSpecs is non-null; initialize from the last synthesized
-     *  result if the user has just started editing. */
-    private boolean ensureStaged() {
-        if (stagedSpecs != null) return true;
-        if (lastResult == null) {
-            showInfo("No script available to edit yet.");
-            return false;
+    private void updateBadge() {
+        if (slideSpecStagedBadge != null) {
+            slideSpecStagedBadge.setText(staged ? "Staged — edits not yet applied" : "");
         }
-        stagedSpecs = new ArrayList<>(lastResult.script().topologicalOrder());
-        return true;
     }
 
-    private int selectedIndex() {
-        return slideSpecListView != null ? slideSpecListView.getSelectionModel().getSelectedIndex() : -1;
+    /** Reset is interactable exactly when a staged working copy exists —
+     *  i.e. the script has deviated from the synthesized baseline. */
+    private void updateResetGating() {
+        if (slideSpecResetButton != null) {
+            slideSpecResetButton.setDisable(!staged);
+        }
     }
+
+    private void setActiveRow(int index) {
+        activeRow = index;
+        for (int i = 0; i < rowViews.size(); i++) {
+            rowViews.get(i).setActive(i == index);
+        }
+    }
+
+    // ========== SpecRowView.Host ==========
+
+    @Override
+    public void onChanged() {
+        // A row committed a real edit (or a JSON edit). The script is now a
+        // working copy. Do NOT rebuild the rows here — that would pull the
+        // controls out from under an in-progress edit; the committing row
+        // already refreshed its own header.
+        staged = true;
+        updateBadge();
+        updateResetGating();
+    }
+
+    @Override
+    public void onActivated(int index) {
+        setActiveRow(index);
+    }
+
+    @Override
+    public Optional<CommandSpec> editAsJson(CommandSpec current) {
+        return editSpecAsJson(current);
+    }
+
+    // ========== Edit / list-ops ==========
 
     private void editSelected() {
-        int idx = selectedIndex();
-        if (idx < 0) { showInfo("Select a spec first."); return; }
-        if (!ensureStaged()) return;
-        CommandSpec current = stagedSpecs.get(idx);
-
-        // Prefer the typed form dialog when we have one for this spec type.
-        // Fall through to the raw-JSON editor only for types without a
-        // bespoke form (e.g. SetTextSpec's TextBody, AddAnimationSpec's
-        // timing + effect params, SetShapeStyleSpec).
-        if (SpecFormDialog.hasTypedForm(current)) {
-            Optional<CommandSpec> edited = SpecFormDialog.editSpec(current);
-            if (edited.isEmpty()) return;
-            stagedSpecs.set(idx, edited.get());
-            renderStaged();
-            slideSpecListView.getSelectionModel().select(idx);
+        if (activeRow < 0 || activeRow >= rowViews.size()) {
+            showInfo("Select a spec first (click a row), then Edit to expand it.");
             return;
         }
-
-        editSpecAsJson(idx, current);
+        rowViews.get(activeRow).setExpanded(true);
     }
 
-    /** Fallback raw-JSON edit for spec types without a typed form. */
-    private void editSpecAsJson(int idx, CommandSpec current) {
+    /** Modal raw-JSON editor used as the escape hatch for spec types
+     *  without (or beyond) an inline form. Returns the parsed spec, or
+     *  empty if the user cancelled / the JSON didn't parse. The caller
+     *  (the row view) owns the write-back. */
+    Optional<CommandSpec> editSpecAsJson(CommandSpec current) {
         String currentJson = CommandSpecJson.toJson(current);
         javafx.scene.control.Dialog<String> dlg = new javafx.scene.control.Dialog<>();
-        dlg.setTitle("Edit spec [" + idx + "] (JSON)");
-        dlg.setHeaderText("No typed form yet — edit JSON directly.");
+        dlg.setTitle("Edit spec (JSON)");
+        dlg.setHeaderText("Full-fidelity JSON editor.");
         javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(pretty(currentJson));
         area.setPrefRowCount(18);
         area.setPrefColumnCount(60);
@@ -563,53 +587,48 @@ public class SlideSpecController {
         dlg.setResultConverter(bt -> bt == save ? area.getText() : null);
 
         Optional<String> edited = dlg.showAndWait();
-        if (edited.isEmpty()) return;
+        if (edited.isEmpty()) return Optional.empty();
         try {
-            CommandSpec parsed = CommandSpecJson.fromJson(edited.get());
-            stagedSpecs.set(idx, parsed);
-            renderStaged();
-            slideSpecListView.getSelectionModel().select(idx);
+            return Optional.of(CommandSpecJson.fromJson(edited.get()));
         } catch (RuntimeException ex) {
             showError("Failed to parse edited JSON: " + ex.getMessage());
+            return Optional.empty();
         }
     }
 
     private void duplicateSelected() {
-        int idx = selectedIndex();
-        if (idx < 0) { showInfo("Select a spec first."); return; }
-        if (!ensureStaged()) return;
-        stagedSpecs.add(idx + 1, stagedSpecs.get(idx));
-        renderStaged();
-        slideSpecListView.getSelectionModel().select(idx + 1);
+        if (activeRow < 0 || activeRow >= rows.size()) { showInfo("Select a spec first."); return; }
+        CommandSpec dup = rows.get(activeRow).spec();
+        rows.add(activeRow + 1, SpecRow.added(dup));
+        staged = true;
+        activeRow = activeRow + 1;
+        rebuildRowViews();
     }
 
     private void deleteSelected() {
-        int idx = selectedIndex();
-        if (idx < 0) { showInfo("Select a spec first."); return; }
-        if (!ensureStaged()) return;
-        stagedSpecs.remove(idx);
-        renderStaged();
-        if (!stagedSpecs.isEmpty()) {
-            slideSpecListView.getSelectionModel().select(Math.min(idx, stagedSpecs.size() - 1));
-        }
+        if (activeRow < 0 || activeRow >= rows.size()) { showInfo("Select a spec first."); return; }
+        rows.remove(activeRow);
+        staged = true;
+        activeRow = rows.isEmpty() ? -1 : Math.min(activeRow, rows.size() - 1);
+        rebuildRowViews();
     }
 
     private void moveSelected(int delta) {
-        int idx = selectedIndex();
-        if (idx < 0) { showInfo("Select a spec first."); return; }
-        if (!ensureStaged()) return;
-        int target = idx + delta;
-        if (target < 0 || target >= stagedSpecs.size()) return;
-        CommandSpec spec = stagedSpecs.remove(idx);
-        stagedSpecs.add(target, spec);
-        renderStaged();
-        slideSpecListView.getSelectionModel().select(target);
+        if (activeRow < 0 || activeRow >= rows.size()) { showInfo("Select a spec first."); return; }
+        int target = activeRow + delta;
+        if (target < 0 || target >= rows.size()) return;
+        SpecRow moved = rows.remove(activeRow);
+        rows.add(target, moved);
+        staged = true;
+        activeRow = target;
+        rebuildRowViews();
     }
 
     private void resetToSynthesized() {
-        stagedSpecs = null;
-        if (lastResult != null) render(activeSlide, lastResult);
-        else clearView();
+        staged = false;
+        rows.clear();
+        activeRow = -1;
+        render(activeSlide, lastResult);
     }
 
     /** Best-effort JSON pretty-printer so the edit dialog is scannable.
@@ -624,7 +643,10 @@ public class SlideSpecController {
 
     private void clearView() {
         lastResult = null;
-        rowLabels.clear();
+        rows.clear();
+        activeRow = -1;
+        staged = false;
+        rebuildRowViews();
         if (slideSpecTitle != null) slideSpecTitle.setText("SlideSpec (no slide selected)");
         if (slideSpecWarnings != null) slideSpecWarnings.setText("");
     }
@@ -642,15 +664,14 @@ public class SlideSpecController {
         cc.putString(json);
         Clipboard.getSystemClipboard().setContent(cc);
         showInfo("Script JSON copied to clipboard (" + json.length() + " chars, "
-            + (stagedSpecs != null ? "staged edits" : "synthesized") + ").");
+            + (staged ? "staged edits" : "synthesized") + ").");
     }
 
-    /** Staged edits take precedence over the synthesized script when
-     *  the user has entered edit mode. */
+    /** Current working specs — the staged/edited rows if any, else the
+     *  synthesized order. Null when no script exists for this slide yet. */
     private List<CommandSpec> currentSpecs() {
-        if (stagedSpecs != null) return stagedSpecs;
-        if (lastResult == null) return null;
-        return lastResult.script().topologicalOrder();
+        if (rows.isEmpty()) return null;
+        return rows.stream().map(SpecRow::spec).toList();
     }
 
     private void applyToNewSlide() {
@@ -753,59 +774,6 @@ public class SlideSpecController {
             }
         } catch (Exception ignored) {}
         return "slideLayout1";
-    }
-
-    /** One-line summary of a spec for the indexed listing. Mirrors the
-     *  MCP tool's format so GUI and agent see the same shape. */
-    private static String summarize(CommandSpec s) {
-        return switch (s) {
-            case CommandSpec.AddShapeSpec a ->
-                String.format("AddShape %s name=%s @(%d,%d %dx%d)",
-                    a.shapeType(), a.name(),
-                    a.geometry().getX(), a.geometry().getY(),
-                    a.geometry().getWidth(), a.geometry().getHeight());
-            case CommandSpec.RemoveShapeSpec r -> "RemoveShape spid=" + r.spid();
-            case CommandSpec.MoveSpec m ->
-                String.format("Move spid=%d (%d,%d)", m.spid(), m.newX(), m.newY());
-            case CommandSpec.ResizeSpec r ->
-                String.format("Resize spid=%d %dx%d", r.spid(), r.newWidth(), r.newHeight());
-            case CommandSpec.RotateSpec r ->
-                String.format("Rotate spid=%d %.2f°", r.spid(), r.newRotationDegrees());
-            case CommandSpec.RenameShapeSpec r ->
-                "Rename spid=" + r.spid() + " to " + r.newName();
-            case CommandSpec.SetTextSpec st ->
-                "SetText spid=" + st.spid() + " ("
-                    + st.textBody().getParagraphs().size() + "p)";
-            case CommandSpec.SetShapeStyleSpec ss -> "SetStyle spid=" + ss.spid();
-            case CommandSpec.SetTextBoxFlagSpec tb ->
-                "SetTxBoxFlag spid=" + tb.spid() + "=" + tb.flag();
-            case CommandSpec.SetRunFormatSpec rf ->
-                String.format("SetRunFormat spid=%d p=%d r=%d", rf.spid(), rf.paragraphIdx(), rf.runIdx());
-            case CommandSpec.ReorderSpec r -> "Reorder spid=" + r.spid() + " " + r.direction();
-            case CommandSpec.AddAnimationSpec a ->
-                String.format("AddAnim target=%d %s", a.binding().getTargetSpid(), a.binding().getAnimationType());
-            case CommandSpec.RemoveAnimationSpec r -> "RemoveAnim cTn=" + r.timingNodeId();
-            case CommandSpec.SetAnimationTimingSpec t -> "SetAnimTiming cTn=" + t.timingNodeId();
-            case CommandSpec.SetTransitionSpec tt ->
-                "SetTransition " + tt.transitionType() + " " + tt.speed();
-            case CommandSpec.ClearTransitionSpec c -> "ClearTransition";
-            case CommandSpec.CreateGroupSpec g -> "CreateGroup children=" + g.childSpids();
-            case CommandSpec.UngroupSpec u -> "Ungroup spid=" + u.groupSpid();
-            case CommandSpec.AddToGroupSpec a ->
-                "AddToGroup group=" + a.groupSpid() + " child=" + a.childSpid();
-            case CommandSpec.DetachFromGroupSpec d -> "DetachFromGroup child=" + d.childSpid();
-            case CommandSpec.CreateCodeBoxSpec c -> "CreateCodeBox lang=" + c.language();
-            case CommandSpec.CreateDiagramSpec d ->
-                "CreateDiagram mermaidSource=(" + d.mermaidSource().length() + " chars)";
-            case CommandSpec.AddConnectorSpec c ->
-                "AddConnector type=" + c.connectorType()
-                + (c.startSpid() != null || c.endSpid() != null
-                    ? " " + (c.startSpid() != null ? c.startSpid() : "free")
-                        + "->" + (c.endSpid() != null ? c.endSpid() : "free")
-                    : "");
-            case CommandSpec.AddPictureSpec p ->
-                "AddPicture media=" + p.blipRef().mediaPartName();
-        };
     }
 
     private void showInfo(String msg) {

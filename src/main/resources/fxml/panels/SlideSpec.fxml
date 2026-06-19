@@ -30,8 +30,10 @@
       <Button fx:id="slideSpecDeleteButton" text="Delete" />
       <Button fx:id="slideSpecMoveUpButton" text="Up" />
       <Button fx:id="slideSpecMoveDownButton" text="Down" />
-      <Button fx:id="slideSpecResetButton" text="Reset to synthesized" />
+      <Button fx:id="slideSpecResetButton" text="Reset to synthesized" disable="true" />
    </FlowPane>
-   <ListView fx:id="slideSpecListView" VBox.vgrow="ALWAYS" />
+   <ScrollPane fx:id="slideSpecScroll" fitToWidth="true" VBox.vgrow="ALWAYS">
+      <VBox fx:id="slideSpecRows" spacing="2.0" />
+   </ScrollPane>
    <Label fx:id="slideSpecWarnings" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" wrapText="true" />
 </VBox>
