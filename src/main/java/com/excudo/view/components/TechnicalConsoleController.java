@@ -229,8 +229,6 @@ public class TechnicalConsoleController implements Initializable {
             }
             consoleEngine.setStatusHandler(this::updateStatus);
         }
-
-        printInfo("Console engine initialized");
     }
     
     /**
@@ -370,12 +368,6 @@ public class TechnicalConsoleController implements Initializable {
         }
     }
 
-    private void printInfo(String info) {
-        if (styledView != null) {
-            styledView.appendLine(info, ConsoleStyle.NONE);
-        }
-    }
-    
     // ========== UTILITY METHODS ==========
     
     private void updateStatus(String status) {
