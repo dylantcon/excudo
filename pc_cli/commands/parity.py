@@ -129,6 +129,13 @@ def _run(args, env) -> int:
         raised, lowered = bl.update_baselines(corpus_dir, results,
                                               force=args.force_regress)
         print(f"Baselines updated: {raised} raised, {lowered} lowered.")
+        # Re-evaluate against the updated baselines so the verdict and exit
+        # code reflect the state a fresh run would see.
+        fresh = bl.load_json(corpus_dir, bl.BASELINES_FILE, {})
+        results = [
+            bl.evaluate_category(r.name, r.slides, thresholds, fresh, xfails)
+            for r in results
+        ]
     elif args.force_regress:
         print("--force-regress has no effect without --update-baselines")
 

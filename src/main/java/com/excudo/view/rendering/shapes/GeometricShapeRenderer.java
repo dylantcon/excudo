@@ -118,7 +118,7 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             surface.translate(-cx, -cy);
         }
 
-        SurfacePaint surfaceFill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
+        SurfacePaint surfaceFill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx, surface);
         ShapeStyleExtractor.LineStyle line = ShapeStyleExtractor.resolveLineStyle(shape, slideCtx);
         boolean hasFill = surfaceFill != SurfacePaint.Transparent.INSTANCE;
 

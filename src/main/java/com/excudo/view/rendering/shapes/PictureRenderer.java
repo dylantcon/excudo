@@ -33,11 +33,6 @@ public class PictureRenderer implements ModelShapeRenderer {
 
     private static final ComponentLogger logger = Logger.getLogger("PictureRenderer");
 
-    // Cache decoded images by OPC part name to avoid redundant decoding.
-    // The backend-neutral SurfaceImage lets this cache survive a swap
-    // from the Canvas backend to the AWT backend without changing callers.
-    private final Map<String, SurfaceImage> imageCache = new HashMap<>();
-
     @Override
     public boolean canRender(SlideShape.ShapeType type) {
         return type == SlideShape.ShapeType.PICTURE;
@@ -64,16 +59,17 @@ public class PictureRenderer implements ModelShapeRenderer {
             return;
         }
 
-        // Resolve to OPC part name via slide rels
-        String partName = resolveMediaPartName(slideCtx.getDocument(), slideCtx.getSlideNumber(), rId);
+        // Resolve to OPC part name via slide rels (shared pipeline with
+        // the picture-fill path in ShapeStyleExtractor)
+        String partName = BlipFillResolver.resolveMediaPartName(
+            slideCtx.getDocument(), slideCtx.getSlideNumber(), rId);
         if (partName == null) {
             drawPlaceholder(surface, bounds, "(rel not found: " + rId + ")");
             return;
         }
 
-        // Load and cache the image
-        SurfaceImage image = imageCache.computeIfAbsent(partName,
-            pn -> loadImage(surface, slideCtx.getDocument(), pn));
+        // Load through the shared decode cache
+        SurfaceImage image = BlipFillResolver.loadCached(surface, slideCtx.getDocument(), partName);
         if (image == null) {
             drawPlaceholder(surface, bounds, partName.substring(partName.lastIndexOf('/') + 1));
             return;
@@ -109,57 +105,6 @@ public class PictureRenderer implements ModelShapeRenderer {
             rId = blip.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "embed");
         }
         return (rId != null && !rId.isEmpty()) ? rId : null;
-    }
-
-    /**
-     * Resolve a relationship ID to an OPC part name using the slide's .rels file.
-     */
-    private String resolveMediaPartName(PPTXDocument doc, int slideNumber, String rId) {
-        if (slideNumber <= 0) return null;
-        String relsPartName = "ppt/slides/_rels/slide" + slideNumber + ".xml.rels";
-        org.w3c.dom.Document relsDoc = doc.getXmlPart(relsPartName);
-        if (relsDoc == null) return null;
-
-        NodeList rels = relsDoc.getElementsByTagName("Relationship");
-        for (int i = 0; i < rels.getLength(); i++) {
-            Element rel = (Element) rels.item(i);
-            if (rId.equals(rel.getAttribute("Id"))) {
-                String target = rel.getAttribute("Target");
-                if (target == null || target.isEmpty()) continue;
-                if (target.startsWith("../")) {
-                    return "ppt/" + target.substring(3);
-                } else if (target.startsWith("/")) {
-                    return target.substring(1);
-                }
-                return "ppt/slides/" + target;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Load an image from PPTXDocument media parts via the current surface.
-     * Returns null for unsupported formats (EMF, WMF).
-     */
-    private SurfaceImage loadImage(RenderSurface surface, PPTXDocument doc, String partName) {
-        MediaElement media = doc.getMediaPart(partName);
-        if (media == null) {
-            logger.debug("Media part not found: {}", partName);
-            return null;
-        }
-
-        String mime = media.getMimeType();
-        if (mime != null && (mime.contains("emf") || mime.contains("wmf"))) {
-            logger.debug("Unsupported image format: {} ({})", partName, mime);
-            return null;
-        }
-
-        try {
-            return surface.decodeImage(media.getData(), mime);
-        } catch (Exception e) {
-            logger.debug("Failed to decode image {}: {}", partName, e.getMessage());
-            return null;
-        }
     }
 
     /**

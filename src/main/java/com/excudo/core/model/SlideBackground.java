@@ -17,14 +17,29 @@ package com.excudo.core.model;
  *       non-null, and stretch over the slide bounds.</li>
  * </ul>
  *
- * <p>Gradient backgrounds aren't modeled here yet — they currently
- * resolve through {@code Solid} via the first stop's color. Add a
- * dedicated variant when a file in the wild needs the full gradient.
+ * <p>{@link Gradient} carries the theme-resolved gradient stops so the
+ * renderer can paint the real ramp instead of collapsing to the first
+ * stop's color.
  */
 public sealed interface SlideBackground {
 
     /** Solid color fill. {@code hex} is '#'-prefixed. */
     record Solid(String hex) implements SlideBackground {}
+
+    /**
+     * Gradient fill resolved through the theme's fmtScheme (bgRef).
+     * Stops carry '#'-prefixed hex + alpha; {@code angleDegrees} is the
+     * OOXML a:lin angle (clockwise from east); {@code radial} true for
+     * a:path (PATH) gradients.
+     */
+    record Gradient(
+            java.util.List<GradientStop> stops,
+            double angleDegrees,
+            boolean radial) implements SlideBackground {
+
+        /** One gradient stop: position 0..1, '#'-prefixed hex, alpha 0..1. */
+        public record GradientStop(double position, String hex, double alpha) {}
+    }
 
     /**
      * Image fill, optionally with duotone recolor.

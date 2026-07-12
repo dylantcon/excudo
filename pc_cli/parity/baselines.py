@@ -108,6 +108,10 @@ def evaluate_category(name: str, slides: list[SlideResult], thresholds: dict,
     floor_failures = []
 
     for s in slides:
+        # reset so evaluation is idempotent (results may be re-scored after
+        # a baseline update)
+        s.ratchet_ok = True
+        s.notes = []
         s.floor_ok = s.metrics.ssim + EPSILON >= floor
         if not s.floor_ok:
             floor_failures.append(s)

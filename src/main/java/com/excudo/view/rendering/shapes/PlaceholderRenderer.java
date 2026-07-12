@@ -33,7 +33,7 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
         }
 
         // 2. Draw placeholder fill (usually transparent for placeholders)
-        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, slideCtx, ctx.getSurface());
         if (fill != SurfacePaint.Transparent.INSTANCE) {
             RenderSurface surface = ctx.getSurface();
             surface.setFill(fill);

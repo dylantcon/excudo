@@ -43,13 +43,20 @@ public class SlideRenderer {
     private int totalShapes;
     private int culledShapes;
 
+    // Editor-canvas decoration: the gray outline marking the slide edge.
+    // GUI-only — exported/headless renders must match PowerPoint's own
+    // raster, which has no frame (the outline previously leaked into
+    // every headless PNG and skewed the parity harness's
+    // background-color estimate).
+    private final boolean drawSlideBoundsOutline;
+
     /**
      * GUI live-preview constructor. Wraps the provided Canvas in a
      * {@link CanvasRenderSurface} and delegates to the surface-based
      * constructor.
      */
     public SlideRenderer(Canvas canvas) {
-        this(new CanvasRenderSurface(canvas), canvas.getWidth(), canvas.getHeight());
+        this(new CanvasRenderSurface(canvas), canvas.getWidth(), canvas.getHeight(), true);
     }
 
     /**
@@ -58,10 +65,12 @@ public class SlideRenderer {
      * no Canvas, no FX thread, direct-to-BufferedImage output.
      */
     public SlideRenderer(RenderSurface surface) {
-        this(surface, surface.widthPx(), surface.heightPx());
+        this(surface, surface.widthPx(), surface.heightPx(), false);
     }
 
-    private SlideRenderer(RenderSurface surface, double widthPx, double heightPx) {
+    private SlideRenderer(RenderSurface surface, double widthPx, double heightPx,
+                          boolean drawSlideBoundsOutline) {
+        this.drawSlideBoundsOutline = drawSlideBoundsOutline;
         this.renderingContext = new RenderingContext(
                 surface,
                 new CoordinateMapper(widthPx, heightPx)
@@ -93,7 +102,9 @@ public class SlideRenderer {
             renderingContext.clearCanvas();
             renderBackground();
             renderingContext.drawGridIfEnabled();
-            renderingContext.drawSlideBounds();
+            if (drawSlideBoundsOutline) {
+                renderingContext.drawSlideBounds();
+            }
 
             if (slideData != null && slideData.getShapeRegistry() != null) {
                 List<SlideShape> shapes = slideData.getShapeRegistry().getAllShapes();
@@ -193,6 +204,16 @@ public class SlideRenderer {
                 ? slideContext.getSlideBackground() : null;
             if (typed instanceof com.excudo.core.model.SlideBackground.BlipImage img
                     && drawBlipBackground(surface, img, slideBounds)) {
+                return;
+            }
+
+            // Gradient backgrounds paint the full ramp (previously
+            // collapsed to the first stop's color).
+            if (typed instanceof com.excudo.core.model.SlideBackground.Gradient grad) {
+                surface.setFill(ShapeStyleExtractor.backgroundGradientPaint(
+                    grad, slideBounds.getWidth(), slideBounds.getHeight()));
+                surface.fillRect(slideBounds.getMinX(), slideBounds.getMinY(),
+                                 slideBounds.getWidth(), slideBounds.getHeight());
                 return;
             }
 

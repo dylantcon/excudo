@@ -320,17 +320,83 @@ public final class CanvasRenderSurface implements RenderSurface {
             return fxColor(s.argb());
         }
         if (paint instanceof SurfacePaint.LinearGradient g) {
-            List<Stop> fxStops = new ArrayList<>(g.stops().size());
-            for (SurfacePaint.LinearGradient.Stop st : g.stops()) {
-                fxStops.add(new Stop(st.position(), fxColor(st.color().argb())));
-            }
             return new LinearGradient(
                 g.startX(), g.startY(), g.endX(), g.endY(),
                 /*proportional*/ true,
                 CycleMethod.NO_CYCLE,
-                fxStops);
+                fxStops(g.stops()));
+        }
+        if (paint instanceof SurfacePaint.RadialGradient g) {
+            // JavaFX proportional radial gradients express center/radius
+            // relative to the shape's bounds, which matches the ELLIPSE
+            // geometry directly (radius 0.5 -> bbox edges through the
+            // center). CIRCLE (absolute circle out to the farthest bbox
+            // corner) has no exact proportional equivalent; radius ~0.7071
+            // (half-diagonal of a square bbox) is the closest fit. The
+            // Canvas backend is not parity-gated -- the AWT backend
+            // materialises both geometries exactly.
+            double fdx = g.focusX() - g.centerX();
+            double fdy = g.focusY() - g.centerY();
+            double radius = g.geometry() == SurfacePaint.RadialGradient.Geometry.CIRCLE
+                ? Math.sqrt(0.5) : 0.5;
+            double focusDistance = Math.min(1, Math.hypot(fdx, fdy) / radius);
+            double focusAngle = Math.toDegrees(Math.atan2(fdy, fdx));
+            return new javafx.scene.paint.RadialGradient(
+                focusAngle, focusDistance,
+                g.centerX(), g.centerY(), radius,
+                /*proportional*/ true,
+                CycleMethod.NO_CYCLE,
+                fxStops(g.stops()));
+        }
+        if (paint instanceof SurfacePaint.PatternFill p) {
+            return patternCache.computeIfAbsent(p, CanvasRenderSurface::buildFxPattern);
+        }
+        if (paint instanceof SurfacePaint.ImageFill f) {
+            Object handle = f.image() != null ? f.image().nativeHandle() : null;
+            if (!(handle instanceof Image img)) return Color.TRANSPARENT;
+            if (f.tile() && f.tileFracW() > 0 && f.tileFracH() > 0) {
+                // Proportional pattern: each tile is a fraction of the
+                // bounds of the shape being filled.
+                return new javafx.scene.paint.ImagePattern(
+                    img, 0, 0, f.tileFracW(), f.tileFracH(), /*proportional*/ true);
+            }
+            return new javafx.scene.paint.ImagePattern(img, 0, 0, 1, 1, /*proportional*/ true);
         }
         throw new IllegalArgumentException("unknown SurfacePaint: " + paint.getClass());
+    }
+
+    private List<Stop> fxStops(List<SurfacePaint.LinearGradient.Stop> stops) {
+        List<Stop> fxStops = new ArrayList<>(stops.size());
+        double prev = -1;
+        for (SurfacePaint.LinearGradient.Stop st : stops) {
+            double pos = Math.max(0, Math.min(1, st.position()));
+            if (pos <= prev) pos = Math.min(1, prev + 1e-6);
+            prev = pos;
+            fxStops.add(new Stop(pos, fxColor(st.color().argb())));
+        }
+        return fxStops;
+    }
+
+    // Pattern tiles are tiny and shared; cache the ImagePattern per
+    // PatternFill value (bits + colors).
+    private final ConcurrentHashMap<SurfacePaint.PatternFill, javafx.scene.paint.ImagePattern>
+        patternCache = new ConcurrentHashMap<>();
+
+    /**
+     * Build the 8x8 tile for an OOXML preset pattern as a non-proportional
+     * ImagePattern anchored at the canvas origin -- PowerPoint aligns
+     * pattern tiles to the page grid (8px @96dpi), not the shape.
+     */
+    private static javafx.scene.paint.ImagePattern buildFxPattern(SurfacePaint.PatternFill p) {
+        javafx.scene.image.WritableImage tile = new javafx.scene.image.WritableImage(8, 8);
+        javafx.scene.image.PixelWriter pw = tile.getPixelWriter();
+        for (int py = 0; py < 8; py++) {
+            for (int px = 0; px < 8; px++) {
+                boolean fg = ((p.bits() >>> (py * 8 + px)) & 1L) != 0;
+                pw.setArgb(px, py, fg ? p.foreground().argb() : p.background().argb());
+            }
+        }
+        return new javafx.scene.paint.ImagePattern(tile, 0, 0, 8, 8, /*proportional*/ false);
     }
 
     private static Color fxColor(int argb) {

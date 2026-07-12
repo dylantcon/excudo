@@ -97,7 +97,16 @@ public final class SlideBackgroundResolver {
             return new SlideBackground.Solid(solid.hex());
         }
         if (fill instanceof ResolvedFill.GradientFill grad && !grad.stops().isEmpty()) {
-            return new SlideBackground.Solid(grad.stops().get(0).hex());
+            // Full gradient, not a first-stop collapse: the renderer
+            // paints the real ramp.
+            java.util.List<SlideBackground.Gradient.GradientStop> stops =
+                new java.util.ArrayList<>(grad.stops().size());
+            for (ResolvedFill.GradientStop gs : grad.stops()) {
+                stops.add(new SlideBackground.Gradient.GradientStop(
+                    gs.position(), gs.hex(), gs.alpha()));
+            }
+            return new SlideBackground.Gradient(stops, grad.angleDegrees(),
+                grad.type() == ResolvedFill.GradientType.PATH);
         }
         return new SlideBackground.Solid(phColor.withHash());
     }

@@ -81,11 +81,12 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     // fillPath / strokePath.
     private Path2D currentPath;
 
-    // Deferred gradient paint. When setFill receives a LinearGradient,
-    // we stash the descriptor here and materialise the AWT paint on
-    // the next fill op using that op's bbox. Solid paints set
-    // pendingGradient=null and apply directly to g.
-    private SurfacePaint.LinearGradient pendingGradient;
+    // Deferred bbox-relative paint. When setFill receives a paint whose
+    // AWT materialisation needs the target bounds (linear/radial
+    // gradients, picture fills), we stash the descriptor here and
+    // materialise the java.awt.Paint on the next fill op using that
+    // op's bbox. Solid + pattern paints apply directly to g.
+    private SurfacePaint pendingPaint;
 
     // Cache resolved java.awt.Font per (family, weight, posture, size-
     // quantised-to-0.1pt, fallback). Mirrors the CanvasRenderSurface
@@ -144,26 +145,29 @@ public final class Graphics2DRenderSurface implements RenderSurface {
 
     @Override
     public void setFill(SurfacePaint paint) {
-        if (paint instanceof SurfacePaint.LinearGradient grad) {
-            pendingGradient = grad;
-            // Set a sentinel colour on g so solid ops after a gradient
+        if (paint instanceof SurfacePaint.LinearGradient
+                || paint instanceof SurfacePaint.RadialGradient
+                || paint instanceof SurfacePaint.ImageFill) {
+            pendingPaint = paint;
+            // Set a sentinel colour on g so solid ops after a deferred
             // fill don't accidentally reuse the prior solid paint.
             g.setPaint(Color.BLACK);
+        } else if (paint instanceof SurfacePaint.PatternFill pattern) {
+            // Pattern tiles anchor at the canvas origin (page grid), so
+            // no bbox is needed -- apply immediately.
+            pendingPaint = null;
+            g.setPaint(patternTexture(pattern));
         } else {
-            pendingGradient = null;
+            pendingPaint = null;
             g.setPaint(toAwtColor(paint));
         }
     }
 
     @Override
     public void setStroke(SurfacePaint paint) {
-        // Gradient strokes are rare enough in PPTX to not bother with;
-        // render the start-colour as a solid until demand arrives.
-        if (paint instanceof SurfacePaint.LinearGradient grad && !grad.stops().isEmpty()) {
-            g.setPaint(toAwtColor(grad.stops().get(0).color()));
-        } else {
-            g.setPaint(toAwtColor(paint));
-        }
+        // Gradient/image strokes are rare enough in PPTX to not bother
+        // with; render a representative solid until demand arrives.
+        g.setPaint(toAwtColor(paint));
     }
 
     private double currentLineWidth = 1.0;
@@ -254,7 +258,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
 
     @Override
     public void fillRect(double x, double y, double w, double h) {
-        applyPendingGradient(x, y, w, h);
+        applyPendingPaint(x, y, w, h);
         g.fill(new Rectangle2D.Double(x, y, w, h));
     }
 
@@ -265,7 +269,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
 
     @Override
     public void fillOval(double x, double y, double w, double h) {
-        applyPendingGradient(x, y, w, h);
+        applyPendingPaint(x, y, w, h);
         g.fill(new Ellipse2D.Double(x, y, w, h));
     }
 
@@ -276,7 +280,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
 
     @Override
     public void fillRoundRect(double x, double y, double w, double h, double arcW, double arcH) {
-        applyPendingGradient(x, y, w, h);
+        applyPendingPaint(x, y, w, h);
         g.fill(new RoundRectangle2D.Double(x, y, w, h, arcW, arcH));
     }
 
@@ -389,7 +393,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     public void fillPath() {
         if (currentPath == null) return;
         Rectangle2D b = currentPath.getBounds2D();
-        applyPendingGradient(b.getX(), b.getY(), b.getWidth(), b.getHeight());
+        applyPendingPaint(b.getX(), b.getY(), b.getWidth(), b.getHeight());
         g.fill(currentPath);
     }
 
@@ -462,7 +466,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
             g.getComposite(),
             currentLineWidth, currentDashes == null ? null : currentDashes.clone(),
             currentCap, currentJoin, currentMiterLimit,
-            pendingGradient));
+            pendingPaint));
     }
 
     @Override
@@ -480,7 +484,7 @@ public final class Graphics2DRenderSurface implements RenderSurface {
         currentCap = s.cap;
         currentJoin = s.join;
         currentMiterLimit = s.miterLimit;
-        pendingGradient = s.pendingGradient;
+        pendingPaint = s.pendingPaint;
     }
 
     @Override
@@ -515,11 +519,11 @@ public final class Graphics2DRenderSurface implements RenderSurface {
         g.setComposite(prev);
         if (background != null && background != SurfacePaint.Transparent.INSTANCE) {
             java.awt.Paint prevPaint = g.getPaint();
-            SurfacePaint.LinearGradient prevPending = pendingGradient;
+            SurfacePaint prevPending = pendingPaint;
             setFill(background);
             fillRect(0, 0, widthPx, heightPx);
             g.setPaint(prevPaint);
-            pendingGradient = prevPending;
+            pendingPaint = prevPending;
         }
     }
 
@@ -535,31 +539,128 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     // ========== INTERNAL HELPERS ==========
 
     /**
-     * If a linear-gradient fill was set via setFill but not yet applied,
-     * materialise it now using the current fill op's bounding box and
-     * install it on g. No-op for solid fills (already applied).
+     * If a bbox-relative fill (linear/radial gradient, picture fill) was
+     * set via setFill but not yet applied, materialise it now using the
+     * current fill op's bounding box and install it on g. No-op for
+     * solid/pattern fills (already applied).
      */
-    private void applyPendingGradient(double x, double y, double w, double h) {
-        if (pendingGradient == null) return;
-        SurfacePaint.LinearGradient grad = pendingGradient;
-        float[] fractions = new float[grad.stops().size()];
-        Color[] colors = new Color[grad.stops().size()];
-        for (int i = 0; i < grad.stops().size(); i++) {
-            var st = grad.stops().get(i);
-            fractions[i] = (float) Math.max(0, Math.min(1, st.position()));
-            colors[i] = toAwtColor(st.color());
+    private void applyPendingPaint(double x, double y, double w, double h) {
+        if (pendingPaint == null) return;
+        if (pendingPaint instanceof SurfacePaint.LinearGradient grad) {
+            float[] fractions = fractionsOf(grad.stops());
+            Color[] colors = colorsOf(grad.stops());
+            g.setPaint(new LinearGradientPaint(
+                (float) (x + grad.startX() * w), (float) (y + grad.startY() * h),
+                (float) (x + grad.endX()   * w), (float) (y + grad.endY()   * h),
+                fractions, colors,
+                MultipleGradientPaint.CycleMethod.NO_CYCLE));
+        } else if (pendingPaint instanceof SurfacePaint.RadialGradient grad) {
+            g.setPaint(materialiseRadial(grad, x, y, w, h));
+        } else if (pendingPaint instanceof SurfacePaint.ImageFill fill) {
+            g.setPaint(materialiseImageFill(fill, x, y, w, h));
         }
-        // LinearGradientPaint requires strictly-increasing fractions.
+    }
+
+    private java.awt.Paint materialiseRadial(SurfacePaint.RadialGradient grad,
+                                              double x, double y, double w, double h) {
+        float[] fractions = fractionsOf(grad.stops());
+        Color[] colors = colorsOf(grad.stops());
+        if (grad.geometry() == SurfacePaint.RadialGradient.Geometry.CIRCLE) {
+            // Circular contours in absolute space. Radius reaches the
+            // farthest bbox corner so the final stop lands exactly there
+            // (PowerPoint's PDF flattening of a:path path="circle").
+            double cx = x + grad.centerX() * w;
+            double cy = y + grad.centerY() * h;
+            double radius = 0;
+            for (double[] corner : new double[][]{{x, y}, {x + w, y}, {x, y + h}, {x + w, y + h}}) {
+                radius = Math.max(radius, Math.hypot(corner[0] - cx, corner[1] - cy));
+            }
+            if (radius <= 0) radius = 1;
+            return new java.awt.RadialGradientPaint(
+                new java.awt.geom.Point2D.Double(cx, cy), (float) radius,
+                new java.awt.geom.Point2D.Double(x + grad.focusX() * w, y + grad.focusY() * h),
+                fractions, colors,
+                MultipleGradientPaint.CycleMethod.NO_CYCLE);
+        }
+        // ELLIPSE: build a unit-space circle and stretch it onto the bbox
+        // via the gradient transform, so contours scale with the shape
+        // and the final stop is reached at the bbox edges through the
+        // center. Radius 0.5 assumes a near-centered focus (the OOXML
+        // rect/shape path cases we approximate always are).
+        AffineTransform toBox = new AffineTransform();
+        toBox.translate(x, y);
+        toBox.scale(w <= 0 ? 1 : w, h <= 0 ? 1 : h);
+        return new java.awt.RadialGradientPaint(
+            new java.awt.geom.Point2D.Double(grad.centerX(), grad.centerY()), 0.5f,
+            new java.awt.geom.Point2D.Double(grad.focusX(), grad.focusY()),
+            fractions, colors,
+            MultipleGradientPaint.CycleMethod.NO_CYCLE,
+            MultipleGradientPaint.ColorSpaceType.SRGB,
+            toBox);
+    }
+
+    private java.awt.Paint materialiseImageFill(SurfacePaint.ImageFill fill,
+                                                 double x, double y, double w, double h) {
+        Object handle = fill.image() != null ? fill.image().nativeHandle() : null;
+        if (!(handle instanceof BufferedImage img)) {
+            return new Color(0, 0, 0, 0); // undecodable: draw nothing
+        }
+        // TexturePaint scales the image onto the anchor rect and tiles
+        // it; a stretch fill is simply "one tile == the whole bbox".
+        // Filling a non-rect geometry (oval, round-rect, path) clips the
+        // texture to that geometry for free.
+        Rectangle2D anchor;
+        if (fill.tile() && fill.tileFracW() > 0 && fill.tileFracH() > 0) {
+            anchor = new Rectangle2D.Double(x, y, w * fill.tileFracW(), h * fill.tileFracH());
+        } else {
+            anchor = new Rectangle2D.Double(x, y, w, h);
+        }
+        return new java.awt.TexturePaint(img, anchor);
+    }
+
+    // Pattern tiles are tiny (8x8) and shared across shapes/slides; cache
+    // the TexturePaint per PatternFill value (bits + colors).
+    private static final ConcurrentHashMap<SurfacePaint.PatternFill, java.awt.TexturePaint>
+        PATTERN_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Build (or fetch) the 8x8 texture for an OOXML preset pattern.
+     * Anchored at the canvas origin: PowerPoint aligns pattern tiles to
+     * the page grid (multiples of 6pt = 8px @96dpi), not to the shape.
+     */
+    private static java.awt.TexturePaint patternTexture(SurfacePaint.PatternFill pattern) {
+        return PATTERN_CACHE.computeIfAbsent(pattern, p -> {
+            BufferedImage tile = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+            for (int py = 0; py < 8; py++) {
+                for (int px = 0; px < 8; px++) {
+                    boolean fg = ((p.bits() >>> (py * 8 + px)) & 1L) != 0;
+                    tile.setRGB(px, py, fg ? p.foreground().argb() : p.background().argb());
+                }
+            }
+            return new java.awt.TexturePaint(tile, new Rectangle2D.Double(0, 0, 8, 8));
+        });
+    }
+
+    private static float[] fractionsOf(java.util.List<SurfacePaint.LinearGradient.Stop> stops) {
+        float[] fractions = new float[stops.size()];
+        for (int i = 0; i < stops.size(); i++) {
+            fractions[i] = (float) Math.max(0, Math.min(1, stops.get(i).position()));
+        }
+        // AWT gradient paints require strictly-increasing fractions.
         for (int i = 1; i < fractions.length; i++) {
             if (fractions[i] <= fractions[i - 1]) {
                 fractions[i] = fractions[i - 1] + 1e-5f;
             }
         }
-        g.setPaint(new LinearGradientPaint(
-            (float) (x + grad.startX() * w), (float) (y + grad.startY() * h),
-            (float) (x + grad.endX()   * w), (float) (y + grad.endY()   * h),
-            fractions, colors,
-            MultipleGradientPaint.CycleMethod.NO_CYCLE));
+        return fractions;
+    }
+
+    private static Color[] colorsOf(java.util.List<SurfacePaint.LinearGradient.Stop> stops) {
+        Color[] colors = new Color[stops.size()];
+        for (int i = 0; i < stops.size(); i++) {
+            colors[i] = toAwtColor(stops.get(i).color());
+        }
+        return colors;
     }
 
     private static Color toAwtColor(SurfacePaint paint) {
@@ -570,10 +671,15 @@ public final class Graphics2DRenderSurface implements RenderSurface {
             return new Color(s.argb(), true);
         }
         if (paint instanceof SurfacePaint.LinearGradient g && !g.stops().isEmpty()) {
-            // Caller should have used applyPendingGradient, but fall
-            // back to the first stop's colour so we never leave the
-            // paint unset.
+            // Caller should have used applyPendingPaint, but fall back
+            // to the first stop's colour so we never leave the paint unset.
             return toAwtColor(g.stops().get(0).color());
+        }
+        if (paint instanceof SurfacePaint.RadialGradient g && !g.stops().isEmpty()) {
+            return toAwtColor(g.stops().get(0).color());
+        }
+        if (paint instanceof SurfacePaint.PatternFill p) {
+            return toAwtColor(p.foreground());
         }
         return Color.BLACK;
     }
@@ -643,5 +749,5 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     private record State(AffineTransform transform, java.awt.Paint paint, java.awt.Stroke stroke,
                           Font font, Shape clip, java.awt.Composite composite,
                           double lineWidth, double[] dashes, int cap, int join, double miterLimit,
-                          SurfacePaint.LinearGradient pendingGradient) {}
+                          SurfacePaint pendingPaint) {}
 }
