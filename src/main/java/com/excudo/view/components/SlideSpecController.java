@@ -2,7 +2,6 @@ package com.excudo.view.components;
 
 import com.excudo.core.commands.mutating.slide.RunSlideScriptCommand;
 import com.excudo.core.orchestration.PPTXOrchestrator;
-import com.excudo.core.orchestration.SessionManager;
 import com.excudo.core.synthesis.ReactiveSynthesizer;
 import com.excudo.core.synthesis.ScriptSynthesizer;
 import com.excudo.core.synthesis.spec.CommandSpec;
@@ -41,7 +40,6 @@ public class SlideSpecController implements SpecRowView.Host {
     @FXML private javafx.scene.layout.VBox slideSpecPanel;
     @FXML private javafx.scene.layout.FlowPane slideSpecRow1Flow;
     @FXML private javafx.scene.layout.FlowPane slideSpecRow2Flow;
-    @FXML private javafx.scene.control.ScrollPane slideSpecScroll;
     @FXML private javafx.scene.layout.VBox slideSpecRows;
     @FXML private Label slideSpecTitle;
     @FXML private Label slideSpecWarnings;
@@ -345,23 +343,6 @@ public class SlideSpecController implements SpecRowView.Host {
         String newStyle = String.format(java.util.Locale.ROOT,
             "-fx-font-size: %.2fpt;", pt);
         if (!newStyle.equals(b.getStyle())) b.setStyle(newStyle);
-    }
-
-    /** Systematic ellipsis detection. True when the label's text at
-     *  its current font needs more horizontal room than the widget has
-     *  allocated for it. No private API, no dependency on rendered
-     *  state — just measurement. Works for any Labeled (Button, Label). */
-    public static boolean isEllipsized(javafx.scene.control.Labeled lab) {
-        if (lab == null) return false;
-        double alloc = lab.getWidth();
-        if (alloc <= 0) return false;
-        String s = lab.getText();
-        if (s == null || s.isEmpty()) return false;
-        javafx.scene.text.Text probe = new javafx.scene.text.Text(s);
-        probe.setFont(lab.getFont());
-        double textW = probe.getLayoutBounds().getWidth();
-        double padH = lab.getPadding().getLeft() + lab.getPadding().getRight();
-        return textW + padH > alloc + 1.0;  // 1px tolerance for sub-pixel rounding
     }
 
     private static double measureTextWidth(String s, double pt, boolean bold) {

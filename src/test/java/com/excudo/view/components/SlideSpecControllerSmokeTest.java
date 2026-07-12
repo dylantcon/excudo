@@ -11,7 +11,6 @@ import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.BeforeAll;
@@ -154,7 +153,6 @@ public class SlideSpecControllerSmokeTest {
         injectField(ctrl, "slideSpecPanel", new VBox());
         injectField(ctrl, "slideSpecRow1Flow", new FlowPane());
         injectField(ctrl, "slideSpecRow2Flow", new FlowPane());
-        injectField(ctrl, "slideSpecScroll", new ScrollPane());
         injectField(ctrl, "slideSpecRows", new VBox());
         injectField(ctrl, "slideSpecTitle", new Label());
         injectField(ctrl, "slideSpecWarnings", new Label());

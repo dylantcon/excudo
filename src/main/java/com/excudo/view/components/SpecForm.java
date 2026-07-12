@@ -9,15 +9,9 @@ import java.util.function.Supplier;
  * A reusable form payload for editing one {@link CommandSpec}: the
  * editable controls paired with a snapshot reader.
  *
- * <p>The same payload feeds both editing surfaces, so the form-building
- * code lives in exactly one place:
- * <ul>
- *   <li>the inline expandable row ({@code SpecRowView}) embeds
- *       {@link #node()} and calls {@link #read()} on commit, and</li>
- *   <li>the modal dialog ({@code SpecFormDialog.editSpec}) drops
- *       {@code node} into a {@code Dialog} and calls {@code read} from its
- *       result-converter.</li>
- * </ul>
+ * <p>Built once by {@code SpecFormDialog.buildForm} and embedded by the
+ * inline expandable row ({@code SpecRowView}), which adds {@link #node()} to
+ * its content and calls {@link #read()} on commit.
  *
  * <p>{@code read} produces a fresh, immutable spec from the current
  * control values. It <b>throws</b> when those values don't form a valid

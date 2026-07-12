@@ -8,7 +8,6 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.Parameter;
 import com.excudo.core.results.ExecutionResult;
 import com.excudo.console.ConsoleStyle;
-import com.excudo.console.LLMConsoleHandler;
 import com.excudo.view.console.StyledConsoleView;
 import com.excudo.view.console.UIConsoleEngine;
 import javafx.fxml.FXML;
@@ -60,8 +59,13 @@ public class TechnicalConsoleController implements Initializable {
     // ========== STATE ==========
 
     private MainController mainController;
-    private LLMConsoleHandler llmConsoleHandler;
     private UIConsoleEngine consoleEngine;
+    // Engine init is idempotent across the lifecycle hooks that call
+    // initializeLLMHandler(): re-bind only when the active orchestrator
+    // actually changes. null is a valid "no session yet" orchestrator, so a
+    // separate flag distinguishes it from "never initialized".
+    private boolean engineInitialized;
+    private PPTXOrchestrator lastInitOrchestrator;
     private StyledConsoleView styledView;
     private List<String> commandHistory;
     private int historyIndex;
@@ -198,19 +202,27 @@ public class TechnicalConsoleController implements Initializable {
     }
     
     /**
-     * Initialize the LLM console handler using proper delegation
+     * Initialize (or re-bind) the console engine to the active orchestrator.
+     * Idempotent: this is called from several lifecycle hooks
+     * (setMainController, postSceneReady, onPresentationLoaded), so it only
+     * does work when the active orchestrator changes — opening a deck re-binds
+     * the engine, but boot doesn't rebuild it once per hook.
      */
     private void initializeLLMHandler() {
         if (mainController == null) return;
 
-        // The engine needs an orchestrator to construct its CommandFactory,
-        // LLMConsoleHandler, and ConsoleSessionManager. Post Session
-        // Unification the active orchestrator is null until the first
-        // session is created, so fall back to a fresh sessionless
-        // PPTXOrchestratorImpl at boot; the first setCurrentSession call
-        // will replace the engine's orchestrator with the session-bound
-        // one via the standard UIConsoleEngine/SessionManager plumbing.
-        PPTXOrchestrator orch = mainController.getCurrentOrchestrator();
+        // Skip if the engine is already bound to the current orchestrator.
+        // getCurrentOrchestrator() stays null until the first session exists;
+        // engineInitialized distinguishes that from "never initialized".
+        PPTXOrchestrator current = mainController.getCurrentOrchestrator();
+        if (engineInitialized && current == lastInitOrchestrator) return;
+
+        // The engine needs an orchestrator to construct its CommandFactory and
+        // ConsoleSessionManager. Post Session Unification the active
+        // orchestrator is null until the first session is created, so fall back
+        // to a fresh sessionless PPTXOrchestratorImpl at boot; a later session
+        // load re-binds the engine to the session's orchestrator.
+        PPTXOrchestrator orch = current;
         if (orch == null) {
             try {
                 orch = new PPTXOrchestratorImpl();
@@ -220,14 +232,14 @@ public class TechnicalConsoleController implements Initializable {
             }
         }
 
-        llmConsoleHandler = new LLMConsoleHandler(orch);
-
         if (consoleEngine != null) {
             consoleEngine.initialize(orch);
             if (styledView != null) {
                 consoleEngine.setStyledHandler(styledView::appendLine);
             }
             consoleEngine.setStatusHandler(this::updateStatus);
+            engineInitialized = true;
+            lastInitOrchestrator = current;
         }
     }
     

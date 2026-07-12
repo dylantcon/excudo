@@ -15,10 +15,8 @@ import com.excudo.core.model.TransitionType;
 import com.excudo.core.synthesis.spec.CommandSpec;
 import javafx.geometry.Insets;
 import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
@@ -35,80 +33,27 @@ import java.util.Optional;
 import java.util.function.IntFunction;
 
 /**
- * Typed forms for {@link CommandSpec} editing. The form-building logic is
- * factored into {@link #buildForm(CommandSpec)} -> {@link SpecForm} so the
- * exact same controls + reader feed two surfaces:
- * <ul>
- *   <li>the inline expandable row ({@code SpecRowView}), and</li>
- *   <li>the modal dialog ({@link #editSpec(CommandSpec)}), which is just
- *       {@link #showFormDialog} wrapping a {@code SpecForm}.</li>
- * </ul>
+ * Typed forms for {@link CommandSpec} editing. {@link #buildForm(CommandSpec)}
+ * returns a {@link SpecForm} (controls + reader) for a spec; it is the single
+ * source of form-building truth, consumed by the inline expandable row
+ * ({@code SpecRowView}).
  *
- * <p>Non-trivial specs (AddShape with full style, SetText TextBody,
- * AddAnimation with timing + effect params) currently have no typed form
- * and fall through to the JSON editor. {@link #editSpec(CommandSpec)}
- * returns:
- * <ul>
- *   <li>{@code Optional.of(newSpec)} — user confirmed a typed edit</li>
- *   <li>{@code Optional.empty()} — user cancelled OR this spec type has no
- *       typed form yet (caller should fall back to the JSON editor)</li>
- * </ul>
- *
- * <p>Callers distinguish "cancelled" from "unsupported" by peeking at
- * {@link #hasTypedForm(CommandSpec)} before calling.
+ * <p>Three nested sub-models — SetText's {@code TextBody}, SetShapeStyle's
+ * {@code ShapeStyle}, and AddAnimation's {@code AnimationBinding} — expose only
+ * their common fields inline. {@link #supportsAdvancedJson(CommandSpec)} marks
+ * those so the row can offer an "Advanced (JSON)…" hatch for full fidelity.
  */
 public final class SpecFormDialog {
 
     private SpecFormDialog() {}
 
-    /** True if this spec has a bespoke form; false means the caller should
-     *  use the JSON editor instead.
+    /** Build the editable form (controls + reader) for a spec. Currently
+     *  present for every spec type; the {@link Optional} return leaves room
+     *  for a future spec to opt out and route to JSON instead.
      *
-     *  <p>Exhaustive switch over the sealed {@link CommandSpec}
-     *  hierarchy — if someone adds a new spec to the permits list, this
-     *  method stops compiling until the author explicitly decides
-     *  {@code true} (ship a form) or {@code false} (leave to JSON). */
-    public static boolean hasTypedForm(CommandSpec spec) {
-        return switch (spec) {
-            case CommandSpec.MoveSpec m -> true;
-            case CommandSpec.ResizeSpec r -> true;
-            case CommandSpec.RotateSpec r -> true;
-            case CommandSpec.RenameShapeSpec r -> true;
-            case CommandSpec.SetTextBoxFlagSpec t -> true;
-            case CommandSpec.ReorderSpec r -> true;
-            case CommandSpec.RemoveShapeSpec r -> true;
-            case CommandSpec.RemoveAnimationSpec r -> true;
-            case CommandSpec.SetAnimationTimingSpec t -> true;
-            case CommandSpec.SetTransitionSpec t -> true;
-            case CommandSpec.ClearTransitionSpec c -> true;
-            case CommandSpec.UngroupSpec u -> true;
-            case CommandSpec.AddToGroupSpec a -> true;
-            case CommandSpec.DetachFromGroupSpec d -> true;
-            case CommandSpec.AddShapeSpec a -> true;
-            // JSON-fallback set — sub-models too rich for a typed form today.
-            case CommandSpec.SetTextSpec s -> false;
-            case CommandSpec.SetShapeStyleSpec s -> false;
-            case CommandSpec.SetRunFormatSpec s -> false;
-            case CommandSpec.AddAnimationSpec a -> false;
-            case CommandSpec.CreateGroupSpec g -> false;
-            case CommandSpec.CreateCodeBoxSpec c -> false;
-            case CommandSpec.CreateDiagramSpec d -> false;
-            // AddConnector carries endpoint bindings (startSpid/endSpid
-            // pairs, headEnd/tailEnd, customPath) — a JSON editor is the
-            // right surface until someone needs a richer typed form.
-            case CommandSpec.AddConnectorSpec c -> false;
-            // AddPicture carries a BlipRef sub-model — JSON editor for now.
-            case CommandSpec.AddPictureSpec p -> false;
-        };
-    }
-
-    /** Build the editable form (controls + reader) for a spec, or empty
-     *  for spec types that still route to the JSON editor.
-     *
-     *  <p>This is the single source of form-building truth shared by the
-     *  inline row and the modal dialog. Exhaustive on the sealed hierarchy
-     *  for the same reason as {@link #hasTypedForm}: a new spec breaks
-     *  compilation here until someone wires it. */
+     *  <p>This is the single source of form-building truth. The switch is
+     *  exhaustive on the sealed {@link CommandSpec} hierarchy, so a new spec
+     *  breaks compilation here until someone wires it. */
     public static Optional<SpecForm> buildForm(CommandSpec spec) {
         return switch (spec) {
             case CommandSpec.MoveSpec m -> Optional.of(buildMoveForm(m));
@@ -156,54 +101,6 @@ public final class SpecFormDialog {
         };
     }
 
-    /** Open the appropriate typed-form dialog and return the edited spec,
-     *  or empty if the user cancelled / this spec falls through to JSON.
-     *  Exhaustive on the sealed hierarchy for the same reason as
-     *  {@link #hasTypedForm}. */
-    public static Optional<CommandSpec> editSpec(CommandSpec spec) {
-        return switch (spec) {
-            case CommandSpec.MoveSpec m -> editMove(m);
-            case CommandSpec.ResizeSpec r -> editResize(r);
-            case CommandSpec.RotateSpec r -> editRotate(r);
-            case CommandSpec.RenameShapeSpec r -> editRename(r);
-            case CommandSpec.SetTextBoxFlagSpec t -> editTxBoxFlag(t);
-            case CommandSpec.ReorderSpec r -> editReorder(r);
-            case CommandSpec.RemoveShapeSpec r -> confirmSpidAction("Remove shape", r.spid(),
-                newSpid -> new CommandSpec.RemoveShapeSpec(r.slideNumber(), newSpid));
-            case CommandSpec.RemoveAnimationSpec r -> editRemoveAnim(r);
-            case CommandSpec.SetAnimationTimingSpec t -> editAnimTiming(t);
-            case CommandSpec.SetTransitionSpec t -> editTransition(t);
-            case CommandSpec.ClearTransitionSpec c -> Optional.of(c);
-            case CommandSpec.UngroupSpec u -> confirmSpidAction("Ungroup", u.groupSpid(),
-                newSpid -> new CommandSpec.UngroupSpec(u.slideNumber(), newSpid));
-            case CommandSpec.AddToGroupSpec a -> editAddToGroup(a);
-            case CommandSpec.DetachFromGroupSpec d -> confirmSpidAction("Detach from group", d.childSpid(),
-                newSpid -> new CommandSpec.DetachFromGroupSpec(d.slideNumber(), newSpid));
-            case CommandSpec.AddShapeSpec a -> editAddShape(a);
-            // JSON-fallback — the caller checks hasTypedForm first and
-            // routes these to the JSON editor rather than calling editSpec.
-            case CommandSpec.SetTextSpec s -> Optional.empty();
-            case CommandSpec.SetShapeStyleSpec s -> Optional.empty();
-            case CommandSpec.SetRunFormatSpec s -> Optional.empty();
-            case CommandSpec.AddAnimationSpec a -> Optional.empty();
-            case CommandSpec.CreateGroupSpec g -> Optional.empty();
-            case CommandSpec.CreateCodeBoxSpec c -> Optional.empty();
-            case CommandSpec.CreateDiagramSpec d -> Optional.empty();
-            case CommandSpec.AddConnectorSpec c -> Optional.empty();
-            case CommandSpec.AddPictureSpec p -> Optional.empty();
-        };
-    }
-
-    /** Wrap a {@link SpecForm} in an OK/Cancel modal dialog. The reader
-     *  fires only on OK; a parse/validation throw there propagates as the
-     *  dialog failing to produce a result (same as before the refactor). */
-    private static Optional<CommandSpec> showFormDialog(String title, String header, SpecForm form) {
-        Dialog<CommandSpec> dlg = baseDialog(title, header);
-        dlg.getDialogPane().setContent(form.node());
-        dlg.setResultConverter(bt -> bt != ButtonType.OK ? null : form.read().get());
-        return dlg.showAndWait();
-    }
-
     // ====================================================================
     // Simple specs
     // ====================================================================
@@ -220,10 +117,6 @@ public final class SpecFormDialog {
             new CommandSpec.MoveSpec(m.slideNumber(), parseInt(spidField), parseLong(xField), parseLong(yField)));
     }
 
-    private static Optional<CommandSpec> editMove(CommandSpec.MoveSpec m) {
-        return showFormDialog("Move", "Shape position (EMU, 914400 = 1 inch)", buildMoveForm(m));
-    }
-
     private static SpecForm buildResizeForm(CommandSpec.ResizeSpec r) {
         GridPane grid = grid();
         TextField spidField = textField(String.valueOf(r.spid()));
@@ -234,10 +127,6 @@ public final class SpecFormDialog {
         addRow(grid, 2, "Height (EMU)", hField);
         return new SpecForm(grid, () ->
             new CommandSpec.ResizeSpec(r.slideNumber(), parseInt(spidField), parseLong(wField), parseLong(hField)));
-    }
-
-    private static Optional<CommandSpec> editResize(CommandSpec.ResizeSpec r) {
-        return showFormDialog("Resize", "Shape size (EMU, 914400 = 1 inch)", buildResizeForm(r));
     }
 
     private static SpecForm buildRotateForm(CommandSpec.RotateSpec r) {
@@ -253,10 +142,6 @@ public final class SpecFormDialog {
             new CommandSpec.RotateSpec(r.slideNumber(), parseInt(spidField), rotSpinner.getValue()));
     }
 
-    private static Optional<CommandSpec> editRotate(CommandSpec.RotateSpec r) {
-        return showFormDialog("Rotate", "Shape rotation (degrees)", buildRotateForm(r));
-    }
-
     private static SpecForm buildRenameForm(CommandSpec.RenameShapeSpec r) {
         GridPane grid = grid();
         TextField spidField = textField(String.valueOf(r.spid()));
@@ -265,10 +150,6 @@ public final class SpecFormDialog {
         addRow(grid, 1, "New name", nameField);
         return new SpecForm(grid, () ->
             new CommandSpec.RenameShapeSpec(r.slideNumber(), parseInt(spidField), nameField.getText()));
-    }
-
-    private static Optional<CommandSpec> editRename(CommandSpec.RenameShapeSpec r) {
-        return showFormDialog("Rename shape", "Update cNvPr/@name", buildRenameForm(r));
     }
 
     private static SpecForm buildTxBoxFlagForm(CommandSpec.SetTextBoxFlagSpec t) {
@@ -280,10 +161,6 @@ public final class SpecFormDialog {
         addRow(grid, 1, "", flagBox);
         return new SpecForm(grid, () ->
             new CommandSpec.SetTextBoxFlagSpec(t.slideNumber(), parseInt(spidField), flagBox.isSelected()));
-    }
-
-    private static Optional<CommandSpec> editTxBoxFlag(CommandSpec.SetTextBoxFlagSpec t) {
-        return showFormDialog("Toggle txBox flag", "cNvSpPr/@txBox marker", buildTxBoxFlagForm(t));
     }
 
     private static SpecForm buildReorderForm(CommandSpec.ReorderSpec r) {
@@ -298,20 +175,12 @@ public final class SpecFormDialog {
             new CommandSpec.ReorderSpec(r.slideNumber(), parseInt(spidField), dirBox.getValue()));
     }
 
-    private static Optional<CommandSpec> editReorder(CommandSpec.ReorderSpec r) {
-        return showFormDialog("Reorder z-order", "Pick direction", buildReorderForm(r));
-    }
-
     private static SpecForm buildRemoveAnimForm(CommandSpec.RemoveAnimationSpec r) {
         GridPane grid = grid();
         TextField idField = textField(String.valueOf(r.timingNodeId()));
         addRow(grid, 0, "cTn id", idField);
         return new SpecForm(grid, () ->
             new CommandSpec.RemoveAnimationSpec(r.slideNumber(), parseInt(idField)));
-    }
-
-    private static Optional<CommandSpec> editRemoveAnim(CommandSpec.RemoveAnimationSpec r) {
-        return showFormDialog("Remove animation", "Timing-tree cTn id", buildRemoveAnimForm(r));
     }
 
     private static SpecForm buildAnimTimingForm(CommandSpec.SetAnimationTimingSpec t) {
@@ -328,10 +197,6 @@ public final class SpecFormDialog {
                 parseInt(idField),
                 blankToNull(durField.getText()),
                 blankToNull(delayField.getText())));
-    }
-
-    private static Optional<CommandSpec> editAnimTiming(CommandSpec.SetAnimationTimingSpec t) {
-        return showFormDialog("Animation timing", "Null fields are left unchanged", buildAnimTimingForm(t));
     }
 
     private static SpecForm buildTransitionForm(CommandSpec.SetTransitionSpec t) {
@@ -354,10 +219,6 @@ public final class SpecFormDialog {
                 blankToNull(advField.getText()) == null ? null : Integer.valueOf(advField.getText().trim())));
     }
 
-    private static Optional<CommandSpec> editTransition(CommandSpec.SetTransitionSpec t) {
-        return showFormDialog("Slide transition", "Inheritance handled on read side", buildTransitionForm(t));
-    }
-
     private static SpecForm buildAddToGroupForm(CommandSpec.AddToGroupSpec a) {
         GridPane grid = grid();
         TextField groupField = textField(String.valueOf(a.groupSpid()));
@@ -366,10 +227,6 @@ public final class SpecFormDialog {
         addRow(grid, 1, "Child SPID", childField);
         return new SpecForm(grid, () ->
             new CommandSpec.AddToGroupSpec(a.slideNumber(), parseInt(groupField), parseInt(childField)));
-    }
-
-    private static Optional<CommandSpec> editAddToGroup(CommandSpec.AddToGroupSpec a) {
-        return showFormDialog("Add to group", "Both SPIDs must differ", buildAddToGroupForm(a));
     }
 
     /** A one-field SPID form, shared by RemoveShape / Ungroup / Detach. The
@@ -387,10 +244,6 @@ public final class SpecFormDialog {
         GridPane grid = grid();
         addRow(grid, 0, "", new Label("Clears the slide-level transition — no parameters."));
         return new SpecForm(grid, () -> c);
-    }
-
-    private static Optional<CommandSpec> confirmSpidAction(String title, int spid, IntFunction<CommandSpec> rebuild) {
-        return showFormDialog(title, "Target SPID", buildSpidForm(spid, rebuild));
     }
 
     // ====================================================================
@@ -445,10 +298,6 @@ public final class SpecFormDialog {
                 txBoxCheck.isSelected(),
                 a.sourceSpidHint());
         });
-    }
-
-    private static Optional<CommandSpec> editAddShape(CommandSpec.AddShapeSpec a) {
-        return showFormDialog("Add shape", "Style edits fall through to JSON", buildAddShapeForm(a));
     }
 
     // ====================================================================
@@ -840,14 +689,6 @@ public final class SpecFormDialog {
     // Helpers
     // ====================================================================
 
-    private static Dialog<CommandSpec> baseDialog(String title, String header) {
-        Dialog<CommandSpec> dlg = new Dialog<>();
-        dlg.setTitle(title);
-        dlg.setHeaderText(header);
-        dlg.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        return dlg;
-    }
-
     private static GridPane grid() {
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -874,12 +715,9 @@ public final class SpecFormDialog {
     }
 
     private static void addRow(GridPane grid, int row, String label, javafx.scene.Node control) {
-        Label l = new Label(label);
-        // Belt-and-suspenders with the label ColumnConstraints: pin the label
-        // to its preferred width so it always renders the full text rather
-        // than collapsing to an ellipsis when the panel is narrow.
-        l.setMinWidth(Region.USE_PREF_SIZE);
-        grid.add(l, 0, row);
+        // The label column's min = USE_PREF_SIZE (see grid()) already pins
+        // labels to their full width, so they never truncate to an ellipsis.
+        grid.add(new Label(label), 0, row);
         grid.add(control, 1, row);
     }
 

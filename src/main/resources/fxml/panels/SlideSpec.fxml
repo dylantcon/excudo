@@ -32,7 +32,7 @@
       <Button fx:id="slideSpecMoveDownButton" text="Down" />
       <Button fx:id="slideSpecResetButton" text="Reset to synthesized" disable="true" />
    </FlowPane>
-   <ScrollPane fx:id="slideSpecScroll" fitToWidth="true" VBox.vgrow="ALWAYS">
+   <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
       <VBox fx:id="slideSpecRows" spacing="2.0" />
    </ScrollPane>
    <Label fx:id="slideSpecWarnings" style="-fx-text-fill: #dcdcaa; -fx-font-size: 10px;" wrapText="true" />
