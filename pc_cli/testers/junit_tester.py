@@ -205,7 +205,14 @@ class PCTester:
                 cmd.extend(["--module-path", str(javafx_lib_path), 
                            "--add-modules", "javafx.controls,javafx.fxml,javafx.web,javafx.swing"])
         
-        cmd.extend(["-d", "build/test"] + [str(f) for f in test_files])
+        # Source list goes through a javac @argfile: compiling every test
+        # (276+ absolute paths) inline exceeds the Windows 32K command-line
+        # limit (WinError 206).
+        argfile = test_build_dir / "test-sources.args"
+        argfile.write_text(
+            "\n".join('"' + str(f).replace("\\", "/") + '"' for f in test_files),
+            encoding="utf-8")
+        cmd.extend(["-d", "build/test", f"@{argfile}"])
         
         if self.env.config.get("verbose", False):
             print(f"  Test compilation command: {' '.join(cmd)}")

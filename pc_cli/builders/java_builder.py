@@ -551,8 +551,15 @@ public class JavaFXTest extends Application {
                     "--add-modules", "javafx.controls,javafx.fxml,javafx.web,javafx.swing"
                 ]
 
-        cmd = [javac, "-cp", classpath + ":build", "-d", "build/test"] + javafx_modules + [str(f) for f in test_files]
-        
+        # Pass the source list through a javac @argfile: a full test
+        # recompile (276+ files with absolute paths) exceeds the Windows
+        # 32K command-line limit and dies with WinError 206 otherwise.
+        argfile = self.build_dir / "test-sources.args"
+        argfile.write_text(
+            "\n".join('"' + str(f).replace("\\", "/") + '"' for f in test_files),
+            encoding="utf-8")
+        cmd = [javac, "-cp", classpath + ":build", "-d", "build/test"] + javafx_modules + [f"@{argfile}"]
+
         # Use xvfb-run on Linux for headless environments with JavaFX tests
         is_headless_system = (
             platform.system() == "Linux" and 
