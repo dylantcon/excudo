@@ -61,9 +61,12 @@ public class BulletFontMapperTest {
     }
 
     @Test
-    public void testWingdingsSubBulletDiamond() {
-        // 0xA7 (§) is PowerPoint's default level-2/3 sub-bullet.
-        assertEquals("◆", BulletFontMapper.translate("Wingdings", "§"));
+    public void testWingdingsSmallSquareBullet() {
+        // 0xA7 (§) is a small filled square in Wingdings. Pinned against
+        // PowerPoint's own PDF export of the text-bullets parity deck,
+        // which renders buChar="§"/Wingdings as ▪ — the previous ◆
+        // expectation pinned a misreading of the Wingdings chart.
+        assertEquals("▪", BulletFontMapper.translate("Wingdings", "§"));
     }
 
     @Test

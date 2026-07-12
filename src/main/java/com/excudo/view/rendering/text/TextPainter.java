@@ -1,9 +1,9 @@
 package com.excudo.view.rendering.text;
 
 import com.excudo.core.metrics.MeasuredText;
+import com.excudo.core.metrics.TextStyleSource;
 import com.excudo.core.model.*;
 import com.excudo.core.model.BulletType;
-import com.excudo.core.themes.TextLevelStyle;
 import com.excudo.view.rendering.CoordinateMapper;
 import com.excudo.view.rendering.RenderingContext;
 import com.excudo.view.rendering.ShapeStyleExtractor;
@@ -14,7 +14,6 @@ import com.excudo.core.rendering.surface.SurfaceFont;
 import com.excudo.core.rendering.surface.SurfacePaint;
 import javafx.geometry.Rectangle2D;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,16 +22,29 @@ import java.util.List;
  *
  * Pipeline:
  *   TextBodyExtractor.extract(xmlElement) -> TextBody
- *   TextMeasurer.measure(textBody, widthEmu) -> MeasuredText
- *   TextPainter.paint(textBody, measuredText, bounds, ctx, slideCtx)
+ *   TextMeasurer.measure(textBody, widthEmu, styles) -> MeasuredText
+ *   TextPainter.paint(textBody, measuredText, bounds, ctx, slideCtx, phType, styles)
  *
- * As of the Bridge refactor, the only JavaFX-specific state this class
- * touches is (a) {@link Color} as an input type from
- * {@link ShapeStyleExtractor} -- converted to {@link SurfacePaint} via
- * the Phase-B adapter -- and (b) {@link Rectangle2D} / {@link javafx.geometry.Point2D}
- * which are pure-geometry types without rendering implications. The
- * JavaFX Font cache and JavaFX-Text-node width measurement cache that
- * used to live here migrated into {@link com.excudo.view.rendering.surface.CanvasRenderSurface}.
+ * <h2>Single wrap authority</h2>
+ * The painter draws exactly the lines {@link MeasuredText} carries —
+ * per-line styled segments positioned in EMUs by the TTF-metric
+ * measurement engine. It never re-wraps with the surface's own width
+ * engine; the two engines used to disagree about line breaks, which
+ * broke vertical centering and wrap position. Measured EMU offsets are
+ * converted to pixels here for alignment/justification only.
+ *
+ * <h2>No text clipping</h2>
+ * Text that overflows the shape is painted in full. PowerPoint's PDF
+ * export does the same — the text-align-wrap and text-autofit corpus
+ * truth images show overflow text continuing past the shape outline —
+ * so clipping to the shape bounds would diverge from ground truth.
+ *
+ * <h2>Autofit</h2>
+ * {@code normAutofit} fontScale / lnSpcReduction are applied during
+ * measurement (the stored values are PowerPoint's own fit computation),
+ * so the segments arriving here already carry the reduced sizes.
+ * {@code spAutoFit} boxes need no shrink at all: the stored shape
+ * geometry reflects the grown box and overflow simply paints.
  */
 public final class TextPainter {
 
@@ -44,18 +56,36 @@ public final class TextPainter {
     public static void paint(TextBody textBody, MeasuredText measured,
                              Rectangle2D boundsPixels, RenderingContext ctx,
                              SlideRenderContext slideCtx) {
-        paint(textBody, measured, boundsPixels, ctx, slideCtx, null);
+        paint(textBody, measured, boundsPixels, ctx, slideCtx, null, TextStyleSource.EMPTY);
     }
 
     /**
-     * Paint a TextBody within the given pixel bounds.
+     * Paint with no inherited list-style context.
      *
      * @param placeholderType "title", "ctrTitle", "body", "subTitle", "obj", or null
      */
     public static void paint(TextBody textBody, MeasuredText measured,
                              Rectangle2D boundsPixels, RenderingContext ctx,
                              SlideRenderContext slideCtx, String placeholderType) {
+        paint(textBody, measured, boundsPixels, ctx, slideCtx, placeholderType,
+            TextStyleSource.EMPTY);
+    }
+
+    /**
+     * Paint a TextBody within the given pixel bounds.
+     *
+     * @param placeholderType "title", "ctrTitle", "body", "subTitle", "obj", or null
+     * @param styles          the SAME style source that was passed to
+     *                        {@code TextMeasurer.measure} — the painter only
+     *                        consults it for paint-side properties (colors,
+     *                        bullets); all geometry comes from {@code measured}
+     */
+    public static void paint(TextBody textBody, MeasuredText measured,
+                             Rectangle2D boundsPixels, RenderingContext ctx,
+                             SlideRenderContext slideCtx, String placeholderType,
+                             TextStyleSource styles) {
         if (textBody == null || measured == null || boundsPixels == null) return;
+        if (styles == null) styles = TextStyleSource.EMPTY;
 
         RenderSurface surface = ctx.getSurface();
         // Composite scale (canvas-fit * user-zoom). Matches what
@@ -71,7 +101,6 @@ public final class TextPainter {
             ? bp.getTopInset() : 45720) * zoom;
         double rightInsetPx = emuToPixels(bp != null && bp.getRightInset() != null
             ? bp.getRightInset() : 91440) * zoom;
-
         double bottomInsetPx = emuToPixels(bp != null && bp.getBottomInset() != null
             ? bp.getBottomInset() : 45720) * zoom;
 
@@ -103,18 +132,6 @@ public final class TextPainter {
         List<TextParagraph> paragraphs = textBody.getParagraphs();
         List<MeasuredText.ParagraphMeasurement> measurements = measured.getParagraphs();
 
-        // Autofit: shrink text proportionally if it exceeds available height
-        if (bp != null && bp.getAutofit() == AutofitType.NORMAL) {
-            double totalTextHeightPx = emuToPixels(measured.getTotalHeightEmu()) * zoom;
-            double availableHeight = boundsPixels.getHeight() - topInsetPx - bottomInsetPx;
-            if (totalTextHeightPx > availableHeight && totalTextHeightPx > 0) {
-                double scale = bp.getFontScale() != null
-                    ? bp.getFontScale() / 100000.0
-                    : availableHeight / totalTextHeightPx;
-                zoom *= Math.max(scale, 0.3); // floor at 30% to prevent invisible text
-            }
-        }
-
         // Vertical alignment: offset startY for center/bottom anchors.
         // When the shape's own bodyPr omits the anchor attribute, ECMA-376
         // (MS-OI29500 section 2.1.1379) requires walking layout -> master
@@ -126,13 +143,16 @@ public final class TextPainter {
             vAlign = slideCtx.resolveInheritedBodyPrAnchor(placeholderType, null);
         }
         if ("ctr".equals(vAlign) || "b".equals(vAlign)) {
-            double totalTextHeightPx = emuToPixels(measured.getTotalHeightEmu()) * zoom;
+            // Center the text block (insets excluded) within the inset
+            // text area. Using the inset-inclusive total height shifted
+            // centered text up by half the vertical insets.
+            double textHeightPx = emuToPixels(measured.getTextHeightEmu()) * zoom;
             double availableHeight = boundsPixels.getHeight() - topInsetPx - bottomInsetPx;
-            if (totalTextHeightPx < availableHeight) {
+            if (textHeightPx < availableHeight) {
                 if ("ctr".equals(vAlign)) {
-                    startY += (availableHeight - totalTextHeightPx) / 2;
+                    startY += (availableHeight - textHeightPx) / 2;
                 } else {
-                    startY += availableHeight - totalTextHeightPx;
+                    startY += availableHeight - textHeightPx;
                 }
             }
         }
@@ -141,8 +161,12 @@ public final class TextPainter {
 
         // Auto-number bullet counter. Restarts when a non-AUTONUMBER
         // paragraph breaks the sequence (PowerPoint behaviour: "1. 2. 3.
-        // [plain paragraph] 1. 2." rather than continuing through).
+        // [plain paragraph] 1. 2." rather than continuing through) AND
+        // when the numbering scheme changes (PowerPoint's export of
+        // consecutive arabicPeriod/romanUcPeriod/alphaLcParenR lists
+        // shows "1. 2. I. II. a) b)", not "1. 2. III. IV. e) f)").
         int autoNumCounter = 0;
+        String lastAutonumType = null;
 
         for (int i = 0; i < paragraphs.size() && i < measurements.size(); i++) {
             TextParagraph para = paragraphs.get(i);
@@ -153,17 +177,25 @@ public final class TextPainter {
                 continue;
             }
 
+            TextStyleSource.LevelStyle ls = styles.levelStyle(para.getLevel());
+            if (ls == null) ls = TextStyleSource.LevelStyle.EMPTY;
+
+            Bullet bullet = resolveBullet(para, ls);
             int paraNumber = 0;
-            if (para.getBulletType() == BulletType.AUTONUMBER) {
+            if (bullet != null && bullet.autonumType() != null) {
+                if (!bullet.autonumType().equals(lastAutonumType)) {
+                    autoNumCounter = 0;
+                }
                 autoNumCounter++;
                 paraNumber = autoNumCounter;
+                lastAutonumType = bullet.autonumType();
             } else {
                 autoNumCounter = 0;
+                lastAutonumType = null;
             }
 
-            boolean isTitle = "title".equals(placeholderType) || "ctrTitle".equals(placeholderType);
-            currentY = paintParagraph(para, pm, startX, currentY, maxWidth, surface, slideCtx, zoom,
-                placeholderType, isTitle, paraNumber);
+            currentY = paintParagraph(para, pm, ls, bullet, paraNumber, startX, currentY,
+                maxWidth, surface, slideCtx, zoom, placeholderType);
         }
 
         if (isVertical) {
@@ -171,334 +203,362 @@ public final class TextPainter {
         }
     }
 
+    // ========== PARAGRAPH ==========
+
     /**
-     * Paint a single paragraph. Returns the Y position after this paragraph.
+     * Resolved bullet descriptor: exactly one of {@code character} /
+     * {@code autonumType} / {@code imageRelId} is set.
+     */
+    private record Bullet(String character, String fontFamily, String autonumType,
+                          String imageRelId, Integer sizePct, TextColor color) {}
+
+    /**
+     * Resolve the paragraph's effective bullet. Explicit paragraph
+     * properties win; {@link BulletType#INHERITED} falls through to the
+     * level style resolved from the lstStyle chain (which already
+     * encodes layout/master/defaultTextStyle precedence), so plain text
+     * boxes no longer need placeholder gating — their chain simply has
+     * no bullet unless one was authored.
+     */
+    private static Bullet resolveBullet(TextParagraph para, TextStyleSource.LevelStyle ls) {
+        Integer sizePct = para.getBulletSizePercent() != null
+            ? para.getBulletSizePercent() : ls.bulletSizePct();
+        TextColor color = para.getBulletColor() != null
+            ? para.getBulletColor() : ls.bulletColor();
+
+        switch (para.getBulletType()) {
+            case CHARACTER:
+                String ch = para.getBulletChar();
+                String font = para.getBulletFont();
+                if (ch == null) { ch = ls.bulletChar(); font = ls.bulletFont(); }
+                return ch != null ? new Bullet(ch, font, null, null, sizePct, color) : null;
+            case AUTONUMBER:
+                return new Bullet(null, para.getBulletFont(), para.getAutonumType(),
+                    null, sizePct, color);
+            case PICTURE:
+                return para.getBulletImageRelId() != null
+                    ? new Bullet(null, null, null, para.getBulletImageRelId(), sizePct, color)
+                    : null;
+            case INHERITED:
+                if (Boolean.TRUE.equals(ls.bulletNone())) return null;
+                if (ls.bulletChar() != null) {
+                    return new Bullet(ls.bulletChar(), ls.bulletFont(), null, null,
+                        sizePct, color);
+                }
+                if (ls.autonumType() != null) {
+                    return new Bullet(null, ls.bulletFont(), ls.autonumType(), null,
+                        sizePct, color);
+                }
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Paint a single paragraph from its measured line layout. Returns
+     * the Y position after this paragraph.
      */
     private static double paintParagraph(TextParagraph para, MeasuredText.ParagraphMeasurement pm,
-                                          double startX, double startY, double maxWidth,
-                                          RenderSurface surface, SlideRenderContext slideCtx,
-                                          double zoom, String placeholderType, boolean isTitle,
-                                          int autoNumber) {
-        int level = para.getLevel();
-
-        // Use title style or body style based on placeholder type
-        TextLevelStyle themeStyle = null;
-        if (slideCtx != null) {
-            themeStyle = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
+                                         TextStyleSource.LevelStyle ls, Bullet bullet,
+                                         int autoNumber, double startX, double startY,
+                                         double maxWidth, RenderSurface surface,
+                                         SlideRenderContext slideCtx, double zoom,
+                                         String placeholderType) {
+        List<MeasuredText.Line> lines = pm.getLines();
+        if (lines.isEmpty()) {
+            return startY + emuToPixels(pm.getHeightEmu()) * zoom;
         }
 
-        // OOXML inheritance: theme paragraph styles (margin / indent /
-        // spacing) only apply to placeholder shapes. A plain RECTANGLE or
-        // text box that doesn't set its own marL inherits NOTHING from
-        // theme -- defaults are zero, not the theme's body-style margin.
-        // Without this guard a 13pt-wide text box on a slide with a 12pt
-        // theme body margin had its text pushed past the right edge.
-        // Same pattern as the phantom-bullet inheritance fix.
-        boolean isPlaceholder = placeholderType != null;
+        double marginLeftPx = emuToPixels(pm.getMarginLeftEmu()) * zoom;
+        double indentPx = emuToPixels(pm.getIndentEmu()) * zoom;
+        double textOriginX = startX + marginLeftPx;
 
-        // Resolve marL and indent INDEPENDENTLY. The old code only read
-        // para.getMarginLeft() and left indentPx=0 whenever the paragraph
-        // overrode marL, so explicit <a:pPr marL=X indent=-X> on a
-        // placeholder body paragraph lost its hanging indent and the
-        // bullet landed at textX on top of the first letter. Theme
-        // fallback still only applies to placeholders per OOXML scoping.
-        double marginLeftPx = 0;
-        double indentPx = 0;
-        if (para.getMarginLeft() != null) {
-            marginLeftPx = emuToPixels(para.getMarginLeft()) * zoom;
-        } else if (themeStyle != null && isPlaceholder) {
-            marginLeftPx = emuToPixels(themeStyle.getMarginLeft()) * zoom;
-        }
-        if (para.getIndent() != null) {
-            indentPx = emuToPixels(para.getIndent()) * zoom;
-        } else if (themeStyle != null && isPlaceholder) {
-            indentPx = emuToPixels(themeStyle.getIndent()) * zoom;
-        }
+        // Width alignment distributes within: the measured wrap width,
+        // capped at the text area (wrap="none" measures against an
+        // effectively infinite width).
+        double wrapWidthPx = Math.min(emuToPixels(pm.getWrapWidthEmu()) * zoom,
+            Math.max(1, maxWidth - marginLeftPx));
 
-        // Space before
-        double spaceBeforePx = 0;
-        if (para.getSpaceBefore() != null && para.getSpaceBefore() > 0) {
-            spaceBeforePx = (para.getSpaceBefore() / 100.0) * zoom;
-        } else if (themeStyle != null && isPlaceholder && themeStyle.getSpaceBefore() > 0) {
-            spaceBeforePx = (themeStyle.getSpaceBefore() / 100.0) * zoom;
-        }
+        double currentY = startY + emuToPixels(pm.getSpaceBeforeEmu()) * zoom;
 
-        double currentY = startY + spaceBeforePx;
-        double textX = startX + marginLeftPx;
-
-        // Render bullet character if present
-        if (para.getBulletType() == BulletType.CHARACTER
-            || (para.getBulletType() == BulletType.INHERITED && isPlaceholder)) {
-            String bulletChar = para.getBulletChar();
-            String bulletFontFamily = para.getBulletFont();
-
-            // For INHERITED bullets, always look up from theme
-            if (para.getBulletType() == BulletType.INHERITED
-                && isPlaceholder && themeStyle != null && themeStyle.hasBullet()) {
-                bulletChar = themeStyle.getBulletChar();
-                bulletFontFamily = themeStyle.getBulletFont();
-            }
-            // Theme-level bullet inheritance (paragraph doesn't specify its own).
-            // Still gated on placeholder so a non-placeholder shape that
-            // happens to have CHARACTER-type bullet override still renders it,
-            // but one without any explicit bullet doesn't leak theme bullets.
-            if (bulletChar == null && isPlaceholder
-                && themeStyle != null && themeStyle.hasBullet()) {
-                bulletChar = themeStyle.getBulletChar();
-                if (bulletFontFamily == null && themeStyle.getBulletFont() != null) {
-                    bulletFontFamily = themeStyle.getBulletFont();
+        // Bullet (or auto-number) rendered against the first line's baseline.
+        double firstLineBulletShift = 0;
+        if (bullet != null) {
+            MeasuredText.Segment firstInk = firstInkSegment(lines);
+            if (firstInk != null) {
+                double bulletAdvance = paintBullet(bullet, autoNumber, firstInk, para, ls,
+                    textOriginX + indentPx,
+                    currentY + emuToPixels(lines.get(0).baselineEmu()) * zoom,
+                    surface, slideCtx, zoom, placeholderType);
+                // No hanging indent: the bullet occupies the first line's
+                // leading space and pushes the text right (PowerPoint
+                // renders "1.item" / "•item" flush when marL == indent == 0).
+                if (pm.getIndentEmu() >= 0) {
+                    firstLineBulletShift = bulletAdvance;
                 }
             }
-            if (bulletChar != null) {
-                // Wingdings / Wingdings 2 / Wingdings 3 / Symbol bullets are
-                // stored in OOXML as ASCII-range codepoints that only render
-                // correctly when the corresponding symbol font is installed.
-                // On Linux hosts (and headless CI) those fonts usually aren't
-                // present, so a literal 'l' renders as the letter "l" instead
-                // of "●". Translate to Unicode equivalents and render in the
-                // body font, which has the geometric/check/cross glyphs
-                // natively. PowerPoint-style appearance, host-font-independent.
-                String renderedBulletChar = bulletChar;
-                String renderedBulletFontFamily = bulletFontFamily;
-                if (BulletFontMapper.isSymbolFont(bulletFontFamily)) {
-                    renderedBulletChar = BulletFontMapper.translate(bulletFontFamily, bulletChar);
-                    renderedBulletFontFamily = null; // fall through to body font
-                }
+        }
 
-                SurfaceFont bulletFont;
-                double bulletSizePt = themeStyle != null ? themeStyle.getFontSize() / 100.0 : 18.0;
-                if (renderedBulletFontFamily != null && !renderedBulletFontFamily.isEmpty()) {
-                    bulletFont = SurfaceFont.of(renderedBulletFontFamily, bulletSizePt * zoom);
-                } else {
-                    bulletFont = resolveFont(null, slideCtx, zoom, level, isTitle);
-                }
-                surface.setFont(bulletFont);
-                SurfacePaint textColor = resolveDefaultTextColor(slideCtx, placeholderType);
-                surface.setFill(textColor);
-                surface.fillText(renderedBulletChar, textX + indentPx, currentY + bulletFont.sizePx());
+        String alignment = pm.getAlignment();
+
+        for (int li = 0; li < lines.size(); li++) {
+            MeasuredText.Line line = lines.get(li);
+            double lineTop = currentY;
+            double baselineY = lineTop + emuToPixels(line.baselineEmu()) * zoom;
+            double advancePx = emuToPixels(line.advanceEmu()) * zoom;
+            double lineWidthPx = emuToPixels(line.widthEmu()) * zoom;
+
+            double lineX = textOriginX;
+            if (li == 0) {
+                if (pm.getIndentEmu() > 0) lineX += indentPx;
+                lineX += firstLineBulletShift;
             }
-        } else if (para.getBulletType() == BulletType.AUTONUMBER && autoNumber > 0) {
-            // Auto-numbered list. PowerPoint renders these as "1.", "2.",
-            // "(1)", "i.", etc. depending on autonumType. Without this
-            // branch, code blocks with line numbers (auto-numbered
-            // paragraphs) rendered with no number prefix at all.
-            String numberStr = formatAutoNumber(autoNumber, para.getAutonumType());
-            SurfaceFont numberFont = resolveFont(null, slideCtx, zoom, level, isTitle);
-            surface.setFont(numberFont);
-            SurfacePaint textColor = resolveDefaultTextColor(slideCtx, placeholderType);
-            surface.setFill(textColor);
-            surface.fillText(numberStr, textX + indentPx, currentY + numberFont.sizePx());
-        }
 
-        // Per OOXML: marL is where the TEXT starts (from the shape's text
-        // area left edge), and indent is the FIRST-LINE offset relative to
-        // marL. textX already encodes startX + marL, so the text x-pos is
-        // just textX -- adding marginLeftPx again here pushed text by 2*marL,
-        // which on narrow shapes positioned text past the right edge.
-        // Bullets render at textX + indentPx (negative indent = bullet
-        // before text in a hanging-indent layout).
-        double runX = textX;
-
-        // Resolve line height from measurements
-        double lineHeightPx = pm.getLineCount() > 0
-            ? (emuToPixels(pm.getHeightEmu()) * zoom) / pm.getLineCount()
-            : 16.0 * zoom;
-
-        // Available width for text wrapping (text area right edge minus textX).
-        // textX is at startX + marL, so what's left is maxWidth - marL.
-        // marR pulls the wrap boundary in from the right edge (symmetric
-        // to marL); on hanging indent it still applies, unlike marL which
-        // only affects non-hanging paragraphs.
-        double marginRightPx = para.getMarginRight() != null
-            ? emuToPixels(Math.max(0, para.getMarginRight())) * zoom
-            : 0;
-        double availableWidth = maxWidth - marginLeftPx - marginRightPx;
-        if (indentPx < 0) {
-            availableWidth = maxWidth - marginRightPx; // Hanging indent: text area is full width on the left, still bounded on the right
-        }
-
-        // --- Pass 1: collect words into physical lines ---
-        // Each "word segment" tracks its text, font, color, run, and width.
-        record WordSegment(String text, SurfaceFont font, SurfacePaint color, TextRun run, double width) {}
-        List<List<WordSegment>> lines = new ArrayList<>();
-        List<WordSegment> currentLine = new ArrayList<>();
-        double currentLineWidth = 0;
-
-        for (TextRun run : para.getRuns()) {
-            String runText = run.getDisplayText();
-            if (runText == null || runText.isEmpty()) continue;
-
-            SurfaceFont font = resolveFont(run, slideCtx, zoom, level, isTitle);
-            surface.setFont(font);
-            SurfacePaint color = ShapeStyleExtractor.resolveTextRunColor(run, placeholderType, slideCtx);
-
-            String[] words = runText.split("(?<=\\s)");
-            for (String word : words) {
-                // Width comes from the surface -- same Font object that
-                // will render the text, so measurement tracks rendering.
-                double wordWidth = surface.measureAdvance(word);
-
-                if (currentLineWidth + wordWidth > availableWidth && !currentLine.isEmpty()) {
-                    lines.add(currentLine);
-                    currentLine = new ArrayList<>();
-                    currentLineWidth = 0;
+            // Justification: distribute the residual width across the
+            // inter-word gaps of every line that wrapped (not the last
+            // line, not lines ended by an explicit <a:br/>).
+            double extraPerGap = 0;
+            int lastInkIdx = -1;
+            if ("just".equals(alignment) && li < lines.size() - 1 && !line.forcedBreak()) {
+                List<MeasuredText.Segment> segs = line.segments();
+                int gaps = 0;
+                for (int siIdx = segs.size() - 1; siIdx >= 0; siIdx--) {
+                    if (!segs.get(siIdx).text().isBlank()) { lastInkIdx = siIdx; break; }
                 }
-
-                currentLine.add(new WordSegment(word, font, color, run, wordWidth));
-                currentLineWidth += wordWidth;
-            }
-        }
-        if (!currentLine.isEmpty()) {
-            lines.add(currentLine);
-        }
-
-        // --- Pass 2: draw lines with alignment ---
-        String alignment = para.getAlignment();
-        double lineY = currentY;
-
-        for (List<WordSegment> line : lines) {
-            double lineWidth = line.stream().mapToDouble(WordSegment::width).sum();
-
-            // Compute X offset based on alignment
-            double lineX;
-            if ("ctr".equals(alignment)) {
-                lineX = runX + (availableWidth - lineWidth) / 2;
+                for (int siIdx = 0; siIdx < lastInkIdx; siIdx++) {
+                    if (segs.get(siIdx).text().isBlank()) gaps++;
+                }
+                double residual = wrapWidthPx - lineWidthPx;
+                if (gaps > 0 && residual > 0) {
+                    extraPerGap = residual / gaps;
+                }
+            } else if ("ctr".equals(alignment)) {
+                lineX += (wrapWidthPx - lineWidthPx) / 2;
             } else if ("r".equals(alignment)) {
-                lineX = runX + availableWidth - lineWidth;
-            } else {
-                lineX = runX; // left or justify (treat justify as left for now)
+                lineX += wrapWidthPx - lineWidthPx;
             }
 
-            for (WordSegment seg : line) {
-                surface.setFont(seg.font());
-
-                // Highlight background (drawn before text)
-                if (seg.run().getHighlight() != null) {
-                    TextColor hlColor = seg.run().getHighlight();
-                    SurfacePaint hl = hlColor.getHexVal() != null
-                        ? SurfacePaint.Solid.fromHex(hlColor.getHexVal())
-                        : SurfacePaint.Solid.rgb(255, 255, 0); // YELLOW
-                    surface.setFill(hl);
-                    surface.fillRect(lineX, lineY, seg.width(), seg.font().sizePx() + 2);
+            double justifyShift = 0;
+            List<MeasuredText.Segment> segs = line.segments();
+            for (int si = 0; si < segs.size(); si++) {
+                MeasuredText.Segment seg = segs.get(si);
+                double segX = lineX + emuToPixels(seg.xEmu()) * zoom + justifyShift;
+                paintSegment(seg, segX, baselineY, lineTop, advancePx, surface, slideCtx,
+                    ls, zoom, placeholderType);
+                if (extraPerGap > 0 && si < lastInkIdx && seg.text().isBlank()) {
+                    justifyShift += extraPerGap;
                 }
-
-                // Baseline shift: rPr/@baseline is percent*1000 of the
-                // font size. Positive = superscript (y up = negative
-                // screen delta); negative = subscript (y down = positive
-                // screen delta). Decorations (underline, strikethrough)
-                // shift with the text so they land relative to the run,
-                // not the paragraph baseline.
-                Integer baselineAttr = seg.run().getBaseline();
-                double baselineShift = baselineAttr != null
-                    ? -baselineAttr / 100000.0 * seg.font().sizePx()
-                    : 0.0;
-
-                surface.setFill(seg.color());
-                surface.fillText(seg.text(), lineX, lineY + seg.font().sizePx() + baselineShift);
-
-                // Underline
-                if (seg.run().getUnderline() != null && !"none".equals(seg.run().getUnderline())) {
-                    double underlineY = lineY + seg.font().sizePx() + 2 + baselineShift;
-                    surface.setStroke(seg.color());
-                    surface.setLineWidth("heavy".equals(seg.run().getUnderline()) ? 2.0 : 1.0);
-                    surface.strokeLine(lineX, underlineY, lineX + seg.width(), underlineY);
-                }
-
-                // Strikethrough (sngStrike or dblStrike)
-                if (seg.run().getStrikethrough() != null) {
-                    double strikeY = lineY + seg.font().sizePx() * 0.6 + baselineShift;
-                    surface.setStroke(seg.color());
-                    surface.setLineWidth(1.0);
-                    surface.strokeLine(lineX, strikeY, lineX + seg.width(), strikeY);
-                    if ("dblStrike".equals(seg.run().getStrikethrough())) {
-                        surface.strokeLine(lineX, strikeY + 2, lineX + seg.width(), strikeY + 2);
-                    }
-                }
-
-                lineX += seg.width();
             }
-            lineY += lineHeightPx;
+
+            currentY += advancePx;
         }
 
-        // Advance Y by the actual rendered height (at least one line)
-        double renderedHeight = Math.max(lineHeightPx, lines.size() * lineHeightPx);
-        currentY += renderedHeight;
+        return currentY + emuToPixels(pm.getSpaceAfterEmu()) * zoom;
+    }
 
-        // Space after paragraph
-        if (para.getSpaceAfter() != null && para.getSpaceAfter() > 0) {
-            currentY += (para.getSpaceAfter() / 100.0) * zoom;
+    // ========== SEGMENT ==========
+
+    private static void paintSegment(MeasuredText.Segment seg, double segX, double baselineY,
+                                     double lineTop, double lineAdvancePx, RenderSurface surface,
+                                     SlideRenderContext slideCtx, TextStyleSource.LevelStyle ls,
+                                     double zoom, String placeholderType) {
+        String text = seg.text();
+        if (text == null || text.isEmpty()) return;
+
+        double fontPx = CoordinateMapper.centipointsToPixels(seg.fontSizeCentiPt()) * zoom;
+        SurfaceFont font = surfaceFont(seg, fontPx, slideCtx, placeholderType);
+        surface.setFont(font);
+
+        double widthPx = emuToPixels(seg.widthEmu()) * zoom;
+        double shiftPx = emuToPixels(seg.baselineShiftEmu()) * zoom;
+        double drawBaseline = baselineY + shiftPx;
+        TextRun run = seg.run();
+
+        // Highlight background (drawn before text, covering the line box)
+        if (run != null && run.getHighlight() != null) {
+            TextColor hlColor = run.getHighlight();
+            SurfacePaint hl = hlColor.getHexVal() != null
+                ? SurfacePaint.Solid.fromHex(hlColor.getHexVal())
+                : SurfacePaint.Solid.rgb(255, 255, 0); // YELLOW
+            surface.setFill(hl);
+            surface.fillRect(segX, lineTop, widthPx, lineAdvancePx);
         }
 
-        return currentY;
+        if (text.isBlank()) return; // nothing visible; highlight already painted
+
+        SurfacePaint color = resolveSegmentColor(run, ls, slideCtx, placeholderType);
+        surface.setFill(color);
+
+        if (seg.charAdvancesEmu() != null) {
+            // Tracking applied: place each glyph at its measured advance so
+            // painted positions match measured line widths.
+            double x = segX;
+            long[] adv = seg.charAdvancesEmu();
+            for (int ci = 0; ci < text.length() && ci < adv.length; ci++) {
+                String ch = String.valueOf(text.charAt(ci));
+                if (!ch.isBlank()) {
+                    surface.fillText(ch, x, drawBaseline);
+                }
+                x += emuToPixels(adv[ci]) * zoom;
+            }
+        } else {
+            surface.fillText(text, segX, drawBaseline);
+        }
+
+        // Underline
+        if (run != null && run.getUnderline() != null && !"none".equals(run.getUnderline())) {
+            double underlineY = drawBaseline + Math.max(1.5, fontPx * 0.08);
+            surface.setStroke(color);
+            surface.setLineWidth("heavy".equals(run.getUnderline())
+                ? Math.max(2.0, fontPx * 0.08) : Math.max(1.0, fontPx * 0.05));
+            surface.strokeLine(segX, underlineY, segX + widthPx, underlineY);
+        }
+
+        // Strikethrough (sngStrike or dblStrike)
+        if (run != null && run.getStrikethrough() != null) {
+            double strikeY = drawBaseline - fontPx * 0.3;
+            surface.setStroke(color);
+            surface.setLineWidth(Math.max(1.0, fontPx * 0.05));
+            surface.strokeLine(segX, strikeY, segX + widthPx, strikeY);
+            if ("dblStrike".equals(run.getStrikethrough())) {
+                surface.strokeLine(segX, strikeY + 2, segX + widthPx, strikeY + 2);
+            }
+        }
+    }
+
+    private static SurfaceFont surfaceFont(MeasuredText.Segment seg, double fontPx,
+                                           SlideRenderContext slideCtx, String placeholderType) {
+        boolean isTitle = "title".equals(placeholderType) || "ctrTitle".equals(placeholderType);
+        String fallback = slideCtx == null ? null
+            : (isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback());
+        return new SurfaceFont(seg.fontFamily(), fallback,
+            seg.bold() ? SurfaceFont.Weight.BOLD : SurfaceFont.Weight.NORMAL,
+            seg.italic() ? SurfaceFont.Posture.ITALIC : SurfaceFont.Posture.REGULAR,
+            Math.max(1, fontPx));
     }
 
     /**
-     * Resolve a SurfaceFont descriptor from run properties + theme
-     * fallback. Backend caching (JavaFX Font resolution + the
-     * substitution-check loop on Linux hosts without the requested
-     * family) lives inside {@link com.excudo.view.rendering.surface.CanvasRenderSurface}.
+     * Run color > lstStyle-chain level color > theme default for the
+     * placeholder type. Never returns null.
      */
-    private static SurfaceFont resolveFont(TextRun run, SlideRenderContext slideCtx,
-                                            double zoom, int level, boolean isTitle) {
-        String family = null;
-        double sizePt = 18.0;
-        boolean bold = false;
-        boolean italic = false;
-
-        if (run != null) {
-            if (run.getFontFamily() != null) family = run.getFontFamily();
-            if (run.getFontSize() != null) sizePt = run.getFontSize() / 100.0;
-            if (run.getBold() != null) bold = run.getBold();
-            if (run.getItalic() != null) italic = run.getItalic();
+    private static SurfacePaint resolveSegmentColor(TextRun run, TextStyleSource.LevelStyle ls,
+                                                    SlideRenderContext slideCtx,
+                                                    String placeholderType) {
+        if (run != null && run.getColor() != null) {
+            SurfacePaint p = paintFromTextColor(run.getColor(), slideCtx);
+            if (p != null) return p;
         }
-
+        if (ls.color() != null) {
+            SurfacePaint p = paintFromTextColor(ls.color(), slideCtx);
+            if (p != null) return p;
+        }
         if (slideCtx != null) {
-            TextLevelStyle style = isTitle ? slideCtx.getTitleStyle(level) : slideCtx.getBodyStyle(level);
-            if (style != null) {
-                if (run == null || run.getFontSize() == null) {
-                    sizePt = style.getFontSize() / 100.0;
-                }
-                if (run == null || run.getBold() == null) {
-                    bold = style.isBold();
-                }
-            }
-            if (family == null) {
-                family = isTitle ? slideCtx.getMajorFont() : slideCtx.getMinorFont();
-            }
+            return ShapeStyleExtractor.resolveTextRunColor(null, placeholderType, slideCtx);
         }
-
-        if (family == null) {
-            throw new IllegalStateException("No font family resolved: run.fontFamily="
-                + (run != null ? run.getFontFamily() : "null") + ", slideCtx="
-                + (slideCtx != null) + ", isTitle=" + isTitle);
-        }
-
-        double scaledSize = Math.max(1, sizePt * zoom);
-        String fallback = slideCtx == null ? null
-            : (isTitle ? slideCtx.getMajorFontFallback() : slideCtx.getMinorFontFallback());
-
-        return new SurfaceFont(family, fallback,
-            bold ? SurfaceFont.Weight.BOLD : SurfaceFont.Weight.NORMAL,
-            italic ? SurfaceFont.Posture.ITALIC : SurfaceFont.Posture.REGULAR,
-            scaledSize);
+        return SurfacePaint.Solid.rgb(0, 0, 0);
     }
 
-    private static SurfacePaint resolveDefaultTextColor(SlideRenderContext slideCtx, String phType) {
-        if (slideCtx == null) return SurfacePaint.Solid.rgb(0, 0, 0);
-        String hex = ("title".equals(phType) || "ctrTitle".equals(phType))
-            ? slideCtx.getTitleTextColorHex()
-            : slideCtx.getBodyTextColorHex();
-        if (hex == null || hex.isBlank()) return SurfacePaint.Solid.rgb(0, 0, 0);
-        // Tolerate leading '#' in the theme's hex strings.
-        return SurfacePaint.Solid.fromHex(hex);
+    private static SurfacePaint paintFromTextColor(TextColor tc, SlideRenderContext slideCtx) {
+        if (tc == null) return null;
+        if (tc.getHexVal() != null) {
+            return SurfacePaint.Solid.fromHex(tc.getHexVal());
+        }
+        if (tc.isScheme() && slideCtx != null) {
+            return SurfacePaint.Solid.fromHex(slideCtx.resolveSchemeColor(tc.getSchemeVal()));
+        }
+        return null;
     }
+
+    // ========== BULLET ==========
+
+    /**
+     * Paint the bullet character or auto-number for a paragraph. Returns
+     * the bullet's advance width in pixels (used to push the first line's
+     * text right when there is no hanging indent).
+     *
+     * <p>Size: {@code buSzPct} scales the FIRST run's effective font
+     * size (thousandths of a percent, default 100%). Color: {@code buClr}
+     * beats the level style's bullet color beats the first run's text
+     * color — PowerPoint's bullet inherits the text color unless
+     * overridden. Font: {@code buFont}, with legacy symbol fonts
+     * (Wingdings/Symbol) translated to Unicode equivalents rendered in
+     * the run font.
+     */
+    private static double paintBullet(Bullet bullet, int autoNumber,
+                                      MeasuredText.Segment firstInk, TextParagraph para,
+                                      TextStyleSource.LevelStyle ls, double bulletX,
+                                      double baselineY, RenderSurface surface,
+                                      SlideRenderContext slideCtx, double zoom,
+                                      String placeholderType) {
+        double sizePctFactor = bullet.sizePct() != null ? bullet.sizePct() / 100000.0 : 1.0;
+
+        // Picture bullet (a:buBlip): draw the referenced image part in a
+        // square box the size of the (buSzPct-scaled) first-run font,
+        // aspect-preserved, bottom-aligned to the text baseline.
+        if (bullet.imageRelId() != null) {
+            if (slideCtx == null || slideCtx.getDocument() == null) return 0;
+            com.excudo.core.rendering.surface.SurfaceImage img =
+                com.excudo.view.rendering.shapes.BlipFillResolver.resolve(
+                    surface, slideCtx.getDocument(), slideCtx.getSlideNumber(),
+                    bullet.imageRelId());
+            if (img == null) return 0;
+            double boxPx = CoordinateMapper.centipointsToPixels(
+                firstInk.fontSizeCentiPt() * sizePctFactor) * zoom;
+            double h = boxPx;
+            double w = img.heightPx() > 0 ? boxPx * img.widthPx() / img.heightPx() : boxPx;
+            surface.drawImage(img, bulletX, baselineY - h, w, h);
+            return w;
+        }
+
+        String bulletText;
+        String bulletFontFamily = bullet.fontFamily();
+        if (bullet.autonumType() != null) {
+            bulletText = formatAutoNumber(autoNumber, bullet.autonumType());
+        } else {
+            bulletText = bullet.character();
+            if (BulletFontMapper.isSymbolFont(bulletFontFamily)) {
+                // Wingdings / Symbol store bullets as ASCII-range codepoints
+                // that only render correctly with the symbol font installed.
+                // Translate to Unicode equivalents and render in the body
+                // font — host-font-independent, PowerPoint-style appearance.
+                bulletText = BulletFontMapper.translate(bulletFontFamily, bulletText);
+                bulletFontFamily = null;
+            }
+        }
+        if (bulletText == null || bulletText.isEmpty()) return 0;
+
+        double bulletFontPx = CoordinateMapper.centipointsToPixels(
+            firstInk.fontSizeCentiPt() * sizePctFactor) * zoom;
+        String family = bulletFontFamily != null && !bulletFontFamily.isEmpty()
+            ? bulletFontFamily : firstInk.fontFamily();
+
+        surface.setFont(SurfaceFont.of(family, Math.max(1, bulletFontPx)));
+
+        SurfacePaint color = bullet.color() != null
+            ? paintFromTextColor(bullet.color(), slideCtx)
+            : null;
+        if (color == null) {
+            color = resolveSegmentColor(firstInk.run(), ls, slideCtx, placeholderType);
+        }
+        surface.setFill(color);
+        surface.fillText(bulletText, bulletX, baselineY);
+        return surface.measureAdvance(bulletText);
+    }
+
+    private static MeasuredText.Segment firstInkSegment(List<MeasuredText.Line> lines) {
+        for (MeasuredText.Line line : lines) {
+            for (MeasuredText.Segment seg : line.segments()) {
+                if (!seg.text().isBlank()) return seg;
+            }
+        }
+        return null;
+    }
+
+    // ========== HELPERS ==========
 
     private static double emuToPixels(long emu) {
         return CoordinateMapper.emuToPixels(emu);
-    }
-
-    private static double emuToPixels(int emu) {
-        return CoordinateMapper.emuToPixels((long) emu);
     }
 
     /**

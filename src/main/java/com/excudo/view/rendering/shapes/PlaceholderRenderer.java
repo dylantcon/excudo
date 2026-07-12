@@ -43,6 +43,7 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
 
         // 3. Extract and paint text
         String phType = getPlaceholderType(shape.getXmlElement());
+        String phIdx = getPlaceholderIndex(shape.getXmlElement());
         TextBody textBody = TextBodyExtractor.extractFromShape(shape.getXmlElement());
         if (textBody != null && !textBody.getParagraphs().isEmpty()) {
             // Round-trip pixel width back to EMU for TextMeasurer. Divide
@@ -53,8 +54,14 @@ public class PlaceholderRenderer implements ModelShapeRenderer {
             // aggressive line breaks that looked like justification.
             long widthEmu = pixelsToEmu(boundsPixels.getWidth() / mapper.getEffectiveScale());
             try {
-                MeasuredText measured = TextMeasurer.measure(textBody, widthEmu);
-                TextPainter.paint(textBody, measured, boundsPixels, ctx, slideCtx, phType);
+                // Placeholder lstStyle chain: shape lstStyle > layout
+                // placeholder lstStyle > master txStyles (> theme). One
+                // source drives both measurement and painting.
+                com.excudo.core.metrics.TextStyleSource styles =
+                    com.excudo.view.rendering.text.LstStyleResolver.forShape(
+                        slideCtx, phType, phIdx, shape.getXmlElement());
+                MeasuredText measured = TextMeasurer.measure(textBody, widthEmu, styles);
+                TextPainter.paint(textBody, measured, boundsPixels, ctx, slideCtx, phType, styles);
             } catch (Exception e) {
                 // Fallback: render raw text at bounds origin
                 RenderSurface surface = ctx.getSurface();

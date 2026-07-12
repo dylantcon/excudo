@@ -149,17 +149,52 @@ public class SlideRenderContext {
 
     // ========== FONT INFO ==========
 
+    // Theme fonts read from the DOCUMENT's own theme part (fontScheme
+    // latin typefaces). For Excudo-authored decks these equal the bundled
+    // ThemeDefinition's fonts (the theme part is generated from it), but
+    // for foreign decks the bundled/active ThemeDefinition can disagree
+    // with what the file actually declares — rendering a Calibri-themed
+    // deck in Georgia. The document is the source of truth for rendering.
+    private String docMajorFont;
+    private String docMinorFont;
+    private boolean docThemeFontsResolved;
+
+    private void resolveDocumentThemeFonts() {
+        if (docThemeFontsResolved) return;
+        docThemeFontsResolved = true;
+        if (document == null) return;
+        Document themeDom = document.getXmlPart("ppt/theme/theme1.xml");
+        if (themeDom == null) return;
+        docMajorFont = themeSchemeFont(themeDom, "majorFont");
+        docMinorFont = themeSchemeFont(themeDom, "minorFont");
+    }
+
+    private static String themeSchemeFont(Document themeDom, String tag) {
+        NodeList nodes = themeDom.getElementsByTagName("a:" + tag);
+        if (nodes.getLength() == 0) return null;
+        NodeList latins = ((Element) nodes.item(0)).getElementsByTagName("a:latin");
+        if (latins.getLength() == 0) return null;
+        String typeface = ((Element) latins.item(0)).getAttribute("typeface");
+        return typeface.isEmpty() ? null : typeface;
+    }
+
     /**
-     * Get the heading font family name.
+     * Get the heading font family name (document theme part first,
+     * then the active ThemeDefinition).
      */
     public String getMajorFont() {
+        resolveDocumentThemeFonts();
+        if (docMajorFont != null) return docMajorFont;
         return theme != null ? theme.getMajorFont() : "Calibri";
     }
 
     /**
-     * Get the body font family name.
+     * Get the body font family name (document theme part first,
+     * then the active ThemeDefinition).
      */
     public String getMinorFont() {
+        resolveDocumentThemeFonts();
+        if (docMinorFont != null) return docMinorFont;
         return theme != null ? theme.getMinorFont() : "Calibri";
     }
 
@@ -246,20 +281,84 @@ public class SlideRenderContext {
         if (phAnchorCache.containsKey(key)) return phAnchorCache.get(key);
 
         String resolved = null;
-        Document layoutDom = layoutInfo != null && document != null
-            ? document.getXmlPart(normalizeLayoutPartName(layoutInfo.getFilePath()))
-            : null;
+        Document layoutDom = getLayoutDom();
         if (layoutDom != null) {
             resolved = findPlaceholderBodyPrAnchor(layoutDom, phType, phIdx);
         }
         if (resolved == null) {
-            Document masterDom = resolveMasterDom(layoutDom);
+            Document masterDom = getMasterDom();
             if (masterDom != null) {
                 resolved = findPlaceholderBodyPrAnchor(masterDom, phType, phIdx);
             }
         }
         phAnchorCache.put(key, resolved);
         return resolved;
+    }
+
+    // ========== PART DOM ACCESS (lstStyle inheritance chain) ==========
+
+    /**
+     * The slide layout's DOM, or null when unavailable. Used by the
+     * text lstStyle inheritance walk (layout placeholder lstStyle beats
+     * master txStyles) and bodyPr anchor inheritance.
+     *
+     * <p>Resolution order: the LayoutInfo file path when the context has
+     * one (Excudo-authored decks), else the slide's own .rels
+     * slideLayout relationship — foreign decks loaded from disk carry no
+     * LayoutInfo, and without this fallback every layout/master
+     * inheritance walk silently returned nothing (title placeholders
+     * lost their master anchor="ctr" and rendered top-anchored).
+     */
+    public Document getLayoutDom() {
+        if (document == null) return null;
+        if (layoutInfo != null) {
+            Document dom = document.getXmlPart(normalizeLayoutPartName(layoutInfo.getFilePath()));
+            if (dom != null) return dom;
+        }
+        String layoutPart = resolveRelTarget("ppt/slides", "slide" + slideNumber + ".xml",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout");
+        return layoutPart != null ? document.getXmlPart(layoutPart) : null;
+    }
+
+    /**
+     * Follow a relationship of {@code relType} from {@code dir/filename}
+     * and return the resolved OPC part name, or null.
+     */
+    private String resolveRelTarget(String dir, String filename, String relType) {
+        Document relsDom = document.getXmlPart(dir + "/_rels/" + filename + ".rels");
+        if (relsDom == null) return null;
+        Element relsRoot = relsDom.getDocumentElement();
+        if (relsRoot == null) return null;
+        NodeList rels = relsRoot.getElementsByTagNameNS(REL_NS, "Relationship");
+        for (int i = 0; i < rels.getLength(); i++) {
+            Element r = (Element) rels.item(i);
+            if (!relType.equals(r.getAttribute("Type"))) continue;
+            String target = r.getAttribute("Target");
+            if (target == null || target.isEmpty()) continue;
+            return resolveRelativePart(dir, target);
+        }
+        return null;
+    }
+
+    /**
+     * The slide master's DOM resolved through the layout's .rels (so
+     * multi-master decks pick the right one), falling back to the
+     * canonical part name. Null when unavailable.
+     */
+    public Document getMasterDom() {
+        Document master = resolveMasterDom(getLayoutDom());
+        if (master == null && document != null) {
+            master = document.getXmlPart("ppt/slideMasters/slideMaster1.xml");
+        }
+        return master;
+    }
+
+    /**
+     * The presentation part's DOM (carries p:defaultTextStyle, the
+     * style root for non-placeholder text boxes). Null when unavailable.
+     */
+    public Document getPresentationDom() {
+        return document != null ? document.getXmlPart("ppt/presentation.xml") : null;
     }
 
     /**
@@ -324,8 +423,13 @@ public class SlideRenderContext {
             if (shapePhType.isEmpty() && shapePhIdx.isEmpty()) {
                 shapePhType = "title";
             }
+            // ECMA placeholder-type inheritance: a slide's ctrTitle
+            // inherits from the master's title placeholder, subTitle
+            // from the master's body. Without this normalization, title
+            // slides never picked up the master's anchor="ctr" and
+            // rendered their titles top-anchored.
             boolean typeHit = phType != null && !phType.isEmpty()
-                && phType.equals(shapePhType);
+                && normalizePhType(phType).equals(normalizePhType(shapePhType));
             boolean idxHit = phIdx != null && !phIdx.isEmpty()
                 && phIdx.equals(shapePhIdx);
             if (!typeHit && !idxHit) continue;
@@ -344,6 +448,13 @@ public class SlideRenderContext {
     private static Element firstDescendant(Element parent, String tag) {
         NodeList kids = parent.getElementsByTagName(tag);
         return kids.getLength() > 0 ? (Element) kids.item(0) : null;
+    }
+
+    /** Fold placeholder subtypes onto the master placeholder they inherit from. */
+    private static String normalizePhType(String phType) {
+        if ("ctrTitle".equals(phType)) return "title";
+        if ("subTitle".equals(phType)) return "body";
+        return phType;
     }
 
     /**

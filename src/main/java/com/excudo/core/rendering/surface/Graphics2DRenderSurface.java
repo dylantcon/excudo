@@ -248,10 +248,18 @@ public final class Graphics2DRenderSurface implements RenderSurface {
         if (text == null || text.isEmpty()) return;
         Font font = g.getFont();
         if (font == null) return;
-        // TextLayout.draw respects fractional baseline positioning and
-        // internal per-glyph sub-pixel advance -- the quality upgrade
-        // the AWT backend exists to deliver.
-        new TextLayout(text, font, fontRenderContext).draw(g, (float) x, (float) baselineY);
+        // Fill the glyph OUTLINES rather than TextLayout.draw. Both use
+        // the same fractional-metrics glyph positions, but draw() rasters
+        // through the glyph cache whose grayscale AA quantizes coverage
+        // to a handful of levels (one mid-gray dominated 13% of all ink
+        // pixels on the text-bullets parity deck), while outline filling
+        // uses the continuous shape-AA pipeline -- the same coverage
+        // model PDF rasterizers use, which measurably tightens the
+        // ink-histogram parity metric against PowerPoint ground truth.
+        TextLayout layout = new TextLayout(text, font, fontRenderContext);
+        Shape outline = layout.getOutline(
+            AffineTransform.getTranslateInstance(x, baselineY));
+        g.fill(outline);
     }
 
     // ========== SHAPE PRIMITIVES ==========

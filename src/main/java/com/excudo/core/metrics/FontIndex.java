@@ -132,6 +132,13 @@ public final class FontIndex {
         String localAppData = System.getenv("LOCALAPPDATA");
         if (localAppData != null) {
             dirs.add(Path.of(localAppData, "Microsoft", "Windows", "Fonts"));
+            // Office cloud fonts. PowerPoint auto-downloads theme fonts it
+            // doesn't find installed (Dosis, Inter, Aptos, ...) into this
+            // cache and renders/exports with them — so decks that look
+            // right in PowerPoint on this host reference fonts that live
+            // ONLY here. Indexing it keeps our renders in the same font
+            // the ground truth used instead of silently substituting.
+            dirs.add(Path.of(localAppData, "Microsoft", "FontCache", "4", "CloudFonts"));
         }
         return dirs;
     }
@@ -181,11 +188,44 @@ public final class FontIndex {
             bold   = (fsSelection & 0x0020) != 0;
         }
 
-        String family = readFamily(buf, nameOff);
+        String family = readNameId(buf, nameOff, 16, 1);
+        String subfamily = readNameId(buf, nameOff, 17, 2);
+
+        // Weight variants beyond plain regular/bold (ExtraBold, Light,
+        // SemiBold, ...) carry the bare family in nameID 16 with the
+        // weight in the subfamily and REGULAR in fsSelection. Indexing
+        // them under the bare family made whichever file scanned first
+        // win: the Office CloudFonts cache's Dosis-ExtraBold shadowed
+        // Dosis-Regular and every "Dosis" run rendered extra-bold.
+        // Qualify the family with the subfamily instead — that is also
+        // the name decks actually reference for such faces.
+        if (family != null && subfamily != null && !subfamily.isBlank()
+                && !isPlainSubfamily(subfamily)
+                && !normalize(family).endsWith(normalize(subfamily))) {
+            family = family + " " + subfamily;
+        }
         return new FontMeta(family, bold, italic);
     }
 
-    private static String readFamily(ByteBuffer buf, int nameOff) {
+    private static boolean isPlainSubfamily(String subfamily) {
+        String s = subfamily.trim().toLowerCase();
+        // "Book", "Roman", "Normal", "Plain" are regular-weight aliases
+        // (DejaVu Sans ships as subfamily "Book"), not distinct weights.
+        return s.isEmpty() || s.equals("regular") || s.equals("bold")
+            || s.equals("italic") || s.equals("oblique")
+            || s.equals("bold italic") || s.equals("bold oblique")
+            || s.equals("book") || s.equals("roman")
+            || s.equals("normal") || s.equals("plain");
+    }
+
+    /**
+     * Read a name-table string, preferring {@code preferredNameId}
+     * (typographic family 16 / subfamily 17) over {@code fallbackNameId}
+     * (legacy family 1 / subfamily 2), with the usual platform and
+     * English-language preference.
+     */
+    private static String readNameId(ByteBuffer buf, int nameOff,
+                                     int preferredNameId, int fallbackNameId) {
         int count = buf.getShort(nameOff + 2) & 0xFFFF;
         int storageOff = buf.getShort(nameOff + 4) & 0xFFFF;
 
@@ -201,13 +241,10 @@ public final class FontIndex {
             int length = buf.getShort(rec + 8) & 0xFFFF;
             int offset = buf.getShort(rec + 10) & 0xFFFF;
 
-            // nameID 16 = preferred/typographic family (e.g. "Segoe UI")
-            // nameID 1  = family (sometimes styled, e.g. "Segoe UI Bold")
-            // 16 is more useful for our "family + bold/italic flags" model.
-            if (nameId != 1 && nameId != 16) continue;
+            if (nameId != preferredNameId && nameId != fallbackNameId) continue;
 
             int priority = 0;
-            if (nameId == 16) priority += 10;
+            if (nameId == preferredNameId) priority += 10;
             if (platformId == 3) priority += 5;       // Microsoft
             else if (platformId == 0) priority += 3;  // Unicode
             else if (platformId == 1) priority += 1;  // Macintosh

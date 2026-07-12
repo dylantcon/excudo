@@ -173,8 +173,15 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
                 TextBody textBody = TextBodyExtractor.extractFromShape(shape.getXmlElement());
                 if (textBody != null && !textBody.getParagraphs().isEmpty()) {
                     long widthEmu = geom.getWidth();
-                    MeasuredText measured = TextMeasurer.measure(textBody, widthEmu);
-                    TextPainter.paint(textBody, measured, bounds, ctx, slideCtx);
+                    // Non-placeholder shapes inherit from their own
+                    // lstStyle + presentation defaultTextStyle. The same
+                    // source feeds measurement and painting so the two
+                    // can never disagree.
+                    com.excudo.core.metrics.TextStyleSource styles =
+                        com.excudo.view.rendering.text.LstStyleResolver.forShape(
+                            slideCtx, null, null, shape.getXmlElement());
+                    MeasuredText measured = TextMeasurer.measure(textBody, widthEmu, styles);
+                    TextPainter.paint(textBody, measured, bounds, ctx, slideCtx, null, styles);
                 }
             } catch (Exception e) {
                 // Non-critical -- shape renders, text doesn't

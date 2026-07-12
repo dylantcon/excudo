@@ -143,13 +143,12 @@ public final class BulletFontMapper {
         m.put(0x79, "❂"); // y -> CIRCLED OPEN CENTRE EIGHT POINTED STAR
         m.put(0x7A, "✷"); // z -> EIGHT POINTED RECTILINEAR BLACK STAR
 
-        // Sub-bullet diamond. PowerPoint's default level-2/3 bullet is
-        // Wingdings 0xA7 ("§"), which renders as a small filled diamond
-        // shape. The most visually consistent Unicode equivalent is
-        // BLACK DIAMOND (U+25C6) -- a hollow-diamond mapping like the
-        // shadowed-diamond glyph (U+2756) usually has worse cross-font
-        // coverage and falls back to a missing-glyph box on DejaVu.
-        m.put(0xA7, "◆"); // § -> BLACK DIAMOND
+        // Wingdings 0xA7 ("§") is a small filled square, not a diamond:
+        // both the Microsoft Wingdings character chart and PowerPoint's
+        // own PDF export of a buChar="§"/Wingdings bullet (text-bullets
+        // parity deck, ground truth) render it as ▪. The old ◆ mapping
+        // came from misreading PowerPoint's default level-2 bullet.
+        m.put(0xA7, "▪"); // § -> BLACK SMALL SQUARE
 
         // Bracketed numerals (also occasionally used as ordered-list bullets)
         m.put(0xA8, "○"); // ¨ -> WHITE CIRCLE
