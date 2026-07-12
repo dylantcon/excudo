@@ -41,6 +41,7 @@ from pc_cli.commands.session import handle_session_command
 from pc_cli.commands.smart_content import handle_smart_command
 from pc_cli.commands.timing import handle_timing_command
 from pc_cli.commands.deps import handle_deps_command
+from pc_cli.commands.parity import configure_parity_parser, handle_parity_command
 from pc_cli.config.api_manager import APIConfigManager
 
 # Version and metadata
@@ -353,7 +354,10 @@ def main():
     
     # Coverage command
     coverage_parser = configure_coverage_parser(subparsers)
-    
+
+    # Parity command - renderer-vs-PowerPoint visual comparison
+    parity_parser = configure_parity_parser(subparsers)
+
     args = parser.parse_args()
     
     if not args.command:
@@ -585,6 +589,9 @@ def main():
                 verbose=args.verbose
             )
             return 0 if success else 1
+
+        elif args.command == "parity":
+            return handle_parity_command(args, env)
 
         elif args.command == "validate":
             use_libreoffice = args.libreoffice or args.all_layers

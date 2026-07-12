@@ -1,0 +1,16 @@
+{
+  "default": { "ssim": 0.95 },
+  "preset-shapes-basic": { "ssim": 0.97 },
+  "preset-shapes-arrows": { "ssim": 0.97 },
+  "preset-shapes-flowchart": { "ssim": 0.97 },
+  "preset-shapes-stars-banners": { "ssim": 0.97 },
+  "preset-shapes-callouts": { "ssim": 0.97 },
+  "preset-shapes-actionbuttons": { "ssim": 0.97 },
+  "text-align-wrap": { "ssim": 0.90 },
+  "text-spacing-caps": { "ssim": 0.90 },
+  "text-bullets": { "ssim": 0.90 },
+  "text-autofit": { "ssim": 0.90 },
+  "effects-shadow-glow": { "ssim": 0.93 },
+  "integration-generalist": { "ssim": 0.90 },
+  "integration-jakepaul": { "ssim": 0.90 }
+}

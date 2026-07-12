@@ -1,2 +1,10 @@
 # Python dependencies for Presentation Choreographer CLI
 requests>=2.25.0
+
+# Parity harness (pc.py parity) — renderer-vs-PowerPoint comparison
+python-pptx>=1.0.2        # corpus deck generators
+PyMuPDF>=1.28.0           # ground-truth PDF rasterization
+scikit-image>=0.26.0      # SSIM metric
+numpy>=1.26.0
+Pillow>=10.0.0
+pywin32>=305; sys_platform == "win32"   # PowerPoint COM ground-truth export

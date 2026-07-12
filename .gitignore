@@ -136,6 +136,9 @@ disk_access_summary.txt
 CLAUDE.md
 .claude/
 
+# Parity corpus: committed PPTX+PDF pairs, but not generator intermediates
+parity-corpus/*/fill-source.png
+
 # Legacy timing-tree dumps (pre-rename-to-Excudo). No current code writes here.
 .presentation-choreographer/
 test-pptx-samples/design-patterns-presentation.pptx
