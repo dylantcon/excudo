@@ -13,7 +13,5 @@
   "preset-shapes-flowchart": "pending-A4-geometry-engine",
   "preset-shapes-stars-banners": "pending-A4-geometry-engine",
   "tables-basic": "pending-A6-tables",
-  "tables-merges": "pending-A6-tables",
-  "text-align-wrap": "pending-A3-text",
-  "text-autofit": "pending-A3-text"
+  "tables-merges": "pending-A6-tables"
 }
