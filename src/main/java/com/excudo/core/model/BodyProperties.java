@@ -11,6 +11,7 @@ public final class BodyProperties {
     private final String verticalText;
     private final AutofitType autofit;
     private final Integer fontScale;
+    private final Integer lnSpcReduction;
     private final Integer leftInset;
     private final Integer topInset;
     private final Integer rightInset;
@@ -24,6 +25,7 @@ public final class BodyProperties {
         this.verticalText = builder.verticalText;
         this.autofit = builder.autofit;
         this.fontScale = builder.fontScale;
+        this.lnSpcReduction = builder.lnSpcReduction;
         this.leftInset = builder.leftInset;
         this.topInset = builder.topInset;
         this.rightInset = builder.rightInset;
@@ -37,6 +39,14 @@ public final class BodyProperties {
     public String getVerticalText() { return verticalText; }
     public AutofitType getAutofit() { return autofit; }
     public Integer getFontScale() { return fontScale; }
+    /**
+     * OOXML a:normAutofit/@lnSpcReduction: line-spacing reduction in
+     * thousandths of a percent (20000 = reduce line spacing by 20%).
+     * PowerPoint stores the value it computed when shrinking text to
+     * fit, so honoring it verbatim reproduces the fitted layout. Null
+     * means no reduction.
+     */
+    public Integer getLnSpcReduction() { return lnSpcReduction; }
     public Integer getLeftInset() { return leftInset; }
     public Integer getTopInset() { return topInset; }
     public Integer getRightInset() { return rightInset; }
@@ -61,6 +71,7 @@ public final class BodyProperties {
             && java.util.Objects.equals(verticalText, that.verticalText)
             && autofit == that.autofit
             && java.util.Objects.equals(fontScale, that.fontScale)
+            && java.util.Objects.equals(lnSpcReduction, that.lnSpcReduction)
             && java.util.Objects.equals(leftInset, that.leftInset)
             && java.util.Objects.equals(topInset, that.topInset)
             && java.util.Objects.equals(rightInset, that.rightInset)
@@ -71,7 +82,8 @@ public final class BodyProperties {
     @Override
     public int hashCode() {
         return java.util.Objects.hash(verticalAlignment, wrap, verticalText, autofit,
-            fontScale, leftInset, topInset, rightInset, bottomInset, numColumns, rtlCol);
+            fontScale, lnSpcReduction, leftInset, topInset, rightInset, bottomInset,
+            numColumns, rtlCol);
     }
 
     public static final class Builder {
@@ -80,6 +92,7 @@ public final class BodyProperties {
         private String verticalText;
         private AutofitType autofit;
         private Integer fontScale;
+        private Integer lnSpcReduction;
         private Integer leftInset;
         private Integer topInset;
         private Integer rightInset;
@@ -92,6 +105,8 @@ public final class BodyProperties {
         public Builder verticalText(String vert) { this.verticalText = vert; return this; }
         public Builder autofit(AutofitType type) { this.autofit = type; return this; }
         public Builder fontScale(int scale) { this.fontScale = scale; return this; }
+        /** Line-spacing reduction in thousandths of a percent (normAutofit lnSpcReduction). */
+        public Builder lnSpcReduction(int reduction) { this.lnSpcReduction = reduction; return this; }
         public Builder leftInset(int emu) { this.leftInset = emu; return this; }
         public Builder topInset(int emu) { this.topInset = emu; return this; }
         public Builder rightInset(int emu) { this.rightInset = emu; return this; }

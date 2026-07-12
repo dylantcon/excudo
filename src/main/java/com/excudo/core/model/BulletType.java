@@ -7,5 +7,7 @@ public enum BulletType {
     NONE,
     CHARACTER,
     AUTONUMBER,
+    /** Picture bullet (a:buBlip) — the glyph is an embedded image part. */
+    PICTURE,
     INHERITED
 }

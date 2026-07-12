@@ -19,6 +19,9 @@ public final class TextParagraph {
     private final String bulletFontPanose;
     private final String bulletFontPitchFamily;
     private final String bulletFontCharset;
+    private final TextColor bulletColor;
+    private final Integer bulletSizePercent;
+    private final String bulletImageRelId;
     private final String autonumType;
     private final Integer marginLeft;
     private final Integer marginRight;
@@ -53,6 +56,9 @@ public final class TextParagraph {
         this.bulletFontPanose = builder.bulletFontPanose;
         this.bulletFontPitchFamily = builder.bulletFontPitchFamily;
         this.bulletFontCharset = builder.bulletFontCharset;
+        this.bulletColor = builder.bulletColor;
+        this.bulletSizePercent = builder.bulletSizePercent;
+        this.bulletImageRelId = builder.bulletImageRelId;
         this.autonumType = builder.autonumType;
         this.marginLeft = builder.marginLeft;
         this.marginRight = builder.marginRight;
@@ -96,6 +102,20 @@ public final class TextParagraph {
     public String getBulletFontPanose() { return bulletFontPanose; }
     public String getBulletFontPitchFamily() { return bulletFontPitchFamily; }
     public String getBulletFontCharset() { return bulletFontCharset; }
+    /** OOXML a:buClr: explicit bullet color. Null = bullet follows the first run's text color. */
+    public TextColor getBulletColor() { return bulletColor; }
+    /**
+     * OOXML a:buSzPct/@val: bullet size as a percentage of the first
+     * run's font size, in thousandths of a percent (150000 = 150%).
+     * Null = 100%.
+     */
+    public Integer getBulletSizePercent() { return bulletSizePercent; }
+    /**
+     * OOXML a:buBlip/a:blip/@r:embed: relationship id of the picture
+     * bullet's image part. Non-null iff {@link #getBulletType()} is
+     * {@link BulletType#PICTURE}.
+     */
+    public String getBulletImageRelId() { return bulletImageRelId; }
     public String getAutonumType() { return autonumType; }
     public Integer getMarginLeft() { return marginLeft; }
     public Integer getMarginRight() { return marginRight; }
@@ -139,6 +159,9 @@ public final class TextParagraph {
         private String bulletFontPanose;
         private String bulletFontPitchFamily;
         private String bulletFontCharset;
+        private TextColor bulletColor;
+        private Integer bulletSizePercent;
+        private String bulletImageRelId;
         private String autonumType;
         private Integer marginLeft;
         private Integer marginRight;
@@ -163,6 +186,17 @@ public final class TextParagraph {
         public Builder bulletFontPanose(String panose) { this.bulletFontPanose = panose; return this; }
         public Builder bulletFontPitchFamily(String pf) { this.bulletFontPitchFamily = pf; return this; }
         public Builder bulletFontCharset(String cs) { this.bulletFontCharset = cs; return this; }
+        /** Explicit bullet color (a:buClr). */
+        public Builder bulletColor(TextColor color) { this.bulletColor = color; return this; }
+        /** Bullet size in thousandths of a percent of the first run's size (a:buSzPct). */
+        public Builder bulletSizePercent(int pct) { this.bulletSizePercent = pct; return this; }
+
+        /** Picture bullet: sets type PICTURE and the image relationship id. */
+        public Builder pictureBullet(String relId) {
+            this.bulletType = BulletType.PICTURE;
+            this.bulletImageRelId = relId;
+            return this;
+        }
         public Builder autonumType(String type) { this.autonumType = type; return this; }
         public Builder marginLeft(int emu) { this.marginLeft = emu; return this; }
         public Builder marginRight(int emu) { this.marginRight = emu; return this; }

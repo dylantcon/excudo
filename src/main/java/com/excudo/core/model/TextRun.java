@@ -32,6 +32,7 @@ public final class TextRun {
     private final Integer characterSpacing;
     private final Integer kerningThreshold;
     private final MathBody mathBody;
+    private final boolean lineBreak;
 
     private TextRun(Builder builder) {
         this.text = builder.text;
@@ -49,7 +50,24 @@ public final class TextRun {
         this.characterSpacing = builder.characterSpacing;
         this.kerningThreshold = builder.kerningThreshold;
         this.mathBody = builder.mathBody;
+        this.lineBreak = builder.lineBreak;
     }
+
+    /**
+     * Create a forced-line-break run, the model form of OOXML
+     * {@code <a:br/>}. The break carries no glyphs; its {@code text} is
+     * "\n" so paragraph-emptiness checks and flat-text extraction keep
+     * working, but layout treats it purely as "start a new line here"
+     * and the XML writer round-trips it back to {@code <a:br/>}.
+     */
+    public static TextRun lineBreakRun() {
+        Builder b = new Builder("\n");
+        b.lineBreak = true;
+        return b.build();
+    }
+
+    /** True iff this run is a forced line break ({@code <a:br/>}). */
+    public boolean isLineBreak() { return lineBreak; }
 
     public String getText() { return text; }
     public Integer getFontSize() { return fontSize; }
@@ -133,14 +151,15 @@ public final class TextRun {
             && java.util.Objects.equals(baseline, that.baseline)
             && java.util.Objects.equals(characterSpacing, that.characterSpacing)
             && java.util.Objects.equals(kerningThreshold, that.kerningThreshold)
-            && java.util.Objects.equals(mathBody, that.mathBody);
+            && java.util.Objects.equals(mathBody, that.mathBody)
+            && lineBreak == that.lineBreak;
     }
 
     @Override
     public int hashCode() {
         return java.util.Objects.hash(text, fontSize, bold, italic, underline, strikethrough,
             fontFamily, color, highlight, language, capitalization, baseline,
-            characterSpacing, kerningThreshold, mathBody);
+            characterSpacing, kerningThreshold, mathBody, lineBreak);
     }
 
     public static final class Builder {
@@ -159,6 +178,7 @@ public final class TextRun {
         private Integer characterSpacing;
         private Integer kerningThreshold;
         private MathBody mathBody;
+        private boolean lineBreak;
 
         private Builder(String text) {
             this.text = text;

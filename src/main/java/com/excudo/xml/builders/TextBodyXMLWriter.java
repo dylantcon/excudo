@@ -74,7 +74,9 @@ public final class TextBodyXMLWriter {
             p.appendChild(endParaRPr);
         } else {
             for (TextRun run : para.getRuns()) {
-                if (!run.getText().isEmpty()) {
+                if (run.isLineBreak()) {
+                    p.appendChild(doc.createElementNS(NS, "a:br"));
+                } else if (!run.getText().isEmpty()) {
                     Element r = writeRun(doc, run);
                     p.appendChild(r);
                 }
@@ -92,6 +94,7 @@ public final class TextBodyXMLWriter {
                 || para.getAlignment() != null
                 || para.getBulletType() == BulletType.CHARACTER
                 || para.getBulletType() == BulletType.AUTONUMBER
+                || para.getBulletType() == BulletType.PICTURE
                 || para.getLineSpacing() != null
                 || para.getSpaceBefore() != null
                 || para.getSpaceAfter() != null
@@ -161,7 +164,30 @@ public final class TextBodyXMLWriter {
             pPr.appendChild(spcAft);
         }
 
-        // Bullet properties -- must come after spacing, before run content
+        // Bullet properties -- must come after spacing, before run content.
+        // CT_TextParagraphProperties order: buClr, buSz*, buFont*, bu(None|AutoNum|Char).
+        if (para.getBulletType() == BulletType.CHARACTER
+                || para.getBulletType() == BulletType.AUTONUMBER
+                || para.getBulletType() == BulletType.PICTURE) {
+            if (para.getBulletColor() != null) {
+                Element buClr = doc.createElementNS(NS, "a:buClr");
+                if (para.getBulletColor().isScheme()) {
+                    Element schemeClr = doc.createElementNS(NS, "a:schemeClr");
+                    schemeClr.setAttribute("val", para.getBulletColor().getSchemeVal());
+                    buClr.appendChild(schemeClr);
+                } else {
+                    Element srgbClr = doc.createElementNS(NS, "a:srgbClr");
+                    srgbClr.setAttribute("val", para.getBulletColor().getHexVal());
+                    buClr.appendChild(srgbClr);
+                }
+                pPr.appendChild(buClr);
+            }
+            if (para.getBulletSizePercent() != null) {
+                Element buSzPct = doc.createElementNS(NS, "a:buSzPct");
+                buSzPct.setAttribute("val", String.valueOf(para.getBulletSizePercent()));
+                pPr.appendChild(buSzPct);
+            }
+        }
         if (para.getBulletType() == BulletType.CHARACTER) {
             if (para.getBulletFont() == null) {
                 // Null font means "inherit from text run" -- emit a:buFontTx (inherit marker)
@@ -188,6 +214,14 @@ public final class TextBodyXMLWriter {
             Element buAutoNum = doc.createElementNS(NS, "a:buAutoNum");
             buAutoNum.setAttribute("type", para.getAutonumType());
             pPr.appendChild(buAutoNum);
+        } else if (para.getBulletType() == BulletType.PICTURE
+                && para.getBulletImageRelId() != null) {
+            Element buBlip = doc.createElementNS(NS, "a:buBlip");
+            Element blip = doc.createElementNS(NS, "a:blip");
+            blip.setAttributeNS(XMLConstants.RELATIONSHIPS_NS, "r:embed",
+                para.getBulletImageRelId());
+            buBlip.appendChild(blip);
+            pPr.appendChild(buBlip);
         }
 
         // tabLst sits after bullet properties, before defRPr per
@@ -331,6 +365,10 @@ public final class TextBodyXMLWriter {
                     Element normAutofit = doc.createElementNS(NS, "a:normAutofit");
                     if (props.getFontScale() != null) {
                         normAutofit.setAttribute("fontScale", String.valueOf(props.getFontScale()));
+                    }
+                    if (props.getLnSpcReduction() != null) {
+                        normAutofit.setAttribute("lnSpcReduction",
+                            String.valueOf(props.getLnSpcReduction()));
                     }
                     bodyPr.appendChild(normAutofit);
                     break;

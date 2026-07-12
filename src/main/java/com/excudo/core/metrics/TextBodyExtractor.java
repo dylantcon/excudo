@@ -94,6 +94,8 @@ public final class TextBodyExtractor {
             Element normAutofit = getFirstChild(bodyPr, "a:normAutofit");
             String fontScale = normAutofit.getAttribute("fontScale");
             if (!fontScale.isEmpty()) builder.fontScale(Integer.parseInt(fontScale));
+            String lnSpcReduction = normAutofit.getAttribute("lnSpcReduction");
+            if (!lnSpcReduction.isEmpty()) builder.lnSpcReduction(Integer.parseInt(lnSpcReduction));
         } else if (getFirstChild(bodyPr, "a:spAutoFit") != null) {
             builder.autofit(AutofitType.SHAPE);
         } else if (getFirstChild(bodyPr, "a:noAutofit") != null) {
@@ -110,6 +112,13 @@ public final class TextBodyExtractor {
         Element pPr = getFirstChild(p, "a:pPr");
         if (pPr != null) {
             extractParagraphProperties(pPr, builder);
+        } else {
+            // No pPr at all = inherit everything, bullets included. The
+            // INHERITED default used to be applied only when a pPr existed
+            // without bullet elements, so completely bare paragraphs (the
+            // most common form for level-0 body text) lost their
+            // master-lstStyle bullets.
+            builder.bulletType(BulletType.INHERITED);
         }
 
         // Walk run-level children. Two shapes show up here:
@@ -127,6 +136,12 @@ public final class TextBodyExtractor {
             if (matchesName(el, "a:r")) {
                 TextRun run = extractRun(el);
                 if (run != null) builder.addRun(run);
+            } else if (matchesName(el, "a:br")) {
+                // Forced line break within the paragraph. PowerPoint (and
+                // python-pptx, for "\n" in run text) authors these as
+                // <a:br/> siblings of <a:r>; dropping them merged
+                // logically-separate lines into one.
+                builder.addRun(TextRun.lineBreakRun());
             } else if (isMathContainer(el)) {
                 TextRun mathRun = extractMathAsFlatRun(el);
                 if (mathRun != null) builder.addRun(mathRun);
@@ -273,6 +288,30 @@ public final class TextBodyExtractor {
             }
         }
 
+        // Bullet color (a:buClr) — applies to whichever bullet kind follows
+        Element buClr = getFirstChild(pPr, "a:buClr");
+        if (buClr != null) {
+            Element schemeClr = getFirstChild(buClr, "a:schemeClr");
+            if (schemeClr != null) {
+                builder.bulletColor(TextColor.scheme(schemeClr.getAttribute("val")));
+            } else {
+                Element srgbClr = getFirstChild(buClr, "a:srgbClr");
+                if (srgbClr != null) {
+                    builder.bulletColor(TextColor.hex(srgbClr.getAttribute("val")));
+                }
+            }
+        }
+
+        // Bullet size (a:buSzPct, thousandths of a percent of the run size)
+        Element buSzPct = getFirstChild(pPr, "a:buSzPct");
+        if (buSzPct != null) {
+            String val = buSzPct.getAttribute("val");
+            if (!val.isEmpty()) {
+                try { builder.bulletSizePercent(Integer.parseInt(val)); }
+                catch (NumberFormatException ignored) { /* malformed, skip */ }
+            }
+        }
+
         // Bullet: character
         Element buChar = getFirstChild(pPr, "a:buChar");
         if (buChar != null) {
@@ -300,12 +339,26 @@ public final class TextBodyExtractor {
             builder.autonumber(buAutoNum.getAttribute("type"));
         }
 
+        // Bullet: picture (a:buBlip > a:blip r:embed)
+        Element buBlip = getFirstChild(pPr, "a:buBlip");
+        if (buBlip != null) {
+            Element blip = getFirstChild(buBlip, "a:blip");
+            if (blip != null) {
+                String embed = blip.getAttributeNS(XMLConstants.RELATIONSHIPS_NS, "embed");
+                if (embed == null || embed.isEmpty()) embed = blip.getAttribute("r:embed");
+                if (embed != null && !embed.isEmpty()) {
+                    builder.pictureBullet(embed);
+                }
+            }
+        }
+
         // Bullet: explicit none
         Element buNone = getFirstChild(pPr, "a:buNone");
 
-        // If no bullet element at all (no buChar, no buAutoNum, no buNone),
-        // default to INHERITED -- the paragraph inherits bullets from master/layout lstStyle
-        if (buChar == null && buAutoNum == null && buNone == null) {
+        // If no bullet element at all (no buChar, no buAutoNum, no buBlip,
+        // no buNone), default to INHERITED -- the paragraph inherits
+        // bullets from master/layout lstStyle
+        if (buChar == null && buAutoNum == null && buBlip == null && buNone == null) {
             builder.bulletType(com.excudo.core.model.BulletType.INHERITED);
         }
 
