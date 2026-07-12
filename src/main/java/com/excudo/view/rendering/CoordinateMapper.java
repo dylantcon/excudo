@@ -14,6 +14,10 @@ public class CoordinateMapper {
     public static final double EMUS_PER_INCH = 914400.0;
     public static final double PIXELS_PER_INCH = 96.0;
     public static final double EMUS_PER_PIXEL = EMUS_PER_INCH / PIXELS_PER_INCH; // 9525.0
+    public static final double POINTS_PER_INCH = 72.0;
+    public static final double EMUS_PER_POINT = EMUS_PER_INCH / POINTS_PER_INCH; // 12700.0
+    /** 96 px per inch / 72 pt per inch = 4/3 px per pt. */
+    public static final double PIXELS_PER_POINT = PIXELS_PER_INCH / POINTS_PER_INCH;
     
     // Standard PowerPoint slide dimensions in EMUs
     public static final long SLIDE_WIDTH_EMUS = 12192000L;  // 13.33 inches
@@ -92,6 +96,38 @@ public class CoordinateMapper {
      */
     public long pixelsToEmu(double pixels) {
         return pixelToEmu(pixels);
+    }
+
+    // ========== POINT / PIXEL CONVERSION ==========
+    //
+    // Single authority for typographic-unit conversion. Font sizes,
+    // paragraph spacing, and tracking all originate in points (or
+    // centipoints — hundredths of a point, OOXML's sz / spc / spcPts
+    // unit). Rendering surfaces speak pixels at 96 DPI, so one point is
+    // 4/3 px. Historically several call sites divided centipoints by 100
+    // and used the result directly as pixels, silently rendering text at
+    // 75% of its true size; route every conversion through these.
+
+    /**
+     * Convert typographic points to pixels at 96 DPI (1 pt = 4/3 px).
+     */
+    public static double pointsToPixels(double points) {
+        return points * PIXELS_PER_POINT;
+    }
+
+    /**
+     * Convert centipoints (hundredths of a point — OOXML {@code sz},
+     * {@code spc}, {@code spcPts} unit) to pixels at 96 DPI.
+     */
+    public static double centipointsToPixels(double centipoints) {
+        return centipoints / 100.0 * PIXELS_PER_POINT;
+    }
+
+    /**
+     * Convert EMUs to typographic points (12700 EMU per point).
+     */
+    public static double emuToPoints(long emu) {
+        return emu / EMUS_PER_POINT;
     }
     
     // ========== POWERPOINT TO JAVAFX MAPPING ==========

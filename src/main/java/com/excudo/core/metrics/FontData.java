@@ -92,6 +92,23 @@ public final class FontData {
     }
 
     /**
+     * Fraction of the line box that sits above the baseline:
+     * {@code ascent / (ascent + descent)} using the same Win-vs-Typo
+     * metric selection as {@link #calculateLineHeightEmu}. PowerPoint
+     * places the baseline of a single-spaced line at
+     * {@code lineHeight * ascentFraction} from the line top (measured
+     * from PowerPoint PDF export: 14-20pt Calibri first baselines land
+     * 0.935-0.938 em below the inset top = 1.2 em line x 1950/2500).
+     * Falls back to 0.8 when the metrics are unusable.
+     */
+    public double getAscentFraction() {
+        double asc = useTypoMetrics ? typoAscender : ascent;
+        double desc = useTypoMetrics ? Math.abs(typoDescender) : descent;
+        if (asc <= 0 || asc + desc <= 0) return 0.8;
+        return asc / (asc + desc);
+    }
+
+    /**
      * Calculate the width of a string in EMUs at the given font size.
      *
      * @param text the string to measure
