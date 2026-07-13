@@ -15,74 +15,74 @@
     "ssim": 0.937163
   },
   "effects-shadow-glow/slide-1": {
-    "histogram": 0.97219,
-    "iou": 0.872816,
-    "ssim": 0.960815
+    "histogram": 0.976782,
+    "iou": 0.888921,
+    "ssim": 0.974877
   },
   "fills-gradient/slide-1": {
-    "histogram": 0.996118,
-    "iou": 0.984747,
-    "ssim": 0.986358
+    "histogram": 0.996403,
+    "iou": 0.99733,
+    "ssim": 0.995883
   },
   "fills-gradient/slide-2": {
-    "histogram": 0.791396,
-    "iou": 0.981696,
-    "ssim": 0.973271
+    "histogram": 0.891414,
+    "iou": 0.995569,
+    "ssim": 0.988413
   },
   "fills-pattern/slide-1": {
-    "histogram": 0.84091,
-    "iou": 0.964912,
-    "ssim": 0.947107
+    "histogram": 0.846714,
+    "iou": 0.989027,
+    "ssim": 0.969136
   },
   "fills-pattern/slide-2": {
-    "histogram": 0.702309,
-    "iou": 0.967984,
-    "ssim": 0.942049
+    "histogram": 0.710106,
+    "iou": 0.990422,
+    "ssim": 0.963165
   },
   "fills-pattern/slide-3": {
-    "histogram": 0.792473,
-    "iou": 0.96464,
-    "ssim": 0.987137
+    "histogram": 0.797661,
+    "iou": 0.989779,
+    "ssim": 0.992604
   },
   "fills-picture/slide-1": {
-    "histogram": 0.999691,
-    "iou": 0.983542,
-    "ssim": 0.977709
+    "histogram": 0.999848,
+    "iou": 0.997905,
+    "ssim": 0.989483
   },
   "fills-solid-theme/slide-1": {
-    "histogram": 0.922218,
-    "iou": 0.968374,
-    "ssim": 0.961161
+    "histogram": 0.928228,
+    "iou": 0.995574,
+    "ssim": 0.998091
   },
   "fills-solid-theme/slide-2": {
-    "histogram": 0.816175,
-    "iou": 0.979521,
-    "ssim": 0.974663
+    "histogram": 0.986803,
+    "iou": 0.996046,
+    "ssim": 0.998917
   },
   "integration-generalist/slide-1": {
-    "histogram": 0.994903,
-    "iou": 0.883122,
-    "ssim": 0.851534
+    "histogram": 0.999925,
+    "iou": 0.974456,
+    "ssim": 0.975327
   },
   "integration-generalist/slide-2": {
-    "histogram": 0.991415,
-    "iou": 0.835642,
-    "ssim": 0.852869
+    "histogram": 0.999788,
+    "iou": 0.923541,
+    "ssim": 0.963317
   },
   "integration-generalist/slide-3": {
-    "histogram": 0.995788,
-    "iou": 0.727973,
-    "ssim": 0.899366
+    "histogram": 0.996671,
+    "iou": 0.734244,
+    "ssim": 0.962647
   },
   "integration-generalist/slide-4": {
-    "histogram": 0.999671,
-    "iou": 0.943111,
-    "ssim": 0.851878
+    "histogram": 0.999993,
+    "iou": 0.998576,
+    "ssim": 0.97633
   },
   "integration-generalist/slide-5": {
-    "histogram": 0.539404,
-    "iou": 0.318365,
-    "ssim": 0.832108
+    "histogram": 0.998736,
+    "iou": 0.671394,
+    "ssim": 0.955826
   },
   "integration-jakepaul/slide-1": {
     "histogram": 0.99912,
@@ -165,59 +165,59 @@
     "ssim": 0.907697
   },
   "lines-dash-cap-join/slide-2": {
-    "histogram": 0.888738,
-    "iou": 0.695779,
-    "ssim": 0.957907
+    "histogram": 0.891676,
+    "iou": 0.768576,
+    "ssim": 0.968095
   },
   "preset-shapes-actionbuttons/slide-1": {
-    "histogram": 0.88255,
-    "iou": 0.962196,
-    "ssim": 0.934105
+    "histogram": 0.899873,
+    "iou": 0.99554,
+    "ssim": 0.991099
   },
   "preset-shapes-arrows/slide-1": {
-    "histogram": 0.885483,
-    "iou": 0.43687,
-    "ssim": 0.82362
+    "histogram": 0.967763,
+    "iou": 0.979467,
+    "ssim": 0.995482
   },
   "preset-shapes-basic/slide-1": {
-    "histogram": 0.958881,
-    "iou": 0.709393,
-    "ssim": 0.867367
+    "histogram": 0.9746,
+    "iou": 0.987969,
+    "ssim": 0.987304
   },
   "preset-shapes-basic/slide-2": {
-    "histogram": 0.951339,
-    "iou": 0.573732,
-    "ssim": 0.838881
+    "histogram": 0.974672,
+    "iou": 0.987241,
+    "ssim": 0.996498
   },
   "preset-shapes-basic/slide-3": {
-    "histogram": 0.954006,
-    "iou": 0.778851,
-    "ssim": 0.903512
+    "histogram": 0.97109,
+    "iou": 0.988127,
+    "ssim": 0.995202
   },
   "preset-shapes-callouts/slide-1": {
-    "histogram": 0.954879,
-    "iou": 0.86518,
-    "ssim": 0.882552
+    "histogram": 0.959712,
+    "iou": 0.990102,
+    "ssim": 0.990231
   },
   "preset-shapes-callouts/slide-2": {
-    "histogram": 0.901464,
-    "iou": 0.682717,
-    "ssim": 0.981275
+    "histogram": 0.986239,
+    "iou": 0.98708,
+    "ssim": 0.999331
   },
   "preset-shapes-flowchart/slide-1": {
-    "histogram": 0.956383,
-    "iou": 0.877808,
-    "ssim": 0.89731
+    "histogram": 0.964851,
+    "iou": 0.988904,
+    "ssim": 0.995272
   },
   "preset-shapes-flowchart/slide-2": {
-    "histogram": 0.949075,
-    "iou": 0.771542,
-    "ssim": 0.969283
+    "histogram": 0.975825,
+    "iou": 0.989189,
+    "ssim": 0.999088
   },
   "preset-shapes-stars-banners/slide-1": {
-    "histogram": 0.954544,
-    "iou": 0.65493,
-    "ssim": 0.821495
+    "histogram": 0.985609,
+    "iou": 0.986243,
+    "ssim": 0.992218
   },
   "tables-basic/slide-1": {
     "histogram": 0.0,

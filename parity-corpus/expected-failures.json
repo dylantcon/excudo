@@ -2,16 +2,8 @@
   "arrowheads": "pending-A5-connectors-lines",
   "charts-placeholder": "charts-out-of-scope",
   "connectors-straight-bent-curved": "pending-A5-connectors-lines",
-  "fills-pattern": "residual: style-effectRef shadow (A5) + PowerPoint AA of 1px pattern strokes; 0.9420 vs 0.95 floor",
-  "integration-generalist": "pending-track-A-integration",
   "integration-jakepaul": "pending-track-A-integration",
   "lines-dash-cap-join": "pending-A5-connectors-lines",
-  "preset-shapes-actionbuttons": "pending-A4-geometry-engine",
-  "preset-shapes-arrows": "pending-A4-geometry-engine",
-  "preset-shapes-basic": "pending-A4-geometry-engine",
-  "preset-shapes-callouts": "pending-A4-geometry-engine",
-  "preset-shapes-flowchart": "pending-A4-geometry-engine",
-  "preset-shapes-stars-banners": "pending-A4-geometry-engine",
   "tables-basic": "pending-A6-tables",
   "tables-merges": "pending-A6-tables"
 }
