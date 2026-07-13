@@ -33,12 +33,25 @@ final class GeometryRenderTestSupport {
 
     /** p:sp element with a red solid fill and the given spPr geometry XML. */
     static Element spElement(String geometryXml) {
-        String xml = "<p:sp xmlns:p=\"" + P_NS + "\" xmlns:a=\"" + A_NS + "\">"
+        return spElementRaw(geometryXml
+            + "<a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill>");
+    }
+
+    /** p:sp element whose p:spPr contains exactly {@code spPrXml}. */
+    static Element spElementRaw(String spPrXml) {
+        return parse("<p:sp xmlns:p=\"" + P_NS + "\" xmlns:a=\"" + A_NS + "\">"
             + "<p:nvSpPr><p:cNvPr id=\"7\" name=\"probe\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
-            + "<p:spPr>"
-            + geometryXml
-            + "<a:solidFill><a:srgbClr val=\"FF0000\"/></a:solidFill>"
-            + "</p:spPr></p:sp>";
+            + "<p:spPr>" + spPrXml + "</p:spPr></p:sp>");
+    }
+
+    /** p:cxnSp element whose p:spPr contains exactly {@code spPrXml}. */
+    static Element cxnSpElement(String spPrXml) {
+        return parse("<p:cxnSp xmlns:p=\"" + P_NS + "\" xmlns:a=\"" + A_NS + "\">"
+            + "<p:nvCxnSpPr><p:cNvPr id=\"8\" name=\"conn\"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>"
+            + "<p:spPr>" + spPrXml + "</p:spPr></p:cxnSp>");
+    }
+
+    private static Element parse(String xml) {
         try {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             f.setNamespaceAware(true);

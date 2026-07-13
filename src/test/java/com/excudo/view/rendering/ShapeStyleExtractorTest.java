@@ -125,6 +125,56 @@ public class ShapeStyleExtractorTest {
     }
 
     /**
+     * p:style fillRef idx="0" means NO fill (ECMA-376 20.1.4.2.14: index
+     * 0 or 1000 = no fill style referenced). Every python-pptx connector
+     * carries fillRef idx="0" over accent1; resolving it as a solid
+     * accent1 paint would fill open connector paths. Fail-first:
+     * verified red 2026-07-13 -- the pre-A5 resolver fell through to the
+     * flat-scheme-color branch and returned solid accent1.
+     */
+    @Test
+    public void resolveFillColor_fillRefIdxZeroIsNoFill() throws Exception {
+        java.io.File testFile = new java.io.File("test-pptx-samples/generalist_test_file.pptx");
+        if (!testFile.exists()) {
+            testFile = new java.io.File("../../../test-pptx-samples/generalist_test_file.pptx");
+        }
+        if (!testFile.exists()) fail("Required fixture not found: " + testFile.getAbsolutePath());
+
+        com.excudo.core.model.PPTXDocument doc =
+            com.excudo.core.model.PPTXDocument.loadFromZip(testFile);
+        ThemeManager.initialize(doc);
+
+        java.util.Map<String, String> clrMap = java.util.Map.of(
+            "accent1", "accent1", "tx1", "lt1", "bg1", "dk1");
+        SlideRenderContext ctx = new SlideRenderContext(
+            null, null, doc, 1, clrMap, null);
+
+        String xml = """
+            <p:cxnSp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <p:nvCxnSpPr>
+                    <p:cNvPr id="4" name="Connector"/>
+                    <p:cNvCxnSpPr/>
+                    <p:nvPr/>
+                </p:nvCxnSpPr>
+                <p:spPr>
+                    <a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="100"/></a:xfrm>
+                    <a:prstGeom prst="line"><a:avLst/></a:prstGeom>
+                </p:spPr>
+                <p:style>
+                    <a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef>
+                    <a:fillRef idx="0"><a:schemeClr val="accent1"/></a:fillRef>
+                </p:style>
+            </p:cxnSp>
+            """;
+
+        SlideShape shape = parseShape(xml, SlideShape.ShapeType.CONNECTION);
+        SurfacePaint fill = ShapeStyleExtractor.resolveFillColor(shape, ctx);
+
+        assertSame(SurfacePaint.Transparent.INSTANCE, fill);
+    }
+
+    /**
      * getChild must match direct children only — not descendants.
      * A shape with solidFill nested inside a gradient stop should NOT
      * have that inner solidFill picked up as the shape's fill.
