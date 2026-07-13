@@ -1,5 +1,9 @@
 package com.excudo.core.model;
 
+import com.excudo.core.geometry.GeometryDefinition;
+
+import java.util.Map;
+
 /**
  * Represents the position and size of a shape in EMUs (English Metric Units)
  */
@@ -9,6 +13,16 @@ public class ShapeGeometry {
   private final int rotation;   // Rotation in 60,000ths of a degree (OOXML a:xfrm/@rot)
   private final boolean flipH;  // OOXML a:xfrm/@flipH -- mirror across the vertical axis
   private final boolean flipV;  // OOXML a:xfrm/@flipV -- mirror across the horizontal axis
+  // OOXML a:prstGeom/@prst, verbatim. Null when the shape carries
+  // a:custGeom (or no geometry element at all). Kept as the raw string
+  // because the preset vocabulary (187 names) is far wider than the
+  // ShapeType enum.
+  private final String presetName;
+  // a:prstGeom/a:avLst overrides: guide name -> raw integer from the
+  // "val N" formula. Empty when the shape uses the preset defaults.
+  private final Map<String, Integer> adjustValues;
+  // Parsed a:custGeom payload; null for preset shapes.
+  private final GeometryDefinition customGeometry;
 
   public ShapeGeometry(long x, long y, long width, long height) {
     this(x, y, width, height, 0);
@@ -20,6 +34,12 @@ public class ShapeGeometry {
 
   public ShapeGeometry(long x, long y, long width, long height, int rotation,
                        boolean flipH, boolean flipV) {
+    this(x, y, width, height, rotation, flipH, flipV, null, Map.of(), null);
+  }
+
+  public ShapeGeometry(long x, long y, long width, long height, int rotation,
+                       boolean flipH, boolean flipV, String presetName,
+                       Map<String, Integer> adjustValues, GeometryDefinition customGeometry) {
     this.x = x;
     this.y = y;
     this.width = width;
@@ -27,6 +47,19 @@ public class ShapeGeometry {
     this.rotation = rotation;
     this.flipH = flipH;
     this.flipV = flipV;
+    this.presetName = presetName;
+    this.adjustValues = adjustValues == null ? Map.of() : Map.copyOf(adjustValues);
+    this.customGeometry = customGeometry;
+  }
+
+  /**
+   * Copy with new position/size, keeping rotation, flips and the
+   * geometry payload. Used when re-basing group children into slide
+   * coordinates.
+   */
+  public ShapeGeometry withBounds(long x, long y, long width, long height) {
+    return new ShapeGeometry(x, y, width, height, rotation, flipH, flipV,
+        presetName, adjustValues, customGeometry);
   }
 
   // Convert EMUs to points (common PowerPoint unit)
@@ -51,6 +84,15 @@ public class ShapeGeometry {
   /** OOXML a:xfrm/@flipV -- the shape is mirrored across its horizontal axis. */
   public boolean isFlipV() { return flipV; }
 
+  /** Raw a:prstGeom/@prst name, or null (custom geometry / no geometry). */
+  public String getPresetName() { return presetName; }
+
+  /** a:avLst overrides (guide name -> raw integer); empty for defaults. */
+  public Map<String, Integer> getAdjustValues() { return adjustValues; }
+
+  /** Parsed a:custGeom definition, or null for preset shapes. */
+  public GeometryDefinition getCustomGeometry() { return customGeometry; }
+
   // PowerPoint conversion: 1 point = 12700 EMUs
   private static double emuToPoints(long emu) {
     return emu / 12700.0;
@@ -71,11 +113,15 @@ public class ShapeGeometry {
     return x == that.x && y == that.y
         && width == that.width && height == that.height
         && rotation == that.rotation
-        && flipH == that.flipH && flipV == that.flipV;
+        && flipH == that.flipH && flipV == that.flipV
+        && java.util.Objects.equals(presetName, that.presetName)
+        && adjustValues.equals(that.adjustValues)
+        && java.util.Objects.equals(customGeometry, that.customGeometry);
   }
 
   @Override
   public int hashCode() {
-    return java.util.Objects.hash(x, y, width, height, rotation, flipH, flipV);
+    return java.util.Objects.hash(x, y, width, height, rotation, flipH, flipV,
+        presetName, adjustValues);
   }
 }

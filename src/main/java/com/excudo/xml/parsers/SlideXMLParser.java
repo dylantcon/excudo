@@ -182,9 +182,12 @@ public class SlideXMLParser {
             long absY = gy + (cg.getY() - coy) * gcy / cecy;
             long absW = cg.getWidth() * gcx / cecx;
             long absH = cg.getHeight() * gcy / cecy;
+            // withBounds keeps rotation, flips, and the geometry payload
+            // (preset name / adjust values / custGeom) while re-basing
+            // into slide coordinates.
             childShape = new SlideShape(childShape.getSpid(), childShape.getName(),
                 childShape.getType(), childShape.getTextContent(),
-                new ShapeGeometry(absX, absY, absW, absH, cg.getRotation()),
+                cg.withBounds(absX, absY, absW, absH),
                 childShape.getXmlElement(), childShape.getParagraphMetadata(),
                 childShape.isTextBox());
           }
@@ -347,7 +350,62 @@ public class SlideXMLParser {
     boolean flipV = parseXmlBoolean(
         (String) xpath.evaluate(".//a:xfrm/@flipV", shapeElement, XPathConstants.STRING));
 
-    return new ShapeGeometry(x, y, cx, cy, rot, flipH, flipV);
+    // Geometry payload: the raw preset name + avLst overrides, or the
+    // full parsed custGeom. Scoped to this shape's own p:spPr (not
+    // ".//") so a group element never picks up a child's geometry.
+    String presetName = null;
+    Map<String, Integer> adjustValues = Map.of();
+    com.excudo.core.geometry.GeometryDefinition customGeometry = null;
+    Element prstGeom = (Element) xpath.evaluate(
+        "p:spPr/a:prstGeom", shapeElement, XPathConstants.NODE);
+    if (prstGeom != null) {
+      String prst = prstGeom.getAttribute("prst");
+      if (prst != null && !prst.isEmpty()) {
+        presetName = prst;
+        adjustValues = extractAdjustValues(prstGeom);
+      }
+    } else {
+      Element custGeom = (Element) xpath.evaluate(
+          "p:spPr/a:custGeom", shapeElement, XPathConstants.NODE);
+      if (custGeom != null) {
+        // Malformed custom geometry throws (no rectangle fallback) --
+        // see CustomGeometryParser.
+        customGeometry = com.excudo.core.geometry.CustomGeometryParser.parse(custGeom);
+      }
+    }
+
+    return new ShapeGeometry(x, y, cx, cy, rot, flipH, flipV,
+        presetName, adjustValues, customGeometry);
+  }
+
+  /**
+   * Parse a:prstGeom/a:avLst adjust-value overrides. Each gd carries a
+   * "val N" formula per the prstGeom schema; anything else is malformed
+   * and throws rather than being silently dropped.
+   */
+  private Map<String, Integer> extractAdjustValues(Element prstGeom)
+      throws XPathExpressionException {
+    NodeList gds = (NodeList) xpath.evaluate(
+        "a:avLst/a:gd", prstGeom, XPathConstants.NODESET);
+    if (gds.getLength() == 0) return Map.of();
+    Map<String, Integer> values = new HashMap<>();
+    for (int i = 0; i < gds.getLength(); i++) {
+      Element gd = (Element) gds.item(i);
+      String name = gd.getAttribute("name");
+      String fmla = gd.getAttribute("fmla").trim();
+      if (name.isEmpty() || !fmla.startsWith("val ")) {
+        throw new IllegalArgumentException(
+            "prstGeom avLst gd must be name + 'val N', got name='" + name
+            + "' fmla='" + fmla + "'");
+      }
+      try {
+        values.put(name, Integer.parseInt(fmla.substring(4).trim()));
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException(
+            "prstGeom avLst gd '" + name + "' has non-integer value: " + fmla, e);
+      }
+    }
+    return values;
   }
 
   /** Parse an OOXML xsd:boolean attribute ("1"/"0"/"true"/"false"). Empty/null -> false. */
