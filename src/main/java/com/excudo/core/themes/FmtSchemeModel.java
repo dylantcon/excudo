@@ -102,13 +102,27 @@ public record FmtSchemeModel(
             FillDef fill) {}
 
     // ====================================================================
-    // Effect definitions (v1 — opaque container; richer typing deferred)
+    // Effect definitions
     // ====================================================================
 
-    /** Theme effect style. v1 keeps this as a marker record; when an
-     *  effect consumer lands in the resolver path it can add fields
-     *  without breaking the model's shape. */
-    public record EffectDef() {}
+    /** Theme effect style. Carries the outer shadow when the style's
+     *  effectLst declares one ({@code null} otherwise); other effect
+     *  kinds (glow, reflection, 3D scene) remain unmodeled. */
+    public record EffectDef(OuterShadowDef outerShadow) {
+        /** Marker for an effect style with no modeled effects. */
+        public EffectDef() {
+            this(null);
+        }
+    }
+
+    /** a:outerShdw inside a theme effect style: blur radius, offset
+     *  distance (both EMU), direction in degrees (y-down clockwise),
+     *  and the shadow color (alpha lives in the color's modifiers). */
+    public record OuterShadowDef(
+            double blurRadEmu,
+            double distEmu,
+            double directionDegrees,
+            ColorSpec color) {}
 
     // ====================================================================
     // Color specifications

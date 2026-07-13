@@ -287,6 +287,26 @@ public final class CanvasRenderSurface implements RenderSurface {
         gc.clip();
     }
 
+    // ========== BLUR LAYER ==========
+
+    @Override
+    public void beginBlurLayer(double blurPx) {
+        // Canvas approximation: apply a per-op GaussianBlur effect for
+        // the layer's duration. Unlike the AWT backend's true offscreen
+        // layer, overlapping draws blur individually -- acceptable for
+        // the interactive canvas; the parity/export path uses AWT.
+        gc.save();
+        double radius = Math.max(0, Math.min(63, blurPx));
+        if (radius > 0.1) {
+            gc.setEffect(new javafx.scene.effect.GaussianBlur(radius));
+        }
+    }
+
+    @Override
+    public void endBlurLayer() {
+        gc.restore();
+    }
+
     // ========== CLEAR ==========
 
     @Override

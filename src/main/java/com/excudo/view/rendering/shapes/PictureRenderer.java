@@ -82,9 +82,18 @@ public class PictureRenderer implements ModelShapeRenderer {
         if (shadow != null) {
             surface.save();
             surface.translate(shadow.offsetX(), shadow.offsetY());
-            surface.setFill(shadow.color());
-            surface.fillRect(bounds.getMinX(), bounds.getMinY(),
-                bounds.getWidth(), bounds.getHeight());
+            double blur = shadow.blurPx();
+            if (blur <= 0.5) {
+                surface.setFill(shadow.color());
+                surface.fillRect(bounds.getMinX(), bounds.getMinY(),
+                    bounds.getWidth(), bounds.getHeight());
+            } else {
+                surface.beginBlurLayer(blur);
+                surface.setFill(shadow.color());
+                surface.fillRect(bounds.getMinX(), bounds.getMinY(),
+                    bounds.getWidth(), bounds.getHeight());
+                surface.endBlurLayer();
+            }
             surface.restore();
         }
 

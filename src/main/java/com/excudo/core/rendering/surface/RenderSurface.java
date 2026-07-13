@@ -138,6 +138,24 @@ public interface RenderSurface {
     void scale(double sx, double sy);
     void clipRect(double x, double y, double w, double h);
 
+    // ========== BLUR LAYER ==========
+
+    /**
+     * Begin an offscreen compositing layer. Everything drawn until
+     * {@link #endBlurLayer()} is collected separately and composited
+     * back through a gaussian blur. {@code blurPx} is the OOXML
+     * {@code blurRad} in pixels; the gaussian sigma is {@code blurPx/3}
+     * (PowerPoint's shadow profile, measured from the effects-shadow-glow
+     * ground truth: the 50% point sits exactly at {@code dist} and the
+     * falloff matches sigma = blurRad/3). Layers do not nest. Used for
+     * soft shadows; the Canvas backend approximates with a per-op
+     * effect, the AWT backend blurs exactly.
+     */
+    void beginBlurLayer(double blurPx);
+
+    /** Composite the current blur layer back onto the surface. */
+    void endBlurLayer();
+
     // ========== CLEAR ==========
 
     /**

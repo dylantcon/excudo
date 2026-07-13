@@ -141,69 +141,98 @@ public final class ShapeStyleExtractor {
         }
 
         Element spPr = getChild(shape.getXmlElement(), "p:spPr");
-        if (spPr == null) return LineStyle.NONE;
+        Element ln = spPr != null ? getChild(spPr, "a:ln") : null;
 
-        Element ln = getChild(spPr, "a:ln");
-        if (ln == null) return LineStyle.NONE;
-
-        // Check noFill on line
-        if (getChild(ln, "a:noFill") != null) {
+        // Explicit noFill on the line always wins.
+        if (ln != null && getChild(ln, "a:noFill") != null) {
             return LineStyle.NONE;
         }
 
-        // Width in EMUs (default 12700 = 1pt)
-        double widthEmu = 12700;
-        if (ln.hasAttribute("w")) {
+        // Explicit width/dash on a:ln override anything the style ref says.
+        Double explicitWidthEmu = null;
+        if (ln != null && ln.hasAttribute("w")) {
             try {
-                widthEmu = Double.parseDouble(ln.getAttribute("w"));
+                explicitWidthEmu = Double.parseDouble(ln.getAttribute("w"));
             } catch (NumberFormatException ignored) {}
         }
-        // Convert EMU to approximate pixels (96 DPI)
-        double widthPixels = widthEmu / 914400.0 * 96.0;
+        Element prstDash = ln != null ? getChild(ln, "a:prstDash") : null;
+        String explicitDash = (prstDash != null && prstDash.hasAttribute("val"))
+            ? prstDash.getAttribute("val") : null;
 
-        // Line color
-        Element solidFill = getChild(ln, "a:solidFill");
-        SurfacePaint.Solid lineColor;
+        // Explicit line fill in a:ln.
+        Element solidFill = ln != null ? getChild(ln, "a:solidFill") : null;
         if (solidFill != null) {
             SurfacePaint parsed = parseColorElement(solidFill, slideCtx);
-            lineColor = parsed instanceof SurfacePaint.Solid s ? s : SurfacePaint.Solid.rgb(0, 0, 0);
-        } else {
-            // Check p:style lnRef -- resolve color through fmtScheme
-            Element pStyle = getChild(shape.getXmlElement(), "p:style");
-            Element lnRef = pStyle != null ? getChild(pStyle, "a:lnRef") : null;
-            if (lnRef != null && slideCtx != null) {
-                int idx = 0;
-                try { idx = Integer.parseInt(lnRef.getAttribute("idx")); }
-                catch (NumberFormatException ignored) {}
+            SurfacePaint.Solid lineColor =
+                parsed instanceof SurfacePaint.Solid s ? s : SurfacePaint.Solid.rgb(0, 0, 0);
+            double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
+            return new LineStyle(lineColor, widthPixels,
+                explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
+        }
 
-                Element schemeClr = getChild(lnRef, "a:schemeClr");
-                if (schemeClr != null && schemeClr.hasAttribute("val") && idx > 0
-                        && ThemeManager.isThemeLoaded()) {
-                    String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
+        // No explicit line fill: fall back to p:style lnRef. This also
+        // covers shapes with NO a:ln at all -- PowerPoint strokes those
+        // from the style reference (every python-pptx add_shape() shape:
+        // lnRef idx=2 over shaded accent1), and skipping them left every
+        // themed preset shape borderless.
+        Element pStyle = getChild(shape.getXmlElement(), "p:style");
+        Element lnRef = pStyle != null ? getChild(pStyle, "a:lnRef") : null;
+        if (lnRef != null && slideCtx != null) {
+            int idx = 0;
+            try { idx = Integer.parseInt(lnRef.getAttribute("idx")); }
+            catch (NumberFormatException ignored) {}
+
+            Element schemeClr = getChild(lnRef, "a:schemeClr");
+            if (schemeClr != null && schemeClr.hasAttribute("val")) {
+                // The ref's color (with ITS modifiers -- e.g. the shade
+                // 50000 python-pptx puts on accent1) is the phClr input
+                // to the theme's lnStyleLst entry.
+                String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
+                double phAlpha = 1.0;
+                var mods = com.excudo.core.color.ColorTransforms.modifiersFromDom(schemeClr);
+                if (!mods.isEmpty()) {
+                    var rc = com.excudo.core.color.ColorTransforms.apply(phColorHex, mods);
+                    phColorHex = rc.hex();
+                    phAlpha = rc.alpha();
+                }
+
+                if (idx > 0 && ThemeManager.isThemeLoaded()) {
                     FmtSchemeResolver.ResolvedLineStyle resolved =
                         ThemeManager.resolveLineStyle(idx, phColorHex);
-                    lineColor = solidFromHex(resolved.colorHex());
-                    if (resolved.alpha() < 1.0) {
-                        lineColor = lineColor.withAlpha(resolved.alpha());
+                    SurfacePaint.Solid lineColor = solidFromHex(resolved.colorHex());
+                    double alpha = resolved.alpha() * phAlpha;
+                    if (alpha < 1.0) {
+                        lineColor = lineColor.withAlpha(alpha);
                     }
-                } else if (schemeClr != null && schemeClr.hasAttribute("val")) {
-                    lineColor = solidFromHex(slideCtx.resolveSchemeColor(schemeClr.getAttribute("val")));
-                } else {
-                    lineColor = SurfacePaint.Solid.rgb(0, 0, 0);
+                    double widthPixels = emuToPx(explicitWidthEmu != null
+                        ? explicitWidthEmu : resolved.widthEmu());
+                    String dash = explicitDash != null ? explicitDash : resolved.dashStyle();
+                    return new LineStyle(lineColor, widthPixels,
+                        dash != null ? mapDashStyle(dash, widthPixels) : null);
                 }
-            } else {
-                lineColor = SurfacePaint.Solid.rgb(0, 0, 0);
+
+                // No fmtScheme: flat ref color at explicit/default width.
+                SurfacePaint.Solid lineColor = solidFromHex(phColorHex);
+                if (phAlpha < 1.0) lineColor = lineColor.withAlpha(phAlpha);
+                double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
+                return new LineStyle(lineColor, widthPixels,
+                    explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
             }
         }
 
-        // Dash pattern
-        double[] dashPattern = null;
-        Element prstDash = getChild(ln, "a:prstDash");
-        if (prstDash != null && prstDash.hasAttribute("val")) {
-            dashPattern = mapDashStyle(prstDash.getAttribute("val"), widthPixels);
+        // a:ln present but fill-less and no usable style ref: the legacy
+        // 1pt black default. Without a:ln there is nothing to stroke.
+        if (ln != null) {
+            double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
+            return new LineStyle(SurfacePaint.Solid.rgb(0, 0, 0), widthPixels,
+                explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
         }
+        return LineStyle.NONE;
+    }
 
-        return new LineStyle(lineColor, widthPixels, dashPattern);
+    /** EMU to pixels at 96 DPI. */
+    private static double emuToPx(double emu) {
+        return emu / 914400.0 * 96.0;
     }
 
     /**
@@ -702,21 +731,29 @@ public final class ShapeStyleExtractor {
     public static ShadowStyle resolveShadow(SlideShape shape, SlideRenderContext slideCtx) {
         if (shape == null || shape.getXmlElement() == null) return null;
         Element spPr = getChild(shape.getXmlElement(), "p:spPr");
-        if (spPr == null) return null;
-        Element effectLst = getChild(spPr, "a:effectLst");
-        if (effectLst == null) return null;
-        Element outerShdw = getChild(effectLst, "a:outerShdw");
-        if (outerShdw == null) return null;
+        Element effectLst = spPr != null ? getChild(spPr, "a:effectLst") : null;
+        Element outerShdw = effectLst != null ? getChild(effectLst, "a:outerShdw") : null;
+        if (outerShdw == null) {
+            // No explicit effect list: PowerPoint falls back to the
+            // p:style effectRef -- the soft drop shadow every default-
+            // styled shape carries (theme effectStyle idx 2).
+            return resolveStyleRefShadow(shape, slideCtx);
+        }
 
-        // Distance and direction
+        // Distance, direction, blur
         double distEmu = 0;
         double dirDeg = 0;
+        double blurEmu = 0;
         if (outerShdw.hasAttribute("dist")) {
             try { distEmu = Double.parseDouble(outerShdw.getAttribute("dist")); }
             catch (NumberFormatException ignored) {}
         }
         if (outerShdw.hasAttribute("dir")) {
             try { dirDeg = Integer.parseInt(outerShdw.getAttribute("dir")) / 60000.0; }
+            catch (NumberFormatException ignored) {}
+        }
+        if (outerShdw.hasAttribute("blurRad")) {
+            try { blurEmu = Double.parseDouble(outerShdw.getAttribute("blurRad")); }
             catch (NumberFormatException ignored) {}
         }
 
@@ -739,7 +776,52 @@ public final class ShapeStyleExtractor {
             }
         }
 
-        return new ShadowStyle(offsetX, offsetY, shadowColor);
+        return new ShadowStyle(offsetX, offsetY, shadowColor, blurEmu / 914400.0 * 96.0);
+    }
+
+    /** Shadow from p:style effectRef via the theme effectStyleLst, or null. */
+    private static ShadowStyle resolveStyleRefShadow(SlideShape shape, SlideRenderContext slideCtx) {
+        if (slideCtx == null || !ThemeManager.isThemeLoaded()) return null;
+        Element pStyle = getChild(shape.getXmlElement(), "p:style");
+        Element effectRef = pStyle != null ? getChild(pStyle, "a:effectRef") : null;
+        if (effectRef == null) return null;
+
+        int idx = 0;
+        try { idx = Integer.parseInt(effectRef.getAttribute("idx")); }
+        catch (NumberFormatException ignored) {}
+        if (idx <= 0) return null;
+
+        // The ref's color (with modifiers) is the phClr input; theme
+        // shadows are usually literal srgbClr black so it rarely matters.
+        String phColorHex = "#000000";
+        Element schemeClr = getChild(effectRef, "a:schemeClr");
+        if (schemeClr != null && schemeClr.hasAttribute("val")) {
+            phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
+            var mods = com.excudo.core.color.ColorTransforms.modifiersFromDom(schemeClr);
+            if (!mods.isEmpty()) {
+                phColorHex = com.excudo.core.color.ColorTransforms.apply(phColorHex, mods).hex();
+            }
+        }
+
+        FmtSchemeResolver.ResolvedShadow resolved;
+        try {
+            resolved = ThemeManager.resolveEffectStyle(idx, phColorHex);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return null; // theme without fmtScheme effects
+        }
+        if (resolved == null) return null;
+
+        double distPx = resolved.distEmu() / 914400.0 * 96.0;
+        double dirDeg = resolved.directionDegrees();
+        SurfacePaint.Solid color = solidFromHex(resolved.colorHex());
+        if (resolved.alpha() < 1.0) {
+            color = color.withAlpha(resolved.alpha());
+        }
+        return new ShadowStyle(
+            distPx * Math.cos(Math.toRadians(dirDeg)),
+            distPx * Math.sin(Math.toRadians(dirDeg)),
+            color,
+            resolved.blurRadEmu() / 914400.0 * 96.0);
     }
 
     /** Immutable line style result with optional dash pattern. */
@@ -750,6 +832,11 @@ public final class ShapeStyleExtractor {
         public boolean isVisible() { return widthPixels > 0 && color.alpha() > 0; }
     }
 
-    /** Immutable shadow style result. */
-    public record ShadowStyle(double offsetX, double offsetY, SurfacePaint.Solid color) {}
+    /**
+     * Immutable shadow style result. {@code blurPx} is the outerShdw
+     * blur radius in pixels (0 = hard shadow); renderers approximate
+     * the gaussian falloff.
+     */
+    public record ShadowStyle(double offsetX, double offsetY, SurfacePaint.Solid color,
+                              double blurPx) {}
 }

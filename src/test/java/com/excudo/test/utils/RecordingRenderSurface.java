@@ -128,6 +128,8 @@ public final class RecordingRenderSurface implements RenderSurface {
     @Override public void rotate(double degrees) {}
     @Override public void scale(double sx, double sy) {}
     @Override public void clipRect(double x, double y, double w, double h) { clipRectCalls++; }
+    @Override public void beginBlurLayer(double blurPx) {}
+    @Override public void endBlurLayer() {}
     @Override public void clear(SurfacePaint background) {}
 
     @Override

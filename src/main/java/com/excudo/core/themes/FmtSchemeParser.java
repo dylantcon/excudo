@@ -217,7 +217,7 @@ public final class FmtSchemeParser {
     }
 
     // ====================================================================
-    // Effect list parsing (v1 stub — preserves list length for indexing)
+    // Effect list parsing
     // ====================================================================
 
     private static List<FmtSchemeModel.EffectDef> parseEffectList(Element fmtScheme) {
@@ -227,13 +227,32 @@ public final class FmtSchemeParser {
         List<FmtSchemeModel.EffectDef> effects = new ArrayList<>(3);
         for (Node n = listEl.getFirstChild(); n != null; n = n.getNextSibling()) {
             if (n instanceof Element el && "a:effectStyle".equals(el.getTagName())) {
-                // v1 collapses every effectStyle to an opaque marker.
-                // When the resolver starts consuming effects, extend
-                // EffectDef + this parse to carry the real data.
-                effects.add(new FmtSchemeModel.EffectDef());
+                effects.add(new FmtSchemeModel.EffectDef(parseOuterShadow(el)));
             }
         }
         return effects;
+    }
+
+    /** The a:outerShdw of an effect style's a:effectLst, or null. Glow,
+     *  reflection and 3D children are not modeled. */
+    private static FmtSchemeModel.OuterShadowDef parseOuterShadow(Element effectStyle) {
+        Element effectLst = directChild(effectStyle, "a:effectLst");
+        Element shdw = effectLst != null ? directChild(effectLst, "a:outerShdw") : null;
+        if (shdw == null) return null;
+        return new FmtSchemeModel.OuterShadowDef(
+            doubleAttr(shdw, "blurRad"),
+            doubleAttr(shdw, "dist"),
+            doubleAttr(shdw, "dir") / 60000.0,
+            parseColorChild(shdw));
+    }
+
+    private static double doubleAttr(Element el, String attr) {
+        if (!el.hasAttribute(attr)) return 0;
+        try {
+            return Double.parseDouble(el.getAttribute(attr));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     // ====================================================================

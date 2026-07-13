@@ -130,6 +130,23 @@ public class ThemeManager {
         }
         return resolver.resolveLineByIndex(idx, phColorHex);
     }
+
+    /**
+     * Resolve an effect style's outer shadow from the theme's fmtScheme.
+     * @param idx effect reference index (1-3)
+     * @param phColorHex resolved scheme color to substitute for phClr
+     * @return the shadow, or null when the style has no outer shadow
+     */
+    public static FmtSchemeResolver.ResolvedShadow resolveEffectStyle(int idx, String phColorHex) {
+        if (defaultTheme == null) {
+            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
+        }
+        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
+        if (!resolver.isParsed()) {
+            throw new IllegalStateException("fmtScheme not parsed from theme.");
+        }
+        return resolver.resolveEffectByIndex(idx, phColorHex);
+    }
     
     /**
      * Get current theme name

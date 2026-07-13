@@ -1,5 +1,10 @@
 package com.excudo.view.rendering.shapes;
 
+import com.excudo.core.color.ColorTransforms;
+import com.excudo.core.geometry.GeometryDefinition;
+import com.excudo.core.geometry.GeometryPath;
+import com.excudo.core.geometry.GeometryResolver;
+import com.excudo.core.geometry.PresetGeometryRegistry;
 import com.excudo.core.metrics.MeasuredText;
 import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.metrics.TextMeasurer;
@@ -10,14 +15,33 @@ import com.excudo.core.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 /**
- * Renders geometric shapes (rectangles, ellipses, arrows, flowcharts, etc.).
- * Handles all 145+ OOXML preset geometry types.
+ * Renders geometric shapes through the ECMA-376 geometry engine: every
+ * preset resolves via {@link PresetGeometryRegistry} and inline custom
+ * geometry via the parsed {@code a:custGeom} payload; both evaluate
+ * through {@link GeometryResolver} into device-space paths. There is no
+ * approximate path table and no bounding-box fallback -- an unknown
+ * preset throws.
  *
- * For common types (rect, ellipse), draws the correct shape.
- * For everything else, draws the bounding box with the preset type label.
+ * <p>Transform order matches PowerPoint: the shape is mirrored about
+ * its center first (a:xfrm/@flipH/@flipV), then rotated about the
+ * center (@rot). Text is painted under the rotation but NOT under the
+ * flip -- PowerPoint never mirrors text.
  */
 public class GeometricShapeRenderer implements ModelShapeRenderer {
+
+    /**
+     * ShapeType enum presets that are not ECMA-376 names. Only reachable
+     * for programmatically-built shapes whose geometry payload carries
+     * no raw preset name; XML-parsed shapes always use the payload.
+     */
+    private static final Map<String, String> ENUM_PRESET_ALIASES = Map.of(
+        "explosion1", "irregularSeal1",
+        "explosion2", "irregularSeal2");
 
     /**
      * Endpoints of a straight connector within its bounding box, honoring
@@ -45,55 +69,154 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
     }
 
     /**
-     * Fill the shape silhouette for {@code preset} at {@code bounds} with
-     * the surface's current fill paint. Used by both the body fill and the
-     * shadow pass -- they share path geometry, only the paint and the
-     * translation differ.
+     * The geometry definition for a shape: parsed custGeom first, then
+     * the raw prstGeom name from the XML, then the ShapeType's preset
+     * (programmatic shapes), then the spec default {@code rect} (shapes
+     * with no geometry element at all, per ECMA-376).
      */
-    private static void fillShape(RenderSurface surface, String preset, Rectangle2D bounds) {
-        double x = bounds.getMinX(), y = bounds.getMinY();
-        double w = bounds.getWidth(), h = bounds.getHeight();
-        switch (preset) {
-            case "ellipse", "flowChartConnector" -> surface.fillOval(x, y, w, h);
-            case "roundRect" -> {
-                double arc = Math.min(w, h) * 0.15;
-                surface.fillRoundRect(x, y, w, h, arc, arc);
+    private static GeometryDefinition definitionFor(SlideShape shape, ShapeGeometry geom) {
+        if (geom.getCustomGeometry() != null) {
+            return geom.getCustomGeometry();
+        }
+        String preset = geom.getPresetName();
+        if (preset == null) {
+            SlideShape.ShapeType type = shape.getType();
+            preset = type.hasOoxmlPreset() ? type.getOoxmlPreset() : "rect";
+            preset = ENUM_PRESET_ALIASES.getOrDefault(preset, preset);
+        }
+        return PresetGeometryRegistry.get(preset);
+    }
+
+    /** Replay a resolved path into the surface's path accumulator. */
+    private static void trace(RenderSurface surface, GeometryResolver.ResolvedPath path,
+                              double ox, double oy) {
+        surface.beginPath();
+        for (GeometryResolver.Segment seg : path.segments()) {
+            switch (seg) {
+                case GeometryResolver.Move m -> surface.moveTo(ox + m.x(), oy + m.y());
+                case GeometryResolver.Line l -> surface.lineTo(ox + l.x(), oy + l.y());
+                case GeometryResolver.Cubic c -> surface.bezierTo(
+                    ox + c.x1(), oy + c.y1(), ox + c.x2(), oy + c.y2(),
+                    ox + c.x3(), oy + c.y3());
+                case GeometryResolver.Close ignored -> surface.closePath();
             }
-            default -> {
-                PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
-                if (drawer != null) {
-                    drawer.draw(surface, x, y, w, h);
+        }
+    }
+
+    /** Opacity of the paint the shadow strength scales with. */
+    private static double paintOpacity(SurfacePaint paint) {
+        return switch (paint) {
+            case SurfacePaint.Solid s -> s.alpha() / 255.0;
+            case SurfacePaint.LinearGradient lg -> avgStopOpacity(lg.stops());
+            case SurfacePaint.RadialGradient rg -> avgStopOpacity(rg.stops());
+            case SurfacePaint.Transparent ignored -> 0.0;
+            default -> 1.0; // pattern/picture fills read as opaque content
+        };
+    }
+
+    private static double avgStopOpacity(List<SurfacePaint.LinearGradient.Stop> stops) {
+        if (stops.isEmpty()) return 1.0;
+        double sum = 0;
+        for (SurfacePaint.LinearGradient.Stop s : stops) sum += s.color().alpha();
+        return sum / (stops.size() * 255.0);
+    }
+
+    /**
+     * One shadow copy at the given origin: fillable paths fill when the
+     * shape has a fill; stroked paths stroke at the line's width when
+     * the outline is visible -- each in its opacity-scaled shadow color.
+     */
+    private static void shadowCopy(RenderSurface surface,
+                                   GeometryResolver.ResolvedGeometry resolved,
+                                   SurfacePaint.Solid fillShadow,
+                                   SurfacePaint.Solid strokeShadow, boolean hasFill,
+                                   ShapeStyleExtractor.LineStyle line,
+                                   double ox, double oy) {
+        if (hasFill && fillShadow.alpha() > 0) {
+            surface.setFill(fillShadow);
+            for (GeometryResolver.ResolvedPath p : resolved.paths()) {
+                if (p.fill() != GeometryPath.FillMode.NONE) {
+                    trace(surface, p, ox, oy);
                     surface.fillPath();
-                } else {
-                    surface.fillRect(x, y, w, h);
+                }
+            }
+        }
+        if (line.isVisible() && strokeShadow.alpha() > 0) {
+            surface.setStroke(strokeShadow);
+            surface.setLineWidth(line.widthPixels());
+            for (GeometryResolver.ResolvedPath p : resolved.paths()) {
+                // Skip paths whose area the fill shadow already covers.
+                if (p.stroked() && !(hasFill && p.fill() != GeometryPath.FillMode.NONE)) {
+                    trace(surface, p, ox, oy);
+                    surface.strokePath();
                 }
             }
         }
     }
 
     /**
-     * Stroke the shape silhouette for {@code preset} at {@code bounds}
-     * with the surface's current stroke style. Sister to {@link #fillShape}.
+     * Mirror about the shape center. Composed BEFORE rotation on the
+     * surface (surface transforms concatenate), so drawing commands are
+     * flipped first, then rotated -- PowerPoint's order.
      */
-    private static void strokeShape(RenderSurface surface, String preset, Rectangle2D bounds) {
-        double x = bounds.getMinX(), y = bounds.getMinY();
-        double w = bounds.getWidth(), h = bounds.getHeight();
-        switch (preset) {
-            case "ellipse", "flowChartConnector" -> surface.strokeOval(x, y, w, h);
-            case "roundRect" -> {
-                double arc = Math.min(w, h) * 0.15;
-                surface.strokeRoundRect(x, y, w, h, arc, arc);
-            }
-            default -> {
-                PresetGeometryPaths.ShapePathDrawer drawer = PresetGeometryPaths.get(preset);
-                if (drawer != null) {
-                    drawer.draw(surface, x, y, w, h);
-                    surface.strokePath();
-                } else {
-                    surface.strokeRect(x, y, w, h);
-                }
-            }
+    private static void applyFlip(RenderSurface surface, Rectangle2D bounds,
+                                  boolean flipH, boolean flipV) {
+        double cx = bounds.getMinX() + bounds.getWidth() / 2;
+        double cy = bounds.getMinY() + bounds.getHeight() / 2;
+        surface.translate(cx, cy);
+        surface.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+        surface.translate(-cx, -cy);
+    }
+
+    /**
+     * Derive the paint for a path's fill mode from the shape fill.
+     * lighten/darken blend toward white / scale toward black in
+     * linearized sRGB via {@link ColorTransforms} (the PowerPoint-
+     * calibrated tint/shade math); the -Less variants keep 80% instead
+     * of 60%. Gradient stops transform per-stop; pattern and picture
+     * fills pass through unchanged (no preset references them from a
+     * modified path).
+     */
+    private static SurfacePaint deriveFill(SurfacePaint paint, GeometryPath.FillMode mode) {
+        if (mode == GeometryPath.FillMode.NORM) return paint;
+        return switch (paint) {
+            case SurfacePaint.Solid s -> modifySolid(s, mode);
+            case SurfacePaint.LinearGradient lg -> new SurfacePaint.LinearGradient(
+                lg.startX(), lg.startY(), lg.endX(), lg.endY(), modifyStops(lg.stops(), mode));
+            case SurfacePaint.RadialGradient rg -> new SurfacePaint.RadialGradient(
+                rg.centerX(), rg.centerY(), rg.focusX(), rg.focusY(), rg.geometry(),
+                modifyStops(rg.stops(), mode));
+            default -> paint;
+        };
+    }
+
+    private static List<SurfacePaint.LinearGradient.Stop> modifyStops(
+            List<SurfacePaint.LinearGradient.Stop> stops, GeometryPath.FillMode mode) {
+        List<SurfacePaint.LinearGradient.Stop> out = new ArrayList<>(stops.size());
+        for (SurfacePaint.LinearGradient.Stop stop : stops) {
+            out.add(new SurfacePaint.LinearGradient.Stop(
+                stop.position(), modifySolid(stop.color(), mode)));
         }
+        return out;
+    }
+
+    private static SurfacePaint.Solid modifySolid(SurfacePaint.Solid s,
+                                                  GeometryPath.FillMode mode) {
+        // tint v keeps v of the color and blends (1-v) toward white;
+        // shade v scales the linear channels by v.
+        ColorTransforms.Modifier modifier = switch (mode) {
+            case LIGHTEN -> new ColorTransforms.Modifier("tint", 60000);
+            case LIGHTEN_LESS -> new ColorTransforms.Modifier("tint", 80000);
+            case DARKEN -> new ColorTransforms.Modifier("shade", 60000);
+            case DARKEN_LESS -> new ColorTransforms.Modifier("shade", 80000);
+            case NORM, NONE -> null; // unreachable: filtered by callers
+        };
+        if (modifier == null) return s;
+        String hex = String.format("#%02X%02X%02X", s.red(), s.green(), s.blue());
+        ColorTransforms.ResolvedColor rc = ColorTransforms.apply(hex, List.of(modifier));
+        SurfacePaint.Solid derived = SurfacePaint.Solid.fromHex(rc.hex());
+        // keep the original alpha byte
+        return new SurfacePaint.Solid((s.argb() & 0xFF000000) | (derived.argb() & 0x00FFFFFF));
     }
 
     @Override
@@ -139,35 +262,79 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             return;
         }
 
-        String preset = type.hasOoxmlPreset() ? type.getOoxmlPreset() : "rect";
+        GeometryDefinition def = definitionFor(shape, geom);
+        GeometryResolver.ResolvedGeometry resolved = GeometryResolver.resolve(
+            def, geom.getAdjustValues(), bounds.getWidth(), bounds.getHeight());
+        double ox = bounds.getMinX(), oy = bounds.getMinY();
+        boolean flip = geom.isFlipH() || geom.isFlipV();
 
-        // Shadow pass: paint the same shape silhouette offset behind the
-        // body. Reusing fillShape with the preset means an mathPlus, ellipse,
-        // or arrow casts a shadow shaped like itself -- not a bounding-box
-        // rect, which is what the previous implementation did and which
-        // showed up as ugly dark squares behind the math symbols on the
-        // JavaScript-events deck.
+        // Shadow pass: the shadow follows what the shape actually
+        // paints -- the filled silhouette when there is a fill, and the
+        // stroked outline when there is only a line (a noFill triangle
+        // shadows its border, not its interior). Offset in unflipped
+        // device space: the offset direction must not mirror.
         ShapeStyleExtractor.ShadowStyle shadow = ShapeStyleExtractor.resolveShadow(shape, slideCtx);
-        if (shadow != null) {
+        if (shadow != null && (hasFill || line.isVisible())) {
+            // PowerPoint derives the shadow from the shape's RENDERED
+            // alpha: a 25%-alpha fill casts a 25%-strength shadow
+            // (verified against the fills-solid-theme ground truth).
+            double baseAlpha = shadow.color().alpha() / 255.0;
+            double fillTarget = baseAlpha * paintOpacity(surfaceFill);
+            double strokeTarget = baseAlpha * line.color().alpha() / 255.0;
+
             surface.save();
             surface.translate(shadow.offsetX(), shadow.offsetY());
-            surface.setFill(shadow.color());
-            fillShape(surface, preset, bounds);
+            if (flip) applyFlip(surface, bounds, geom.isFlipH(), geom.isFlipV());
+            double blur = shadow.blurPx();
+            if (blur <= 0.5) {
+                shadowCopy(surface, resolved,
+                    shadow.color().withAlpha(fillTarget),
+                    shadow.color().withAlpha(strokeTarget), hasFill, line, ox, oy);
+            } else {
+                // Draw the hard silhouette into a blur layer; the
+                // backend composites it back through the gaussian.
+                surface.beginBlurLayer(blur);
+                shadowCopy(surface, resolved,
+                    shadow.color().withAlpha(fillTarget),
+                    shadow.color().withAlpha(strokeTarget), hasFill, line, ox, oy);
+                surface.endBlurLayer();
+            }
             surface.restore();
         }
 
-        // Body pass: fill then stroke
-        if (hasFill) {
-            surface.setFill(surfaceFill);
-            fillShape(surface, preset, bounds);
+        // Body pass: paths in definition order, fill then stroke per
+        // path -- action buttons and 3D-ish presets (can, cube) layer
+        // norm/lighten/darken paths back to front.
+        if (flip) {
+            surface.save();
+            applyFlip(surface, bounds, geom.isFlipH(), geom.isFlipV());
         }
-        if (line.isVisible()) {
-            applyLineStyle(surface, line);
-            strokeShape(surface, preset, bounds);
+        boolean strokeStyled = false;
+        for (GeometryResolver.ResolvedPath p : resolved.paths()) {
+            if (hasFill && p.fill() != GeometryPath.FillMode.NONE) {
+                surface.setFill(deriveFill(surfaceFill, p.fill()));
+                trace(surface, p, ox, oy);
+                surface.fillPath();
+            }
+            if (line.isVisible() && p.stroked()) {
+                if (!strokeStyled) {
+                    applyLineStyle(surface, line);
+                    strokeStyled = true;
+                }
+                trace(surface, p, ox, oy);
+                surface.strokePath();
+            }
+        }
+        if (strokeStyled) {
             surface.setLineDashes((double[]) null);
         }
+        if (flip) {
+            surface.restore();
+        }
 
-        // Paint text if the shape has any
+        // Paint text if the shape has any. Text sits under the rotation
+        // transform but NOT under the flip: PowerPoint mirrors geometry,
+        // never glyphs.
         if (shape.hasText() && shape.getXmlElement() != null) {
             try {
                 TextBody textBody = TextBodyExtractor.extractFromShape(shape.getXmlElement());

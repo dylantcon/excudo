@@ -165,6 +165,41 @@ public class FmtSchemeResolver {
     }
 
     // ====================================================================
+    // Effect resolution
+    // ====================================================================
+
+    /**
+     * Resolve an effect style's outer shadow by index with phClr
+     * substitution.
+     * @param idx effectRef/@idx (1-3). 0 = no effect style.
+     * @return the resolved shadow, or null when the style declares no
+     *         outer shadow (or idx is 0).
+     */
+    public ResolvedShadow resolveEffectByIndex(int idx, String phColorHex) {
+        if (idx == 0) return null;
+        requireParsed();
+
+        int listIdx = idx - 1;
+        List<FmtSchemeModel.EffectDef> list = model.effectStyles();
+        if (listIdx < 0 || listIdx >= list.size()) {
+            throw new IllegalArgumentException("Effect style index " + idx
+                + " out of range (list has " + list.size() + " entries)");
+        }
+
+        FmtSchemeModel.OuterShadowDef shdw = list.get(listIdx).outerShadow();
+        if (shdw == null) return null;
+
+        ColorModifierUtils.ColorWithAlpha c = resolveColor(shdw.color(), phColorHex);
+        return new ResolvedShadow(c.hex(), c.alpha(),
+            shdw.blurRadEmu(), shdw.distEmu(), shdw.directionDegrees());
+    }
+
+    /** Outer shadow of a theme effect style, phClr-substituted. */
+    public record ResolvedShadow(String colorHex, double alpha,
+                                 double blurRadEmu, double distEmu,
+                                 double directionDegrees) {}
+
+    // ====================================================================
     // Color resolution (typed ColorSpec -> hex+alpha, phClr-substituted)
     // ====================================================================
 

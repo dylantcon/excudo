@@ -71,9 +71,17 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     private static final ComponentLogger logger = Logger.getLogger(Graphics2DRenderSurface.class);
 
     private final BufferedImage image;
-    private final Graphics2D g;
+    // Non-final: beginBlurLayer temporarily redirects drawing to an
+    // offscreen layer's graphics; endBlurLayer swaps back.
+    private Graphics2D g;
     private final int widthPx;
     private final int heightPx;
+
+    // Blur-layer state: the main-image graphics parked while a layer is
+    // active, plus a reusable device-space scratch layer.
+    private Graphics2D baseG;
+    private BufferedImage layerImage;
+    private double layerBlurPx;
     private final FontRenderContext fontRenderContext;
 
     // Current path accumulator. Reset on beginPath; mutated by moveTo,
@@ -513,6 +521,158 @@ public final class Graphics2DRenderSurface implements RenderSurface {
     @Override
     public void clipRect(double x, double y, double w, double h) {
         g.clip(new Rectangle2D.Double(x, y, w, h));
+    }
+
+    // ========== BLUR LAYER ==========
+
+    @Override
+    public void beginBlurLayer(double blurPx) {
+        if (baseG != null) {
+            throw new IllegalStateException("blur layers do not nest");
+        }
+        if (layerImage == null) {
+            layerImage = new BufferedImage(widthPx, heightPx, BufferedImage.TYPE_INT_ARGB);
+        } else {
+            // Reuse the scratch layer: wipe to fully transparent.
+            Graphics2D cg = layerImage.createGraphics();
+            cg.setComposite(java.awt.AlphaComposite.Clear);
+            cg.fillRect(0, 0, widthPx, heightPx);
+            cg.dispose();
+        }
+        Graphics2D lg = layerImage.createGraphics();
+        lg.setRenderingHints(g.getRenderingHints());
+        lg.setTransform(g.getTransform());
+        lg.setClip(g.getClip());
+        lg.setPaint(g.getPaint());
+        lg.setStroke(g.getStroke());
+        lg.setFont(g.getFont());
+        baseG = g;
+        g = lg;
+        layerBlurPx = blurPx;
+    }
+
+    @Override
+    public void endBlurLayer() {
+        if (baseG == null) {
+            throw new IllegalStateException("endBlurLayer without beginBlurLayer");
+        }
+        g.dispose();
+        g = baseG;
+        baseG = null;
+
+        // OOXML blurRad -> gaussian sigma = blurRad/3 (PowerPoint's
+        // measured shadow profile; see RenderSurface#beginBlurLayer).
+        double sigma = layerBlurPx / 3.0;
+        if (sigma > 0.2) {
+            gaussianBlurInPlace(layerImage, sigma);
+        }
+        // The layer is a device-space raster: composite at identity,
+        // unclipped (its content was clipped while drawing).
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setTransform(new AffineTransform());
+        g2.setClip(null);
+        g2.drawImage(layerImage, 0, 0, null);
+        g2.dispose();
+    }
+
+    /**
+     * Separable gaussian blur over the image's populated region (found
+     * by alpha-bbox scan, expanded by the kernel radius). Operates on
+     * premultiplied components so color never bleeds from transparent
+     * pixels.
+     */
+    private static void gaussianBlurInPlace(BufferedImage img, double sigma) {
+        final int w = img.getWidth(), h = img.getHeight();
+        final int[] px = ((java.awt.image.DataBufferInt) img.getRaster().getDataBuffer()).getData();
+
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++) {
+            int row = y * w;
+            for (int x = 0; x < w; x++) {
+                if ((px[row + x] >>> 24) != 0) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        if (maxX < 0) return; // empty layer
+
+        final int r = (int) Math.ceil(3 * sigma);
+        minX = Math.max(0, minX - r);
+        minY = Math.max(0, minY - r);
+        maxX = Math.min(w - 1, maxX + r);
+        maxY = Math.min(h - 1, maxY + r);
+        final int rw = maxX - minX + 1, rh = maxY - minY + 1;
+
+        final float[] kernel = new float[2 * r + 1];
+        float ksum = 0;
+        for (int i = -r; i <= r; i++) {
+            kernel[i + r] = (float) Math.exp(-(i * (double) i) / (2 * sigma * sigma));
+            ksum += kernel[i + r];
+        }
+        for (int i = 0; i < kernel.length; i++) kernel[i] /= ksum;
+
+        // Load premultiplied region
+        float[] a0 = new float[rw * rh], r0 = new float[rw * rh],
+                g0 = new float[rw * rh], b0 = new float[rw * rh];
+        for (int y = 0; y < rh; y++) {
+            int src = (y + minY) * w + minX, dst = y * rw;
+            for (int x = 0; x < rw; x++) {
+                int p = px[src + x];
+                float a = (p >>> 24) / 255f;
+                a0[dst + x] = a;
+                r0[dst + x] = ((p >> 16) & 0xFF) / 255f * a;
+                g0[dst + x] = ((p >> 8) & 0xFF) / 255f * a;
+                b0[dst + x] = (p & 0xFF) / 255f * a;
+            }
+        }
+
+        float[] a1 = new float[rw * rh], r1 = new float[rw * rh],
+                g1 = new float[rw * rh], b1 = new float[rw * rh];
+        // Horizontal pass (clamp at region edges)
+        for (int y = 0; y < rh; y++) {
+            int row = y * rw;
+            for (int x = 0; x < rw; x++) {
+                float sa = 0, sr = 0, sg = 0, sb = 0;
+                for (int i = -r; i <= r; i++) {
+                    int xi = Math.max(0, Math.min(rw - 1, x + i));
+                    float k = kernel[i + r];
+                    sa += k * a0[row + xi];
+                    sr += k * r0[row + xi];
+                    sg += k * g0[row + xi];
+                    sb += k * b0[row + xi];
+                }
+                a1[row + x] = sa; r1[row + x] = sr; g1[row + x] = sg; b1[row + x] = sb;
+            }
+        }
+        // Vertical pass, unpremultiply, store back
+        for (int y = 0; y < rh; y++) {
+            for (int x = 0; x < rw; x++) {
+                float sa = 0, sr = 0, sg = 0, sb = 0;
+                for (int i = -r; i <= r; i++) {
+                    int yi = Math.max(0, Math.min(rh - 1, y + i));
+                    float k = kernel[i + r];
+                    int idx = yi * rw + x;
+                    sa += k * a1[idx];
+                    sr += k * r1[idx];
+                    sg += k * g1[idx];
+                    sb += k * b1[idx];
+                }
+                int out;
+                if (sa <= 0.0005f) {
+                    out = 0;
+                } else {
+                    int ai = Math.min(255, Math.round(sa * 255));
+                    int ri = Math.min(255, Math.round(sr / sa * 255));
+                    int gi = Math.min(255, Math.round(sg / sa * 255));
+                    int bi = Math.min(255, Math.round(sb / sa * 255));
+                    out = (ai << 24) | (ri << 16) | (gi << 8) | bi;
+                }
+                px[(y + minY) * w + minX + x] = out;
+            }
+        }
     }
 
     // ========== CLEAR ==========

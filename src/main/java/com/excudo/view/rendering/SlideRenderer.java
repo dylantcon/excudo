@@ -101,6 +101,7 @@ public class SlideRenderer {
         try {
             renderingContext.clearCanvas();
             renderBackground();
+            renderInheritedDecorations();
             renderingContext.drawGridIfEnabled();
             if (drawSlideBoundsOutline) {
                 renderingContext.drawSlideBounds();
@@ -186,6 +187,54 @@ public class SlideRenderer {
             }
         } finally {
             renderingContext.restoreState();
+        }
+    }
+
+    // ========== INHERITED DECORATIONS ==========
+
+    /**
+     * Render the non-placeholder shapes of the slide master and layout
+     * spTrees under the slide's own shapes, the way PowerPoint composes
+     * a slide (master decorations, then layout decorations, then slide
+     * content). Placeholders are skipped: the slide's own placeholder
+     * instances render the content. A layout with showMasterSp="0"
+     * suppresses the master's decorations.
+     *
+     * <p>Decoration shapes are overwhelmingly custom geometry (theme
+     * artwork such as doodles/grids exported by authoring tools), which
+     * the ECMA-376 geometry engine renders exactly.
+     */
+    private void renderInheritedDecorations() {
+        if (slideContext == null) return;
+        Document layout = null;
+        try {
+            layout = slideContext.getLayoutDom();
+            boolean showMasterSp = true;
+            if (layout != null) {
+                String attr = layout.getDocumentElement().getAttribute("showMasterSp");
+                showMasterSp = !("0".equals(attr) || "false".equalsIgnoreCase(attr));
+            }
+            if (showMasterSp) {
+                renderDecorationShapes(slideContext.getMasterDom());
+            }
+        } catch (Exception e) {
+            // Decoration is best-effort: the slide's own content must
+            // still render.
+        }
+        renderDecorationShapes(layout);
+    }
+
+    private void renderDecorationShapes(Document dom) {
+        if (dom == null) return;
+        try {
+            ParsedSlideData data = new SlideXMLParser().parseSlide(dom);
+            if (data == null || data.getShapeRegistry() == null) return;
+            for (SlideShape shape : data.getShapeRegistry().getAllShapes()) {
+                if (shape.getType() == SlideShape.ShapeType.PLACEHOLDER) continue;
+                renderModelShape(shape);
+            }
+        } catch (Exception e) {
+            // Skip broken decoration trees; slide content still renders.
         }
     }
 
