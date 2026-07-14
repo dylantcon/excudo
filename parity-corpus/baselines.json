@@ -1,8 +1,8 @@
 {
   "arrowheads/slide-1": {
-    "histogram": 0.0,
-    "iou": 0.0,
-    "ssim": 0.93624
+    "histogram": 0.961856,
+    "iou": 0.975534,
+    "ssim": 0.99961
   },
   "charts-placeholder/slide-1": {
     "histogram": 0.0,
@@ -10,9 +10,9 @@
     "ssim": 0.895572
   },
   "connectors-straight-bent-curved/slide-1": {
-    "histogram": 0.903572,
-    "iou": 0.170878,
-    "ssim": 0.937163
+    "histogram": 0.96538,
+    "iou": 0.926569,
+    "ssim": 0.999048
   },
   "effects-shadow-glow/slide-1": {
     "histogram": 0.976782,
@@ -61,28 +61,28 @@
   },
   "integration-generalist/slide-1": {
     "histogram": 0.999925,
-    "iou": 0.974456,
-    "ssim": 0.975327
+    "iou": 0.97446,
+    "ssim": 0.978609
   },
   "integration-generalist/slide-2": {
     "histogram": 0.999788,
-    "iou": 0.923541,
-    "ssim": 0.963317
+    "iou": 0.923551,
+    "ssim": 0.966573
   },
   "integration-generalist/slide-3": {
     "histogram": 0.996671,
     "iou": 0.734244,
-    "ssim": 0.962647
+    "ssim": 0.966222
   },
   "integration-generalist/slide-4": {
     "histogram": 0.999993,
     "iou": 0.998576,
-    "ssim": 0.97633
+    "ssim": 0.976834
   },
   "integration-generalist/slide-5": {
     "histogram": 0.998736,
-    "iou": 0.671394,
-    "ssim": 0.955826
+    "iou": 0.671417,
+    "ssim": 0.959317
   },
   "integration-jakepaul/slide-1": {
     "histogram": 0.99912,
@@ -160,44 +160,44 @@
     "ssim": 0.751305
   },
   "lines-dash-cap-join/slide-1": {
-    "histogram": 0.0,
-    "iou": 0.0,
-    "ssim": 0.907697
+    "histogram": 0.994215,
+    "iou": 0.776771,
+    "ssim": 0.986862
   },
   "lines-dash-cap-join/slide-2": {
-    "histogram": 0.891676,
-    "iou": 0.768576,
-    "ssim": 0.968095
+    "histogram": 0.997227,
+    "iou": 0.991504,
+    "ssim": 0.99923
   },
   "preset-shapes-actionbuttons/slide-1": {
-    "histogram": 0.899873,
+    "histogram": 0.934761,
     "iou": 0.99554,
-    "ssim": 0.991099
+    "ssim": 0.997945
   },
   "preset-shapes-arrows/slide-1": {
-    "histogram": 0.967763,
+    "histogram": 0.981317,
     "iou": 0.979467,
-    "ssim": 0.995482
+    "ssim": 0.995829
   },
   "preset-shapes-basic/slide-1": {
-    "histogram": 0.9746,
+    "histogram": 0.97512,
     "iou": 0.987969,
-    "ssim": 0.987304
+    "ssim": 0.990054
   },
   "preset-shapes-basic/slide-2": {
-    "histogram": 0.974672,
-    "iou": 0.987241,
-    "ssim": 0.996498
+    "histogram": 0.974674,
+    "iou": 0.987257,
+    "ssim": 0.99651
   },
   "preset-shapes-basic/slide-3": {
-    "histogram": 0.97109,
-    "iou": 0.988127,
-    "ssim": 0.995202
+    "histogram": 0.971198,
+    "iou": 0.988188,
+    "ssim": 0.995391
   },
   "preset-shapes-callouts/slide-1": {
-    "histogram": 0.959712,
-    "iou": 0.990102,
-    "ssim": 0.990231
+    "histogram": 0.959806,
+    "iou": 0.990116,
+    "ssim": 0.991231
   },
   "preset-shapes-callouts/slide-2": {
     "histogram": 0.986239,
@@ -210,14 +210,14 @@
     "ssim": 0.995272
   },
   "preset-shapes-flowchart/slide-2": {
-    "histogram": 0.975825,
+    "histogram": 0.975837,
     "iou": 0.989189,
     "ssim": 0.999088
   },
   "preset-shapes-stars-banners/slide-1": {
-    "histogram": 0.985609,
+    "histogram": 0.986093,
     "iou": 0.986243,
-    "ssim": 0.992218
+    "ssim": 0.994631
   },
   "tables-basic/slide-1": {
     "histogram": 0.0,
