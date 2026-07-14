@@ -1,6 +1,5 @@
 package com.excudo.view.rendering.shapes;
 
-import com.excudo.core.color.ColorTransforms;
 import com.excudo.core.geometry.GeometryDefinition;
 import com.excudo.core.geometry.GeometryPath;
 import com.excudo.core.geometry.GeometryResolver;
@@ -269,12 +268,14 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
 
     /**
      * Derive the paint for a path's fill mode from the shape fill.
-     * lighten/darken blend toward white / scale toward black in
-     * linearized sRGB via {@link ColorTransforms} (the PowerPoint-
-     * calibrated tint/shade math); the -Less variants keep 80% instead
-     * of 60%. Gradient stops transform per-stop; pattern and picture
-     * fills pass through unchanged (no preset references them from a
-     * modified path).
+     * PowerPoint applies these facet modes as plain sRGB byte
+     * arithmetic -- NOT the linearized tint/shade math of a:tint/
+     * a:shade color modifiers. Calibrated from the preset-shapes-basic
+     * ground truth (bevel facets over the themed gradient): darken is
+     * c*0.6 and lighten is c*0.6 + 0.4*255 per channel, exact to +/-1
+     * across every sample; the -Less variants keep 0.8. Gradient stops
+     * transform per-stop; pattern and picture fills pass through
+     * unchanged (no preset references them from a modified path).
      */
     private static SurfacePaint deriveFill(SurfacePaint paint, GeometryPath.FillMode mode) {
         if (mode == GeometryPath.FillMode.NORM) return paint;
@@ -301,21 +302,22 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
 
     private static SurfacePaint.Solid modifySolid(SurfacePaint.Solid s,
                                                   GeometryPath.FillMode mode) {
-        // tint v keeps v of the color and blends (1-v) toward white;
-        // shade v scales the linear channels by v.
-        ColorTransforms.Modifier modifier = switch (mode) {
-            case LIGHTEN -> new ColorTransforms.Modifier("tint", 60000);
-            case LIGHTEN_LESS -> new ColorTransforms.Modifier("tint", 80000);
-            case DARKEN -> new ColorTransforms.Modifier("shade", 60000);
-            case DARKEN_LESS -> new ColorTransforms.Modifier("shade", 80000);
-            case NORM, NONE -> null; // unreachable: filtered by callers
+        // keep of the base color, blended toward white (lighten) or
+        // black (darken) in sRGB byte space -- see deriveFill's javadoc.
+        double keep = switch (mode) {
+            case LIGHTEN, DARKEN -> 0.6;
+            case LIGHTEN_LESS, DARKEN_LESS -> 0.8;
+            case NORM, NONE -> 1.0; // unreachable: filtered by callers
         };
-        if (modifier == null) return s;
-        String hex = String.format("#%02X%02X%02X", s.red(), s.green(), s.blue());
-        ColorTransforms.ResolvedColor rc = ColorTransforms.apply(hex, List.of(modifier));
-        SurfacePaint.Solid derived = SurfacePaint.Solid.fromHex(rc.hex());
+        if (keep == 1.0) return s;
+        boolean towardWhite = mode == GeometryPath.FillMode.LIGHTEN
+            || mode == GeometryPath.FillMode.LIGHTEN_LESS;
+        double add = towardWhite ? 255 * (1 - keep) : 0;
+        int r = (int) Math.round(s.red() * keep + add);
+        int g = (int) Math.round(s.green() * keep + add);
+        int b = (int) Math.round(s.blue() * keep + add);
         // keep the original alpha byte
-        return new SurfacePaint.Solid((s.argb() & 0xFF000000) | (derived.argb() & 0x00FFFFFF));
+        return new SurfacePaint.Solid((s.argb() & 0xFF000000) | (r << 16) | (g << 8) | b);
     }
 
     @Override
