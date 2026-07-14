@@ -8,8 +8,12 @@ import com.excudo.core.model.TextColor;
 import com.excudo.core.themes.FmtSchemeResolver;
 import com.excudo.core.themes.ResolvedFill;
 import com.excudo.core.themes.ThemeManager;
+import com.excudo.core.rendering.lines.DashPatterns;
+import com.excudo.core.rendering.lines.LineEnd;
 import com.excudo.core.rendering.surface.GradientStops;
 import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.StrokeCap;
+import com.excudo.core.rendering.surface.StrokeJoin;
 import com.excudo.core.rendering.surface.SurfaceImage;
 import com.excudo.core.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.shapes.BlipFillResolver;
@@ -106,6 +110,13 @@ public final class ShapeStyleExtractor {
                 try { idx = Integer.parseInt(fillRef.getAttribute("idx")); }
                 catch (NumberFormatException ignored) {}
 
+                // ECMA-376 20.1.4.2.14: idx 0 (and the 1000 boundary of
+                // the bgFillStyleLst range) reference NO fill. Every
+                // python-pptx connector authors fillRef idx=0.
+                if (idx == 0 || idx == 1000) {
+                    return SurfacePaint.Transparent.INSTANCE;
+                }
+
                 Element schemeClr = getChild(fillRef, "a:schemeClr");
                 if (schemeClr != null && schemeClr.hasAttribute("val")) {
                     String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
@@ -133,7 +144,13 @@ public final class ShapeStyleExtractor {
     }
 
     /**
-     * Resolve line/border style for a shape.
+     * Resolve line/border style for a shape: color/width through the
+     * OOXML hierarchy (explicit a:ln fill > p:style lnRef > 1pt black
+     * when a:ln exists), plus the a:ln stroke details -- prstDash
+     * (PDF-calibrated arrays via {@link DashPatterns}), cap, join,
+     * compound, and head/tail line ends. PowerPoint's default join is
+     * ROUND: every stroke in every parity truth PDF carries {@code 1 j}
+     * unless a:bevel or a:miter is authored.
      */
     public static LineStyle resolveLineStyle(SlideShape shape, SlideRenderContext slideCtx) {
         if (shape == null || shape.getXmlElement() == null) {
@@ -148,16 +165,9 @@ public final class ShapeStyleExtractor {
             return LineStyle.NONE;
         }
 
-        // Explicit width/dash on a:ln override anything the style ref says.
-        Double explicitWidthEmu = null;
-        if (ln != null && ln.hasAttribute("w")) {
-            try {
-                explicitWidthEmu = Double.parseDouble(ln.getAttribute("w"));
-            } catch (NumberFormatException ignored) {}
-        }
-        Element prstDash = ln != null ? getChild(ln, "a:prstDash") : null;
-        String explicitDash = (prstDash != null && prstDash.hasAttribute("val"))
-            ? prstDash.getAttribute("val") : null;
+        // Explicit width/dash/cap/join/cmpd/ends on a:ln override
+        // anything the style ref says.
+        LnDetails details = parseLnDetails(ln);
 
         // Explicit line fill in a:ln.
         Element solidFill = ln != null ? getChild(ln, "a:solidFill") : null;
@@ -165,9 +175,8 @@ public final class ShapeStyleExtractor {
             SurfacePaint parsed = parseColorElement(solidFill, slideCtx);
             SurfacePaint.Solid lineColor =
                 parsed instanceof SurfacePaint.Solid s ? s : SurfacePaint.Solid.rgb(0, 0, 0);
-            double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
-            return new LineStyle(lineColor, widthPixels,
-                explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
+            double widthPixels = emuToPx(details.widthEmu() != null ? details.widthEmu() : 12700);
+            return assemble(lineColor, widthPixels, details.dashName(), details);
         }
 
         // No explicit line fill: fall back to p:style lnRef. This also
@@ -204,28 +213,27 @@ public final class ShapeStyleExtractor {
                     if (alpha < 1.0) {
                         lineColor = lineColor.withAlpha(alpha);
                     }
-                    double widthPixels = emuToPx(explicitWidthEmu != null
-                        ? explicitWidthEmu : resolved.widthEmu());
-                    String dash = explicitDash != null ? explicitDash : resolved.dashStyle();
-                    return new LineStyle(lineColor, widthPixels,
-                        dash != null ? mapDashStyle(dash, widthPixels) : null);
+                    double widthPixels = emuToPx(details.widthEmu() != null
+                        ? details.widthEmu() : resolved.widthEmu());
+                    String dash = details.dashName() != null
+                        ? details.dashName() : resolved.dashStyle();
+                    return assemble(lineColor, widthPixels, dash, details);
                 }
 
                 // No fmtScheme: flat ref color at explicit/default width.
                 SurfacePaint.Solid lineColor = solidFromHex(phColorHex);
                 if (phAlpha < 1.0) lineColor = lineColor.withAlpha(phAlpha);
-                double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
-                return new LineStyle(lineColor, widthPixels,
-                    explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
+                double widthPixels = emuToPx(details.widthEmu() != null ? details.widthEmu() : 12700);
+                return assemble(lineColor, widthPixels, details.dashName(), details);
             }
         }
 
         // a:ln present but fill-less and no usable style ref: the legacy
         // 1pt black default. Without a:ln there is nothing to stroke.
         if (ln != null) {
-            double widthPixels = emuToPx(explicitWidthEmu != null ? explicitWidthEmu : 12700);
-            return new LineStyle(SurfacePaint.Solid.rgb(0, 0, 0), widthPixels,
-                explicitDash != null ? mapDashStyle(explicitDash, widthPixels) : null);
+            double widthPixels = emuToPx(details.widthEmu() != null ? details.widthEmu() : 12700);
+            return assemble(SurfacePaint.Solid.rgb(0, 0, 0), widthPixels,
+                details.dashName(), details);
         }
         return LineStyle.NONE;
     }
@@ -235,24 +243,71 @@ public final class ShapeStyleExtractor {
         return emu / 914400.0 * 96.0;
     }
 
-    /**
-     * Map OOXML dash style name to a pixel-space dash array (scaled by line width).
-     */
-    private static double[] mapDashStyle(String style, double lineWidth) {
-        double u = Math.max(lineWidth, 1);
-        return switch (style) {
-            case "dot"          -> new double[]{u, u * 2};
-            case "dash"         -> new double[]{u * 4, u * 2};
-            case "lgDash"       -> new double[]{u * 8, u * 2};
-            case "dashDot"      -> new double[]{u * 4, u * 2, u, u * 2};
-            case "lgDashDot"    -> new double[]{u * 8, u * 2, u, u * 2};
-            case "lgDashDotDot" -> new double[]{u * 8, u * 2, u, u * 2, u, u * 2};
-            case "sysDot"       -> new double[]{u, u};
-            case "sysDash"      -> new double[]{u * 3, u};
-            case "sysDashDot"   -> new double[]{u * 3, u, u, u};
-            case "sysDashDotDot"-> new double[]{u * 3, u, u, u, u, u};
-            default             -> null; // solid
+    /** The stroke-detail attributes of one a:ln element. */
+    private record LnDetails(Double widthEmu, String dashName, StrokeCap cap,
+                             StrokeJoin join, double miterLimit, String compound,
+                             LineEnd headEnd, LineEnd tailEnd) {
+        static final LnDetails DEFAULTS = new LnDetails(null, null, StrokeCap.BUTT,
+            StrokeJoin.ROUND, 10, "sng", LineEnd.NONE, LineEnd.NONE);
+    }
+
+    private static LnDetails parseLnDetails(Element ln) {
+        if (ln == null) return LnDetails.DEFAULTS;
+
+        Double widthEmu = null;
+        if (ln.hasAttribute("w")) {
+            try { widthEmu = Double.parseDouble(ln.getAttribute("w")); }
+            catch (NumberFormatException ignored) {}
+        }
+
+        Element prstDash = getChild(ln, "a:prstDash");
+        String dashName = (prstDash != null && prstDash.hasAttribute("val"))
+            ? prstDash.getAttribute("val") : null;
+
+        // ST_LineCap: flat (default) / rnd / sq.
+        StrokeCap cap = switch (ln.getAttribute("cap")) {
+            case "rnd" -> StrokeCap.ROUND;
+            case "sq" -> StrokeCap.SQUARE;
+            default -> StrokeCap.BUTT;
         };
+
+        // Join is an element choice; absent means round (truth PDFs
+        // stroke 1 j everywhere a:bevel/a:miter is not authored).
+        StrokeJoin join = StrokeJoin.ROUND;
+        double miterLimit = 10;
+        if (getChild(ln, "a:bevel") != null) {
+            join = StrokeJoin.BEVEL;
+        } else {
+            Element miter = getChild(ln, "a:miter");
+            if (miter != null) {
+                join = StrokeJoin.MITER;
+                if (miter.hasAttribute("lim")) {
+                    try {
+                        miterLimit = Math.max(1,
+                            Integer.parseInt(miter.getAttribute("lim")) / 100000.0);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+
+        String cmpd = ln.hasAttribute("cmpd") ? ln.getAttribute("cmpd") : "sng";
+
+        return new LnDetails(widthEmu, dashName, cap, join, miterLimit, cmpd,
+            parseLineEnd(getChild(ln, "a:headEnd")),
+            parseLineEnd(getChild(ln, "a:tailEnd")));
+    }
+
+    private static LineEnd parseLineEnd(Element end) {
+        if (end == null) return LineEnd.NONE;
+        return LineEnd.fromXml(end.getAttribute("type"),
+            end.getAttribute("w"), end.getAttribute("len"));
+    }
+
+    private static LineStyle assemble(SurfacePaint.Solid color, double widthPixels,
+                                      String dashName, LnDetails d) {
+        return new LineStyle(color, widthPixels,
+            DashPatterns.pattern(dashName, widthPixels, d.cap()),
+            d.cap(), d.join(), d.miterLimit(), d.compound(), d.headEnd(), d.tailEnd());
     }
 
     /**
@@ -824,12 +879,20 @@ public final class ShapeStyleExtractor {
             resolved.blurRadEmu() / 914400.0 * 96.0);
     }
 
-    /** Immutable line style result with optional dash pattern. */
-    public record LineStyle(SurfacePaint.Solid color, double widthPixels, double[] dashPattern) {
+    /**
+     * Immutable line style result: paint, width, optional dash array,
+     * cap/join/miter-limit, compound layout, and head/tail line ends.
+     */
+    public record LineStyle(SurfacePaint.Solid color, double widthPixels, double[] dashPattern,
+                            StrokeCap cap, StrokeJoin join, double miterLimit,
+                            String compound, LineEnd headEnd, LineEnd tailEnd) {
         public static final LineStyle NONE = new LineStyle(
-            SurfacePaint.Solid.rgba(0, 0, 0, 0), 0, null);
+            SurfacePaint.Solid.rgba(0, 0, 0, 0), 0, null,
+            StrokeCap.BUTT, StrokeJoin.ROUND, 10, "sng", LineEnd.NONE, LineEnd.NONE);
         /** Visible if the line has positive width and a non-transparent color. */
         public boolean isVisible() { return widthPixels > 0 && color.alpha() > 0; }
+        /** True when either end carries an arrowhead. */
+        public boolean hasEnds() { return !headEnd.isNone() || !tailEnd.isNone(); }
     }
 
     /**

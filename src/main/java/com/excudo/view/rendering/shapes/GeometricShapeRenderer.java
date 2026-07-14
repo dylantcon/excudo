@@ -10,11 +10,19 @@ import com.excudo.core.metrics.TextBodyExtractor;
 import com.excudo.core.metrics.TextMeasurer;
 import com.excudo.core.model.*;
 import com.excudo.view.rendering.*;
+import com.excudo.core.rendering.lines.CompoundStroke;
+import com.excudo.core.rendering.lines.LineEnd;
+import com.excudo.core.rendering.lines.LineEndGeometry;
+import com.excudo.core.rendering.lines.PathEnds;
 import com.excudo.core.rendering.surface.RenderSurface;
+import com.excudo.core.rendering.surface.StrokeCap;
+import com.excudo.core.rendering.surface.StrokeJoin;
 import com.excudo.core.rendering.surface.SurfacePaint;
 import com.excudo.view.rendering.text.TextPainter;
 import javafx.geometry.Rectangle2D;
 
+import java.awt.geom.Area;
+import java.awt.geom.PathIterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,35 +52,11 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         "explosion2", "irregularSeal2");
 
     /**
-     * Endpoints of a straight connector within its bounding box, honoring
-     * flipH/flipV. A connector runs along one diagonal of the box; the flip
-     * flags pick which. Since no arrowhead is drawn, only the diagonal matters:
-     * {@code flipH == flipV} -> the main diagonal {@code (minX,minY)-(maxX,maxY)};
-     * exactly one flag set -> the anti-diagonal {@code (minX,maxY)-(maxX,minY)}.
-     * Returns {@code {x1, y1, x2, y2}}.
-     */
-    static double[] connectorEndpoints(double minX, double minY, double maxX, double maxY,
-                                       boolean flipH, boolean flipV) {
-        if (flipH ^ flipV) {
-            return new double[]{minX, maxY, maxX, minY}; // anti-diagonal (BL->TR)
-        }
-        return new double[]{minX, minY, maxX, maxY};     // main diagonal (TL->BR)
-    }
-
-    /** Apply line color, width, and dash pattern to the surface. */
-    private static void applyLineStyle(RenderSurface surface, ShapeStyleExtractor.LineStyle line) {
-        surface.setStroke(line.color());
-        surface.setLineWidth(line.widthPixels());
-        if (line.dashPattern() != null) {
-            surface.setLineDashes(line.dashPattern());
-        }
-    }
-
-    /**
      * The geometry definition for a shape: parsed custGeom first, then
      * the raw prstGeom name from the XML, then the ShapeType's preset
-     * (programmatic shapes), then the spec default {@code rect} (shapes
-     * with no geometry element at all, per ECMA-376).
+     * (programmatic shapes), then the spec default -- {@code line} for
+     * connectors (a p:cxnSp with no prstGeom is a straight connector),
+     * {@code rect} for everything else, per ECMA-376.
      */
     private static GeometryDefinition definitionFor(SlideShape shape, ShapeGeometry geom) {
         if (geom.getCustomGeometry() != null) {
@@ -81,17 +65,21 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         String preset = geom.getPresetName();
         if (preset == null) {
             SlideShape.ShapeType type = shape.getType();
-            preset = type.hasOoxmlPreset() ? type.getOoxmlPreset() : "rect";
-            preset = ENUM_PRESET_ALIASES.getOrDefault(preset, preset);
+            if (type == SlideShape.ShapeType.CONNECTION) {
+                preset = "line";
+            } else {
+                preset = type.hasOoxmlPreset() ? type.getOoxmlPreset() : "rect";
+                preset = ENUM_PRESET_ALIASES.getOrDefault(preset, preset);
+            }
         }
         return PresetGeometryRegistry.get(preset);
     }
 
-    /** Replay a resolved path into the surface's path accumulator. */
-    private static void trace(RenderSurface surface, GeometryResolver.ResolvedPath path,
+    /** Replay a segment list into the surface's path accumulator. */
+    private static void trace(RenderSurface surface, List<GeometryResolver.Segment> segments,
                               double ox, double oy) {
         surface.beginPath();
-        for (GeometryResolver.Segment seg : path.segments()) {
+        for (GeometryResolver.Segment seg : segments) {
             switch (seg) {
                 case GeometryResolver.Move m -> surface.moveTo(ox + m.x(), oy + m.y());
                 case GeometryResolver.Line l -> surface.lineTo(ox + l.x(), oy + l.y());
@@ -99,6 +87,122 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
                     ox + c.x1(), oy + c.y1(), ox + c.x2(), oy + c.y2(),
                     ox + c.x3(), oy + c.y3());
                 case GeometryResolver.Close ignored -> surface.closePath();
+            }
+        }
+    }
+
+    /** Replay an AWT area (compound-line rings) into the surface. */
+    private static void traceArea(RenderSurface surface, Area area, double ox, double oy) {
+        surface.beginPath();
+        double[] c = new double[6];
+        for (PathIterator it = area.getPathIterator(null); !it.isDone(); it.next()) {
+            switch (it.currentSegment(c)) {
+                case PathIterator.SEG_MOVETO -> surface.moveTo(ox + c[0], oy + c[1]);
+                case PathIterator.SEG_LINETO -> surface.lineTo(ox + c[0], oy + c[1]);
+                case PathIterator.SEG_QUADTO -> surface.quadTo(ox + c[0], oy + c[1],
+                    ox + c[2], oy + c[3]);
+                case PathIterator.SEG_CUBICTO -> surface.bezierTo(ox + c[0], oy + c[1],
+                    ox + c[2], oy + c[3], ox + c[4], oy + c[5]);
+                case PathIterator.SEG_CLOSE -> surface.closePath();
+                default -> throw new IllegalStateException("unknown path segment");
+            }
+        }
+    }
+
+    // ========== stroke plan (trims, arrowheads, compound rings) ==========
+
+    /** One stroked path; {@code fillsToo} tags paths the fill pass paints. */
+    private record PlannedStroke(List<GeometryResolver.Segment> segments, boolean fillsToo) {}
+
+    /**
+     * Everything the stroke pass draws: the (possibly end-trimmed)
+     * stroked paths plus the arrowhead decorations. Computed once and
+     * replayed identically by the body and shadow passes.
+     */
+    private record StrokePlan(List<PlannedStroke> strokes,
+                              List<LineEndGeometry.Decoration> decorations) {}
+
+    /**
+     * Trim head/tail arrowheads into the stroked paths. The head
+     * attaches to the first stroked path, the tail to the last
+     * (ECMA-376 line ends decorate the line's begin and end).
+     */
+    private static StrokePlan buildStrokePlan(GeometryResolver.ResolvedGeometry resolved,
+                                              ShapeStyleExtractor.LineStyle line) {
+        List<GeometryResolver.ResolvedPath> stroked = resolved.paths().stream()
+            .filter(GeometryResolver.ResolvedPath::stroked).toList();
+        List<PlannedStroke> strokes = new ArrayList<>(stroked.size());
+        List<LineEndGeometry.Decoration> decorations = new ArrayList<>(2);
+        for (int i = 0; i < stroked.size(); i++) {
+            GeometryResolver.ResolvedPath p = stroked.get(i);
+            List<GeometryResolver.Segment> segments = p.segments();
+            if (line.hasEnds()) {
+                LineEnd head = i == 0 ? line.headEnd() : LineEnd.NONE;
+                LineEnd tail = i == stroked.size() - 1 ? line.tailEnd() : LineEnd.NONE;
+                PathEnds.Applied applied = PathEnds.apply(segments, head, tail,
+                    line.widthPixels());
+                segments = applied.segments();
+                if (applied.head() != null) decorations.add(applied.head());
+                if (applied.tail() != null) decorations.add(applied.tail());
+            }
+            strokes.add(new PlannedStroke(segments,
+                p.fill() != GeometryPath.FillMode.NONE));
+        }
+        return new StrokePlan(strokes, decorations);
+    }
+
+    /**
+     * Draw a stroke plan in the given paint: dashed/capped/joined
+     * strokes (or compound rings), then arrowhead decorations -- filled
+     * polygons, except the open-arrow arms which stroke at the line
+     * width with round caps and joins. {@code skipFilledPaths} lets the
+     * shadow pass omit outlines whose area its fill copy already covers.
+     */
+    private static void drawStrokePlan(RenderSurface surface, StrokePlan plan,
+                                       ShapeStyleExtractor.LineStyle line, SurfacePaint paint,
+                                       double ox, double oy, boolean skipFilledPaths) {
+        surface.setStroke(paint);
+        surface.setLineWidth(line.widthPixels());
+        surface.setLineCap(line.cap());
+        surface.setLineJoin(line.join());
+        surface.setMiterLimit(line.miterLimit());
+        boolean compound = CompoundStroke.isCompound(line.compound());
+
+        for (PlannedStroke stroke : plan.strokes()) {
+            if (skipFilledPaths && stroke.fillsToo()) continue;
+            if (compound) {
+                Area rings = CompoundStroke.rings(stroke.segments(),
+                    line.widthPixels(), line.compound());
+                if (rings != null) {
+                    surface.setFill(paint);
+                    traceArea(surface, rings, ox, oy);
+                    surface.fillPath();
+                    continue;
+                }
+                // unsupported cmpd/path combination: plain stroke below
+            }
+            if (line.dashPattern() != null) {
+                surface.setLineDashes(line.dashPattern());
+            }
+            trace(surface, stroke.segments(), ox, oy);
+            surface.strokePath();
+            if (line.dashPattern() != null) {
+                surface.setLineDashes((double[]) null);
+            }
+        }
+
+        for (LineEndGeometry.Decoration decoration : plan.decorations()) {
+            if (decoration.strokedArms()) {
+                surface.setLineCap(StrokeCap.ROUND);
+                surface.setLineJoin(StrokeJoin.ROUND);
+                trace(surface, decoration.outline(), ox, oy);
+                surface.strokePath();
+                surface.setLineCap(line.cap());
+                surface.setLineJoin(line.join());
+            } else {
+                surface.setFill(paint);
+                trace(surface, decoration.outline(), ox, oy);
+                surface.fillPath();
             }
         }
     }
@@ -123,11 +227,13 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
 
     /**
      * One shadow copy at the given origin: fillable paths fill when the
-     * shape has a fill; stroked paths stroke at the line's width when
-     * the outline is visible -- each in its opacity-scaled shadow color.
+     * shape has a fill; the stroke plan (dashes, trims, arrowheads)
+     * replays when the outline is visible -- each in its opacity-scaled
+     * shadow color.
      */
     private static void shadowCopy(RenderSurface surface,
                                    GeometryResolver.ResolvedGeometry resolved,
+                                   StrokePlan plan,
                                    SurfacePaint.Solid fillShadow,
                                    SurfacePaint.Solid strokeShadow, boolean hasFill,
                                    ShapeStyleExtractor.LineStyle line,
@@ -136,21 +242,14 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             surface.setFill(fillShadow);
             for (GeometryResolver.ResolvedPath p : resolved.paths()) {
                 if (p.fill() != GeometryPath.FillMode.NONE) {
-                    trace(surface, p, ox, oy);
+                    trace(surface, p.segments(), ox, oy);
                     surface.fillPath();
                 }
             }
         }
-        if (line.isVisible() && strokeShadow.alpha() > 0) {
-            surface.setStroke(strokeShadow);
-            surface.setLineWidth(line.widthPixels());
-            for (GeometryResolver.ResolvedPath p : resolved.paths()) {
-                // Skip paths whose area the fill shadow already covers.
-                if (p.stroked() && !(hasFill && p.fill() != GeometryPath.FillMode.NONE)) {
-                    trace(surface, p, ox, oy);
-                    surface.strokePath();
-                }
-            }
+        if (plan != null && strokeShadow.alpha() > 0) {
+            // Skip outlines whose area the fill shadow already covers.
+            drawStrokePlan(surface, plan, line, strokeShadow, ox, oy, hasFill);
         }
     }
 
@@ -222,7 +321,12 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
     @Override
     public void render(SlideShape shape, RenderingContext ctx, SlideRenderContext slideCtx) {
         ShapeGeometry geom = shape.getGeometry();
-        if (geom == null || geom.getWidth() <= 0 || geom.getHeight() <= 0) return;
+        // A zero extent along ONE axis is a valid line shape (every
+        // horizontal/vertical connector python-pptx authors has cy=0 or
+        // cx=0) -- its stroke must still paint. Only a fully collapsed
+        // box draws nothing.
+        if (geom == null || geom.getWidth() < 0 || geom.getHeight() < 0
+            || (geom.getWidth() == 0 && geom.getHeight() == 0)) return;
 
         CoordinateMapper mapper = ctx.getZoomedCoordinateMapper();
         Rectangle2D bounds = mapper.mapToCanvas(geom.getX(), geom.getY(),
@@ -245,28 +349,17 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
         ShapeStyleExtractor.LineStyle line = ShapeStyleExtractor.resolveLineStyle(shape, slideCtx);
         boolean hasFill = surfaceFill != SurfacePaint.Transparent.INSTANCE;
 
-        // Connectors: draw as lines, not filled shapes
-        SlideShape.ShapeType type = shape.getType();
-        if (type == SlideShape.ShapeType.CONNECTION) {
-            if (line.isVisible()) {
-                applyLineStyle(surface, line);
-                // A straight connector is stored as a bounding box plus flipH/flipV,
-                // which select which diagonal the line runs along. Ignoring the flips
-                // rendered every flipped connector mirrored.
-                double[] e = connectorEndpoints(bounds.getMinX(), bounds.getMinY(),
-                    bounds.getMaxX(), bounds.getMaxY(), geom.isFlipH(), geom.isFlipV());
-                surface.strokeLine(e[0], e[1], e[2], e[3]);
-                surface.setLineDashes((double[]) null);
-            }
-            if (rotDeg != 0) surface.restore();
-            return;
-        }
-
+        // Connectors flow through the geometry engine like any shape:
+        // their presets (line, bentConnector2..5, curvedConnector2..5)
+        // are in the catalogue and their stroke-only pathLst plus the
+        // fillRef idx=0 no-fill handles the rest.
         GeometryDefinition def = definitionFor(shape, geom);
         GeometryResolver.ResolvedGeometry resolved = GeometryResolver.resolve(
             def, geom.getAdjustValues(), bounds.getWidth(), bounds.getHeight());
         double ox = bounds.getMinX(), oy = bounds.getMinY();
         boolean flip = geom.isFlipH() || geom.isFlipV();
+
+        StrokePlan plan = line.isVisible() ? buildStrokePlan(resolved, line) : null;
 
         // Shadow pass: the shadow follows what the shape actually
         // paints -- the filled silhouette when there is a fill, and the
@@ -287,14 +380,14 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             if (flip) applyFlip(surface, bounds, geom.isFlipH(), geom.isFlipV());
             double blur = shadow.blurPx();
             if (blur <= 0.5) {
-                shadowCopy(surface, resolved,
+                shadowCopy(surface, resolved, plan,
                     shadow.color().withAlpha(fillTarget),
                     shadow.color().withAlpha(strokeTarget), hasFill, line, ox, oy);
             } else {
                 // Draw the hard silhouette into a blur layer; the
                 // backend composites it back through the gaussian.
                 surface.beginBlurLayer(blur);
-                shadowCopy(surface, resolved,
+                shadowCopy(surface, resolved, plan,
                     shadow.color().withAlpha(fillTarget),
                     shadow.color().withAlpha(strokeTarget), hasFill, line, ox, oy);
                 surface.endBlurLayer();
@@ -302,31 +395,26 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
             surface.restore();
         }
 
-        // Body pass: paths in definition order, fill then stroke per
-        // path -- action buttons and 3D-ish presets (can, cube) layer
-        // norm/lighten/darken paths back to front.
+        // Body: ALL fillable paths first (definition order -- action
+        // buttons and 3D-ish presets layer norm/lighten/darken back to
+        // front), then ALL strokes on top. PowerPoint never buries a
+        // stroke-only sub-path under a later fill (chartStar's internal
+        // lines sit over its filled square in the truth render).
         if (flip) {
             surface.save();
             applyFlip(surface, bounds, geom.isFlipH(), geom.isFlipV());
         }
-        boolean strokeStyled = false;
-        for (GeometryResolver.ResolvedPath p : resolved.paths()) {
-            if (hasFill && p.fill() != GeometryPath.FillMode.NONE) {
-                surface.setFill(deriveFill(surfaceFill, p.fill()));
-                trace(surface, p, ox, oy);
-                surface.fillPath();
-            }
-            if (line.isVisible() && p.stroked()) {
-                if (!strokeStyled) {
-                    applyLineStyle(surface, line);
-                    strokeStyled = true;
+        if (hasFill) {
+            for (GeometryResolver.ResolvedPath p : resolved.paths()) {
+                if (p.fill() != GeometryPath.FillMode.NONE) {
+                    surface.setFill(deriveFill(surfaceFill, p.fill()));
+                    trace(surface, p.segments(), ox, oy);
+                    surface.fillPath();
                 }
-                trace(surface, p, ox, oy);
-                surface.strokePath();
             }
         }
-        if (strokeStyled) {
-            surface.setLineDashes((double[]) null);
+        if (plan != null) {
+            drawStrokePlan(surface, plan, line, line.color(), ox, oy, false);
         }
         if (flip) {
             surface.restore();
