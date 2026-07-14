@@ -36,6 +36,28 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(r.status, bl.Status.FAIL)
         self.assertIn("regressed", r.reason)
 
+    def test_ssim_ratchet_is_serialization_strict(self):
+        base = {"cat/slide-1": {"ssim": 0.99, "histogram": 0.99, "iou": 0.9}}
+        r = bl.evaluate_category("cat", [slide("cat", 1, 0.99 - 5e-6)],
+                                 THRESHOLDS, base, {})
+        self.assertEqual(r.status, bl.Status.FAIL)
+
+    def test_secondary_metrics_absorb_pixel_noise(self):
+        # iou/histogram are threshold metrics: 1-2 AA edge pixels flip
+        # their masks/bins under legitimate renderer changes (measured
+        # <= 4.2e-6 iou during A5). Drops inside the 1e-5 noise floor do
+        # not trip the ratchet; drops beyond it still do.
+        base = {"cat/slide-1": {"ssim": 0.95, "histogram": 0.99, "iou": 0.9}}
+        r = bl.evaluate_category(
+            "cat", [slide("cat", 1, 0.96, hist=0.99 - 5e-6, iou=0.9 - 5e-6)],
+            THRESHOLDS, base, {})
+        self.assertEqual(r.status, bl.Status.PASS)
+
+        r = bl.evaluate_category(
+            "cat", [slide("cat", 1, 0.96, hist=0.99, iou=0.9 - 5e-5)],
+            THRESHOLDS, base, {})
+        self.assertEqual(r.status, bl.Status.FAIL)
+
     def test_xfail_category_reports_xfail(self):
         xf = {"cat": "pending-A2"}
         r = bl.evaluate_category("cat", [slide("cat", 1, 0.50)], THRESHOLDS, {}, xf)
@@ -101,6 +123,16 @@ class UpdateTest(unittest.TestCase):
     def test_first_run_records(self):
         bl.update_baselines(self.corpus, self._category(0.88))
         self.assertAlmostEqual(self._read_baselines()["cat/slide-1"]["ssim"], 0.88)
+
+    def test_recorded_value_never_exceeds_achieved(self):
+        # round-half-up used to record 0.98796881 as 0.987969 -- a
+        # baseline 1.9e-7 ABOVE anything the renderer ever produced.
+        s = slide("cat", 1, 0.98796881)
+        bl.update_baselines(self.corpus,
+                            [bl.CategoryResult("cat", [s], 0.95, bl.Status.PASS)])
+        recorded = self._read_baselines()["cat/slide-1"]["ssim"]
+        self.assertLessEqual(recorded, 0.98796881)
+        self.assertAlmostEqual(recorded, 0.987968)
 
 
 if __name__ == "__main__":
