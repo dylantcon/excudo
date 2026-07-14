@@ -13,8 +13,8 @@ import static org.junit.Assert.*;
 /**
  * NEUTRALITY FIREWALL for {@code p:graphicFrame} content (tables, charts).
  *
- * <p>The A6 table work extends {@code SlideXMLParser} to see
- * {@code p:graphicFrame} shapes that are currently invisible to the
+ * <p>The A6 table work extended {@code SlideXMLParser} to see
+ * {@code p:graphicFrame} shapes that were previously invisible to the
  * whole synthesis stack. This suite pins, against real decks, that the
  * parser extension does not silently alter what {@link ScriptSynthesizer}
  * emits:
@@ -27,17 +27,18 @@ import static org.junit.Assert.*;
  *       {@code AddShapeSpec} that the runner cannot execute.</li>
  * </ul>
  *
- * <p><b>Documented policy today (pre-A6 parser)</b>: the shape-extraction
- * XPath selects only {@code p:sp | p:pic | p:grpSp | p:cxnSp}, so a
- * {@code p:graphicFrame} never reaches the ShapeRegistry, the snapshot
- * builder, or the synthesizer — tables synthesize to nothing, with no
- * warning. When the A6 parser makes tables visible, the policy becomes
- * skip-with-visible-warning (there is no AddTableSpec in the v1 spec
- * vocabulary, and an {@code AddShapeSpec} would fail injection because
- * TABLE has no OOXML preset geometry). That flip is a deliberate,
- * reviewed change: {@link #assertGraphicFramePolicy} is updated IN THE
- * SAME COMMIT as the parser change, with the expected warning count
- * moving from 0 to 1 per table.
+ * <p><b>Documented policy (A6 parser)</b>: {@code a:tbl} graphicFrames
+ * parse into TABLE-typed shapes for the renderer, and the synthesizer
+ * deliberately skips them with exactly one visible warning per table —
+ * there is no AddTableSpec in the v1 spec vocabulary, and an
+ * {@code AddShapeSpec} would fail injection because TABLE has no OOXML
+ * preset geometry. Non-table graphicFrames (charts, SmartArt, OLE)
+ * remain unparsed pending their own phases and still synthesize to
+ * nothing. This policy assert was flipped from expect-zero-warnings to
+ * expect-one-per-table in the SAME commit that widened the parser
+ * XPath — the deliberate, reviewed decision this firewall exists to
+ * force. When a table spec vocabulary lands (B-phase), these pins flip
+ * again to the new specs.
  *
  * <p>Unlike the renderer suites this test is deliberately green-first:
  * it pins the status quo so parser work cannot regress it unnoticed.
@@ -138,10 +139,26 @@ public class GraphicFrameSynthesisFirewallTest {
     private static void assertGraphicFramePolicy(ScriptSynthesizer.Result r,
             int tablesPresent) {
         assertTrue("fixture slide must actually carry a table", tablesPresent > 0);
-        assertEquals("Pre-A6 policy: graphicFrames are invisible to synthesis "
-            + "and every fixture slide otherwise synthesizes warning-free, so "
-            + "the warnings channel must be EMPTY. warnings=" + r.warnings(),
-            List.of(), r.warnings());
+
+        // No spec of any kind may target a table. AddShapeSpec(TABLE)
+        // is the specific garbage the policy forbids (unrunnable: no
+        // OOXML preset geometry).
+        boolean strayTableAdd = r.script().topologicalOrder().stream()
+            .filter(s -> s instanceof CommandSpec.AddShapeSpec)
+            .map(s -> (CommandSpec.AddShapeSpec) s)
+            .anyMatch(s -> s.shapeType() == com.excudo.core.model.SlideShape.ShapeType.TABLE);
+        assertFalse("TABLE must never flow through AddShapeSpec", strayTableAdd);
+
+        // Exactly one visible skip warning per table, and nothing else:
+        // every fixture slide otherwise synthesizes warning-free, so any
+        // extra warning is drift.
+        List<String> tableWarnings = r.warnings().stream()
+            .filter(w -> w.contains("graphicFrame table")).toList();
+        assertEquals("Each parsed table must surface exactly one visible skip "
+            + "warning (a silent drop is forbidden). warnings=" + r.warnings(),
+            tablesPresent, tableWarnings.size());
+        assertEquals("No warnings besides the table skips may appear. warnings="
+            + r.warnings(), tablesPresent, r.warnings().size());
     }
 
     // ===================================================================

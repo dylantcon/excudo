@@ -69,6 +69,14 @@ public final class ScriptSynthesizer {
         Set<Integer> consumedSpids = new HashSet<>();
         emitCompoundPrimitives(diff, slideNumber, builder, consumedSpids, warnings);
 
+        // TABLE shapes (a:tbl graphicFrames, parsed since A6) are
+        // deliberately skipped with a visible warning: the v1 spec
+        // vocabulary has no AddTableSpec, and routing a table through
+        // AddShapeSpec would fail injection (TABLE has no OOXML preset
+        // geometry). Pinned by GraphicFrameSynthesisFirewallTest; flips
+        // to a real spec when the table vocabulary lands (B-phase).
+        emitTableSkips(diff, consumedSpids, warnings);
+
         // PICTURE shapes route to AddPictureSpec when the snapshot
         // captured a BlipRef (embedded media). PICTUREs without a
         // BlipRef -- linked-not-embedded, or a parser miss -- can't be
@@ -258,6 +266,28 @@ public final class ScriptSynthesizer {
             }
         }
         return null;
+    }
+
+    // ========== Table adds (deliberate skip) ==========
+
+    /**
+     * Claim every TABLE-typed added snapshot so no downstream pass
+     * emits anything for it, surfacing one visible warning per table.
+     * Never silent: replay of a synthesized script will not recreate
+     * the table and the caller must know that.
+     */
+    private static void emitTableSkips(SlideStateDiff diff, Set<Integer> consumedSpids,
+            java.util.List<String> warnings) {
+        for (SlideStateDiff.ShapeAdded added : diff.added()) {
+            ShapeSnapshot s = added.shape();
+            if (s.type() != com.excudo.core.model.SlideShape.ShapeType.TABLE) continue;
+            if (consumedSpids.contains(s.spid())) continue;
+            consumedSpids.add(s.spid());
+            warnings.add("graphicFrame table SPID " + s.spid()
+                + " (" + (s.name() != null ? s.name() : "unnamed")
+                + ") skipped: no AddTableSpec in the v1 spec vocabulary; "
+                + "replay will not recreate the table.");
+        }
     }
 
     // ========== Picture adds ==========

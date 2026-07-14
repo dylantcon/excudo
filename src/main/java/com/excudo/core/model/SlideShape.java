@@ -9,6 +9,9 @@ public class SlideShape {
   public enum ShapeType {
     // Meta categories
     PLACEHOLDER, PICTURE, GROUP, CONNECTION, CUSTOM_GEOMETRY,
+    // p:graphicFrame carrying an a:tbl payload (no OOXML preset geometry;
+    // the parsed structure lives in SlideShape.tableModel)
+    TABLE,
     
     // Basic Shapes
     RECTANGLE("rect"), ELLIPSE("ellipse"), TRIANGLE("triangle"), DIAMOND("diamond"),
@@ -180,6 +183,10 @@ public class SlideShape {
   // is structurally still a RECTANGLE preset); this field carries the
   // authorial intent the spec encodes via that attribute.
   private final boolean isTextBox;
+  // Parsed a:tbl payload for TABLE-typed graphicFrames; null for every
+  // other shape type. Set eagerly by the parser (malformed table XML
+  // throws there) so consumers never re-walk the DOM for structure.
+  private final TableModel tableModel;
 
   public SlideShape(int spid, String name, ShapeType type, String textContent,
       ShapeGeometry geometry, Element xmlElement) {
@@ -194,6 +201,13 @@ public class SlideShape {
   public SlideShape(int spid, String name, ShapeType type, String textContent,
       ShapeGeometry geometry, Element xmlElement, ParagraphMetadata paragraphMetadata,
       boolean isTextBox) {
+    this(spid, name, type, textContent, geometry, xmlElement, paragraphMetadata,
+        isTextBox, null);
+  }
+
+  public SlideShape(int spid, String name, ShapeType type, String textContent,
+      ShapeGeometry geometry, Element xmlElement, ParagraphMetadata paragraphMetadata,
+      boolean isTextBox, TableModel tableModel) {
     this.spid = spid;
     this.name = name;
     this.type = type;
@@ -202,6 +216,7 @@ public class SlideShape {
     this.xmlElement = xmlElement;
     this.paragraphMetadata = paragraphMetadata;
     this.isTextBox = isTextBox;
+    this.tableModel = tableModel;
   }
 
   // Getters
@@ -236,6 +251,8 @@ public class SlideShape {
   public String getText() { return getTextContent(); }  // Alias for Commands
   /** True iff the parsed cNvSpPr carried the OOXML txBox="1" marker. */
   public boolean isTextBox() { return isTextBox; }
+  /** Parsed a:tbl payload for TABLE shapes; null otherwise. */
+  public TableModel getTableModel() { return tableModel; }
   public ShapeGeometry getGeometry() { return geometry; }
   public Element getXmlElement() { return xmlElement; }
   public ParagraphMetadata getParagraphMetadata() { return paragraphMetadata; }

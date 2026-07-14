@@ -172,7 +172,8 @@ public class SlideXMLParser {
     for (int i = 0; i < children.getLength(); i++) {
       if (!(children.item(i) instanceof Element child)) continue;
       String tag = child.getTagName();
-      if ("p:sp".equals(tag) || "p:pic".equals(tag) || "p:cxnSp".equals(tag) || "p:grpSp".equals(tag)) {
+      if ("p:sp".equals(tag) || "p:pic".equals(tag) || "p:cxnSp".equals(tag)
+          || "p:grpSp".equals(tag) || "p:graphicFrame".equals(tag)) {
         SlideShape childShape = parseShapeElement(child, slideNumber);
         if (childShape != null) {
           // Transform child coordinates from group-space to slide-space
@@ -184,12 +185,13 @@ public class SlideXMLParser {
             long absH = cg.getHeight() * gcy / cecy;
             // withBounds keeps rotation, flips, and the geometry payload
             // (preset name / adjust values / custGeom) while re-basing
-            // into slide coordinates.
+            // into slide coordinates. The table payload rides along on
+            // the shape itself.
             childShape = new SlideShape(childShape.getSpid(), childShape.getName(),
                 childShape.getType(), childShape.getTextContent(),
                 cg.withBounds(absX, absY, absW, absH),
                 childShape.getXmlElement(), childShape.getParagraphMetadata(),
-                childShape.isTextBox());
+                childShape.isTextBox(), childShape.getTableModel());
           }
           registry.addShape(childShape);
           // Record structural parentage at parse time -- consumers that
@@ -232,6 +234,9 @@ public class SlideXMLParser {
 
     // Determine shape type
     String tagName = shapeElement.getTagName();
+    if (tagName.equals("p:graphicFrame")) {
+      return parseGraphicFrameElement(shapeElement, spid, name);
+    }
     SlideShape.ShapeType type;
     if (tagName.equals("p:pic")) {
       type = SlideShape.ShapeType.PICTURE;
@@ -292,6 +297,70 @@ public class SlideXMLParser {
     return new SlideShape(spid, name, type, textContent, geometry, shapeElement, paragraphMetadata, isTextBox);
   }
   
+  /**
+   * Parse a {@code p:graphicFrame}. Only the DrawingML table payload
+   * ({@code a:graphicData} with the table URI) becomes a shape — a
+   * TABLE-typed {@link SlideShape} carrying the eagerly parsed
+   * {@link TableModel}. Non-table graphicFrames (charts, SmartArt, OLE
+   * objects) return null and stay invisible to the registry pending
+   * their own parsing phases; that policy is pinned by
+   * GraphicFrameSynthesisFirewallTest.
+   *
+   * <p>Malformed table XML throws ({@link TableModel#parse} validates
+   * grid/rows/spans) — never a silently empty table.
+   */
+  private SlideShape parseGraphicFrameElement(Element frameElement, int spid, String name)
+      throws XPathExpressionException {
+    Element graphicData = (Element) xpath.evaluate(
+        "a:graphic/a:graphicData", frameElement, XPathConstants.NODE);
+    if (graphicData == null || !TABLE_GRAPHIC_URI.equals(graphicData.getAttribute("uri"))) {
+      return null;
+    }
+
+    Element tbl = (Element) xpath.evaluate("a:tbl", graphicData, XPathConstants.NODE);
+    if (tbl == null) {
+      throw new IllegalArgumentException("p:graphicFrame SPID " + spid
+          + " declares the table graphicData URI but has no a:tbl child");
+    }
+    TableModel table = TableModel.parse(tbl);
+
+    // Frame geometry lives in p:xfrm (presentation namespace, unlike the
+    // a:xfrm of p:spPr), with the same a:off/a:ext children.
+    // CT_GraphicalObjectFrame requires it; a table with no position is
+    // malformed.
+    Element xfrm = (Element) xpath.evaluate("p:xfrm", frameElement, XPathConstants.NODE);
+    if (xfrm == null) {
+      throw new IllegalArgumentException("p:graphicFrame SPID " + spid + " has no p:xfrm");
+    }
+    long x = requiredEmu(xfrm, "a:off/@x", spid);
+    long y = requiredEmu(xfrm, "a:off/@y", spid);
+    long cx = requiredEmu(xfrm, "a:ext/@cx", spid);
+    long cy = requiredEmu(xfrm, "a:ext/@cy", spid);
+    String rotStr = xfrm.getAttribute("rot");
+    int rot = rotStr.isEmpty() ? 0 : Integer.parseInt(rotStr);
+    boolean flipH = parseXmlBoolean(xfrm.getAttribute("flipH"));
+    boolean flipV = parseXmlBoolean(xfrm.getAttribute("flipV"));
+    ShapeGeometry geometry = new ShapeGeometry(x, y, cx, cy, rot, flipH, flipV,
+        null, java.util.Map.of(), null);
+
+    // textContent stays null: a table is not a text shape — cell text
+    // lives in the TableModel and flows through the cell text pipeline.
+    return new SlideShape(spid, name, SlideShape.ShapeType.TABLE, null,
+        geometry, frameElement, null, false, table);
+  }
+
+  private static final String TABLE_GRAPHIC_URI =
+      "http://schemas.openxmlformats.org/drawingml/2006/table";
+
+  private long requiredEmu(Element xfrm, String path, int spid) throws XPathExpressionException {
+    String v = (String) xpath.evaluate(path, xfrm, XPathConstants.STRING);
+    if (v == null || v.isEmpty()) {
+      throw new IllegalArgumentException("p:graphicFrame SPID " + spid
+          + " p:xfrm is missing " + path);
+    }
+    return Long.parseLong(v);
+  }
+
   /**
    * Extract slide number from filename (e.g., slide1.xml -> 1)
    */
