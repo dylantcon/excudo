@@ -210,7 +210,10 @@ class PCBuilder:
             ("core operations", "src/main/java/com/excudo/core/operations/*.java"),
             ("core metrics", "src/main/java/com/excudo/core/metrics/*.java src/main/java/com/excudo/core/metrics/math/*.java"),
             ("core rendering surface", "src/main/java/com/excudo/core/rendering/surface/*.java"),
-            ("core rendering", "src/main/java/com/excudo/core/rendering/*.java"),
+            # rendering/lines (dash/arrowhead/compound stroke geometry)
+            # depends on core.geometry only; compiled with the rendering
+            # step so view-layer stroke consumers see it.
+            ("core rendering", "src/main/java/com/excudo/core/rendering/*.java src/main/java/com/excudo/core/rendering/lines/*.java"),
             ("smartcontent", "src/main/java/com/excudo/core/smartcontent/*.java"),
             ("core parsing", "src/main/java/com/excudo/core/parsing/*.java"),
             ("prism4j grammars", "src/main/java/com/excudo/core/llm/prism/*.java"),
