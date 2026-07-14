@@ -187,7 +187,13 @@ class PCBuilder:
             ("core utils", "src/main/java/com/excudo/core/utils/*.java"),
             ("core color", "src/main/java/com/excudo/core/color/*.java"),
             ("core config", "src/main/java/com/excudo/core/config/*.java"),
-            ("core model", "src/main/java/com/excudo/core/model/*.java src/main/java/com/excudo/core/model/math/*.java"),
+            # core model and core geometry form a directory-level dependency
+            # cycle (model.ShapeGeometry -> geometry.GeometryDefinition, while
+            # ArrangeEngine et al. -> model.SlideShape), so neither may compile
+            # before the other: they must share one javac invocation. Splitting
+            # them again will pass incremental local builds (stale classes in
+            # build/ mask the ordering) but break every clean/CI build.
+            ("core model + geometry", "src/main/java/com/excudo/core/model/*.java src/main/java/com/excudo/core/model/math/*.java src/main/java/com/excudo/core/geometry/*.java"),
             ("utils", "src/main/java/com/excudo/utils/*.java"),
             ("XML builders", "src/main/java/com/excudo/xml/builders/*.java"),
             ("XML shapes", "src/main/java/com/excudo/xml/shapes/*.java"),
@@ -202,7 +208,6 @@ class PCBuilder:
             ("core validation", "src/main/java/com/excudo/core/validation/*.java"),
             ("core results", "src/main/java/com/excudo/core/results/*.java"),
             ("core operations", "src/main/java/com/excudo/core/operations/*.java"),
-            ("core geometry", "src/main/java/com/excudo/core/geometry/*.java"),
             ("core metrics", "src/main/java/com/excudo/core/metrics/*.java src/main/java/com/excudo/core/metrics/math/*.java"),
             ("core rendering surface", "src/main/java/com/excudo/core/rendering/surface/*.java"),
             ("core rendering", "src/main/java/com/excudo/core/rendering/*.java"),
@@ -259,10 +264,19 @@ class PCBuilder:
             print(f"Compiling {step_name}... ({len(source_files)} file{'s' if len(source_files) != 1 else ''})")
             compiled_files += len(source_files)
 
+            # Sources go through a javac @argfile, same as _build_tests: a
+            # 200-file step with absolute paths can exceed the Windows 32K
+            # command-line limit (WinError 206) at deep checkout paths.
+            self.build_dir.mkdir(parents=True, exist_ok=True)
+            argfile = self.build_dir / "step-sources.args"
+            argfile.write_text(
+                "\n".join('"' + str(f).replace("\\", "/") + '"' for f in source_files),
+                encoding="utf-8")
             cmd = [javac] + javac_flags + [
                 "-cp", classpath,
-                "-d", "build"
-            ] + [str(f) for f in source_files]
+                "-d", "build",
+                f"@{argfile}"
+            ]
 
             if verbose:
                 print(f"  Running: {' '.join(cmd)}")
@@ -458,10 +472,17 @@ public class JavaFXTest extends Application {
             javafx_modules = ["--module-path", str(javafx_lib_path), 
                               "--add-modules", "javafx.controls,javafx.fxml,javafx.swing,javafx.graphics"]
         
+        # @argfile for the same Windows command-line-limit reason as the
+        # step compiler and _build_tests.
+        argfile = self.build_dir / "view-sources.args"
+        argfile.write_text(
+            "\n".join('"' + str(f).replace("\\", "/") + '"' for f in view_files),
+            encoding="utf-8")
         cmd = [javac] + javac_flags + [
             "-cp", classpath,
-            "-d", "build"
-        ] + javafx_modules + [str(f) for f in view_files]
+            "-d", "build",
+            f"@{argfile}"
+        ] + javafx_modules
         
         # Use xvfb-run on Linux for headless environments with X11
         is_headless = (
