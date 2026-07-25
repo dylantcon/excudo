@@ -99,7 +99,7 @@ public class TableRenderTest {
         assertWhitish(img, px(480), px(129.6), "insideV in data region");
         assertColor(img, px(474), px(129.6), BAND1_TINT40, "fill left of insideV");
         assertColor(img, px(486), px(129.6), BAND1_TINT40, "fill right of insideV");
-        assertWhitish(img, px(480), px(67.2), "insideV crossing the header row");
+        assertBorderOverAccent1(img, px(480), px(67.2), "insideV crossing the header row");
         assertColor(img, px(474), px(67.2), ACCENT1_SOLID, "header fill left of insideV");
         assertColor(img, px(486), px(67.2), ACCENT1_SOLID, "header fill right of insideV");
         assertWhitish(img, px(702), px(129.6), "second insideV");
@@ -115,7 +115,7 @@ public class TableRenderTest {
         assertColor(img, px(400), px(94.5), ACCENT1_SOLID, "just above the 3pt border");
         assertColor(img, px(400), px(102.8), BAND1_TINT40, "just below the 3pt border");
         // A plain inside boundary is only 1pt: 2pt off-center is fill again.
-        assertWhitish(img, px(400), px(160.8), "insideH row1/row2");
+        assertWhitish(img, px(400), px(160.8), 240, "insideH row1/row2");
         assertColor(img, px(400), px(158.2), BAND1_TINT40, "2.6pt above insideH is fill");
         assertColor(img, px(400), px(163.4), WHOLE_TINT20, "2.6pt below insideH is fill");
     }
@@ -127,11 +127,13 @@ public class TableRenderTest {
         // blank render cannot fake-pass.
         assertWhitish(img, px(36), px(129.6), "outer left border");
         assertColor(img, px(41), px(129.6), BAND1_TINT40, "fill inside the left border");
-        // Top border sits between white slide background and the header
-        // fill; probe the inner half-pixel over the fill.
-        assertWhitish(img, px(400), px(36.2), "outer top border");
+        // Top border straddles the white background / header fill edge:
+        // the inner-half pixel reads as a white-over-accent1 blend.
+        assertBorderOverAccent1(img, px(400), px(36.2), "outer top border");
         assertColor(img, px(400), px(40), ACCENT1_SOLID, "header fill below the top border");
-        assertWhitish(img, px(400), px(347.8), "outer bottom border");
+        // Bottom border: probe the pixel whose no-border reading would be
+        // the tint20 fill (233) -- the blend reads distinctly whiter.
+        assertWhitish(img, px(400), px(347.4), 240, "outer bottom border");
         assertColor(img, px(400), px(344), WHOLE_TINT20, "fill above the bottom border");
     }
 
@@ -212,12 +214,15 @@ public class TableRenderTest {
         assertWhitish(img, px(568.8), px(141.3), "c2|c3 boundary above the block");
         assertColor(img, px(560), px(141.3), BAND1_TINT40, "r1c2 fill left of boundary");
         assertColor(img, px(578), px(141.3), BAND1_TINT40, "r1c3 fill right of boundary");
-        assertWhitish(img, px(568.8), px(352), "c2|c3 boundary below the block");
+        // Both flanks are tint20 (233): the 240 floor separates border
+        // blend from bare fill.
+        assertWhitish(img, px(568.8), px(352), 240, "c2|c3 boundary below the block");
         assertColor(img, px(560), px(352), WHOLE_TINT20, "r4c2 fill left of boundary");
         assertColor(img, px(578), px(352), WHOLE_TINT20, "r4c3 fill right of boundary");
         // And the c0|c1 boundary strokes the full data height alongside
-        // the tall merge.
-        assertWhitish(img, px(213.6), px(250), "c0|c1 boundary beside tall merge");
+        // the tall merge (line spans px 284.1-285.5; probe the mostly
+        // covered pixel).
+        assertWhitish(img, 284, px(250), 240, "c0|c1 boundary beside tall merge");
         assertColor(img, px(206), px(250), BAND1_TINT40, "tall-merge fill left of boundary");
     }
 
@@ -284,6 +289,10 @@ public class TableRenderTest {
     private static BufferedImage renderDeck(File deck, int slide) throws Exception {
         assertTrue("Fixture missing (hard failure, never skip): " + deck.getAbsolutePath(),
             deck.isFile());
+        // The render cache keys on deck REVISION, not deck identity, and
+        // freshly loaded decks share revision 0 -- without clearing,
+        // tables-merges probes read tables-basic pixels and vice versa.
+        HeadlessSlideRenderer.clearRenderCache();
         PPTXOrchestratorImpl orch = new PPTXOrchestratorImpl();
         orch.loadPresentation(deck);
         PPTXDocument doc = orch.getContext().get().getDocument();
@@ -353,11 +362,36 @@ public class TableRenderTest {
     }
 
     private static void assertWhitish(BufferedImage img, int x, int y, String what) {
+        assertWhitish(img, x, y, 230, what);
+    }
+
+    /**
+     * Border-pixel probe with an explicit floor: a 1pt border is only
+     * 1.33px at this render size, so probe pixels are partial blends of
+     * white line over the flanking fill. The floor is chosen per probe
+     * so the assertion still discriminates: it must sit ABOVE what the
+     * bare fill blend would read with no border painted.
+     */
+    private static void assertWhitish(BufferedImage img, int x, int y, int min, String what) {
         int argb = img.getRGB(x, y);
         int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
-        assertTrue(what + " at (" + x + "," + y + "): expected a white border pixel, got #"
-            + String.format("%06X", argb & 0xFFFFFF),
-            r >= 230 && g >= 230 && b >= 230);
+        assertTrue(what + " at (" + x + "," + y + "): expected a white border pixel (>= "
+            + min + "), got #" + String.format("%06X", argb & 0xFFFFFF),
+            r >= min && g >= min && b >= min);
+    }
+
+    /**
+     * A 1pt white border over the solid accent1 header blends to about
+     * (196,213,233) at best -- no probe pixel is fully inside a 1.33px
+     * line unless it is pixel-aligned. Floors sit well above the bare
+     * fill (79,129,189), so a missing border still fails.
+     */
+    private static void assertBorderOverAccent1(BufferedImage img, int x, int y, String what) {
+        int argb = img.getRGB(x, y);
+        int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+        assertTrue(what + " at (" + x + "," + y + "): expected a white-over-accent1 border "
+            + "blend, got #" + String.format("%06X", argb & 0xFFFFFF),
+            r >= 150 && g >= 170 && b >= 200);
     }
 
     private static int countPixels(BufferedImage img, int x0, int y0, int x1, int y1,

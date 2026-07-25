@@ -626,6 +626,33 @@ public final class ShapeStyleExtractor {
     // ========== COLOR PARSING ==========
 
     /**
+     * Resolve a DrawingML fill-choice element ({@code a:solidFill} /
+     * {@code a:noFill}) into a paint, running scheme colors and all
+     * modifiers (tint/shade/lumMod/...) through the shared machinery.
+     * The table renderer routes tcPr and table-style fills here so cell
+     * fills use exactly the same color math as shape fills.
+     *
+     * <p>Gradient / pattern / picture cell fills are outside the A6
+     * table scope and throw — a wrong-colored cell must fail loudly,
+     * not approximate.
+     */
+    public static SurfacePaint resolveFillChoice(Element fillChoice, SlideRenderContext slideCtx) {
+        if (fillChoice == null) return SurfacePaint.Transparent.INSTANCE;
+        String local = fillChoice.getLocalName();
+        if (local == null) {
+            String tag = fillChoice.getTagName();
+            int colon = tag.indexOf(':');
+            local = colon < 0 ? tag : tag.substring(colon + 1);
+        }
+        return switch (local) {
+            case "noFill" -> SurfacePaint.Transparent.INSTANCE;
+            case "solidFill" -> parseColorElement(fillChoice, slideCtx);
+            default -> throw new IllegalStateException(
+                "unsupported table cell fill choice: a:" + local);
+        };
+    }
+
+    /**
      * Parse a color from an OOXML fill element (contains a:srgbClr,
      * a:schemeClr, or a:sysClr) and run ALL modifier children (lumMod,
      * lumOff, shade, tint, satMod, hueMod, alpha, alphaMod, alphaOff)

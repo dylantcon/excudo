@@ -455,8 +455,10 @@ public class GeometricShapeRenderer implements ModelShapeRenderer {
     public boolean canRender(SlideShape.ShapeType type) {
         // Catch-all for geometric shapes. GROUP shapes are not rendered directly --
         // their children are already in the flat registry with transformed coordinates.
+        // TABLE has no preset geometry; TableRenderer owns it.
         return type != SlideShape.ShapeType.PLACEHOLDER
             && type != SlideShape.ShapeType.PICTURE
-            && type != SlideShape.ShapeType.GROUP;
+            && type != SlideShape.ShapeType.GROUP
+            && type != SlideShape.ShapeType.TABLE;
     }
 }

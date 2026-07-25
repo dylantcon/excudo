@@ -81,6 +81,7 @@ public class SlideRenderer {
         // Register renderers in priority order (first match wins)
         renderers.add(new PlaceholderRenderer());
         renderers.add(new PictureRenderer());
+        renderers.add(new com.excudo.view.rendering.tables.TableRenderer());
         renderers.add(new GeometricShapeRenderer()); // catch-all
 
         renderingContext.setupForShapeRendering();
