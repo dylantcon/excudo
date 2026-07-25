@@ -79,6 +79,9 @@ def configure_test_parser(subparsers):
                             help="Enable verbose test output")
     test_parser.add_argument("--short", "-s", action="store_true",
                             help="Short output -- suppress per-class lines, show summary only")
+    test_parser.add_argument("--workers", "-w", type=int, default=0,
+                            help="Max concurrent test JVMs with --parallel "
+                                 "(default: test_workers config key, else one per core)")
     return test_parser
 
 def configure_session_parser(subparsers):
@@ -548,7 +551,8 @@ def main():
                 test_filter=args.test_filter,
                 parallel=args.parallel,
                 coverage=args.coverage,
-                short=args.short)
+                short=args.short,
+                workers=args.workers)
             return 0 if success else 1
             
         elif args.command == "coverage":

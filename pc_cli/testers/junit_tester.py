@@ -8,11 +8,30 @@ coverage reporting, and cross-platform compatibility.
 import os
 import re
 import shutil
+import platform
 import threading
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def _nice_quietly():
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+
+
+# Test JVMs launch at below-normal OS priority: a parallel run puts a
+# JVM on every core, and at normal priority that visibly starves the
+# desktop. Below-normal costs nothing on an otherwise-idle machine
+# (including CI) -- the scheduler only demotes the JVMs when something
+# else wants the cores.
+if platform.system() == "Windows":
+    _LOW_PRIORITY_KWARGS = {"creationflags": subprocess.BELOW_NORMAL_PRIORITY_CLASS}
+else:
+    _LOW_PRIORITY_KWARGS = {"preexec_fn": _nice_quietly}
 
 
 class PCTester:
@@ -68,7 +87,8 @@ class PCTester:
         
     def run_tests(self, test_suite: str = "all", test_filter: Optional[str] = None,
                   parallel: bool = False, coverage: bool = False, headless: bool = True,
-                  verbose: bool = False, short: bool = False) -> bool:
+                  verbose: bool = False, short: bool = False,
+                  workers: Optional[int] = None) -> bool:
         """Run tests with specified options"""
 
         # Ensure build directory exists and is up-to-date
@@ -100,7 +120,8 @@ class PCTester:
             self._clear_coverage_data()
 
         # Run tests
-        success = self._run_test_batch(classes_to_run, parallel, coverage, headless, verbose, short)
+        success = self._run_test_batch(classes_to_run, parallel, coverage, headless,
+                                       verbose, short, workers)
 
         # Generate coverage report if coverage was enabled
         if success and coverage:
@@ -238,7 +259,8 @@ class PCTester:
     
     def _run_test_batch(self, test_classes: List[str], parallel: bool,
                         coverage: bool, headless: bool,
-                        verbose: bool = False, short: bool = False) -> bool:
+                        verbose: bool = False, short: bool = False,
+                        workers: Optional[int] = None) -> bool:
         """Run a batch of test classes, either sequentially or in parallel.
         Unified execution path -- same output format regardless of mode."""
         passed = 0
@@ -256,7 +278,10 @@ class PCTester:
                 failed_classes.append(test_class)
 
         if parallel and len(test_classes) > 1:
-            with ThreadPoolExecutor(max_workers=min(len(test_classes), os.cpu_count() or 4)) as executor:
+            max_workers = self._resolve_workers(len(test_classes), workers)
+            if not short:
+                print(f"  ({max_workers} parallel worker{'s' if max_workers != 1 else ''})")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(self._run_single_test_class, tc, coverage, headless, verbose, short): tc
                     for tc in test_classes
@@ -283,6 +308,22 @@ class PCTester:
 
         return failed == 0
     
+    def _resolve_workers(self, n_classes: int, cli_workers: Optional[int]) -> int:
+        """Concurrent test-JVM cap: --workers beats the test_workers config
+        key; 0/absent means one per core. Every worker is a whole JVM (CPU
+        and heap), so this is the lever when the suite must share the
+        machine. Caps above the local core count clamp to it, so a value
+        committed for a big desktop can't oversubscribe a 4-core CI runner."""
+        cap = cli_workers if cli_workers else self.env.config.get("test_workers", 0)
+        try:
+            cap = int(cap)
+        except (TypeError, ValueError):
+            cap = 0
+        cores = os.cpu_count() or 4
+        if cap <= 0 or cap > cores:
+            cap = cores
+        return max(1, min(n_classes, cap))
+
     def _run_single_test_class(self, test_class: str, coverage: bool, headless: bool,
                               verbose: bool = False, short: bool = False) -> bool:
         """Run a single test class"""
@@ -347,7 +388,8 @@ class PCTester:
 
         try:
             result = subprocess.run(cmd, cwd=self.project_root, env=env_vars,
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True,
+                                  **_LOW_PRIORITY_KWARGS)
 
             if verbose:
                 if result.stdout:
@@ -402,7 +444,8 @@ class PCTester:
 
         try:
             result = subprocess.run(cmd, cwd=self.project_root, env=env_vars,
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True,
+                                  **_LOW_PRIORITY_KWARGS)
 
             if verbose or (result.returncode != 0 and not short):
                 if result.stdout:

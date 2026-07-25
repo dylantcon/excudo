@@ -4,6 +4,7 @@
   "log_console": true,
   "build_parallel": true,
   "test_parallel": true,
+  "test_workers": 12,
   "javafx_headless": true,
   "python_requirements": [],
   "classpath_extra": [],
