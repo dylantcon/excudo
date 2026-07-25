@@ -220,14 +220,14 @@
     "ssim": 0.994631
   },
   "tables-basic/slide-1": {
-    "histogram": 0.0,
-    "iou": 0.0,
-    "ssim": 0.909185
+    "histogram": 0.999984,
+    "iou": 0.99438,
+    "ssim": 0.997909
   },
   "tables-merges/slide-1": {
-    "histogram": 0.0,
-    "iou": 0.0,
-    "ssim": 0.900253
+    "histogram": 0.999977,
+    "iou": 0.997636,
+    "ssim": 0.997357
   },
   "text-align-wrap/slide-1": {
     "histogram": 0.862701,

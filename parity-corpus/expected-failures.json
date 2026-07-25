@@ -1,6 +1,4 @@
 {
   "charts-placeholder": "charts-out-of-scope",
-  "integration-jakepaul": "pending-track-A-fonts: theme font Inter is not bundled; every text-heavy slide (2-6, 8-14) sits at 0.75-0.87 from substituted glyph metrics (per-line pitch drift ~6px, advance-width wrap differences); slides 1/7/15 pass at 0.99+. Deck has no pictures. Not moved by A5 line/connector work.",
-  "tables-basic": "pending-A6-tables",
-  "tables-merges": "pending-A6-tables"
+  "integration-jakepaul": "pending-track-A-fonts: theme font Inter is not bundled; every text-heavy slide (2-6, 8-14) sits at 0.75-0.87 from substituted glyph metrics (per-line pitch drift ~6px, advance-width wrap differences); slides 1/7/15 pass at 0.99+. Deck has no pictures. Not moved by A5 line/connector work."
 }
