@@ -25,6 +25,10 @@ public class AnthropicAPIClient extends LLMClient {
     private static final String API_ENDPOINT = "https://api.anthropic.com/v1/messages";
     private static final String API_VERSION = "2023-06-01";
     private static final String DEFAULT_MODEL = "claude-sonnet-4-6";
+    private static final int TOOL_MAX_TOKENS = 16_000;
+    private static final int CONNECT_TIMEOUT_MS = 30_000;
+    private static final int READ_TIMEOUT_MS = 600_000;
+    private static final int MAX_RETRIES = 3;
 
     private boolean extendedThinking = false;
 
@@ -83,37 +87,91 @@ public class AnthropicAPIClient extends LLMClient {
     @Override
     public ExecutionResult<String> sendMessage(String systemPrompt, String userMessage) {
         try {
-            String requestBody = buildRequestBody(systemPrompt, userMessage);
-
-            URL url = java.net.URI.create(API_ENDPOINT).toURL();
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("X-API-Key", apiKey);
-            connection.setRequestProperty("anthropic-version", API_VERSION);
-            connection.setDoOutput(true);
-
-            try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                String response = readResponse(connection.getInputStream());
-                String content = extractContentFromResponse(response);
-                return ExecutionResult.success("Anthropic API Call", content);
-            } else {
-                String errorResponse = readResponse(connection.getErrorStream());
-                return ExecutionResult.failure("Anthropic API Call",
-                    "API request failed with code " + responseCode + ": " + errorResponse);
-            }
-
-        } catch (Exception e) {
-            return ExecutionResult.failure("Anthropic API Call",
-                "Failed to communicate with Anthropic API: " + e.getMessage());
+            String response = post(buildRequestBody(systemPrompt, userMessage));
+            return ExecutionResult.success("Anthropic API Call", extractContentFromResponse(response));
+        } catch (LLMApiException e) {
+            return ExecutionResult.failure("Anthropic API Call", e.getMessage());
         }
+    }
+
+    /**
+     * POST a Messages API request and return the 200 response body. Retries
+     * rate-limit / overload / 5xx responses and connection failures with
+     * backoff; anything else throws {@link LLMApiException} with the API's
+     * own error message.
+     */
+    private String post(String requestBody) {
+        LLMApiException last = null;
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (attempt > 0) {
+                long delayMs = Math.min(30_000L, 2_000L << (attempt - 1));
+                logger.warn("Anthropic request failed ({}); retry {}/{} in {} ms",
+                    last.getMessage(), attempt, MAX_RETRIES, delayMs);
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw last;
+                }
+            }
+            HttpURLConnection connection = null;
+            try {
+                URL url = java.net.URI.create(API_ENDPOINT).toURL();
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                connection.setReadTimeout(READ_TIMEOUT_MS);
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setRequestProperty("x-api-key", apiKey);
+                connection.setRequestProperty("anthropic-version", API_VERSION);
+                connection.setDoOutput(true);
+
+                try (OutputStream os = connection.getOutputStream()) {
+                    os.write(requestBody.getBytes(StandardCharsets.UTF_8));
+                }
+
+                int code = connection.getResponseCode();
+                if (code == HttpURLConnection.HTTP_OK) {
+                    return readResponse(connection.getInputStream());
+                }
+                String errorBody = connection.getErrorStream() != null
+                    ? readResponse(connection.getErrorStream()) : "";
+                last = new LLMApiException(describeError(code, errorBody), code);
+                if (!isRetryable(code)) throw last;
+            } catch (LLMApiException e) {
+                throw e;
+            } catch (IOException e) {
+                last = new LLMApiException("Could not reach the Anthropic API: " + e.getMessage(), e);
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }
+        throw last;
+    }
+
+    private static boolean isRetryable(int code) {
+        return code == 429 || code == 500 || code == 502 || code == 503 || code == 504 || code == 529;
+    }
+
+    private String describeError(int code, String errorBody) {
+        String detail = errorBody;
+        try {
+            JsonObject err = JsonParser.parseString(errorBody).getAsJsonObject().getAsJsonObject("error");
+            if (err != null && err.has("message")) {
+                detail = err.get("message").getAsString();
+            }
+        } catch (Exception ignored) {
+            // Non-JSON body: report it raw.
+        }
+        String msg = "Anthropic API error " + code + ": " + detail;
+        if (code == 401) {
+            msg += "\nThe API key was rejected. Check ANTHROPIC_API_KEY in .env, and run "
+                + "'llm config show' -- a key saved with 'llm config set' overrides .env "
+                + "('llm config clear' removes it).";
+        } else if (code == 404 && detail.contains("model")) {
+            msg += "\nCheck ANTHROPIC_MODEL (currently '" + model + "').";
+        }
+        return msg;
     }
 
     private String buildRequestBody(String systemPrompt, String userMessage) {
@@ -123,8 +181,7 @@ public class AnthropicAPIClient extends LLMClient {
 
         if (extendedThinking) {
             JsonObject thinking = new JsonObject();
-            thinking.addProperty("type", "enabled");
-            thinking.addProperty("budget_tokens", 1024);
+            thinking.addProperty("type", "adaptive");
             body.add("thinking", thinking);
         }
 
@@ -166,38 +223,9 @@ public class AnthropicAPIClient extends LLMClient {
     public List<APIResponse> sendMessageWithTools(String systemPrompt,
                                                    List<Map<String, String>> messages,
                                                    String toolsJson) {
-        try {
-            String requestBody = buildRequestBodyWithTools(systemPrompt, messages, toolsJson);
-
-            URL url = java.net.URI.create(API_ENDPOINT).toURL();
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("X-API-Key", apiKey);
-            connection.setRequestProperty("anthropic-version", API_VERSION);
-            connection.setDoOutput(true);
-
-            try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                String response = readResponse(connection.getInputStream());
-                this.lastTokenUsage = parseTokenUsage(response);
-                return parseToolUseResponse(response);
-            } else {
-                String errorResponse = readResponse(connection.getErrorStream());
-                List<APIResponse> errors = new ArrayList<>();
-                errors.add(new APIResponse("text", "API error " + responseCode + ": " + errorResponse, null, null, null));
-                return errors;
-            }
-        } catch (Exception e) {
-            List<APIResponse> errors = new ArrayList<>();
-            errors.add(new APIResponse("text", "Connection error: " + e.getMessage(), null, null, null));
-            return errors;
-        }
+        String response = post(buildRequestBodyWithTools(systemPrompt, messages, toolsJson));
+        this.lastTokenUsage = parseTokenUsage(response);
+        return parseToolUseResponse(response);
     }
 
     private String buildRequestBodyWithTools(String systemPrompt,
@@ -205,7 +233,7 @@ public class AnthropicAPIClient extends LLMClient {
                                               String toolsJson) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
-        body.addProperty("max_tokens", 4096);
+        body.addProperty("max_tokens", TOOL_MAX_TOKENS);
         body.addProperty("system", systemPrompt);
 
         JsonArray msgArray = new JsonArray();
@@ -241,6 +269,14 @@ public class AnthropicAPIClient extends LLMClient {
             JsonObject root = JsonParser.parseString(response).getAsJsonObject();
             JsonArray content = root.getAsJsonArray("content");
             if (content == null) return results;
+
+            String stopReason = root.has("stop_reason") && !root.get("stop_reason").isJsonNull()
+                ? root.get("stop_reason").getAsString() : null;
+            if ("max_tokens".equals(stopReason)) {
+                logger.warn("Response hit max_tokens ({}); output may be truncated", TOOL_MAX_TOKENS);
+            } else if ("refusal".equals(stopReason)) {
+                logger.warn("Model refused the request");
+            }
 
             for (JsonElement el : content) {
                 JsonObject block = el.getAsJsonObject();

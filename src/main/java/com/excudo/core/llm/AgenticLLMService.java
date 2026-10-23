@@ -152,7 +152,7 @@ public class AgenticLLMService {
 
         // If no presentation is loaded, tell the model to create one first
         if (!hasPresentation) {
-            userRequest = "[No presentation loaded. Use the 'new' command (via execute_commands) "
+            userRequest = "[No presentation loaded. Use the 'new-presentation' command (via execute_commands) "
                 + "to create one before any other commands.]\n\n" + userRequest;
         }
         int maxRounds = smallModel ? 10 : MAX_ROUND_TRIPS;
@@ -192,8 +192,15 @@ public class AgenticLLMService {
             // Keep last 2 rounds verbatim; summarize everything older.
             List<Map<String, Object>> compactedMessages = compactConversationHistory(messages, round);
 
-            List<LLMClient.APIResponse> responses = llmClient.sendMessageWithTools(
-                systemPrompt, flattenMessages(compactedMessages), toolsJson);
+            List<LLMClient.APIResponse> responses;
+            try {
+                responses = llmClient.sendMessageWithTools(
+                    systemPrompt, flattenMessages(compactedMessages), toolsJson);
+            } catch (LLMApiException e) {
+                if (round == 0) throw e;
+                throw new LLMApiException(e.getMessage() + "\n(Stopped at round " + (round + 1)
+                    + "; edits from earlier rounds were applied.)", e);
+            }
 
             // Track token usage from this round
             accumulateTokenUsage();

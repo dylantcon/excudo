@@ -521,7 +521,17 @@ public class LLMConsoleHandler implements LLMHandler {
         switch (subAction) {
             case "set":
                 if (parts.length > 1 && !parts[1].trim().isEmpty()) {
-                    configManager.setApiKey(parts[1].trim());
+                    String value = parts[1].trim();
+                    if (value.endsWith(".env") || value.contains(".env.") || new java.io.File(value).isFile()) {
+                        System.out.println("'" + value + "' is a file, not an API key -- loading it as an env file instead.");
+                        handleConfigAction("env " + value);
+                        break;
+                    }
+                    if ("anthropic".equalsIgnoreCase(configManager.getProviderName())
+                            && !value.startsWith("sk-ant-")) {
+                        System.out.println("Warning: Anthropic API keys start with 'sk-ant-'; saving anyway.");
+                    }
+                    configManager.setApiKey(value);
                     initializeAPIClient();
                     System.out.println("API key saved successfully!");
                     if (apiClient != null) {

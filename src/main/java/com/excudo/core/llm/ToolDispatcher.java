@@ -257,7 +257,7 @@ public class ToolDispatcher {
 
     private String handleGetSlideShapes(String toolInput) {
         if (getContextService() == null) {
-            return "No presentation loaded. Create one first with the 'new' command.";
+            return "No presentation loaded. Create one first with the 'new-presentation' command.";
         }
         List<Integer> slideNumbers;
         try {
@@ -1242,9 +1242,9 @@ public class ToolDispatcher {
                     // Block 'new' if already called this session -- prevents reset loops
                     if (isNewCommand && (hasContext || presentationCreated)) {
                         failed++;
-                        details.append("FAILED: new - A presentation already exists. ")
-                               .append("Use 'create' to add slides. Use 'delete' to remove slides. ")
-                               .append("Do NOT call 'new' again.\n");
+                        details.append("FAILED: new-presentation - A presentation already exists. ")
+                               .append("Use 'create-slide' to add slides. Use 'delete-slide' to remove slides. ")
+                               .append("Do NOT call 'new-presentation' again.\n");
                         continue;
                     }
 
@@ -1252,7 +1252,7 @@ public class ToolDispatcher {
                     if (!hasContext && !isContextCreatingCommand) {
                         failed++;
                         details.append("FAILED: ").append(actionType)
-                               .append(" - No presentation loaded. Call 'new' to create a fresh deck ")
+                               .append(" - No presentation loaded. Call 'new-presentation' to create a fresh deck ")
                                .append("or 'load' to open an existing .pptx file.\n");
                         continue;
                     }
@@ -1520,6 +1520,9 @@ public class ToolDispatcher {
             type = obj.get("command").getAsString();
         }
         if (type == null) return null;
+        // Accept aliases ("new", "create", ...) and normalize to the canonical name.
+        String canonicalType = com.excudo.core.parsing.CommandRegistry.resolveName(type);
+        if (canonicalType != null) type = canonicalType;
 
         Map<String, Object> params = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
