@@ -125,22 +125,22 @@ class PCEnvironment:
             return self._get_venv_executable("python")
         return sys.executable
         
+    def _get_jdk_executable(self, name: str) -> str:
+        """Resolve a JDK tool from JAVA_HOME (with .exe on Windows), else PATH."""
+        if self.java_home:
+            exe = Path(self.java_home) / "bin" / (f"{name}.exe" if platform.system() == "Windows" else name)
+            if exe.exists():
+                return str(exe)
+        return name  # Hope it's in PATH
+
     def get_java_executable(self) -> str:
         """Get Java executable"""
-        if self.java_home:
-            java_exe = Path(self.java_home) / "bin" / "java"
-            if java_exe.exists():
-                return str(java_exe)
-        return "java"  # Hope it's in PATH
-        
+        return self._get_jdk_executable("java")
+
     def get_javac_executable(self) -> str:
         """Get javac executable"""
-        if self.java_home:
-            javac_exe = Path(self.java_home) / "bin" / "javac"
-            if javac_exe.exists():
-                return str(javac_exe)
-        return "javac"  # Hope it's in PATH
-        
+        return self._get_jdk_executable("javac")
+
     def get_classpath(self) -> str:
         """Build complete Java classpath"""
         classpath_parts = ["build"]
