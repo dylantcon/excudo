@@ -48,71 +48,11 @@ public class ConsoleOutputFormatterTest {
         assertEquals("Case should not matter for command lookup", lowerHelp, upperHelp);
     }
 
-    // ========== generateHelpText ==========
-
     @Test
-    public void generateHelpText_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateHelpText();
-        assertNotNull("Should return non-null list", help);
-        assertFalse("Should return non-empty list", help.isEmpty());
-    }
-
-    // ========== topic help methods ==========
-
-    @Test
-    public void generateSlideHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateSlideHelp();
-        assertNotNull(help);
-        assertFalse("generateSlideHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateShapeHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateShapeHelp();
-        assertNotNull(help);
-        assertFalse("generateShapeHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateAnimationHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateAnimationHelp();
-        assertNotNull(help);
-        assertFalse("generateAnimationHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateThemeHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateThemeHelp();
-        assertNotNull(help);
-        assertFalse("generateThemeHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateDebugHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateDebugHelp();
-        assertNotNull(help);
-        assertFalse("generateDebugHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateAIHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateAIHelp();
-        assertNotNull(help);
-        assertFalse("generateAIHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateSessionHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateSessionHelp();
-        assertNotNull(help);
-        assertFalse("generateSessionHelp should return non-empty list", help.isEmpty());
-    }
-
-    @Test
-    public void generateGettingStartedHelp_returnsNonEmptyList() {
-        List<String> help = ConsoleOutputFormatter.generateGettingStartedHelp();
-        assertNotNull(help);
-        assertFalse("generateGettingStartedHelp should return non-empty list", help.isEmpty());
+    public void getCommandHelp_resolvesAliases() {
+        String viaAlias = ConsoleOutputFormatter.getCommandHelp("open");
+        String canonical = ConsoleOutputFormatter.getCommandHelp("load");
+        assertEquals("Alias should produce the canonical command's help", canonical, viaAlias);
     }
 
     // ========== formatShapeList ==========

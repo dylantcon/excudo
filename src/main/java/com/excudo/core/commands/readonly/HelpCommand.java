@@ -12,7 +12,7 @@ import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.model.AnimationType;
-import com.excudo.console.utils.ConsoleOutputFormatter;
+import com.excudo.core.parsing.CommandRegistry;
 
 /**
  * GoF Command for displaying help information.
@@ -24,24 +24,23 @@ import com.excudo.console.utils.ConsoleOutputFormatter;
 public class HelpCommand implements Command {
 
     static final Parameter<String> TOPIC = Parameter.ofString("topic")
-        .description("Specific help topic").required(false).build();
+        .description("Command name or alias, category, or animation type")
+        .required(false).variableLength(true).build();
 
     public static final CommandSchema SCHEMA = CommandSchema.builder()
-        .description("Show help information")
+        .description("Show help: overview, a category, or a specific command")
         .parameter(TOPIC)
         .example("help")
+        .example("help add-shape")
+        .example("help shapes")
+        .example("help session create")
         .example("help animations")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(HelpCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        // HelpCommand currently takes only display; topic is consumed via the
-        // legacy createHelp dispatch on the topic-aware help text. For the
-        // class-registry path we mirror that: ignore topic for now (general
-        // help) -- detail-topic dispatch can be added if HelpCommand grows
-        // a constructor that takes a topic.
-        return new HelpCommand(ctx.requireDisplay());
+        return new HelpCommand(ctx.requireDisplay(), p.getString(TOPIC.getName()));
     }
 
     
@@ -94,123 +93,96 @@ public class HelpCommand implements Command {
     }
     
     private void showGeneralHelp() {
-        showSpecificHelp("commands");
+        showLines(HelpCatalog.overview());
+    }
+
+    private void showLines(java.util.List<String> lines) {
+        for (String line : lines) {
+            display.displayMessage(line);
+        }
     }
     
     private void showSpecificHelp(String lowerTopic) {
-        // Check known help topics first (before animation type lookup, since
-        // AnimationType.parseType() silently defaults to FADE for unknown input)
-        switch (lowerTopic) {
-            case "animations":
-            case "animation":
-                display.displayMessage("Available Animation Types:");
-                display.displayMessage("");
-                String[] allTypes = AnimationType.getAllTypeNames();
-                for (String type : allTypes) {
-                    display.displayMessage("  " + type);
-                }
-                display.displayMessage("");
-                display.displayMessage("Use 'help <animation-type>' for specific animation parameters");
-                return;
-
-            case "add-animation":
-                display.displayMessage("Add Animation Command Help:");
-                display.displayMessage("Usage: add-animation <slide#> <spid> <type> [parameters...]");
-                display.displayMessage("");
-                display.displayMessage("Parameters vary by animation type. Examples:");
-                display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.FADE).getUsageExample());
-                display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.SPIN).getUsageExample());
-                display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.MOTION_LINEAR).getUsageExample());
-                display.displayMessage("");
-                display.displayMessage("Animation Grouping (PowerPoint compatibility):");
-                display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_ON_CLICK + "' trigger: Creates new animation group");
-                display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS + "' trigger: Joins current group (simultaneous)");
-                display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_AFTER_PREVIOUS + "' trigger: Joins current group (sequential)");
-                display.displayMessage("");
-                display.displayMessage("Use 'help animations' to see all animation types");
-                return;
-
-            case "commands":
-            case "command":
-                for (String line : ConsoleOutputFormatter.generateHelpText()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            // Category help topics
-            case "getting-started":
-            case "start":
-                for (String line : ConsoleOutputFormatter.generateGettingStartedHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "shapes":
-            case "shape":
-                for (String line : ConsoleOutputFormatter.generateShapeHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "slides":
-            case "slide":
-                for (String line : ConsoleOutputFormatter.generateSlideHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "themes":
-            case "theme":
-                for (String line : ConsoleOutputFormatter.generateThemeHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "debug":
-            case "xml":
-            case "debugging":
-                for (String line : ConsoleOutputFormatter.generateDebugHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "ai":
-            case "llm":
-            case "smart":
-            case "smartcontent":
-                for (String line : ConsoleOutputFormatter.generateAIHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-
-            case "sessions":
-            case "session":
-            case "history":
-                for (String line : ConsoleOutputFormatter.generateSessionHelp()) {
-                    display.displayMessage(line);
-                }
-                return;
-        }
-
-        // Check if it's a registered command name
-        String commandHelp = ConsoleOutputFormatter.getCommandHelp(lowerTopic);
-        if (!commandHelp.startsWith("Unknown command:")) {
-            display.displayMessage(commandHelp);
+        String[] words = lowerTopic.split("\\s+");
+        if (lowerTopic.equals("commands") || lowerTopic.equals("command") || lowerTopic.equals("all")) {
+            showGeneralHelp();
             return;
         }
 
-        // Check if it's a known animation type name (exact match only)
+        // A command name or alias, including two-word spellings ("session create").
+        String commandTopic = null;
+        if (words.length > 1 && CommandRegistry.hasCommand(words[0] + "-" + words[1])) {
+            commandTopic = words[0] + "-" + words[1];
+        } else if (CommandRegistry.hasCommand(words[0])) {
+            commandTopic = words[0];
+        }
+        if (commandTopic != null) {
+            showLines(HelpCatalog.commandHelp(commandTopic));
+            String canonical = CommandRegistry.resolveName(commandTopic);
+            if (canonical.equals(com.excudo.core.commands.mutating.slide.AddAnimationCommand.NAME)) {
+                display.displayMessage("");
+                showAddAnimationNotes();
+            } else if (canonical.equals(com.excudo.core.commands.mutating.slide.ArrangeCommand.NAME)) {
+                display.displayMessage("");
+                display.displayMessage("Note: bare 'arrange' (no arguments) enters AI arrange mode instead.");
+            }
+            return;
+        }
+
+        if (words[0].equals("arrange-mode") || words[0].equals("llm-mode")) {
+            showLines(HelpCatalog.categoryHelp("ai"));
+            return;
+        }
+
+        // Category listing; "animations" also lists the animation types.
+        java.util.List<String> category = HelpCatalog.categoryHelp(words[0]);
+        if (category != null) {
+            showLines(category);
+            if (HelpCatalog.Category.fromTopic(words[0]) == HelpCatalog.Category.ANIMATIONS) {
+                display.displayMessage("");
+                display.displayMessage("Animation types:");
+                for (String type : AnimationType.getAllTypeNames()) {
+                    display.displayMessage("  " + type);
+                }
+                display.displayMessage("Use 'help <animation-type>' for its parameters.");
+            }
+            return;
+        }
+
+        // Exact animation type name (AnimationType.parseType() silently
+        // defaults to FADE for unknown input, so don't use it here).
         for (AnimationType type : AnimationType.values()) {
-            if (type.getUserFriendlyName().equals(lowerTopic)) {
-                String helpText = AnimationParameterRequirement.generateHelpText(type);
-                display.displayMessage(helpText);
+            if (type.getUserFriendlyName().equalsIgnoreCase(lowerTopic)) {
+                display.displayMessage(AnimationParameterRequirement.generateHelpText(type));
                 return;
             }
         }
 
         display.displayError("No help available for topic: " + topic);
-        display.displayMessage("Available topics: shapes, slides, animations, themes, debug, ai, session");
-        display.displayMessage("Also: help <command-name>  |  help <animation-type>");
+        display.displayMessage("Try 'help' for the command list, or one of these categories:");
+        display.displayMessage("  " + String.join(", ", categoryTopics()));
+    }
+
+    private static java.util.List<String> categoryTopics() {
+        java.util.List<String> topics = new java.util.ArrayList<>();
+        for (HelpCatalog.Category c : HelpCatalog.commandsByCategory().keySet()) {
+            topics.add(c.topics().get(0));
+        }
+        return topics;
+    }
+
+    private void showAddAnimationNotes() {
+        display.displayMessage("Parameters vary by animation type. Examples:");
+        display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.FADE).getUsageExample());
+        display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.SPIN).getUsageExample());
+        display.displayMessage("  " + AnimationParameterRequirement.getRequirements(AnimationType.MOTION_LINEAR).getUsageExample());
+        display.displayMessage("");
+        display.displayMessage("Animation Grouping (PowerPoint compatibility):");
+        display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_ON_CLICK + "' trigger: Creates new animation group");
+        display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS + "' trigger: Joins current group (simultaneous)");
+        display.displayMessage("  - '" + AnimationParameterRequirement.TRIGGER_AFTER_PREVIOUS + "' trigger: Joins current group (sequential)");
+        display.displayMessage("");
+        display.displayMessage("Use 'help animations' to see all animation types");
     }
     
     @Override

@@ -75,6 +75,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Scanner;
 import java.io.File;
 import java.util.Optional;
@@ -1119,20 +1120,9 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     
     @Override
     public List<String> getAvailableCommands() {
-        return Arrays.asList(
-            "help", LoadCommand.NAME, SaveCommand.NAME, RenderSlideCommand.NAME, ListSlidesCommand.NAME,
-            ShowSlideCommand.NAME, CreateSlideCommand.NAME, DeleteSlideCommand.NAME, LLMCommand.NAME,
-            LLMConfigCommand.NAME, SessionCreateCommand.NAME, SessionListCommand.NAME,
-            SessionInfoCommand.NAME, SessionCloseCommand.NAME, SessionSwitchCommand.NAME,
-            InjectIconCommand.NAME, EnhancedContentCommand.NAME,
-            "list-layouts", "list-spids", "list-animations",
-            "list-animation-types", "list-shape-types", "dump-timing", "dump-shape",
-            "show-shape", ContentEditCommand.NAME, AddShapeCommand.NAME, RemoveShapeCommand.NAME,
-            BulletPointEditCommand.NAME, AddAnimationCommand.NAME, RemoveAnimationCommand.NAME,
-            UpdateAnimationCommand.NAME, "list-notes", "list-themes", "apply-theme",
-            NewPresentationCommand.NAME, "show-theme", "create-theme", "edit-theme", "delete-theme",
-            UndoCommand.NAME, RedoCommand.NAME, HistoryCommand.NAME, "arrange"
-        );
+        List<String> names = new ArrayList<>(com.excudo.core.parsing.CommandRegistry.getCommandNames());
+        Collections.sort(names);
+        return names;
     }
     
     @Override

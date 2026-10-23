@@ -132,6 +132,47 @@ public final class CommandClassRegistry {
         registerCommandClass(com.excudo.core.commands.mutating.slide.SetTextBoxFlagCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.ClearSlideContentCommand.class);
         registerCommandClass(com.excudo.core.commands.mutating.slide.RenameShapeCommand.class);
+
+        // Short / legacy spellings. Two-word forms ("session create",
+        // "llm config set") need no entry: CommandRegistry.parse joins them.
+        registerAlias("?", com.excudo.core.commands.readonly.HelpCommand.class);
+        registerAlias("h", com.excudo.core.commands.readonly.HelpCommand.class);
+        registerAlias("open", com.excudo.core.commands.meta.LoadCommand.class);
+        registerAlias("new", com.excudo.core.commands.meta.NewPresentationCommand.class);
+        registerAlias("list", com.excudo.core.commands.readonly.ListSlidesCommand.class);
+        registerAlias("ls", com.excudo.core.commands.readonly.ListSlidesCommand.class);
+        registerAlias("show", com.excudo.core.commands.readonly.ShowSlideCommand.class);
+        registerAlias("render", com.excudo.core.commands.readonly.RenderSlideCommand.class);
+        registerAlias("create", com.excudo.core.commands.mutating.deck.CreateSlideCommand.class);
+        registerAlias("delete", com.excudo.core.commands.mutating.deck.DeleteSlideCommand.class);
+        registerAlias("copy", com.excudo.core.commands.mutating.deck.CopySlideCommand.class);
+        registerAlias("move", com.excudo.core.commands.mutating.slide.MoveShapeCommand.class);
+        registerAlias("resize", com.excudo.core.commands.mutating.slide.ResizeShapeCommand.class);
+        registerAlias("reorder", com.excudo.core.commands.mutating.slide.ReorderShapeCommand.class);
+        registerAlias("duplicate", com.excudo.core.commands.mutating.slide.DuplicateShapeCommand.class);
+        registerAlias("group", com.excudo.core.commands.mutating.slide.GroupShapesCommand.class);
+        registerAlias("inject", com.excudo.core.commands.mutating.slide.InjectIconCommand.class);
+        registerAlias("enhance", com.excudo.core.commands.mutating.slide.EnhancedContentCommand.class);
+        registerAlias("edit-content", com.excudo.core.commands.mutating.slide.ContentEditCommand.class);
+        registerAlias("edit-bullet", com.excudo.core.commands.mutating.slide.BulletPointEditCommand.class);
+        registerAlias("edit-master-clrmap", com.excudo.core.commands.mutating.master.EditMasterClrMapCommand.class);
+        registerAlias("sessions", com.excudo.core.commands.meta.SessionListCommand.class);
+    }
+
+    /** Register an alias for a class-registered command (see {@link CommandRegistry#addAlias}). */
+    public static void registerAlias(String alias, Class<? extends Command> commandClass) {
+        String name = nameOf(commandClass);
+        if (!CLASS_REGISTRY.containsKey(name)) {
+            throw new IllegalStateException("Cannot alias '" + alias + "' to unregistered command "
+                + commandClass.getSimpleName());
+        }
+        CommandRegistry.addAlias(alias, name);
+    }
+
+    /** The Command class registered under a canonical name, or {@code null}. */
+    public static Class<? extends Command> getCommandClass(String name) {
+        ClassEntry entry = CLASS_REGISTRY.get(name);
+        return entry == null ? null : entry.commandClass();
     }
 
     private CommandClassRegistry() {}
@@ -224,12 +265,6 @@ public final class CommandClassRegistry {
         String stripped = simple.endsWith("Command")
             ? simple.substring(0, simple.length() - "Command".length())
             : simple;
-        StringBuilder sb = new StringBuilder(stripped.length() + 4);
-        for (int i = 0; i < stripped.length(); i++) {
-            char c = stripped.charAt(i);
-            if (i > 0 && Character.isUpperCase(c)) sb.append('-');
-            sb.append(Character.toLowerCase(c));
-        }
-        return sb.toString();
+        return Command.toKebabCase(stripped);
     }
 }

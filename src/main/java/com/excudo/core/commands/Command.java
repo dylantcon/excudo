@@ -78,15 +78,19 @@ public interface Command {
         return toKebabCase(stripped);
     }
 
-    /** {@code AddShape} → {@code add-shape}; {@code SetURL} → {@code set-u-r-l}.
-     *  Acronym handling is intentionally simple: callers that want different
-     *  output override {@link #getCommandName()} directly. */
-    private static String toKebabCase(String pascal) {
+    /** {@code AddShape} → {@code add-shape}; acronyms stay one word:
+     *  {@code SetURL} → {@code set-url}, {@code LLMConfig} → {@code llm-config}. */
+    static String toKebabCase(String pascal) {
         if (pascal == null || pascal.isEmpty()) return pascal;
         StringBuilder sb = new StringBuilder(pascal.length() + 4);
         for (int i = 0; i < pascal.length(); i++) {
             char c = pascal.charAt(i);
-            if (i > 0 && Character.isUpperCase(c)) sb.append('-');
+            if (i > 0 && Character.isUpperCase(c)) {
+                char prev = pascal.charAt(i - 1);
+                boolean nextIsLower = i + 1 < pascal.length()
+                    && Character.isLowerCase(pascal.charAt(i + 1));
+                if (!Character.isUpperCase(prev) || nextIsLower) sb.append('-');
+            }
             sb.append(Character.toLowerCase(c));
         }
         return sb.toString();

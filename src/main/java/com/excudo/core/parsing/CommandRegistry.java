@@ -21,6 +21,8 @@ import com.excudo.utils.FuzzyMatcher;
  */
 public class CommandRegistry {
     private static final Map<String, CommandSchema> schemas = new HashMap<>();
+    /** Alias (lowercase) → canonical command name. */
+    private static final Map<String, String> aliases = new HashMap<>();
 
     static {
         // Trigger CommandClassRegistry's static init so its self-describing
@@ -47,86 +49,70 @@ public class CommandRegistry {
     }
 
     /**
-     * Register the create command
+     * Register a short/legacy alias for a canonical command name. Aliases are
+     * resolved case-insensitively by {@link #resolveName(String)}, and so by
+     * {@link #getSchema(String)} and {@link #parse(String)}. Parsed parameters
+     * always carry the canonical name.
      */
-    /**
-     * Register the list command
-     */
-    /**
-     * Register edit-content command
-     */
-    /**
-     * Register the help command with proper schema
-     */
-    
-    /**
-     * Register the load command with proper schema
-     */
+    public static void addAlias(String alias, String canonicalName) {
+        Objects.requireNonNull(alias, "alias");
+        Objects.requireNonNull(canonicalName, "canonicalName");
+        String key = alias.toLowerCase(Locale.ROOT);
+        if (schemas.containsKey(key)) {
+            throw new IllegalStateException(
+                "Alias '" + alias + "' collides with the canonical command '" + key + "'");
+        }
+        String existing = aliases.putIfAbsent(key, canonicalName);
+        if (existing != null && !existing.equals(canonicalName)) {
+            throw new IllegalStateException("Alias '" + alias + "' already maps to '"
+                + existing + "', cannot remap to '" + canonicalName + "'");
+        }
+    }
 
     /**
-     * Register the show command with proper schema
+     * Resolve a typed command name (canonical or alias, any case) to its
+     * canonical name, or {@code null} if it names no command.
      */
-    /**
-     * Register the list-layouts command with optional themeId parameter
-     */
-    
-    /**
-     * Register the list-spids command with proper schema
-     */
-    
-    /**
-     * Register the list-animations command with proper schema
-     */
-    
-    /**
-     * Register the list-animation-types command with proper schema
-     */
-    
-    /**
-     * Register the dump-timing command with proper schema
-     */
-    
-    /**
-     * Register the dump-shape command with proper schema
-     */
-    
-    /**
-     * Register the show-shape command with proper schema
-     */
-    
-    /**
-     * Register the llm command with proper schema
-     */
-    /**
-     * Register the inject command with proper schema
-     */
-    /**
-     * Register the undo command with proper schema
-     */
-    /**
-     * Register the redo command with proper schema
-     */
-    /**
-     * Register the list-notes command with proper schema
-     */
-    
+    public static String resolveName(String commandName) {
+        if (commandName == null) return null;
+        if (schemas.containsKey(commandName)) return commandName;
+        String lower = commandName.toLowerCase(Locale.ROOT);
+        if (schemas.containsKey(lower)) return lower;
+        return aliases.get(lower);
+    }
+
+    /** Aliases registered for a canonical command name, sorted. */
+    public static List<String> getAliases(String canonicalName) {
+        List<String> result = new ArrayList<>();
+        for (Map.Entry<String, String> e : aliases.entrySet()) {
+            if (e.getValue().equals(canonicalName)) result.add(e.getKey());
+        }
+        Collections.sort(result);
+        return result;
+    }
+
+    /** All aliases, alias → canonical name. */
+    public static Map<String, String> getAllAliases() {
+        return Collections.unmodifiableMap(aliases);
+    }
 
     /**
-     * Get schema for a command
+     * Get schema for a command (canonical name or alias, any case).
      */
     public static CommandSchema getSchema(String commandName) {
-        return schemas.get(commandName);
+        String resolved = resolveName(commandName);
+        return resolved == null ? null : schemas.get(resolved);
     }
     
     /**
-     * Check if a command is registered
+     * Check if a command is registered (canonical name or alias, any case).
      */
     public static boolean hasCommand(String commandName) {
-        return schemas.containsKey(commandName);
+        return resolveName(commandName) != null;
     }
     
     /**
-     * Get all registered command names
+     * Get all registered canonical command names
      */
     public static Set<String> getCommandNames() {
         return schemas.keySet();
@@ -178,7 +164,19 @@ public class CommandRegistry {
         }
         
         String commandName = parts[0];
-        CommandSchema schema = getSchema(commandName);
+        int consumed = 1;
+
+        // Two-word spellings of hyphenated commands ("session create",
+        // "llm config set", "list slides") resolve to the joined name. Tried
+        // first so "llm config" is not read as the llm command with "config".
+        CommandSchema schema = null;
+        if (parts.length > 1) {
+            schema = getSchema(parts[0] + "-" + parts[1]);
+            if (schema != null) consumed = 2;
+        }
+        if (schema == null) {
+            schema = getSchema(commandName);
+        }
         
         if (schema == null) {
             String suggestion = suggestCommand(commandName);
@@ -186,7 +184,7 @@ public class CommandRegistry {
                 String.format("Unknown command: %s%s", commandName, suggestion));
         }
         
-        String[] args = Arrays.copyOfRange(parts, 1, parts.length);
+        String[] args = Arrays.copyOfRange(parts, consumed, parts.length);
         
         try {
             return schema.parse(args);
@@ -220,14 +218,23 @@ public class CommandRegistry {
         if (closest != null) {
             return String.format("\nDid you mean: %s?", closest);
         }
-        return "\nAvailable commands: " + String.join(", ", getCommandNames());
+        return "\nType 'help' to list available commands.";
     }
     
     /**
      * Find closest matching command using edit distance
      */
     private static String findClosestCommand(String input) {
-        return FuzzyMatcher.findClosestMatch(input, getCommandNames(), 3);
+        Set<String> candidates = new HashSet<>(getCommandNames());
+        // One- and two-letter aliases sit within edit distance of nearly
+        // everything; leave them out of suggestions.
+        for (String alias : aliases.keySet()) {
+            if (alias.length() >= 3) candidates.add(alias);
+        }
+        String match = FuzzyMatcher.findClosestMatch(input, candidates, 3);
+        if (match == null) return null;
+        String canonical = aliases.get(match);
+        return canonical != null ? canonical : match;
     }
 
     // group-shapes: migrated to class registry (GroupShapesCommand.SCHEMA / fromParameters)

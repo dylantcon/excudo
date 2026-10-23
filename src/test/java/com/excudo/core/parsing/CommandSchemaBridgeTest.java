@@ -35,10 +35,12 @@ public class CommandSchemaBridgeTest {
     public void testRegistryRejectsLegacyAliases() {
         // Legacy alias action-types (shape-addition, slide-creation,
         // slide-deletion, slide-copy, edit-content) were not preserved
-        // by the class-registry sweep -- only class-derived names resolve.
+        // by the class-registry sweep. Console aliases (edit-content) resolve
+        // to their canonical schema.
         assertNull(CommandRegistry.getSchema("shape-addition"));
         assertNull(CommandRegistry.getSchema("slide-creation"));
-        assertNull(CommandRegistry.getSchema("edit-content"));
+        assertSame(CommandRegistry.getSchema(ContentEditCommand.NAME),
+            CommandRegistry.getSchema("edit-content"));
         assertNull(CommandRegistry.getSchema("nonexistent-action"));
     }
 
@@ -47,7 +49,7 @@ public class CommandSchemaBridgeTest {
         assertTrue(CommandRegistry.hasCommand(CreateSlideCommand.NAME));
         assertTrue(CommandRegistry.hasCommand(ContentEditCommand.NAME));
         assertFalse(CommandRegistry.hasCommand("slide-creation"));
-        assertFalse(CommandRegistry.hasCommand("edit-content"));
+        assertTrue(CommandRegistry.hasCommand("edit-content"));
         assertFalse(CommandRegistry.hasCommand("totally-unknown"));
     }
 
