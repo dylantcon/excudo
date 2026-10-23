@@ -27,7 +27,12 @@ public class ConfigurationManager {
     private File configFile;
 
     public ConfigurationManager() {
-        this.configFile = new File(System.getProperty("user.home"), CONFIG_FILE);
+        this(new File(System.getProperty("user.home"), CONFIG_FILE));
+    }
+
+    /** Use a specific config file (tests pass a temp file, never the real one). */
+    public ConfigurationManager(File configFile) {
+        this.configFile = configFile;
         this.properties = new Properties();
         loadConfiguration();
     }

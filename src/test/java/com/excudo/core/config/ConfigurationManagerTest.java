@@ -1,67 +1,71 @@
 package com.excudo.core.config;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.io.File;
+import java.io.IOException;
 
 import static org.junit.Assert.*;
 
 /**
  * Tests ConfigurationManager basic accessors and status reporting.
- * Note: ConfigurationManager reads from env vars and persisted config,
- * so tests focus on accessors and status output rather than mutation.
+ * Every test uses a temp config file -- never the developer's real
+ * ~/.choreographer.properties.
  */
 public class ConfigurationManagerTest {
 
+    private File configFile;
+
+    @Before
+    public void setUp() throws IOException {
+        configFile = File.createTempFile("excudo-config-test", ".properties");
+        configFile.delete(); // start with no file, like a fresh install
+    }
+
+    @After
+    public void tearDown() {
+        configFile.delete();
+    }
+
+    private ConfigurationManager newConfig() {
+        return new ConfigurationManager(configFile);
+    }
+
     @Test
     public void constructorDoesNotThrow() {
-        ConfigurationManager config = new ConfigurationManager();
-        assertNotNull(config);
+        assertNotNull(newConfig());
     }
 
     @Test
     public void getProviderNameReturnsNonNull() {
-        ConfigurationManager config = new ConfigurationManager();
-        // Should return configured provider or a default
-        String provider = config.getProviderName();
-        assertNotNull(provider);
+        assertNotNull(newConfig().getProviderName());
     }
 
     @Test
     public void getConfigurationStatusReturnsNonEmpty() {
-        ConfigurationManager config = new ConfigurationManager();
-        String status = config.getConfigurationStatus();
+        String status = newConfig().getConfigurationStatus();
         assertNotNull(status);
         assertTrue(status.length() > 0);
     }
 
     @Test
     public void getConfigurationInstructionsReturnsNonEmpty() {
-        ConfigurationManager config = new ConfigurationManager();
-        String instructions = config.getConfigurationInstructions();
+        String instructions = newConfig().getConfigurationInstructions();
         assertNotNull(instructions);
         assertTrue("Instructions should contain provider info", instructions.length() > 10);
     }
 
     @Test
     public void setAndGetModelRoundTrips() {
-        ConfigurationManager config = new ConfigurationManager();
-        String original = config.getModel();
-
-        config.setModel("test-model-xyz");
-        assertEquals("test-model-xyz", config.getModel());
-
-        // Restore
-        if (original != null) config.setModel(original);
+        newConfig().setModel("test-model-xyz");
+        assertEquals("test-model-xyz", newConfig().getModel());
     }
 
     @Test
     public void setProviderNameRoundTrips() {
-        ConfigurationManager config = new ConfigurationManager();
-        String original = config.getProviderName();
-
-        config.setProviderName("test-provider");
-        assertEquals("test-provider", config.getProviderName());
-
-        // Restore
-        if (original != null) config.setProviderName(original);
+        newConfig().setProviderName("test-provider");
+        assertEquals("test-provider", newConfig().getProviderName());
     }
 }

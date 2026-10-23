@@ -42,6 +42,10 @@ class PCTester:
         self.project_root = env.project_root
         self.test_output_dir = self.project_root / "test-output"
         self.junit_jar = self.project_root / "lib" / "junit-platform-console-standalone-1.9.3.jar"
+        # Test JVMs get this as user.home, so code that writes under ~
+        # (crash recovery, training data, icon caches, config) never touches
+        # the developer's real home. Persistent so caches survive runs.
+        self.test_home = self.project_root / "build" / "test-home"
         
     def discover_tests(self, test_filter: Optional[str] = None) -> Dict[str, List[str]]:
         """Discover all test classes and methods"""
@@ -119,9 +123,15 @@ class PCTester:
         if coverage:
             self._clear_coverage_data()
 
-        # Run tests
-        success = self._run_test_batch(classes_to_run, parallel, coverage, headless,
-                                       verbose, short, workers)
+        # Run tests, guarding real config/secret files against test side effects
+        self.test_home.mkdir(parents=True, exist_ok=True)
+        snapshot = self._snapshot_protected_files()
+        try:
+            success = self._run_test_batch(classes_to_run, parallel, coverage, headless,
+                                           verbose, short, workers)
+        finally:
+            if not self._restore_protected_files(snapshot):
+                success = False
 
         # Generate coverage report if coverage was enabled
         if success and coverage:
@@ -130,6 +140,65 @@ class PCTester:
 
         return success
     
+    def _protected_files(self) -> List[Path]:
+        """Real files tests must never change: API keys and user config."""
+        return [
+            self.project_root / ".env",
+            self.project_root / ".env.local",
+            Path.home() / ".env",
+            Path.home() / ".choreographer.properties",
+        ]
+
+    def _snapshot_protected_files(self) -> Dict[Path, Optional[bytes]]:
+        """In-memory copy (never written to disk, since these hold secrets)."""
+        snapshot: Dict[Path, Optional[bytes]] = {}
+        for path in self._protected_files():
+            try:
+                snapshot[path] = path.read_bytes() if path.is_file() else None
+            except OSError:
+                snapshot[path] = None
+        return snapshot
+
+    def _restore_protected_files(self, snapshot: Dict[Path, Optional[bytes]]) -> bool:
+        """Undo test damage to a protected file without destroying anything:
+        a deleted file is re-created; a modified file gets the original back,
+        with the changed version kept under build/test-home/displaced/ (in
+        case it was a deliberate edit made during the run). Newly created
+        files are left alone. Returns False -- failing the run -- when a
+        file changed, so the offending test gets fixed."""
+        clean = True
+        for path, original in snapshot.items():
+            try:
+                current = path.read_bytes() if path.is_file() else None
+            except OSError:
+                current = None
+            if current == original:
+                continue
+            clean = False
+            if original is None:
+                print(f"X {path} appeared during the test run; left in place.")
+            elif current is None:
+                path.write_bytes(original)
+                print(f"X {path} was deleted during the test run -- restored it.")
+            else:
+                displaced = self.test_home / "displaced" / (path.name + ".changed")
+                displaced.parent.mkdir(parents=True, exist_ok=True)
+                displaced.write_bytes(current)
+                path.write_bytes(original)
+                print(f"X {path} was modified during the test run -- restored it "
+                      f"(changed version kept at {displaced}).")
+        if not clean:
+            print("X Real config/secret files changed during tests; a test must be "
+                  "using real paths instead of temp dirs.")
+        return clean
+
+    def _jvm_isolation_flags(self) -> List[str]:
+        return [
+            f"-Duser.home={self.test_home}",
+            # Read-only: lets font lookup still find user-installed fonts.
+            f"-Dexcudo.real.home={Path.home()}",
+        ]
+
     def _ensure_tests_compiled(self, test_filter: Optional[str] = None) -> bool:
         """Ensure test classes are compiled"""
         test_build_dir = self.project_root / "build" / "test"
@@ -377,6 +446,7 @@ class PCTester:
             jacoco_agent = self.project_root / "lib" / "jacocoagent.jar"
             if jacoco_agent.exists():
                 cmd.extend([f"-javaagent:{jacoco_agent}=destfile=jacoco.exec,append=true"])
+        cmd.extend(self._jvm_isolation_flags())
 
         cmd.extend(["-jar", str(self.junit_jar),
                    "--classpath", classpath, "--select-class", test_class])
@@ -436,6 +506,7 @@ class PCTester:
             jacoco_agent = self.project_root / "lib" / "jacocoagent.jar"
             if jacoco_agent.exists():
                 cmd.extend([f"-javaagent:{jacoco_agent}=destfile=jacoco.exec,append=true"])
+        cmd.extend(self._jvm_isolation_flags())
 
         cmd.extend(["-cp", classpath, test_class])
 

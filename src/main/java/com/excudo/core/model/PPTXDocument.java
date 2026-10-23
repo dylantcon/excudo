@@ -917,8 +917,11 @@ public class PPTXDocument implements AutoCloseable {
     private void createLockFileFor(File forFile) {
         try {
             if (forFile.getParentFile() == null) return;
-            lockFile = new File(forFile.getParentFile(), "~$" + forFile.getName());
-            if (lockFile.createNewFile()) {
+            File candidate = new File(forFile.getParentFile(), "~$" + forFile.getName());
+            // Only own (and later delete) a lock file we created -- an existing
+            // one may be PowerPoint's or another Excudo instance's.
+            if (candidate.createNewFile()) {
+                lockFile = candidate;
                 Files.writeString(lockFile.toPath(),
                     "PID=" + ProcessHandle.current().pid() +
                     "\nTimestamp=" + System.currentTimeMillis() + "\n");
@@ -929,8 +932,10 @@ public class PPTXDocument implements AutoCloseable {
                 // 2. Clean up lock file
                 shutdownHook = new Thread(() -> {
                     if (!mediaParts.isEmpty()) {
+                        // Per-deck, per-run folder so a dump never overwrites
+                        // an earlier one (media names like image1.png repeat).
                         File recoveryDir = new File(System.getProperty("user.home"),
-                            ".excudo/crash-recovery");
+                            ".excudo/crash-recovery/" + forFile.getName() + "-" + System.currentTimeMillis());
                         dumpUnsavedMedia(recoveryDir);
                     }
                     if (lockFile != null && lockFile.exists()) {

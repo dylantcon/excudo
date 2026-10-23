@@ -118,7 +118,9 @@ public final class FontIndex {
         dirs.add(userDir.resolve("lib/fonts"));
         dirs.add(Path.of("/usr/share/fonts"));
         dirs.add(Path.of("/usr/local/share/fonts"));
-        dirs.add(Path.of(System.getProperty("user.home"), ".fonts"));
+        // excudo.real.home: the test runner sandboxes user.home, but fonts
+        // installed in the real home should still resolve.
+        dirs.add(Path.of(System.getProperty("excudo.real.home", System.getProperty("user.home")), ".fonts"));
         // macOS
         dirs.add(Path.of("/Library/Fonts"));
         dirs.add(Path.of("/System/Library/Fonts"));

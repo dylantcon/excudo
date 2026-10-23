@@ -13,41 +13,32 @@ import java.nio.file.*;
  */
 public class EnvLoaderTest {
     
-    private File testEnvFile;
-    private File testEnvLocalFile;
-    
+    // All .env files live in a throwaway directory -- this test must never
+    // touch the developer's real .env (it holds live API keys).
+    private Path dir;
+    private Path homeDir;
+
     @Before
     public void setUp() throws IOException {
-        // Create temporary .env files for testing
-        testEnvFile = new File(".env.test");
-        testEnvLocalFile = new File(".env.local.test");
-        
-        // Clean up any existing test files
-        cleanupTestFiles();
-        
-        // Reset EnvLoader state using reflection
+        dir = Files.createTempDirectory("envloader-test");
+        homeDir = Files.createTempDirectory("envloader-home");
         resetEnvLoader();
+        EnvLoader.setDirectoriesForTesting(dir.toFile(), homeDir.toFile());
     }
     
     @After
-    public void tearDown() {
-        cleanupTestFiles();
+    public void tearDown() throws IOException {
         resetEnvLoader();
+        EnvLoader.setDirectoriesForTesting(null, null);
+        deleteTree(dir);
+        deleteTree(homeDir);
     }
-    
-    private void cleanupTestFiles() {
-        if (testEnvFile != null && testEnvFile.exists()) {
-            testEnvFile.delete();
+
+    private static void deleteTree(Path root) throws IOException {
+        if (root == null || !Files.exists(root)) return;
+        try (java.util.stream.Stream<Path> walk = Files.walk(root)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
         }
-        if (testEnvLocalFile != null && testEnvLocalFile.exists()) {
-            testEnvLocalFile.delete();
-        }
-        
-        // Also clean up .env and .env.local if they exist from tests
-        File envFile = new File(".env");
-        File envLocalFile = new File(".env.local");
-        if (envFile.exists()) envFile.delete();
-        if (envLocalFile.exists()) envLocalFile.delete();
     }
     
     private void resetEnvLoader() {
@@ -72,7 +63,7 @@ public class EnvLoaderTest {
         String envContent = "API_KEY=test123\n" +
                            "DATABASE_URL=localhost:5432\n" +
                            "DEBUG=true\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -87,7 +78,7 @@ public class EnvLoaderTest {
         String envContent = "QUOTED_DOUBLE=\"quoted value\"\n" +
                            "QUOTED_SINGLE='single quoted'\n" +
                            "UNQUOTED=no quotes\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -105,7 +96,7 @@ public class EnvLoaderTest {
                            "# Another comment\n" +
                            "   \n" +  // Whitespace line
                            "ANOTHER_KEY=another_value\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -121,7 +112,7 @@ public class EnvLoaderTest {
                            "NO_SPACE=nospace\n" +
                            "   LEADING_SPACE=value\n" +
                            "TRAILING_SPACE=value   \n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -136,12 +127,12 @@ public class EnvLoaderTest {
         // Create .env file
         String envContent = "API_KEY=production_key\n" +
                            "SHARED_VAR=shared_value\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         // Create .env.local file that overrides API_KEY
         String envLocalContent = "API_KEY=local_key\n" +
                                 "LOCAL_VAR=local_value\n";
-        Files.write(Paths.get(".env.local"), envLocalContent.getBytes());
+        Files.write(dir.resolve(".env.local"), envLocalContent.getBytes());
         
         EnvLoader.load();
         
@@ -169,7 +160,7 @@ public class EnvLoaderTest {
     @Test
     public void testHasMethod() throws IOException {
         String envContent = "EXISTING_KEY=value\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -187,14 +178,14 @@ public class EnvLoaderTest {
     public void testLoadOnlyOnce() throws IOException {
         // Create initial .env file
         String envContent = "FIRST_LOAD=initial_value\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         assertEquals("Should load initial value", "initial_value", EnvLoader.get("FIRST_LOAD"));
         
         // Modify .env file
         String newEnvContent = "FIRST_LOAD=modified_value\n";
-        Files.write(Paths.get(".env"), newEnvContent.getBytes());
+        Files.write(dir.resolve(".env"), newEnvContent.getBytes());
         
         // Load again - should not reload
         EnvLoader.load();
@@ -209,7 +200,7 @@ public class EnvLoaderTest {
                            "=NO_KEY_BEFORE_EQUALS\n" +
                            "EMPTY_VALUE=\n" +
                            "ANOTHER_VALID=another_value\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         
@@ -241,7 +232,7 @@ public class EnvLoaderTest {
                            "EMAIL=test@example.com\n" +
                            "SPECIAL_CHARS=!@#$%^&*()\n" +
                            "JSON_LIKE={\"key\":\"value\"}\n";
-        Files.write(Paths.get(".env"), envContent.getBytes());
+        Files.write(dir.resolve(".env"), envContent.getBytes());
         
         EnvLoader.load();
         

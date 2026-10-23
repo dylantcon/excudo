@@ -14,6 +14,18 @@ public class EnvLoader {
     private static final ComponentLogger logger = Logger.getLogger(EnvLoader.class);
     private static final Map<String, String> envVars = new HashMap<>();
     private static boolean loaded = false;
+    // Test hooks: null means the real working directory / user home.
+    private static File projectDirOverride = null;
+    private static File homeDirOverride = null;
+
+    /**
+     * Redirect where {@link #load()} looks for .env files. Tests use this so
+     * they never read, write, or delete a developer's real .env.
+     */
+    static void setDirectoriesForTesting(File projectDir, File homeDir) {
+        projectDirOverride = projectDir;
+        homeDirOverride = homeDir;
+    }
     
     /**
      * Load environment variables from .env file in current directory
@@ -21,20 +33,23 @@ public class EnvLoader {
     public static void load() {
         if (loaded) return;
 
+        File projectDir = projectDirOverride != null ? projectDirOverride : new File(".");
+        File homeDir = homeDirOverride != null ? homeDirOverride : new File(System.getProperty("user.home"));
+
         // Load from ~/.env first as a baseline (survives gitignore/clean)
-        File homeEnv = new File(System.getProperty("user.home"), ".env");
+        File homeEnv = new File(homeDir, ".env");
         if (homeEnv.exists()) {
             loadFromFile(homeEnv);
         }
 
         // Project-local .env overrides home values
-        File envFile = new File(".env");
+        File envFile = new File(projectDir, ".env");
         if (envFile.exists()) {
             loadFromFile(envFile);
         }
 
         // .env.local overrides both
-        File envLocalFile = new File(".env.local");
+        File envLocalFile = new File(projectDir, ".env.local");
         if (envLocalFile.exists()) {
             loadFromFile(envLocalFile);
         }
