@@ -17,13 +17,17 @@ import com.excudo.core.themes.ThemeDefinition;
 import com.excudo.core.themes.ThemeManager;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
-import com.excudo.core.utils.OOXMLAttributeOrder;
-import com.excudo.core.utils.XMLFactoryProvider;
 import com.excudo.xml.writers.themes.ThemeXMLGenerator;
+import com.excudo.core.model.ContentTypesModel;
+import com.excudo.core.model.PPTXDocument;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
-import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * GoF Command for applying a bundled theme to the current presentation.
@@ -31,9 +35,10 @@ import java.util.List;
  * Execution flow:
  * 1. Look up ThemeDefinition from ThemeLoader
  * 2. Generate all XML files via ThemeXMLGenerator
- * 3. Write to extracted PPTX directory (theme, master, layouts, relationships)
- * 4. Update [Content_Types].xml if new parts added
- * 5. Reload ThemeManager to pick up new theme
+ * 3. Replace theme, master, and layout parts in the in-memory PPTXDocument
+ *    (works for scaffolded and loaded decks; flush/save persist it)
+ * 4. Re-point slides at the new layout of the same type; drop surplus layouts
+ * 5. Update [Content_Types].xml and reload ThemeManager
  */
 public class ApplyThemeCommand implements Command {
 
@@ -74,6 +79,12 @@ public class ApplyThemeCommand implements Command {
         this.display = display;
     }
 
+    private static final String LAYOUT_PREFIX = "ppt/slideLayouts/slideLayout";
+    private static final String LAYOUT_REL_TYPE_SUFFIX = "/slideLayout";
+    private static final String CT_THEME = "application/vnd.openxmlformats-officedocument.theme+xml";
+    private static final String CT_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml";
+    private static final String CT_LAYOUT = "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml";
+
     @Override
     public void execute() {
         if (executed) {
@@ -90,70 +101,78 @@ public class ApplyThemeCommand implements Command {
             java.util.Optional<com.excudo.core.orchestration.OrchestrationContext> ctxOpt = orchestrator.getContext();
             if (ctxOpt.isEmpty() || ctxOpt.get().getDocument() == null) {
                 throw new CommandExecutionException(getDescription(), "execute",
-                        "No presentation loaded. Use 'load' first.");
+                        "No presentation loaded. Use 'load' or 'new-presentation' first.");
             }
-            com.excudo.core.model.PPTXDocument pptxDocForTheme = ctxOpt.get().getDocument();
-            File extractedDir = pptxDocForTheme.getExtractedDir();
-            if (extractedDir == null) {
+            PPTXDocument doc = ctxOpt.get().getDocument();
+
+            // The generated master owns slideLayout1..N; with a second master
+            // those numbers may belong to it, so refuse rather than clobber.
+            int masterCount = 0;
+            for (String part : doc.getPartNamesByPrefix("ppt/slideMasters/slideMaster")) {
+                if (part.endsWith(".xml")) masterCount++;
+            }
+            if (masterCount > 1) {
                 throw new CommandExecutionException(getDescription(), "execute",
-                        "Theme application requires an extracted directory. Not yet supported for in-memory-only presentations.");
+                        "apply-theme supports decks with a single slide master; this deck has " + masterCount + ".");
+            }
+
+            // Old layout types, so slides can be re-pointed at the matching new layout.
+            Map<Integer, String> oldLayoutTypes = new TreeMap<>();
+            for (String part : doc.getPartNamesByPrefix(LAYOUT_PREFIX)) {
+                int n = layoutNumber(part);
+                if (n > 0) oldLayoutTypes.put(n, layoutType(doc.getXmlPart(part)));
             }
 
             ThemeXMLGenerator generator = new ThemeXMLGenerator();
             List<LayoutDefinition> layouts = theme.getLayouts();
             int masterNumber = 1;
 
-            // Ensure directories exist
-            ensureDirectoryExists(new File(extractedDir, "ppt/theme"));
-            ensureDirectoryExists(new File(extractedDir, "ppt/slideMasters"));
-            ensureDirectoryExists(new File(extractedDir, "ppt/slideMasters/_rels"));
-            ensureDirectoryExists(new File(extractedDir, "ppt/slideLayouts"));
-            ensureDirectoryExists(new File(extractedDir, "ppt/slideLayouts/_rels"));
+            doc.putXmlPart("ppt/theme/theme" + masterNumber + ".xml", generator.generateThemeXML(theme));
+            doc.putXmlPart("ppt/slideMasters/slideMaster" + masterNumber + ".xml",
+                    generator.generateSlideMasterXML(theme));
+            doc.putXmlPart("ppt/slideMasters/_rels/slideMaster" + masterNumber + ".xml.rels",
+                    generator.generateSlideMasterRels(theme, masterNumber));
 
-            // 1. Write theme XML
-            Document themeDoc = generator.generateThemeXML(theme);
-            File themeFile = new File(extractedDir, "ppt/theme/theme" + masterNumber + ".xml");
-            OOXMLAttributeOrder.serialize(themeDoc, themeFile);
-            logger.info("Wrote theme: " + themeFile.getName());
-
-            // 2. Write slide master XML
-            Document masterDoc = generator.generateSlideMasterXML(theme);
-            File masterFile = new File(extractedDir, "ppt/slideMasters/slideMaster" + masterNumber + ".xml");
-            OOXMLAttributeOrder.serialize(masterDoc, masterFile);
-            logger.info("Wrote slide master: " + masterFile.getName());
-
-            // 3. Write slide master relationships
-            Document masterRels = generator.generateSlideMasterRels(theme, masterNumber);
-            File masterRelsFile = new File(extractedDir, "ppt/slideMasters/_rels/slideMaster" + masterNumber + ".xml.rels");
-            OOXMLAttributeOrder.serialize(masterRels, masterRelsFile);
-
-            // 4. Write all slide layouts and their relationships
+            List<String> newLayoutTypes = new ArrayList<>();
             for (int i = 0; i < layouts.size(); i++) {
-                LayoutDefinition layout = layouts.get(i);
                 int layoutNum = i + 1;
-
-                Document layoutDoc = generator.generateSlideLayoutXML(theme, layout);
-                File layoutFile = new File(extractedDir, "ppt/slideLayouts/slideLayout" + layoutNum + ".xml");
-                OOXMLAttributeOrder.serialize(layoutDoc, layoutFile);
-
-                Document layoutRels = generator.generateSlideLayoutRels(masterNumber);
-                File layoutRelsFile = new File(extractedDir, "ppt/slideLayouts/_rels/slideLayout" + layoutNum + ".xml.rels");
-                OOXMLAttributeOrder.serialize(layoutRels, layoutRelsFile);
+                Document layoutDoc = generator.generateSlideLayoutXML(theme, layouts.get(i));
+                newLayoutTypes.add(layoutType(layoutDoc));
+                doc.putXmlPart(LAYOUT_PREFIX + layoutNum + ".xml", layoutDoc);
+                doc.putXmlPart("ppt/slideLayouts/_rels/slideLayout" + layoutNum + ".xml.rels",
+                        generator.generateSlideLayoutRels(masterNumber));
             }
-            logger.info("Wrote " + layouts.size() + " slide layouts");
 
-            // 5. Update [Content_Types].xml
-            updateContentTypes(extractedDir, layouts.size());
+            int remapped = remapSlideLayouts(doc, oldLayoutTypes, newLayoutTypes);
 
-            // 6. Reload ThemeManager
-            ThemeManager.initialize(pptxDocForTheme);
-            logger.info("Reloaded theme manager with new theme");
+            // Drop old layouts beyond the new theme's count.
+            ContentTypesModel contentTypes = doc.getContentTypes();
+            for (int n : oldLayoutTypes.keySet()) {
+                if (n <= layouts.size()) continue;
+                doc.removeXmlPart(LAYOUT_PREFIX + n + ".xml");
+                doc.removeXmlPart("ppt/slideLayouts/_rels/slideLayout" + n + ".xml.rels");
+                if (contentTypes != null) contentTypes.removeOverride("/" + LAYOUT_PREFIX + n + ".xml");
+            }
+
+            if (contentTypes != null) {
+                contentTypes.addOverride("/ppt/theme/theme" + masterNumber + ".xml", CT_THEME);
+                contentTypes.addOverride("/ppt/slideMasters/slideMaster" + masterNumber + ".xml", CT_MASTER);
+                for (int i = 1; i <= layouts.size(); i++) {
+                    contentTypes.addOverride("/" + LAYOUT_PREFIX + i + ".xml", CT_LAYOUT);
+                }
+                doc.markContentTypesDirty();
+            }
+
+            ThemeManager.initialize(doc);
 
             executed = true;
             displayMsg("Applied theme '" + theme.getDisplayName() + "' successfully");
             displayMsg("  Colors: " + theme.getColorScheme().size() + " scheme colors");
             displayMsg("  Fonts: " + theme.getMajorFont() + " (headings), " + theme.getMinorFont() + " (body)");
             displayMsg("  Layouts: " + layouts.size() + " standard layouts");
+            if (remapped > 0) {
+                displayMsg("  Re-pointed " + remapped + " slide(s) to the matching layout in the new theme");
+            }
 
         } catch (CommandExecutionException e) {
             throw e;
@@ -163,66 +182,73 @@ public class ApplyThemeCommand implements Command {
         }
     }
 
-    private void updateContentTypes(File extractedDir, int layoutCount) throws Exception {
-        File contentTypesFile = new File(extractedDir, "[Content_Types].xml");
-        if (!contentTypesFile.exists()) {
-            logger.warn("[Content_Types].xml not found -- skipping update");
-            return;
+    /**
+     * Point each slide's layout relationship at the new layout of the same
+     * type (title, obj, twoObj, ...). Keeps the slot number when its type
+     * still matches; falls back to the content layout, then layout 1.
+     *
+     * @return number of slides whose layout target changed
+     */
+    private static int remapSlideLayouts(PPTXDocument doc, Map<Integer, String> oldTypes,
+                                         List<String> newTypes) {
+        int changed = 0;
+        for (int slide : doc.getSlideNumbers()) {
+            String relsName = "ppt/slides/_rels/slide" + slide + ".xml.rels";
+            Document rels = doc.getXmlPart(relsName);
+            if (rels == null) continue;
+            NodeList relNodes = rels.getElementsByTagNameNS("*", "Relationship");
+            boolean dirty = false;
+            for (int i = 0; i < relNodes.getLength(); i++) {
+                Element rel = (Element) relNodes.item(i);
+                if (!rel.getAttribute("Type").endsWith(LAYOUT_REL_TYPE_SUFFIX)) continue;
+                String target = rel.getAttribute("Target");
+                int oldNum = layoutNumber("ppt/slideLayouts/" + target.substring(target.lastIndexOf('/') + 1));
+                if (oldNum <= 0) continue;
+                int newNum = pickLayout(oldNum, oldTypes.get(oldNum), newTypes);
+                if (newNum != oldNum) {
+                    rel.setAttribute("Target", "../slideLayouts/slideLayout" + newNum + ".xml");
+                    dirty = true;
+                }
+            }
+            if (dirty) {
+                doc.markDirty(relsName);
+                changed++;
+            }
         }
-
-        Document doc = XMLFactoryProvider.parseDocument(contentTypesFile);
-        org.w3c.dom.Element root = doc.getDocumentElement();
-
-        // Collect existing overrides
-        java.util.Set<String> existingParts = new java.util.HashSet<>();
-        org.w3c.dom.NodeList overrides = root.getElementsByTagName("Override");
-        for (int i = 0; i < overrides.getLength(); i++) {
-            org.w3c.dom.Element override = (org.w3c.dom.Element) overrides.item(i);
-            existingParts.add(override.getAttribute("PartName"));
-        }
-
-        String contentTypeNS = root.getNamespaceURI();
-
-        // Ensure theme override exists
-        addOverrideIfMissing(doc, root, existingParts, "/ppt/theme/theme1.xml",
-                "application/vnd.openxmlformats-officedocument.theme+xml", contentTypeNS);
-
-        // Ensure slide master override exists
-        addOverrideIfMissing(doc, root, existingParts, "/ppt/slideMasters/slideMaster1.xml",
-                "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml", contentTypeNS);
-
-        // Ensure all layout overrides exist
-        for (int i = 1; i <= layoutCount; i++) {
-            addOverrideIfMissing(doc, root, existingParts, "/ppt/slideLayouts/slideLayout" + i + ".xml",
-                    "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml", contentTypeNS);
-        }
-
-        OOXMLAttributeOrder.serialize(doc, contentTypesFile);
+        return changed;
     }
 
-    private void addOverrideIfMissing(Document doc, org.w3c.dom.Element root,
-                                       java.util.Set<String> existingParts,
-                                       String partName, String contentType, String ns) {
-        if (!existingParts.contains(partName)) {
-            org.w3c.dom.Element override = ns != null
-                    ? doc.createElementNS(ns, "Override")
-                    : doc.createElement("Override");
-            override.setAttribute("PartName", partName);
-            override.setAttribute("ContentType", contentType);
-            root.appendChild(override);
-            logger.info("Added [Content_Types] override: " + partName + " (was missing -- added via theme application)");
+    static int pickLayout(int oldNum, String oldType, List<String> newTypes) {
+        if (oldType != null) {
+            if (oldNum <= newTypes.size() && oldType.equals(newTypes.get(oldNum - 1))) return oldNum;
+            int sameType = newTypes.indexOf(oldType);
+            if (sameType >= 0) return sameType + 1;
         }
+        if (oldNum <= newTypes.size()) return oldNum;
+        int content = newTypes.indexOf("obj");
+        return content >= 0 ? content + 1 : 1;
+    }
+
+    /** Layout number from "ppt/slideLayouts/slideLayoutN.xml", or -1. */
+    private static int layoutNumber(String partName) {
+        if (!partName.startsWith(LAYOUT_PREFIX) || !partName.endsWith(".xml")) return -1;
+        try {
+            return Integer.parseInt(partName.substring(LAYOUT_PREFIX.length(), partName.length() - 4));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** The p:sldLayout/@type value; OOXML's default when absent is "cust". */
+    private static String layoutType(Document layoutDoc) {
+        if (layoutDoc == null) return null;
+        String type = layoutDoc.getDocumentElement().getAttribute("type");
+        return type.isEmpty() ? "cust" : type;
     }
 
     private void displayMsg(String message) {
         if (display != null) {
             display.displayMessage(message);
-        }
-    }
-
-    private void ensureDirectoryExists(File dir) {
-        if (!dir.exists()) {
-            dir.mkdirs();
         }
     }
 
