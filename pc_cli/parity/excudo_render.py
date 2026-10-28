@@ -33,9 +33,11 @@ def render_deck(env, pptx: Path, out_dir: Path, slide_count: int,
     for p in expected:
         p.unlink(missing_ok=True)  # never let a stale render pass for a fresh one
 
-    script_lines = [f"load {pptx}"]
+    # Quote paths: a checkout under e.g. "OneDrive - Org" has spaces, and the
+    # console tokenizes on whitespace outside quotes.
+    script_lines = [f'load "{pptx.as_posix()}"']
     script_lines += [
-        f"render-slide {n} {out_dir / f'slide-{n}.png'} {width} {height}"
+        f"render-slide {n} \"{(out_dir / f'slide-{n}.png').as_posix()}\" {width} {height}"
         for n in range(1, slide_count + 1)
     ]
     script_lines += ["exit", ""]
