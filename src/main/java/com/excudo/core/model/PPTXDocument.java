@@ -641,7 +641,9 @@ public class PPTXDocument implements AutoCloseable {
     }
 
     public void markPresentationXmlDirty() {
-        dirtyParts.add(PRESENTATION_PART);
+        // Same as markDirty: in-place edits must advance the revision or
+        // revision-keyed caches (parsed state, renders) keep stale results.
+        markDirty(PRESENTATION_PART);
     }
 
     public Document getContentTypesDoc() {
