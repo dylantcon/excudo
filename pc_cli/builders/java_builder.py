@@ -359,8 +359,12 @@ class PCBuilder:
                 print(f"X Build failed at main application: {e}")
                 return False
                 
-        # Compile test classes
-        self._build_tests(verbose)
+        # Compile test classes. A failure must fail the build: otherwise stale
+        # .class files from the last good compile stay in build/test and the
+        # next test run silently exercises old test code.
+        if not self._build_tests(verbose):
+            print("X Build failed at test classes")
+            return False
         
         # Copy resources
         self._copy_resources()
