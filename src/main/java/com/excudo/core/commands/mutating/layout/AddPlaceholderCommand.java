@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -51,7 +52,7 @@ public class AddPlaceholderCommand implements Command {
             p.opt(TYPE).orElse("obj"), p.get(IDX),
             p.get(X).longValue(), p.get(Y).longValue(),
             p.get(CX).longValue(), p.get(CY).longValue(),
-            ctx.orchestrator());
+            ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
@@ -60,6 +61,13 @@ public class AddPlaceholderCommand implements Command {
     private final int idx;
     private final long x, y, cx, cy;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public AddPlaceholderCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
 
     public AddPlaceholderCommand(String layoutId, String type, int idx,
@@ -93,6 +101,7 @@ public class AddPlaceholderCommand implements Command {
                 "Failed to add placeholder: " + result.getMessage());
         }
 
+        if (display != null) display.displaySuccess("Added placeholder idx=" + idx + " to " + layoutId);
         executed = true;
     }
 

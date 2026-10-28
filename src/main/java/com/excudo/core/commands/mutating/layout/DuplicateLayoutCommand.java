@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -33,13 +34,20 @@ public class DuplicateLayoutCommand implements Command {
     public static final String NAME = CommandClassRegistry.nameOf(DuplicateLayoutCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        return new DuplicateLayoutCommand(p.get(SOURCE_LAYOUT_ID), p.get(NEW_NAME), ctx.orchestrator());
+        return new DuplicateLayoutCommand(p.get(SOURCE_LAYOUT_ID), p.get(NEW_NAME), ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
     private final String sourceLayoutId;
     private final String newName;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public DuplicateLayoutCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
     private String createdLayoutId = null;
 
@@ -71,6 +79,7 @@ public class DuplicateLayoutCommand implements Command {
         }
 
         createdLayoutId = result.getData().orElse(null);
+        if (display != null) display.displaySuccess("Duplicated " + sourceLayoutId + " as " + createdLayoutId + " (\"" + newName + "\")");
         executed = true;
     }
 

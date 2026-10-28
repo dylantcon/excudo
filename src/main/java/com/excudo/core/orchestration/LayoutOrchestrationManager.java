@@ -11,22 +11,27 @@ import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
 import com.excudo.core.utils.XMLConstants;
 import com.excudo.core.utils.XMLFactoryProvider;
-import com.excudo.core.utils.OOXMLAttributeOrder;
 import com.excudo.xml.writers.themes.ThemeXMLGenerator;
 import org.w3c.dom.*;
-import java.io.File;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Manages slide layout CRUD operations on the extracted PPTX directory.
+ * Slide layout CRUD on the in-memory {@link PPTXDocument}.
  *
  * Layout-level: addLayout, duplicateLayout, deleteLayout, renameLayout
  * Placeholder-level: addPlaceholder, removePlaceholder, editPlaceholder
  * Query: getLayoutsInUse, getNextLayoutNumber
+ *
+ * <p>All reads and writes go through document parts (never the filesystem),
+ * so these work for scaffolded and loaded decks alike, and every change
+ * reaches inheriting slides via the document's style-part notifications.
+ * Multi-master aware: a layout belongs to the master its rels point at.
  */
 public class LayoutOrchestrationManager {
 
@@ -34,9 +39,14 @@ public class LayoutOrchestrationManager {
 
     private static final String PNS = XMLConstants.PRESENTATION_NS;
     private static final String ANS = XMLConstants.DRAWING_NS;
-    private static final String RNS = XMLConstants.RELATIONSHIPS_NS;
     private static final String PKG_REL = XMLConstants.PACKAGE_RELATIONSHIPS_NS;
+    /** sldMasterId / sldLayoutId values must be at least 2^31 (ECMA-376 19.2.1.33). */
     private static final long BASE_LAYOUT_ID = 2147483649L;
+
+    private static final Pattern LAYOUT_PART = Pattern.compile("^ppt/slideLayouts/slideLayout(\\d+)\\.xml$");
+    private static final Pattern MASTER_PART = Pattern.compile("^ppt/slideMasters/slideMaster(\\d+)\\.xml$");
+    private static final Pattern LAYOUT_TARGET = Pattern.compile("slideLayout(\\d+)\\.xml$");
+    private static final Pattern MASTER_TARGET = Pattern.compile("slideMaster(\\d+)\\.xml$");
 
     private final OrchestrationContext context;
 
@@ -47,36 +57,37 @@ public class LayoutOrchestrationManager {
         this.context = context;
     }
 
+    private PPTXDocument doc() {
+        return context.getDocument();
+    }
+
     // ========== LAYOUT-LEVEL OPERATIONS ==========
 
     /**
-     * Add a new layout from a LayoutDefinition.
+     * Add a new layout from a LayoutDefinition, attached to slide master 1.
      *
-     * @param layout The layout definition to create
      * @return The layoutId of the created layout (e.g., "slideLayout11")
      */
     public ExecutionResult<String> addLayout(LayoutDefinition layout) {
+        return addLayout(layout, firstMasterNumber());
+    }
+
+    /**
+     * Add a new layout from a LayoutDefinition, attached to the given master.
+     */
+    public ExecutionResult<String> addLayout(LayoutDefinition layout, int masterNumber) {
         try {
+            if (doc().getXmlPart(masterPart(masterNumber)) == null) {
+                return ExecutionResult.failure("AddLayout", "Slide master not found: slideMaster" + masterNumber);
+            }
             int nextNum = getNextLayoutNumber();
             String layoutId = "slideLayout" + nextNum;
 
-            // Generate layout XML via ThemeXMLGenerator
             ThemeXMLGenerator generator = new ThemeXMLGenerator();
-            Document layoutDoc = generator.generateSlideLayoutXML(null, layout);
+            doc().putXmlPart(layoutPart(nextNum), generator.generateSlideLayoutXML(null, layout));
+            doc().putXmlPart(layoutRelsPart(nextNum), generator.generateSlideLayoutRels(masterNumber));
 
-            // Write layout file
-            File layoutFile = getLayoutFile(nextNum);
-            layoutFile.getParentFile().mkdirs();
-            OOXMLAttributeOrder.serialize(layoutDoc, layoutFile);
-
-            // Write layout .rels file
-            Document relsDoc = generator.generateSlideLayoutRels(1);
-            File relsFile = getLayoutRelsFile(nextNum);
-            relsFile.getParentFile().mkdirs();
-            OOXMLAttributeOrder.serialize(relsDoc, relsFile);
-
-            // Update master rels, master sldLayoutIdLst, and content types
-            addLayoutToMaster(nextNum);
+            addLayoutToMaster(masterNumber, nextNum);
             addLayoutContentType(nextNum);
 
             logger.info("Created layout {} with {} placeholders", layoutId, layout.getPlaceholderCount());
@@ -88,59 +99,33 @@ public class LayoutOrchestrationManager {
     }
 
     /**
-     * Duplicate an existing layout with a new name.
+     * Duplicate an existing layout with a new name. The copy belongs to the
+     * same master as the source and keeps its relationships (images, etc.).
      *
-     * @param sourceLayoutId The source layout ID (e.g., "slideLayout2")
-     * @param newName The display name for the duplicated layout
      * @return The layoutId of the new layout
      */
     public ExecutionResult<String> duplicateLayout(String sourceLayoutId, String newName) {
         try {
             int sourceNum = extractLayoutNumber(sourceLayoutId);
-            File sourceFile = getLayoutFile(sourceNum);
-            if (!sourceFile.exists()) {
+            Document sourceDoc = sourceNum > 0 ? doc().getXmlPart(layoutPart(sourceNum)) : null;
+            if (sourceDoc == null) {
                 return ExecutionResult.failure("DuplicateLayout", "Source layout not found: " + sourceLayoutId);
             }
 
             int nextNum = getNextLayoutNumber();
             String newLayoutId = "slideLayout" + nextNum;
+            int masterNumber = ownerMaster(sourceNum);
 
-            // Parse source layout and deep-clone
-            Document sourceDoc = XMLFactoryProvider.parseDocument(sourceFile);
-            Document clonedDoc = XMLFactoryProvider.createDocument();
-            Node imported = clonedDoc.importNode(sourceDoc.getDocumentElement(), true);
-            clonedDoc.appendChild(imported);
+            Document clonedDoc = cloneDocument(sourceDoc);
+            setLayoutName(clonedDoc, newName);
+            doc().putXmlPart(layoutPart(nextNum), clonedDoc);
 
-            // Update matchingName attribute on root element
-            Element root = clonedDoc.getDocumentElement();
-            root.setAttribute("matchingName", newName);
+            Document sourceRels = doc().getXmlPart(layoutRelsPart(sourceNum));
+            doc().putXmlPart(layoutRelsPart(nextNum), sourceRels != null
+                ? cloneDocument(sourceRels)
+                : new ThemeXMLGenerator().generateSlideLayoutRels(masterNumber));
 
-            // Update cSld@name
-            NodeList cSldList = root.getElementsByTagNameNS(PNS, "cSld");
-            if (cSldList.getLength() > 0) {
-                ((Element) cSldList.item(0)).setAttribute("name", newName);
-            }
-
-            // Write new layout file
-            File newLayoutFile = getLayoutFile(nextNum);
-            newLayoutFile.getParentFile().mkdirs();
-            OOXMLAttributeOrder.serialize(clonedDoc, newLayoutFile);
-
-            // Copy rels from source (back-reference to master)
-            File sourceRels = getLayoutRelsFile(sourceNum);
-            File newRels = getLayoutRelsFile(nextNum);
-            newRels.getParentFile().mkdirs();
-            if (sourceRels.exists()) {
-                Files.copy(sourceRels.toPath(), newRels.toPath());
-            } else {
-                // Generate standard rels
-                ThemeXMLGenerator generator = new ThemeXMLGenerator();
-                Document relsDoc = generator.generateSlideLayoutRels(1);
-                OOXMLAttributeOrder.serialize(relsDoc, newRels);
-            }
-
-            // Update master rels, master sldLayoutIdLst, and content types
-            addLayoutToMaster(nextNum);
+            addLayoutToMaster(masterNumber, nextNum);
             addLayoutContentType(nextNum);
 
             logger.info("Duplicated {} as {} (\"{}\")", sourceLayoutId, newLayoutId, newName);
@@ -152,44 +137,38 @@ public class LayoutOrchestrationManager {
     }
 
     /**
-     * Delete a layout. Fails if any slides reference it.
-     * Renumbers subsequent layouts to maintain contiguous numbering.
-     *
-     * @param layoutId The layout ID to delete (e.g., "slideLayout10")
-     * @return Success or failure with details
+     * Delete a layout. Refused while any slide uses it, or if it is its
+     * master's last layout (both as in PowerPoint). Later layouts are
+     * renumbered to keep numbering contiguous.
      */
     public ExecutionResult<Void> deleteLayout(String layoutId) {
         try {
             int layoutNum = extractLayoutNumber(layoutId);
-            File layoutFile = getLayoutFile(layoutNum);
-            if (!layoutFile.exists()) {
+            if (layoutNum <= 0 || doc().getXmlPart(layoutPart(layoutNum)) == null) {
                 return ExecutionResult.failure("DeleteLayout", "Layout not found: " + layoutId);
             }
 
-            // Check if any slides reference this layout
-            Map<String, List<Integer>> usage = getLayoutsInUse();
-            List<Integer> referencingSlides = usage.get(layoutId);
+            List<Integer> referencingSlides = getLayoutsInUse().get("slideLayout" + layoutNum);
             if (referencingSlides != null && !referencingSlides.isEmpty()) {
                 return ExecutionResult.failure("DeleteLayout",
                     "Cannot delete " + layoutId + " -- referenced by slides: " + referencingSlides);
             }
+            int master = ownerMaster(layoutNum);
+            if (layoutsOfMaster(master).size() <= 1) {
+                return ExecutionResult.failure("DeleteLayout",
+                    "Cannot delete " + layoutId + " -- it is the last layout of slideMaster" + master);
+            }
 
             int maxLayout = getNextLayoutNumber() - 1;
 
-            // Remove the layout file and rels
-            layoutFile.delete();
-            File relsFile = getLayoutRelsFile(layoutNum);
-            if (relsFile.exists()) {
-                relsFile.delete();
-            }
+            removeLayoutFromMasters(layoutNum);
+            doc().removeXmlPart(layoutPart(layoutNum));
+            doc().removeXmlPart(layoutRelsPart(layoutNum));
 
-            // Remove from master rels and sldLayoutIdLst
-            removeLayoutFromMaster(layoutNum);
-            removeLayoutContentType(layoutNum);
-
-            // Renumber subsequent layouts (cascade)
             if (layoutNum < maxLayout) {
                 renumberLayoutsAfterDelete(layoutNum, maxLayout);
+            } else {
+                removeLayoutContentType(layoutNum);
             }
 
             logger.info("Deleted layout {} and renumbered {} subsequent layouts",
@@ -207,21 +186,13 @@ public class LayoutOrchestrationManager {
     public ExecutionResult<Void> renameLayout(String layoutId, String newName) {
         try {
             int layoutNum = extractLayoutNumber(layoutId);
-            File layoutFile = getLayoutFile(layoutNum);
-            if (!layoutFile.exists()) {
+            Document layoutDoc = layoutNum > 0 ? readLayoutDocument(layoutNum) : null;
+            if (layoutDoc == null) {
                 return ExecutionResult.failure("RenameLayout", "Layout not found: " + layoutId);
             }
 
-            Document doc = readLayoutDocument(layoutNum);
-            Element root = doc.getDocumentElement();
-            root.setAttribute("matchingName", newName);
-
-            NodeList cSldList = root.getElementsByTagNameNS(PNS, "cSld");
-            if (cSldList.getLength() > 0) {
-                ((Element) cSldList.item(0)).setAttribute("name", newName);
-            }
-
-            writeLayoutDocument(layoutNum, doc);
+            setLayoutName(layoutDoc, newName);
+            writeLayoutDocument(layoutNum, layoutDoc);
 
             logger.info("Renamed {} to \"{}\"", layoutId, newName);
             return ExecutionResult.success("RenameLayout", null);
@@ -239,25 +210,24 @@ public class LayoutOrchestrationManager {
     public ExecutionResult<Void> addPlaceholder(String layoutId, PlaceholderDefinition ph) {
         try {
             int layoutNum = extractLayoutNumber(layoutId);
-            File layoutFile = getLayoutFile(layoutNum);
-            if (!layoutFile.exists()) {
+            Document layoutDoc = layoutNum > 0 ? readLayoutDocument(layoutNum) : null;
+            if (layoutDoc == null) {
                 return ExecutionResult.failure("AddPlaceholder", "Layout not found: " + layoutId);
             }
 
-            Document doc = readLayoutDocument(layoutNum);
-            Element spTree = findSpTree(doc);
+            Element spTree = findSpTree(layoutDoc);
             if (spTree == null) {
                 return ExecutionResult.failure("AddPlaceholder", "No spTree found in layout " + layoutId);
             }
+            int idx = ph.getIdx() != null ? ph.getIdx() : 0;
+            if (findShapeByPlaceholderIdx(spTree, idx) != null) {
+                return ExecutionResult.failure("AddPlaceholder",
+                    layoutId + " already has a placeholder with idx=" + idx);
+            }
 
-            // Determine next SPID (scan existing shapes)
             int nextSpid = getMaxSpidInLayout(spTree) + 1;
-
-            // Create placeholder shape element
-            Element sp = createPlaceholderShape(doc, nextSpid, ph);
-            spTree.appendChild(sp);
-
-            writeLayoutDocument(layoutNum, doc);
+            spTree.appendChild(createPlaceholderShape(layoutDoc, nextSpid, ph));
+            writeLayoutDocument(layoutNum, layoutDoc);
 
             logger.info("Added placeholder type={} idx={} to {}", ph.getType(), ph.getIdx(), layoutId);
             return ExecutionResult.success("AddPlaceholder", null);
@@ -273,26 +243,23 @@ public class LayoutOrchestrationManager {
     public ExecutionResult<Void> removePlaceholder(String layoutId, int idx) {
         try {
             int layoutNum = extractLayoutNumber(layoutId);
-            File layoutFile = getLayoutFile(layoutNum);
-            if (!layoutFile.exists()) {
+            Document layoutDoc = layoutNum > 0 ? readLayoutDocument(layoutNum) : null;
+            if (layoutDoc == null) {
                 return ExecutionResult.failure("RemovePlaceholder", "Layout not found: " + layoutId);
             }
 
-            Document doc = readLayoutDocument(layoutNum);
-            Element spTree = findSpTree(doc);
+            Element spTree = findSpTree(layoutDoc);
             if (spTree == null) {
                 return ExecutionResult.failure("RemovePlaceholder", "No spTree found in layout " + layoutId);
             }
-
-            // Find the shape with matching p:ph@idx
             Element targetShape = findShapeByPlaceholderIdx(spTree, idx);
             if (targetShape == null) {
                 return ExecutionResult.failure("RemovePlaceholder",
                     "No placeholder with idx=" + idx + " found in " + layoutId);
             }
 
-            spTree.removeChild(targetShape);
-            writeLayoutDocument(layoutNum, doc);
+            targetShape.getParentNode().removeChild(targetShape);
+            writeLayoutDocument(layoutNum, layoutDoc);
 
             logger.info("Removed placeholder idx={} from {}", idx, layoutId);
             return ExecutionResult.success("RemovePlaceholder", null);
@@ -308,30 +275,26 @@ public class LayoutOrchestrationManager {
     public ExecutionResult<Void> editPlaceholder(String layoutId, int idx, PlaceholderDefinition updated) {
         try {
             int layoutNum = extractLayoutNumber(layoutId);
-            File layoutFile = getLayoutFile(layoutNum);
-            if (!layoutFile.exists()) {
+            Document layoutDoc = layoutNum > 0 ? readLayoutDocument(layoutNum) : null;
+            if (layoutDoc == null) {
                 return ExecutionResult.failure("EditPlaceholder", "Layout not found: " + layoutId);
             }
 
-            Document doc = readLayoutDocument(layoutNum);
-            Element spTree = findSpTree(doc);
+            Element spTree = findSpTree(layoutDoc);
             if (spTree == null) {
                 return ExecutionResult.failure("EditPlaceholder", "No spTree found in layout " + layoutId);
             }
-
             Element targetShape = findShapeByPlaceholderIdx(spTree, idx);
             if (targetShape == null) {
                 return ExecutionResult.failure("EditPlaceholder",
                     "No placeholder with idx=" + idx + " found in " + layoutId);
             }
 
-            // Update p:ph@type if changed
             Element ph = findDescendant(targetShape, PNS, "ph");
             if (ph != null && updated.getType() != null) {
                 ph.setAttribute("type", updated.getType());
             }
 
-            // Update a:xfrm geometry
             Element xfrm = findDescendant(targetShape, ANS, "xfrm");
             if (xfrm != null) {
                 Element off = findDescendant(xfrm, ANS, "off");
@@ -346,7 +309,7 @@ public class LayoutOrchestrationManager {
                 }
             }
 
-            writeLayoutDocument(layoutNum, doc);
+            writeLayoutDocument(layoutNum, layoutDoc);
 
             logger.info("Edited placeholder idx={} in {}", idx, layoutId);
             return ExecutionResult.success("EditPlaceholder", null);
@@ -359,63 +322,33 @@ public class LayoutOrchestrationManager {
     // ========== QUERY OPERATIONS ==========
 
     /**
-     * Scan all slide rels to find which slides use which layouts.
+     * Which slides use which layouts, from the slides' rels.
      * @return Map of layoutId -> list of slide numbers
      */
     public Map<String, List<Integer>> getLayoutsInUse() {
         Map<String, List<Integer>> result = new LinkedHashMap<>();
-
         try {
-            File slidesRelsDir = new File(context.getDocument().getExtractedDir(), "ppt/slides/_rels");
-            if (!slidesRelsDir.exists()) return result;
-
-            File[] relsFiles = slidesRelsDir.listFiles((dir, name) ->
-                name.matches("slide\\d+\\.xml\\.rels"));
-            if (relsFiles == null) return result;
-
-            for (File relsFile : relsFiles) {
-                // Extract slide number from filename
-                String fileName = relsFile.getName();
-                int slideNum = Integer.parseInt(
-                    fileName.replaceAll("slide(\\d+)\\.xml\\.rels", "$1"));
-
-                Document doc = XMLFactoryProvider.parseDocument(relsFile);
-                NodeList rels = doc.getElementsByTagNameNS(PKG_REL, "Relationship");
-                for (int i = 0; i < rels.getLength(); i++) {
-                    Element rel = (Element) rels.item(i);
-                    String type = rel.getAttribute("Type");
-                    if (XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(type)) {
-                        String target = rel.getAttribute("Target");
-                        // ../slideLayouts/slideLayout2.xml -> slideLayout2
-                        String layoutId = target.replaceAll(".*/(slideLayout\\d+)\\.xml", "$1");
-                        result.computeIfAbsent(layoutId, k -> new ArrayList<>()).add(slideNum);
-                    }
+            for (int slide : doc().getSlideNumbers()) {
+                Document rels = doc().getXmlPart("ppt/slides/_rels/slide" + slide + ".xml.rels");
+                if (rels == null) continue;
+                for (Element rel : relationships(rels)) {
+                    if (!XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) continue;
+                    int n = targetNumber(LAYOUT_TARGET, rel.getAttribute("Target"));
+                    if (n > 0) result.computeIfAbsent("slideLayout" + n, k -> new ArrayList<>()).add(slide);
                 }
             }
         } catch (Exception e) {
             logger.warn("Failed to scan layout usage: {}", e.getMessage());
         }
-
         return result;
     }
 
     /**
-     * Get the next available layout number by scanning existing layout files.
+     * The next unused layout number (one past the highest existing layout part).
      */
     public int getNextLayoutNumber() {
-        File layoutsDir = new File(context.getDocument().getExtractedDir(), "ppt/slideLayouts");
-        if (!layoutsDir.exists()) return 1;
-
-        int max = 0;
-        File[] files = layoutsDir.listFiles((dir, name) -> name.matches("slideLayout\\d+\\.xml"));
-        if (files != null) {
-            for (File f : files) {
-                int num = Integer.parseInt(
-                    f.getName().replaceAll("slideLayout(\\d+)\\.xml", "$1"));
-                max = Math.max(max, num);
-            }
-        }
-        return max + 1;
+        TreeSet<Integer> numbers = layoutNumbers();
+        return numbers.isEmpty() ? 1 : numbers.last() + 1;
     }
 
     /**
@@ -455,305 +388,277 @@ public class LayoutOrchestrationManager {
      * Get the first available layout ID.
      */
     public String getFirstAvailableLayoutId() {
-        try {
-            LayoutManager layoutManager = context.getLayoutManager();
-            if (layoutManager == null) return "slideLayout1";
-            for (int i = 1; i <= 20; i++) {
-                String layoutId = "slideLayout" + i;
-                try {
-                    LayoutInfo layoutInfo = layoutManager.getLayoutInfo(layoutId);
-                    if (layoutInfo != null) {
-                        return layoutId;
-                    }
-                } catch (Exception e) {
-                    // Layout doesn't exist, continue
-                }
-            }
-
+        TreeSet<Integer> numbers = layoutNumbers();
+        if (numbers.isEmpty()) {
             logger.warn("No layout found, falling back to null (will use insertBlankSlide)");
             return null;
-        } catch (Exception e) {
-            logger.error("Failed to find default layout: {}", e.getMessage());
-            return null;
         }
+        return "slideLayout" + numbers.first();
     }
 
-    // ========== INTERNAL: MASTER RELS MANIPULATION ==========
-
     /**
-     * Add a layout relationship to slideMaster1.xml.rels and sldLayoutIdLst.
+     * First layout whose p:sldLayout/@type matches the given OOXML type
+     * (e.g. "obj", "title"), or null.
      */
-    private void addLayoutToMaster(int layoutNum) throws Exception {
-        // 1. Update slideMaster1.xml.rels -- insert before theme rel
-        File masterRelsFile = new File(context.getDocument().getExtractedDir(),
-            "ppt/slideMasters/_rels/slideMaster1.xml.rels");
-        Document masterRelsDoc = XMLFactoryProvider.parseDocument(masterRelsFile);
-        Element relsRoot = masterRelsDoc.getDocumentElement();
-
-        // Find max rId and theme rel
-        NodeList existingRels = relsRoot.getElementsByTagNameNS(PKG_REL, "Relationship");
-        int maxRId = 0;
-        Element themeRel = null;
-        for (int i = 0; i < existingRels.getLength(); i++) {
-            Element rel = (Element) existingRels.item(i);
-            String id = rel.getAttribute("Id");
-            int rIdNum = Integer.parseInt(id.replaceAll("rId(\\d+)", "$1"));
-            maxRId = Math.max(maxRId, rIdNum);
-            if (XMLConstants.RELATIONSHIP_TYPE_THEME.equals(rel.getAttribute("Type"))) {
-                themeRel = rel;
+    public String findLayoutByType(String ooxmlType) {
+        if (ooxmlType == null) return null;
+        for (int n : layoutNumbers()) {
+            Document layoutDoc = doc().getXmlPart(layoutPart(n));
+            if (layoutDoc != null && ooxmlType.equals(layoutDoc.getDocumentElement().getAttribute("type"))) {
+                return "slideLayout" + n;
             }
         }
+        return null;
+    }
 
-        // Create new layout relationship
-        int newRId = maxRId + 1;
-        Element newRel = masterRelsDoc.createElementNS(PKG_REL, "Relationship");
-        newRel.setAttribute("Id", "rId" + newRId);
+    // ========== INTERNAL: MASTER RELS ==========
+
+    /**
+     * Attach layout {@code layoutNum} to a master: a new relationship in the
+     * master's rels and a matching sldLayoutId entry in its sldLayoutIdLst.
+     */
+    private void addLayoutToMaster(int masterNum, int layoutNum) throws Exception {
+        String relsName = masterRelsPart(masterNum);
+        Document relsDoc = doc().getXmlPart(relsName);
+        if (relsDoc == null) {
+            throw new IllegalStateException("Missing " + relsName);
+        }
+        String rId = nextRelationshipId(relsDoc);
+        Element newRel = relsDoc.createElementNS(PKG_REL, "Relationship");
+        newRel.setAttribute("Id", rId);
         newRel.setAttribute("Type", XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT);
         newRel.setAttribute("Target", "../slideLayouts/slideLayout" + layoutNum + ".xml");
+        relsDoc.getDocumentElement().appendChild(newRel);
+        doc().putXmlPart(relsName, relsDoc);
 
-        // If theme rel exists, move it to use the new highest rId and insert layout before
-        if (themeRel != null) {
-            // Insert new layout rel before theme
-            relsRoot.insertBefore(newRel, themeRel);
-            // Update theme rel to use newRId+1
-            themeRel.setAttribute("Id", "rId" + (newRId + 1));
-        } else {
-            relsRoot.appendChild(newRel);
-        }
-
-        context.putXmlPart("ppt/slideMasters/_rels/slideMaster1.xml.rels", masterRelsDoc);
-
-        // 2. Update slideMaster1.xml sldLayoutIdLst
-        Document masterDoc = context.getXmlPart("ppt/slideMasters/slideMaster1.xml");
-
-        long newId = getMaxSldLayoutId(masterDoc) + 1;
-        String layoutRId = "rId" + newRId;
-
-        PresentationXmlHelper.addLayoutIdToMaster(masterDoc, layoutRId, newId);
-        context.putXmlPart("ppt/slideMasters/slideMaster1.xml", masterDoc);
+        Document masterDoc = doc().getXmlPart(masterPart(masterNum));
+        PresentationXmlHelper.addLayoutIdToMaster(masterDoc, rId, nextLayoutIdValue());
+        doc().putXmlPart(masterPart(masterNum), masterDoc);
     }
 
     /**
-     * Remove a layout relationship from slideMaster1.xml.rels and sldLayoutIdLst.
+     * Detach layout {@code layoutNum} from whichever master(s) reference it.
      */
-    private void removeLayoutFromMaster(int layoutNum) throws Exception {
-        // 1. Remove from slideMaster1.xml.rels
-        File masterRelsFile = new File(context.getDocument().getExtractedDir(),
-            "ppt/slideMasters/_rels/slideMaster1.xml.rels");
-        Document masterRelsDoc = XMLFactoryProvider.parseDocument(masterRelsFile);
-        Element relsRoot = masterRelsDoc.getDocumentElement();
+    private void removeLayoutFromMasters(int layoutNum) {
+        for (int master : masterNumbers()) {
+            Document relsDoc = doc().getXmlPart(masterRelsPart(master));
+            if (relsDoc == null) continue;
+            for (Element rel : relationships(relsDoc)) {
+                if (!XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) continue;
+                if (targetNumber(LAYOUT_TARGET, rel.getAttribute("Target")) != layoutNum) continue;
+                String rId = rel.getAttribute("Id");
+                rel.getParentNode().removeChild(rel);
+                doc().putXmlPart(masterRelsPart(master), relsDoc);
 
-        String targetPath = "../slideLayouts/slideLayout" + layoutNum + ".xml";
-        NodeList rels = relsRoot.getElementsByTagNameNS(PKG_REL, "Relationship");
-        String removedRId = null;
-        for (int i = 0; i < rels.getLength(); i++) {
-            Element rel = (Element) rels.item(i);
-            if (targetPath.equals(rel.getAttribute("Target"))) {
-                removedRId = rel.getAttribute("Id");
-                relsRoot.removeChild(rel);
-                break;
-            }
-        }
-
-        OOXMLAttributeOrder.serialize(masterRelsDoc, masterRelsFile);
-
-        // 2. Remove from slideMaster1.xml sldLayoutIdLst
-        if (removedRId != null) {
-            Document masterDoc = context.getXmlPart("ppt/slideMasters/slideMaster1.xml");
-            if (masterDoc != null) {
-                PresentationXmlHelper.removeLayoutIdFromMaster(masterDoc, removedRId);
-                context.putXmlPart("ppt/slideMasters/slideMaster1.xml", masterDoc);
+                Document masterDoc = doc().getXmlPart(masterPart(master));
+                if (masterDoc != null && PresentationXmlHelper.removeLayoutIdFromMaster(masterDoc, rId)) {
+                    doc().putXmlPart(masterPart(master), masterDoc);
+                }
             }
         }
     }
 
-    /**
-     * Add layout content type to [Content_Types].xml.
-     */
-    private void addLayoutContentType(int layoutNum) throws Exception {
-        Document ctDoc = context.getXmlPart("[Content_Types].xml");
+    private void addLayoutContentType(int layoutNum) {
+        Document ctDoc = doc().getContentTypesDoc();
         if (ctDoc != null) {
             PresentationXmlHelper.addLayoutContentType(ctDoc, layoutNum);
-            context.putXmlPart("[Content_Types].xml", ctDoc);
+            doc().markContentTypesDirty();
         }
     }
 
-    /**
-     * Remove layout content type from [Content_Types].xml.
-     */
-    private void removeLayoutContentType(int layoutNum) throws Exception {
-        File ctFile = new File(context.getDocument().getExtractedDir(), "[Content_Types].xml");
-        Document ctDoc = XMLFactoryProvider.parseDocument(ctFile);
-        PresentationXmlHelper.removeLayoutContentType(ctDoc, layoutNum);
-        OOXMLAttributeOrder.serialize(ctDoc, ctFile);
+    private void removeLayoutContentType(int layoutNum) {
+        Document ctDoc = doc().getContentTypesDoc();
+        if (ctDoc != null) {
+            PresentationXmlHelper.removeLayoutContentType(ctDoc, layoutNum);
+            doc().markContentTypesDirty();
+        }
     }
 
     // ========== INTERNAL: DELETE RENUMBER CASCADE ==========
 
     /**
-     * Renumber all layouts after a deletion to maintain contiguous numbering.
-     * Pattern mirrors SlideOrchestrationManager's slide renumbering.
+     * Shift layouts {@code deletedNum+1..maxNum} down by one: move the parts,
+     * then retarget every reference (all masters' rels and all slides' rels).
+     * Relationship ids are untouched, so sldLayoutIdLst entries stay valid.
      */
-    private void renumberLayoutsAfterDelete(int deletedNum, int maxNum) throws Exception {
-        File layoutsDir = new File(context.getDocument().getExtractedDir(), "ppt/slideLayouts");
-        File layoutsRelsDir = new File(layoutsDir, "_rels");
-
-        // 1. Rename layout files and rels: slideLayout{N+1} -> slideLayout{N}
+    private void renumberLayoutsAfterDelete(int deletedNum, int maxNum) {
         for (int i = deletedNum + 1; i <= maxNum; i++) {
-            File oldLayout = new File(layoutsDir, "slideLayout" + i + ".xml");
-            File newLayout = new File(layoutsDir, "slideLayout" + (i - 1) + ".xml");
-            if (oldLayout.exists()) {
-                oldLayout.renameTo(newLayout);
-            }
-
-            File oldRels = new File(layoutsRelsDir, "slideLayout" + i + ".xml.rels");
-            File newRels = new File(layoutsRelsDir, "slideLayout" + (i - 1) + ".xml.rels");
-            if (oldRels.exists()) {
-                oldRels.renameTo(newRels);
+            Document layoutDoc = doc().getXmlPart(layoutPart(i));
+            if (layoutDoc != null) doc().putXmlPart(layoutPart(i - 1), layoutDoc);
+            Document relsDoc = doc().getXmlPart(layoutRelsPart(i));
+            if (relsDoc != null) {
+                doc().putXmlPart(layoutRelsPart(i - 1), relsDoc);
+            } else {
+                doc().removeXmlPart(layoutRelsPart(i - 1));
             }
         }
+        doc().removeXmlPart(layoutPart(maxNum));
+        doc().removeXmlPart(layoutRelsPart(maxNum));
 
-        // 2. Update all slide rels pointing to affected layouts
-        File slidesRelsDir = new File(context.getDocument().getExtractedDir(), "ppt/slides/_rels");
-        if (slidesRelsDir.exists()) {
-            File[] slideRelsFiles = slidesRelsDir.listFiles((dir, name) ->
-                name.matches("slide\\d+\\.xml\\.rels"));
-            if (slideRelsFiles != null) {
-                for (File relsFile : slideRelsFiles) {
-                    boolean modified = false;
-                    Document doc = XMLFactoryProvider.parseDocument(relsFile);
-                    NodeList rels = doc.getElementsByTagNameNS(PKG_REL, "Relationship");
-                    for (int i = 0; i < rels.getLength(); i++) {
-                        Element rel = (Element) rels.item(i);
-                        if (XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) {
-                            String target = rel.getAttribute("Target");
-                            // Extract layout number from target path
-                            java.util.regex.Matcher m = java.util.regex.Pattern
-                                .compile("slideLayout(\\d+)\\.xml").matcher(target);
-                            if (m.find()) {
-                                int refNum = Integer.parseInt(m.group(1));
-                                if (refNum > deletedNum) {
-                                    String newTarget = target.replace(
-                                        "slideLayout" + refNum, "slideLayout" + (refNum - 1));
-                                    rel.setAttribute("Target", newTarget);
-                                    modified = true;
-                                }
-                            }
-                        }
-                    }
-                    if (modified) {
-                        OOXMLAttributeOrder.serialize(doc, relsFile);
-                    }
+        List<String> referencingParts = new ArrayList<>();
+        for (int master : masterNumbers()) referencingParts.add(masterRelsPart(master));
+        for (int slide : doc().getSlideNumbers()) referencingParts.add("ppt/slides/_rels/slide" + slide + ".xml.rels");
+
+        for (String partName : referencingParts) {
+            Document relsDoc = doc().getXmlPart(partName);
+            if (relsDoc == null) continue;
+            boolean modified = false;
+            for (Element rel : relationships(relsDoc)) {
+                if (!XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) continue;
+                String target = rel.getAttribute("Target");
+                Matcher m = LAYOUT_TARGET.matcher(target);
+                if (!m.find()) continue;
+                int refNum = Integer.parseInt(m.group(1));
+                if (refNum > deletedNum) {
+                    rel.setAttribute("Target", target.substring(0, m.start()) + "slideLayout" + (refNum - 1) + ".xml");
+                    modified = true;
+                }
+            }
+            if (modified) doc().markDirty(partName);
+        }
+
+        // Numbering is contiguous again: the highest number is the one that vanished.
+        removeLayoutContentType(maxNum);
+    }
+
+    // ========== INTERNAL: PART DISCOVERY ==========
+
+    private TreeSet<Integer> layoutNumbers() {
+        return partNumbers("ppt/slideLayouts/slideLayout", LAYOUT_PART);
+    }
+
+    private TreeSet<Integer> masterNumbers() {
+        return partNumbers("ppt/slideMasters/slideMaster", MASTER_PART);
+    }
+
+    private TreeSet<Integer> partNumbers(String prefix, Pattern pattern) {
+        TreeSet<Integer> numbers = new TreeSet<>();
+        for (String name : doc().getPartNamesByPrefix(prefix)) {
+            Matcher m = pattern.matcher(name);
+            if (m.matches()) numbers.add(Integer.parseInt(m.group(1)));
+        }
+        return numbers;
+    }
+
+    private int firstMasterNumber() {
+        TreeSet<Integer> masters = masterNumbers();
+        return masters.isEmpty() ? 1 : masters.first();
+    }
+
+    /**
+     * The master a layout belongs to: the slideMaster target in the layout's
+     * rels, else whichever master's rels reference it, else the first master.
+     */
+    int ownerMaster(int layoutNum) {
+        Document layoutRels = doc().getXmlPart(layoutRelsPart(layoutNum));
+        if (layoutRels != null) {
+            for (Element rel : relationships(layoutRels)) {
+                if (XMLConstants.RELATIONSHIP_TYPE_SLIDE_MASTER.equals(rel.getAttribute("Type"))) {
+                    int n = targetNumber(MASTER_TARGET, rel.getAttribute("Target"));
+                    if (n > 0) return n;
                 }
             }
         }
+        for (int master : masterNumbers()) {
+            if (layoutsOfMaster(master).contains(layoutNum)) return master;
+        }
+        return firstMasterNumber();
+    }
 
-        // 3. Rebuild master rels and sldLayoutIdLst for the new layout set
-        rebuildMasterRels(maxNum - 1);
-
-        // 4. Rebuild content types for layouts
-        rebuildLayoutContentTypes(maxNum - 1);
+    private List<Integer> layoutsOfMaster(int masterNum) {
+        List<Integer> layouts = new ArrayList<>();
+        Document relsDoc = doc().getXmlPart(masterRelsPart(masterNum));
+        if (relsDoc == null) return layouts;
+        for (Element rel : relationships(relsDoc)) {
+            if (XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT.equals(rel.getAttribute("Type"))) {
+                int n = targetNumber(LAYOUT_TARGET, rel.getAttribute("Target"));
+                if (n > 0) layouts.add(n);
+            }
+        }
+        return layouts;
     }
 
     /**
-     * Rebuild slideMaster1.xml.rels and its sldLayoutIdLst to reflect current layout count.
+     * Next sldLayoutId value: one past the highest id used by any layout or
+     * master entry, since those ids share one space.
      */
-    private void rebuildMasterRels(int layoutCount) throws Exception {
-        // Rebuild slideMaster1.xml.rels
-        File masterRelsFile = new File(context.getDocument().getExtractedDir(),
-            "ppt/slideMasters/_rels/slideMaster1.xml.rels");
-        Document masterRelsDoc = XMLFactoryProvider.parseDocument(masterRelsFile);
-        Element relsRoot = masterRelsDoc.getDocumentElement();
-
-        // Preserve the theme target (find existing theme rel)
-        String themeTarget = null;
-        NodeList existingRels = relsRoot.getElementsByTagNameNS(PKG_REL, "Relationship");
-        for (int i = 0; i < existingRels.getLength(); i++) {
-            Element rel = (Element) existingRels.item(i);
-            if (XMLConstants.RELATIONSHIP_TYPE_THEME.equals(rel.getAttribute("Type"))) {
-                themeTarget = rel.getAttribute("Target");
-                break;
-            }
+    private long nextLayoutIdValue() {
+        long max = BASE_LAYOUT_ID - 1;
+        for (int master : masterNumbers()) {
+            Document masterDoc = doc().getXmlPart(masterPart(master));
+            if (masterDoc != null) max = Math.max(max, maxIdAttribute(masterDoc, "sldLayoutId"));
         }
-        if (themeTarget == null) {
-            themeTarget = "../theme/theme1.xml";
-        }
-
-        // Clear all children
-        while (relsRoot.hasChildNodes()) {
-            relsRoot.removeChild(relsRoot.getFirstChild());
-        }
-
-        // Add layout rels
-        for (int i = 1; i <= layoutCount; i++) {
-            Element rel = masterRelsDoc.createElementNS(PKG_REL, "Relationship");
-            rel.setAttribute("Id", "rId" + i);
-            rel.setAttribute("Type", XMLConstants.RELATIONSHIP_TYPE_SLIDE_LAYOUT);
-            rel.setAttribute("Target", "../slideLayouts/slideLayout" + i + ".xml");
-            relsRoot.appendChild(rel);
-        }
-
-        // Theme relationship (last)
-        Element themeRel = masterRelsDoc.createElementNS(PKG_REL, "Relationship");
-        themeRel.setAttribute("Id", "rId" + (layoutCount + 1));
-        themeRel.setAttribute("Type", XMLConstants.RELATIONSHIP_TYPE_THEME);
-        themeRel.setAttribute("Target", themeTarget);
-        relsRoot.appendChild(themeRel);
-
-        OOXMLAttributeOrder.serialize(masterRelsDoc, masterRelsFile);
-
-        // Rebuild sldLayoutIdLst in slideMaster1.xml
-        Document masterDoc = context.getXmlPart("ppt/slideMasters/slideMaster1.xml");
-        PresentationXmlHelper.rebuildSldLayoutIdLst(masterDoc, layoutCount);
-        context.putXmlPart("ppt/slideMasters/slideMaster1.xml", masterDoc);
+        Document presentation = doc().getPresentationXml();
+        if (presentation != null) max = Math.max(max, maxIdAttribute(presentation, "sldMasterId"));
+        return max + 1;
     }
 
-    /**
-     * Rebuild layout content types in [Content_Types].xml.
-     */
-    private void rebuildLayoutContentTypes(int layoutCount) throws Exception {
-        Document ctDoc = context.getXmlPart("[Content_Types].xml");
-        if (ctDoc != null) {
-            List<Integer> layoutNumbers = new ArrayList<>();
-            for (int i = 1; i <= layoutCount; i++) {
-                layoutNumbers.add(i);
+    private static long maxIdAttribute(Document d, String localName) {
+        long max = 0;
+        NodeList nodes = d.getElementsByTagNameNS(PNS, localName);
+        for (int i = 0; i < nodes.getLength(); i++) {
+            String id = ((Element) nodes.item(i)).getAttribute("id");
+            try {
+                if (!id.isEmpty()) max = Math.max(max, Long.parseLong(id));
+            } catch (NumberFormatException ignored) {
+                // Malformed id: not ours to fix here
             }
-            PresentationXmlHelper.rebuildLayoutContentTypes(ctDoc, layoutNumbers);
-            context.putXmlPart("[Content_Types].xml", ctDoc);
         }
+        return max;
+    }
+
+    private static String nextRelationshipId(Document relsDoc) {
+        int max = 0;
+        for (Element rel : relationships(relsDoc)) {
+            Matcher m = Pattern.compile("^rId(\\d+)$").matcher(rel.getAttribute("Id"));
+            if (m.matches()) max = Math.max(max, Integer.parseInt(m.group(1)));
+        }
+        return "rId" + (max + 1);
+    }
+
+    private static List<Element> relationships(Document relsDoc) {
+        List<Element> out = new ArrayList<>();
+        NodeList nodes = relsDoc.getElementsByTagNameNS(PKG_REL, "Relationship");
+        for (int i = 0; i < nodes.getLength(); i++) out.add((Element) nodes.item(i));
+        return out;
+    }
+
+    private static int targetNumber(Pattern pattern, String target) {
+        Matcher m = pattern.matcher(target);
+        return m.find() ? Integer.parseInt(m.group(1)) : -1;
     }
 
     // ========== INTERNAL: DOM HELPERS ==========
 
-    private long getMaxSldLayoutId(Document masterDoc) {
-        long maxId = BASE_LAYOUT_ID - 1;
-        NodeList sldLayoutIds = masterDoc.getElementsByTagNameNS(PNS, "sldLayoutId");
-        for (int i = 0; i < sldLayoutIds.getLength(); i++) {
-            Element el = (Element) sldLayoutIds.item(i);
-            String idStr = el.getAttribute("id");
-            if (!idStr.isEmpty()) {
-                maxId = Math.max(maxId, Long.parseLong(idStr));
-            }
-        }
-        return maxId;
+    private static Document cloneDocument(Document source) throws Exception {
+        Document copy = XMLFactoryProvider.createDocument();
+        copy.appendChild(copy.importNode(source.getDocumentElement(), true));
+        return copy;
     }
 
-    private Element findSpTree(Document doc) {
-        NodeList spTrees = doc.getElementsByTagNameNS(PNS, "spTree");
+    private static void setLayoutName(Document layoutDoc, String name) {
+        Element root = layoutDoc.getDocumentElement();
+        root.setAttribute("matchingName", name);
+        NodeList cSldList = root.getElementsByTagNameNS(PNS, "cSld");
+        if (cSldList.getLength() > 0) {
+            ((Element) cSldList.item(0)).setAttribute("name", name);
+        }
+    }
+
+    private Element findSpTree(Document d) {
+        NodeList spTrees = d.getElementsByTagNameNS(PNS, "spTree");
         return spTrees.getLength() > 0 ? (Element) spTrees.item(0) : null;
     }
 
     private int getMaxSpidInLayout(Element spTree) {
         int max = 1; // group shape is always 1
-        NodeList shapes = spTree.getElementsByTagNameNS(PNS, "sp");
-        for (int i = 0; i < shapes.getLength(); i++) {
-            Element sp = (Element) shapes.item(i);
-            Element cNvPr = findDescendant(sp, PNS, "cNvPr");
-            if (cNvPr != null) {
-                String idStr = cNvPr.getAttribute("id");
-                if (!idStr.isEmpty()) {
-                    max = Math.max(max, Integer.parseInt(idStr));
-                }
+        NodeList cNvPrs = spTree.getElementsByTagNameNS(PNS, "cNvPr");
+        for (int i = 0; i < cNvPrs.getLength(); i++) {
+            String idStr = ((Element) cNvPrs.item(i)).getAttribute("id");
+            try {
+                if (!idStr.isEmpty()) max = Math.max(max, Integer.parseInt(idStr));
+            } catch (NumberFormatException ignored) {
+                // Non-numeric id: skip
             }
         }
         return max;
@@ -786,27 +691,25 @@ public class LayoutOrchestrationManager {
     /**
      * Create a placeholder shape DOM element for a layout.
      */
-    private Element createPlaceholderShape(Document doc, int spid, PlaceholderDefinition ph) {
-        Element sp = doc.createElementNS(PNS, "p:sp");
+    private Element createPlaceholderShape(Document d, int spid, PlaceholderDefinition ph) {
+        Element sp = d.createElementNS(PNS, "p:sp");
 
-        // nvSpPr
-        Element nvSpPr = doc.createElementNS(PNS, "p:nvSpPr");
+        Element nvSpPr = d.createElementNS(PNS, "p:nvSpPr");
         sp.appendChild(nvSpPr);
 
-        Element cNvPr = doc.createElementNS(PNS, "p:cNvPr");
+        Element cNvPr = d.createElementNS(PNS, "p:cNvPr");
         cNvPr.setAttribute("id", String.valueOf(spid));
-        String shapeName = getShapeName(ph.getType(), spid);
-        cNvPr.setAttribute("name", shapeName);
+        cNvPr.setAttribute("name", getShapeName(ph.getType(), spid));
         nvSpPr.appendChild(cNvPr);
 
-        Element cNvSpPr = doc.createElementNS(PNS, "p:cNvSpPr");
-        Element spLocks = doc.createElementNS(ANS, "a:spLocks");
+        Element cNvSpPr = d.createElementNS(PNS, "p:cNvSpPr");
+        Element spLocks = d.createElementNS(ANS, "a:spLocks");
         spLocks.setAttribute("noGrp", "1");
         cNvSpPr.appendChild(spLocks);
         nvSpPr.appendChild(cNvSpPr);
 
-        Element nvPr = doc.createElementNS(PNS, "p:nvPr");
-        Element phEl = doc.createElementNS(PNS, "p:ph");
+        Element nvPr = d.createElementNS(PNS, "p:nvPr");
+        Element phEl = d.createElementNS(PNS, "p:ph");
         if (ph.getType() != null && !ph.getType().isEmpty()) {
             // Title type has no explicit type attribute in OOXML (it's the default)
             if (!"title".equals(ph.getType()) || ph.getIdx() != null) {
@@ -819,19 +722,18 @@ public class LayoutOrchestrationManager {
         nvPr.appendChild(phEl);
         nvSpPr.appendChild(nvPr);
 
-        // spPr with geometry
-        Element spPr = doc.createElementNS(PNS, "p:spPr");
+        Element spPr = d.createElementNS(PNS, "p:spPr");
         sp.appendChild(spPr);
 
-        Element xfrm = doc.createElementNS(ANS, "a:xfrm");
+        Element xfrm = d.createElementNS(ANS, "a:xfrm");
         spPr.appendChild(xfrm);
 
-        Element off = doc.createElementNS(ANS, "a:off");
+        Element off = d.createElementNS(ANS, "a:off");
         off.setAttribute("x", String.valueOf(ph.getX()));
         off.setAttribute("y", String.valueOf(ph.getY()));
         xfrm.appendChild(off);
 
-        Element ext = doc.createElementNS(ANS, "a:ext");
+        Element ext = d.createElementNS(ANS, "a:ext");
         ext.setAttribute("cx", String.valueOf(ph.getCx()));
         ext.setAttribute("cy", String.valueOf(ph.getCy()));
         xfrm.appendChild(ext);
@@ -855,40 +757,36 @@ public class LayoutOrchestrationManager {
         };
     }
 
-    // ========== INTERNAL: FILE PATH HELPERS ==========
+    // ========== INTERNAL: PART NAMES ==========
 
-    private File getLayoutFile(int layoutNum) {
-        return new File(context.getDocument().getExtractedDir(), "ppt/slideLayouts/slideLayout" + layoutNum + ".xml");
-    }
-
-    private String getLayoutPartName(int layoutNum) {
+    private static String layoutPart(int layoutNum) {
         return "ppt/slideLayouts/slideLayout" + layoutNum + ".xml";
     }
 
-    private String getLayoutRelsPartName(int layoutNum) {
+    private static String layoutRelsPart(int layoutNum) {
         return "ppt/slideLayouts/_rels/slideLayout" + layoutNum + ".xml.rels";
     }
 
-    private File getLayoutRelsFile(int layoutNum) {
-        return new File(context.getDocument().getExtractedDir(),
-            "ppt/slideLayouts/_rels/slideLayout" + layoutNum + ".xml.rels");
+    private static String masterPart(int masterNum) {
+        return "ppt/slideMasters/slideMaster" + masterNum + ".xml";
     }
 
-    /**
-     * Read a layout DOM from PPTXDocument or disk.
-     */
+    private static String masterRelsPart(int masterNum) {
+        return "ppt/slideMasters/_rels/slideMaster" + masterNum + ".xml.rels";
+    }
+
     private Document readLayoutDocument(int layoutNum) {
-        return context.getXmlPart(getLayoutPartName(layoutNum));
+        return doc().getXmlPart(layoutPart(layoutNum));
     }
 
-    /**
-     * Write a layout DOM to PPTXDocument or disk.
-     */
-    private void writeLayoutDocument(int layoutNum, Document doc) {
-        context.putXmlPart(getLayoutPartName(layoutNum), doc);
+    private void writeLayoutDocument(int layoutNum, Document d) {
+        doc().putXmlPart(layoutPart(layoutNum), d);
     }
 
-    private int extractLayoutNumber(String layoutId) {
-        return Integer.parseInt(layoutId.replaceAll("slideLayout(\\d+)", "$1"));
+    /** N from "slideLayoutN", or -1 if it isn't one. */
+    private static int extractLayoutNumber(String layoutId) {
+        if (layoutId == null) return -1;
+        Matcher m = Pattern.compile("^slideLayout(\\d+)$").matcher(layoutId.trim());
+        return m.matches() ? Integer.parseInt(m.group(1)) : -1;
     }
 }

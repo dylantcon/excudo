@@ -1153,6 +1153,19 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
     // ========== SLIDE LAYOUT CRUD ==========
 
     @Override
+    public ExecutionResult<String> addLayout(com.excudo.core.themes.LayoutDefinition layout) {
+        if (currentContext == null) {
+            return ExecutionResult.failure("AddLayout", "No orchestration context available");
+        }
+        return layoutOrchestrationManager.addLayout(layout);
+    }
+
+    @Override
+    public String findLayoutByType(String ooxmlType) {
+        return currentContext == null ? null : layoutOrchestrationManager.findLayoutByType(ooxmlType);
+    }
+
+    @Override
     public ExecutionResult<String> duplicateLayout(String sourceLayoutId, String newName) {
         if (currentContext == null) {
             return ExecutionResult.failure("DuplicateLayout", "No orchestration context available");

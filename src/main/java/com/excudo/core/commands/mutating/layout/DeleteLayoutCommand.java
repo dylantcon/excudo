@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -30,12 +31,19 @@ public class DeleteLayoutCommand implements Command {
     public static final String NAME = CommandClassRegistry.nameOf(DeleteLayoutCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        return new DeleteLayoutCommand(p.get(LAYOUT_ID), ctx.orchestrator());
+        return new DeleteLayoutCommand(p.get(LAYOUT_ID), ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
     private final String layoutId;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public DeleteLayoutCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
 
     public DeleteLayoutCommand(String layoutId, PPTXOrchestrator orchestrator) {
@@ -61,6 +69,7 @@ public class DeleteLayoutCommand implements Command {
                 result.getMessage());
         }
 
+        if (display != null) display.displaySuccess("Deleted " + layoutId + " (later layouts renumbered)");
         executed = true;
     }
 

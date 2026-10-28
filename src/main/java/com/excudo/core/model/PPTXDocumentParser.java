@@ -398,7 +398,12 @@ public final class PPTXDocumentParser {
                 // Parse placeholder geometries
                 List<PlaceholderGeometry> geometries = parsePlaceholderGeometries(layoutDom, layoutId);
 
-                String description = generateDescription(hasTitle, hasContent, hasSubtitle);
+                List<String> mediaKinds = new ArrayList<>();
+                if (hasPlaceholderType(layoutDom, "pic")) mediaKinds.add("picture");
+                if (hasPlaceholderType(layoutDom, "chart")) mediaKinds.add("chart");
+                if (hasPlaceholderType(layoutDom, "tbl")) mediaKinds.add("table");
+                if (hasPlaceholderType(layoutDom, "media")) mediaKinds.add("media");
+                String description = generateDescription(hasTitle, hasContent, hasSubtitle, mediaKinds);
                 String filePath = "slideLayouts/" + filename;
 
                 LayoutInfo info = new LayoutInfo(layoutId, name, filePath, hasTitle,
@@ -565,11 +570,13 @@ public final class PPTXDocumentParser {
         return geometries;
     }
 
-    private static String generateDescription(boolean hasTitle, boolean hasContent, boolean hasSubtitle) {
+    private static String generateDescription(boolean hasTitle, boolean hasContent, boolean hasSubtitle,
+                                              List<String> mediaKinds) {
         List<String> parts = new ArrayList<>();
         if (hasTitle) parts.add("title");
         if (hasSubtitle) parts.add("subtitle");
         if (hasContent) parts.add("content");
+        parts.addAll(mediaKinds);
         if (parts.isEmpty()) parts.add("blank");
         return String.join(" + ", parts);
     }

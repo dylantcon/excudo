@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -31,13 +32,20 @@ public class RemovePlaceholderCommand implements Command {
     public static final String NAME = CommandClassRegistry.nameOf(RemovePlaceholderCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        return new RemovePlaceholderCommand(p.get(LAYOUT_ID), p.get(IDX), ctx.orchestrator());
+        return new RemovePlaceholderCommand(p.get(LAYOUT_ID), p.get(IDX), ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
     private final String layoutId;
     private final int idx;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public RemovePlaceholderCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
 
     public RemovePlaceholderCommand(String layoutId, int idx, PPTXOrchestrator orchestrator) {
@@ -64,6 +72,7 @@ public class RemovePlaceholderCommand implements Command {
                 "Failed to remove placeholder: " + result.getMessage());
         }
 
+        if (display != null) display.displaySuccess("Removed placeholder idx=" + idx + " from " + layoutId);
         executed = true;
     }
 

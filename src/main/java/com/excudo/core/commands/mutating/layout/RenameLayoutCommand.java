@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -31,13 +32,20 @@ public class RenameLayoutCommand implements Command {
     public static final String NAME = CommandClassRegistry.nameOf(RenameLayoutCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        return new RenameLayoutCommand(p.get(LAYOUT_ID), p.get(NEW_NAME), ctx.orchestrator());
+        return new RenameLayoutCommand(p.get(LAYOUT_ID), p.get(NEW_NAME), ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
     private final String layoutId;
     private final String newName;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public RenameLayoutCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
 
     public RenameLayoutCommand(String layoutId, String newName, PPTXOrchestrator orchestrator) {
@@ -67,6 +75,7 @@ public class RenameLayoutCommand implements Command {
                 "Failed to rename layout: " + result.getMessage());
         }
 
+        if (display != null) display.displaySuccess("Renamed " + layoutId + " to \"" + newName + "\"");
         executed = true;
     }
 

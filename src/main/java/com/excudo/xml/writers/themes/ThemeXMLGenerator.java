@@ -582,7 +582,7 @@ public final class ThemeXMLGenerator {
                 .build();
     }
 
-    private String getLayoutTypeAttribute(LayoutDefinition.LayoutType type) {
+    public static String getLayoutTypeAttribute(LayoutDefinition.LayoutType type) {
         switch (type) {
             case TITLE_SLIDE: return "title";
             case TITLE_CONTENT: return "obj";

@@ -621,6 +621,22 @@ public interface PPTXOrchestrator {
     // ========== SLIDE LAYOUT CRUD ==========
 
     /**
+     * Create a layout from a definition (type + placeholders), attached to
+     * the first slide master.
+     * @return Result containing the new layout ID
+     */
+    default ExecutionResult<String> addLayout(com.excudo.core.themes.LayoutDefinition layout) {
+        return ExecutionResult.failure("AddLayout", "Not supported by this orchestrator");
+    }
+
+    /**
+     * First layout whose OOXML type (p:sldLayout/@type, e.g. "obj") matches, or null.
+     */
+    default String findLayoutByType(String ooxmlType) {
+        return null;
+    }
+
+    /**
      * Duplicate an existing slide layout.
      * @param sourceLayoutId Layout to duplicate (e.g., "slideLayout2")
      * @param newName Display name for the new layout

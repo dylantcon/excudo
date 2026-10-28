@@ -7,6 +7,7 @@ import com.excudo.core.parsing.CommandSchema;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandClassRegistry;
+import com.excudo.core.commands.CommandDisplay;
 import com.excudo.core.commands.CommandExecutionException;
 
 import com.excudo.core.orchestration.PPTXOrchestrator;
@@ -46,7 +47,7 @@ public class AddLayoutCommand implements Command {
         return new AddLayoutCommand(p.get(LAYOUT_NAME),
             p.opt(TYPE).orElse(null),
             p.opt(PLACEHOLDERS).orElse(null),
-            ctx.orchestrator());
+            ctx.orchestrator()).withDisplay(ctx.display());
     }
 
 
@@ -54,6 +55,13 @@ public class AddLayoutCommand implements Command {
     private final String typeStr;
     private final String placeholdersJson;
     private final PPTXOrchestrator orchestrator;
+    private CommandDisplay display;
+
+    /** Optional sink for the success message (console / GUI). */
+    public AddLayoutCommand withDisplay(CommandDisplay display) {
+        this.display = display;
+        return this;
+    }
     private boolean executed = false;
     private String createdLayoutId = null;
 
@@ -102,49 +110,30 @@ public class AddLayoutCommand implements Command {
         LayoutDefinition layout = new LayoutDefinition(
             "dynamic", name, layoutType, placeholders, true);
 
-        // Use the orchestrator's context to access LayoutOrchestrationManager
-        // We go through duplicateLayout pattern but for add we need direct access
-        // For now, we create a minimal layout -- the orchestrator doesn't expose addLayout directly
-        // Instead, we duplicate a blank layout and modify it.
-        // Actually, the plan says these go through execute_commands which calls orchestrator methods.
-        // The PPTXOrchestrator interface doesn't have addLayout -- it's in LayoutOrchestrationManager.
-        // We'll use duplicate of slideLayout7 (blank) if available, otherwise create from scratch.
-
-        // For the add-layout command, we'll duplicate the closest matching layout type
-        // and rename it. If no layouts exist, this will fail gracefully.
-        String sourceLayout = findBestSourceLayout(layoutType);
+        // Explicit placeholders: build the layout from the definition.
+        // Otherwise copy an existing layout of the requested type, so
+        // --type TITLE_CONTENT gets real title + content placeholders.
+        ExecutionResult<String> result;
+        String sourceLayout = placeholders.isEmpty() ? findBestSourceLayout(layoutType) : null;
         if (sourceLayout != null) {
-            ExecutionResult<String> result = orchestrator.duplicateLayout(sourceLayout, name);
-            if (!result.isSuccess()) {
-                throw new CommandExecutionException(getDescription(), "execute",
-                    "Failed to create layout: " + result.getMessage());
-            }
-            createdLayoutId = result.getData().orElse(null);
+            result = orchestrator.duplicateLayout(sourceLayout, name);
         } else {
-            throw new CommandExecutionException(getDescription(), "execute",
-                "No source layout available to create from. Load a presentation first.");
+            result = orchestrator.addLayout(layout);
         }
+        if (!result.isSuccess()) {
+            throw new CommandExecutionException(getDescription(), "execute",
+                "Failed to create layout: " + result.getMessage());
+        }
+        createdLayoutId = result.getData().orElse(null);
 
+        if (display != null) display.displaySuccess("Created layout " + createdLayoutId + " (\"" + name + "\")");
         executed = true;
     }
 
+    /** An existing layout of the same type, or null to generate one from the definition. */
     private String findBestSourceLayout(LayoutDefinition.LayoutType type) {
-        // Try to find a layout matching the type, or fall back to any available layout
-        java.util.Optional<com.excudo.core.orchestration.OrchestrationContext> ctxOpt = orchestrator.getContext();
-        java.io.File extractedDir = (ctxOpt.isPresent() && ctxOpt.get().getDocument() != null)
-            ? ctxOpt.get().getDocument().getExtractedDir() : null;
-        if (extractedDir == null) return null;
-
-        java.io.File layoutsDir = new java.io.File(extractedDir, "ppt/slideLayouts");
-        if (!layoutsDir.exists()) return null;
-
-        // Find first available layout
-        for (int i = 1; i <= 20; i++) {
-            if (new java.io.File(layoutsDir, "slideLayout" + i + ".xml").exists()) {
-                return "slideLayout" + i;
-            }
-        }
-        return null;
+        return orchestrator.findLayoutByType(
+            com.excudo.xml.writers.themes.ThemeXMLGenerator.getLayoutTypeAttribute(type));
     }
 
     private List<PlaceholderDefinition> parsePlaceholders(String json) {
