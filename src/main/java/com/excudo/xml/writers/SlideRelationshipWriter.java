@@ -245,15 +245,14 @@ public class SlideRelationshipWriter {
         }
       }
 
+      Map<String, String> renames = new HashMap<>();
       for (String[] update : rIdUpdates.values()) {
         Element rel = findRelationshipById(relsDoc, update[0]);
         if (rel != null) {
           rel.setAttribute("Id", update[1]);
+          renames.put(update[0], update[1]);
 
           String target = rel.getAttribute("Target");
-          if (target.contains("notesMaster")) {
-            updateNotesMasterReferenceInPresentationXml(update[0], update[1]);
-          }
 
           // When cascading slide relationships, the Target must also shift
           // because renameSubsequentSlides already renamed the physical files
@@ -268,9 +267,50 @@ public class SlideRelationshipWriter {
         }
       }
 
+      remapPresentationReferences(renames);
+
     } catch (Exception e) {
       throw new XMLParsingException("Failed to cascade relationship IDs", e);
     }
+  }
+
+  /**
+   * Apply renamed presentation-level rIds to every relationship-namespace
+   * attribute in presentation.xml (slide masters, notes / handout masters,
+   * embedded fonts, custom shows, ...), in one pass so chained renames
+   * (rId4->rId5, rId5->rId6) can't double-apply. p:sldIdLst is skipped: the
+   * slide-insertion pipeline cascades those r:ids itself.
+   */
+  private void remapPresentationReferences(Map<String, String> renames) {
+    if (renames.isEmpty()) return;
+    com.excudo.core.model.PPTXDocument pptxDoc = manager.getPPTXDocument();
+    Document presentation = pptxDoc != null ? pptxDoc.getXmlPart("ppt/presentation.xml") : null;
+    if (presentation == null) return;
+    if (remapRelationshipAttributes(presentation.getDocumentElement(), renames)) {
+      pptxDoc.markPresentationXmlDirty();
+    }
+  }
+
+  private static boolean remapRelationshipAttributes(Element element, Map<String, String> renames) {
+    if (XMLConstants.PRESENTATION_NS.equals(element.getNamespaceURI()) && "sldIdLst".equals(element.getLocalName())) {
+      return false;
+    }
+    boolean changed = false;
+    org.w3c.dom.NamedNodeMap attributes = element.getAttributes();
+    for (int i = 0; i < attributes.getLength(); i++) {
+      org.w3c.dom.Attr attr = (org.w3c.dom.Attr) attributes.item(i);
+      if (XMLConstants.RELATIONSHIPS_NS.equals(attr.getNamespaceURI())) {
+        String renamed = renames.get(attr.getValue());
+        if (renamed != null) {
+          attr.setValue(renamed);
+          changed = true;
+        }
+      }
+    }
+    for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (child instanceof Element e && remapRelationshipAttributes(e, renames)) changed = true;
+    }
+    return changed;
   }
 
   /**
