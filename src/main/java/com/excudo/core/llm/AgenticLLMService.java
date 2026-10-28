@@ -36,7 +36,15 @@ public class AgenticLLMService {
     /**
      * Result of an agentic processing run, including token usage statistics.
      */
-    public record AgenticResult(String summary, int inputTokens, int outputTokens, double cost) {
+    /**
+     * Outcome of one request. {@code inputTokens} is uncached input; prompt-cache
+     * reads / writes are counted separately (zero for providers without caching).
+     */
+    public record AgenticResult(String summary, int inputTokens, int outputTokens, double cost,
+                                int cacheReadTokens, int cacheWriteTokens) {
+        public AgenticResult(String summary, int inputTokens, int outputTokens, double cost) {
+            this(summary, inputTokens, outputTokens, cost, 0, 0);
+        }
         /** Backward-compatible constructor for providers without cost tracking. */
         public AgenticResult(String summary, int inputTokens, int outputTokens) {
             this(summary, inputTokens, outputTokens, 0.0);
@@ -87,6 +95,8 @@ public class AgenticLLMService {
 
     // Cumulative token and cost tracking across multi-turn conversation
     private int cumulativeInputTokens = 0;
+    private int cumulativeCacheReadTokens = 0;
+    private int cumulativeCacheWriteTokens = 0;
     private int cumulativeOutputTokens = 0;
     private double cumulativeCost = 0.0;
 
@@ -157,7 +167,8 @@ public class AgenticLLMService {
                 conversation.notesPrefix() + userRequest,
                 conversation.messages(), conversation.activeToolNames());
             conversation.clearNotes();
-            conversation.completeTurn(result.inputTokens(), result.outputTokens(), result.cost());
+            conversation.completeTurn(result.inputTokens(), result.outputTokens(), result.cost(),
+                result.cacheReadTokens());
             dumpTrainingData();
             return result;
         } catch (RuntimeException e) {
@@ -220,7 +231,7 @@ public class AgenticLLMService {
             logger.info("Agentic round {}/{}", round + 1, maxRounds);
 
             // Compact old tool results to reduce quadratic token growth.
-            // Keep last 2 rounds verbatim; summarize everything older.
+            // Recent messages stay verbatim; older ones are summarized (in steps, for cache stability).
             List<Map<String, Object>> compactedMessages = compactConversationHistory(messages, round);
 
             List<LLMClient.APIResponse> responses;
@@ -332,9 +343,11 @@ public class AgenticLLMService {
         cumulativeInputTokens += usage.inputTokens();
         cumulativeOutputTokens += usage.outputTokens();
         cumulativeCost += usage.cost();
+        cumulativeCacheReadTokens += usage.cacheReadTokens();
+        cumulativeCacheWriteTokens += usage.cacheWriteTokens();
         if (usage.inputTokens() > 0 || usage.outputTokens() > 0) {
-            logger.info("Token usage this round: {} in / {} out (cumulative: {} in / {} out)",
-                usage.inputTokens(), usage.outputTokens(),
+            logger.info("Token usage this round: {} in / {} out, cache {} read / {} written (cumulative: {} in / {} out)",
+                usage.inputTokens(), usage.outputTokens(), usage.cacheReadTokens(), usage.cacheWriteTokens(),
                 cumulativeInputTokens, cumulativeOutputTokens);
         }
     }
@@ -381,7 +394,8 @@ public class AgenticLLMService {
         String text = (summary == null || summary.isBlank()) ? "(no reply)" : summary;
         messages.add(Map.of("role", "assistant", "content", text));
         return new AgenticResult(summary == null ? "" : summary,
-            cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+            cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost,
+            cumulativeCacheReadTokens, cumulativeCacheWriteTokens);
     }
 
     private AgenticResult requestBudgetSummary(String systemPrompt,
@@ -600,7 +614,17 @@ public class AgenticLLMService {
     private Map<String, Object> buildAssistantMessage(List<LLMClient.APIResponse> responses) {
         List<Map<String, Object>> content = new ArrayList<>();
         for (LLMClient.APIResponse r : responses) {
-            if (r.isText()) {
+            if ("thinking".equals(r.type())) {
+                // Returned verbatim with its signature: the API requires the
+                // reasoning that led to a tool call when its results come back.
+                Map<String, Object> block = new HashMap<>();
+                block.put("type", "thinking");
+                block.put("thinking", r.content() != null ? r.content() : "");
+                block.put("signature", r.signature() != null ? r.signature() : "");
+                content.add(block);
+            } else if ("redacted_thinking".equals(r.type())) {
+                content.add(Map.of("type", "redacted_thinking", "data", r.content() != null ? r.content() : ""));
+            } else if (r.isText()) {
                 content.add(Map.of("type", "text", "text", r.content() != null ? r.content() : ""));
             } else if (r.isToolUse()) {
                 Map<String, Object> block = new HashMap<>();
@@ -633,6 +657,8 @@ public class AgenticLLMService {
 
     /** Number of recent messages to keep verbatim (2 rounds = ~4 messages). */
     private static final int KEEP_RECENT_MESSAGES = 4;
+    /** Compaction boundary granularity (messages); see compactConversationHistory. */
+    static final int COMPACT_STEP = 6;
     /** Tool result content longer than this gets summarized in old rounds. */
     private static final int COMPACT_THRESHOLD_CHARS = 120;
     /** Max chars for any tool result before truncation (prevents single huge results). */
@@ -640,7 +666,8 @@ public class AgenticLLMService {
 
     /**
      * Return a compacted copy of the conversation history.
-     * The first message (user request) and the last KEEP_RECENT_MESSAGES are kept verbatim.
+     * The first message, at least the last KEEP_RECENT_MESSAGES, and the latest assistant
+     * message are kept verbatim; the compacted region grows in COMPACT_STEP increments.
      * Everything in between has verbose tool results and tool inputs replaced with
      * one-line summaries to prevent resending stale data every round.
      */
@@ -656,7 +683,20 @@ public class AgenticLLMService {
         // Always keep the first message (user request) verbatim
         compacted.add(messages.get(0));
 
-        int compactEnd = messages.size() - KEEP_RECENT_MESSAGES;
+        // The boundary advances in steps of COMPACT_STEP messages rather than
+        // one per round: between steps the compacted prefix is byte-identical,
+        // so the prompt cache keeps hitting instead of being invalidated at
+        // the message that just slid out of the verbatim window.
+        int compactEnd = ((messages.size() - KEEP_RECENT_MESSAGES) / COMPACT_STEP) * COMPACT_STEP;
+        // The latest assistant message stays verbatim (its reasoning blocks
+        // must accompany the tool results being sent back), even when many
+        // parallel tool results push it out of the recent window.
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if ("assistant".equals(messages.get(i).get("role"))) {
+                compactEnd = Math.min(compactEnd, i);
+                break;
+            }
+        }
         for (int i = 1; i < messages.size(); i++) {
             if (i < compactEnd) {
                 compacted.add(compactMessage(messages.get(i)));
@@ -691,7 +731,10 @@ public class AgenticLLMService {
         for (Map<String, Object> block : blocks) {
             String type = (String) block.get("type");
 
-            if ("tool_result".equals(type)) {
+            if ("thinking".equals(type) || "redacted_thinking".equals(type)) {
+                // Old reasoning: dropped (allowed for earlier assistant turns)
+                continue;
+            } else if ("tool_result".equals(type)) {
                 // Summarize tool results
                 Object resultContent = block.get("content");
                 String resultStr = resultContent != null ? resultContent.toString() : "";

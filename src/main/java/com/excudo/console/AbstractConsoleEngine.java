@@ -255,14 +255,19 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             displayMessage(result.summary());
             if (result.inputTokens() > 0 || result.outputTokens() > 0) {
                 String tokenInfo = "Tokens: " + result.inputTokens() + " in / " + result.outputTokens() + " out";
+                if (result.cacheReadTokens() > 0 || result.cacheWriteTokens() > 0) {
+                    tokenInfo += " (cache: " + result.cacheReadTokens() + " read, "
+                        + result.cacheWriteTokens() + " written)";
+                }
                 if (result.cost() > 0) {
                     tokenInfo += String.format(" ($%.4f)", result.cost());
                 }
                 if (arrangeConversation != null && arrangeConversation.getTurnCount() > 1) {
-                    tokenInfo += String.format("  |  session: %d turns, %d in / %d out",
+                    tokenInfo += String.format("  |  session: %d turns, %d in / %d out, %d cache-read",
                         arrangeConversation.getTurnCount(),
                         arrangeConversation.getTotalInputTokens(),
-                        arrangeConversation.getTotalOutputTokens());
+                        arrangeConversation.getTotalOutputTokens(),
+                        arrangeConversation.getTotalCacheReadTokens());
                     if (arrangeConversation.getTotalCost() > 0) {
                         tokenInfo += String.format(" ($%.4f)", arrangeConversation.getTotalCost());
                     }

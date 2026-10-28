@@ -41,6 +41,7 @@ public class ArrangeConversation {
     private int totalInputTokens = 0;
     private int totalOutputTokens = 0;
     private double totalCost = 0.0;
+    private int totalCacheReadTokens = 0;
 
     public String getId() { return id; }
 
@@ -55,6 +56,7 @@ public class ArrangeConversation {
     public int getTotalInputTokens() { return totalInputTokens; }
     public int getTotalOutputTokens() { return totalOutputTokens; }
     public double getTotalCost() { return totalCost; }
+    public int getTotalCacheReadTokens() { return totalCacheReadTokens; }
 
     /**
      * Record something that happened outside the agent (e.g. the user ran a
@@ -84,8 +86,9 @@ public class ArrangeConversation {
         while (messages.size() > checkpoint) messages.remove(messages.size() - 1);
     }
 
-    void completeTurn(int inputTokens, int outputTokens, double cost) {
+    void completeTurn(int inputTokens, int outputTokens, double cost, int cacheReadTokens) {
         turns++;
+        totalCacheReadTokens += cacheReadTokens;
         totalInputTokens += inputTokens;
         totalOutputTokens += outputTokens;
         totalCost += cost;

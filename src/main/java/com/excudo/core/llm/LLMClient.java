@@ -27,8 +27,18 @@ public abstract class LLMClient {
     /**
      * Token usage from an API response. Provider-agnostic.
      */
-    public record TokenUsage(int inputTokens, int outputTokens, double cost) {
+    /**
+     * Token usage from an API response. Provider-agnostic. {@code inputTokens}
+     * counts uncached input only; prompt-cache reads and writes are reported
+     * separately (zero for providers without prompt caching).
+     */
+    public record TokenUsage(int inputTokens, int outputTokens, double cost,
+                             int cacheReadTokens, int cacheWriteTokens) {
         public static final TokenUsage ZERO = new TokenUsage(0, 0, 0.0);
+        /** For providers that don't report cache usage. */
+        public TokenUsage(int inputTokens, int outputTokens, double cost) {
+            this(inputTokens, outputTokens, cost, 0, 0);
+        }
         /** Backward-compatible constructor for providers that don't report cost. */
         public TokenUsage(int inputTokens, int outputTokens) {
             this(inputTokens, outputTokens, 0.0);
@@ -37,12 +47,22 @@ public abstract class LLMClient {
 
     /**
      * Represents a single content block in an LLM API response.
-     * A response may contain multiple blocks of different types (text, tool_use).
-     * Provider-agnostic -- each client converts its native format to this.
+     * A response may contain multiple blocks of different types (text,
+     * tool_use, thinking). Provider-agnostic -- each client converts its
+     * native format to this.
+     *
+     * <p>Reasoning blocks ({@code thinking}: content = the reasoning text;
+     * {@code redacted_thinking}: content = the opaque data) carry a
+     * {@code signature} and must be sent back to the provider unmodified.
      */
-    public record APIResponse(String type, String content, String toolName, String toolInput, String toolUseId) {
+    public record APIResponse(String type, String content, String toolName, String toolInput, String toolUseId,
+                              String signature) {
+        public APIResponse(String type, String content, String toolName, String toolInput, String toolUseId) {
+            this(type, content, toolName, toolInput, toolUseId, null);
+        }
         public boolean isToolUse() { return "tool_use".equals(type); }
         public boolean isText() { return "text".equals(type); }
+        public boolean isReasoning() { return "thinking".equals(type) || "redacted_thinking".equals(type); }
     }
 
     /**

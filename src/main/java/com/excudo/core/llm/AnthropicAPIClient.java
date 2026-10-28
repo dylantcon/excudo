@@ -228,23 +228,35 @@ public class AnthropicAPIClient extends LLMClient {
         return parseToolUseResponse(response);
     }
 
-    private String buildRequestBodyWithTools(String systemPrompt,
+    String buildRequestBodyWithTools(String systemPrompt,
                                               List<Map<String, String>> messages,
                                               String toolsJson) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("max_tokens", TOOL_MAX_TOKENS);
-        body.addProperty("system", systemPrompt);
+
+        // Prompt caching: breakpoints on the tools, the system prompt, and the
+        // newest message. Cache order is tools -> system -> messages, so the
+        // tool definitions stay cached even when the system prompt changes,
+        // and each round re-reads the conversation prefix written last round.
+        // Prefixes below the model's minimum cacheable size are simply not cached.
+        JsonArray system = new JsonArray();
+        JsonObject systemBlock = new JsonObject();
+        systemBlock.addProperty("type", "text");
+        systemBlock.addProperty("text", systemPrompt);
+        systemBlock.add("cache_control", ephemeral());
+        system.add(systemBlock);
+        body.add("system", system);
 
         JsonArray msgArray = new JsonArray();
         for (Map<String, String> msg : messages) {
             JsonObject msgObj = new JsonObject();
             msgObj.addProperty("role", msg.get("role"));
             String content = msg.get("content");
-            // Content that is already a JSON array (tool_use or tool_result blocks) must
-            // not be quoted again - it is embedded verbatim.
-            // Guard: only parse if it looks like a JSON array AND actually parses.
-            // Compacted messages like "[prior result: ...]" start with [ but aren't JSON.
+            // Content that is already a JSON array (tool_use, tool_result,
+            // thinking blocks) is embedded verbatim, not quoted again.
+            // Compacted messages like "[prior result: ...]" start with [ but
+            // aren't JSON, hence the "[{" + parse guard.
             if (content != null && content.trim().startsWith("[{")) {
                 try {
                     msgObj.add("content", JsonParser.parseString(content));
@@ -256,11 +268,54 @@ public class AnthropicAPIClient extends LLMClient {
             }
             msgArray.add(msgObj);
         }
+        if (!msgArray.isEmpty()) {
+            markCacheBreakpoint(msgArray.get(msgArray.size() - 1).getAsJsonObject());
+        }
         body.add("messages", msgArray);
 
-        body.add("tools", JsonParser.parseString(toolsJson));
+        JsonArray tools = JsonParser.parseString(toolsJson).getAsJsonArray();
+        if (!tools.isEmpty()) {
+            tools.get(tools.size() - 1).getAsJsonObject().add("cache_control", ephemeral());
+        }
+        body.add("tools", tools);
 
         return GSON.toJson(body);
+    }
+
+    private static JsonObject ephemeral() {
+        JsonObject cacheControl = new JsonObject();
+        cacheControl.addProperty("type", "ephemeral");
+        return cacheControl;
+    }
+
+    /**
+     * Put a cache breakpoint on the message's last block that may carry one
+     * (reasoning blocks can't). String content becomes a single text block.
+     */
+    private static void markCacheBreakpoint(JsonObject message) {
+        JsonElement content = message.get("content");
+        if (content == null) return;
+        if (content.isJsonPrimitive()) {
+            String text = content.getAsString();
+            if (text.isEmpty()) return;
+            JsonArray blocks = new JsonArray();
+            JsonObject block = new JsonObject();
+            block.addProperty("type", "text");
+            block.addProperty("text", text);
+            blocks.add(block);
+            message.add("content", blocks);
+            content = blocks;
+        }
+        if (!content.isJsonArray()) return;
+        JsonArray blocks = content.getAsJsonArray();
+        for (int i = blocks.size() - 1; i >= 0; i--) {
+            JsonObject block = blocks.get(i).getAsJsonObject();
+            String type = block.has("type") ? block.get("type").getAsString() : "";
+            if (!"thinking".equals(type) && !"redacted_thinking".equals(type)) {
+                block.add("cache_control", ephemeral());
+                return;
+            }
+        }
     }
 
     private List<APIResponse> parseToolUseResponse(String response) {
@@ -285,6 +340,14 @@ public class AnthropicAPIClient extends LLMClient {
                 if ("text".equals(type)) {
                     String text = block.has("text") ? block.get("text").getAsString() : "";
                     results.add(new APIResponse("text", text, null, null, null));
+                } else if ("thinking".equals(type)) {
+                    // Kept (with its signature) so it can be sent back unmodified,
+                    // preserving the model's reasoning across tool rounds.
+                    results.add(new APIResponse("thinking", stringField(block, "thinking"),
+                        null, null, null, stringField(block, "signature")));
+                } else if ("redacted_thinking".equals(type)) {
+                    results.add(new APIResponse("redacted_thinking", stringField(block, "data"),
+                        null, null, null, null));
                 } else if ("tool_use".equals(type)) {
                     String id = block.has("id") ? block.get("id").getAsString() : null;
                     String name = block.has("name") ? block.get("name").getAsString() : null;
@@ -296,6 +359,10 @@ public class AnthropicAPIClient extends LLMClient {
             logger.error("Failed to parse tool use response: {}", e.getMessage());
         }
         return results;
+    }
+
+    private static String stringField(JsonObject block, String name) {
+        return block.has(name) && !block.get(name).isJsonNull() ? block.get(name).getAsString() : "";
     }
 
     /**
@@ -311,14 +378,21 @@ public class AnthropicAPIClient extends LLMClient {
                 return TokenUsage.ZERO;
             }
 
-            int inputTokens = usage.has("input_tokens") ? usage.get("input_tokens").getAsInt() : 0;
-            int outputTokens = usage.has("output_tokens") ? usage.get("output_tokens").getAsInt() : 0;
-            logger.debug("Parsed usage: {} in / {} out", inputTokens, outputTokens);
-            return new TokenUsage(inputTokens, outputTokens);
+            int inputTokens = intField(usage, "input_tokens");
+            int outputTokens = intField(usage, "output_tokens");
+            int cacheRead = intField(usage, "cache_read_input_tokens");
+            int cacheWrite = intField(usage, "cache_creation_input_tokens");
+            logger.debug("Parsed usage: {} in / {} out, cache {} read / {} written",
+                inputTokens, outputTokens, cacheRead, cacheWrite);
+            return new TokenUsage(inputTokens, outputTokens, 0.0, cacheRead, cacheWrite);
         } catch (Exception e) {
             logger.warn("Failed to parse token usage: {}", e.getMessage());
             return TokenUsage.ZERO;
         }
+    }
+
+    private static int intField(JsonObject obj, String name) {
+        return obj.has(name) && !obj.get(name).isJsonNull() ? obj.get(name).getAsInt() : 0;
     }
 
     /**

@@ -255,6 +255,90 @@ public class ArrangeConversationTest {
         assertFalse(convo.getReferencedCommands().contains("cmd-0"), "least recently fetched dropped first");
     }
 
+    private static LLMClient.APIResponse thinking(String text, String signature) {
+        return new LLMClient.APIResponse("thinking", text, null, null, null, signature);
+    }
+
+    private static LLMClient.APIResponse fetchCall(String id, int padding) {
+        String input = "{\"tool_names\":[\"no_such_tool_" + "x".repeat(padding) + "\"]}";
+        return new LLMClient.APIResponse("tool_use", null, "fetch_tool_schemas", input, id);
+    }
+
+    @Test
+    void reasoningIsSentBackWithTheToolResults() {
+        ScriptedClient client = new ScriptedClient();
+        client.script.add(List.of(thinking("plan the edit", "SIG-1"), fetchCall("toolu_r", 0)));
+        client.text("done");
+        service(client, new ArrangeConversation()).processRequestWithUsage("go");
+
+        String assistant = client.sent.get(1).get(1).get("content");
+        assertTrue(assistant.contains("\"signature\":\"SIG-1\""), assistant);
+        assertTrue(assistant.contains("plan the edit"));
+        assertTrue(assistant.indexOf("thinking") < assistant.indexOf("tool_use"), "reasoning precedes the tool call");
+    }
+
+    @Test
+    void latestAssistantStaysVerbatimWithManyParallelToolCalls() {
+        ScriptedClient client = new ScriptedClient();
+        List<LLMClient.APIResponse> round = new ArrayList<>();
+        round.add(thinking("fan out", "SIG-P"));
+        for (int i = 0; i < 5; i++) round.add(fetchCall("toolu_p" + i, 200));
+        client.script.add(round);
+        client.text("done");
+        service(client, new ArrangeConversation()).processRequestWithUsage("go");
+
+        List<Map<String, String>> second = client.sent.get(1);
+        String assistant = second.get(1).get("content");
+        assertTrue(assistant.contains("SIG-P"), "reasoning kept although 5 tool results follow");
+        assertFalse(assistant.contains("_compacted"), "its tool calls kept verbatim too");
+    }
+
+    @Test
+    void olderReasoningIsDroppedByCompaction() {
+        ScriptedClient client = new ScriptedClient();
+        String[] sigs = {"SIG-A", "SIG-B", "SIG-C", "SIG-D", "SIG-E"};
+        for (int i = 0; i < sigs.length; i++) {
+            client.script.add(List.of(thinking("step " + i, sigs[i]), fetchCall("toolu_" + i, 0)));
+        }
+        client.text("done");
+        service(client, new ArrangeConversation()).processRequestWithUsage("go");
+
+        String last = client.sent.get(client.sent.size() - 1).toString();
+        assertFalse(last.contains("SIG-A"), "oldest reasoning compacted away");
+        assertTrue(last.contains("SIG-E"), "latest reasoning kept");
+        assertAlternatesLoosely(client.sent.get(client.sent.size() - 1));
+    }
+
+    @Test
+    void compactedPrefixStaysStableBetweenSteps() {
+        // Long tool loop with compactable results: the prefix sent in round r+1
+        // should start with exactly what was sent in round r, except at the
+        // (few) rounds where the compaction boundary steps forward.
+        ScriptedClient client = new ScriptedClient();
+        int rounds = 12;
+        for (int i = 0; i < rounds; i++) client.script.add(List.of(fetchCall("toolu_s" + i, 200)));
+        client.text("done");
+        service(client, new ArrangeConversation()).processRequestWithUsage("go");
+
+        int unstable = 0;
+        for (int r = 0; r + 1 < client.sent.size(); r++) {
+            List<Map<String, String>> prev = client.sent.get(r), next = client.sent.get(r + 1);
+            if (!next.subList(0, prev.size()).equals(prev)) unstable++;
+        }
+        int transitions = client.sent.size() - 1;
+        assertTrue(unstable <= transitions / 2,
+            "prefix changed in " + unstable + " of " + transitions + " rounds; compaction should step, not slide");
+    }
+
+    /** Roles alternate, allowing consecutive tool-result user messages. */
+    private static void assertAlternatesLoosely(List<Map<String, String>> messages) {
+        for (int i = 1; i < messages.size(); i++) {
+            if ("assistant".equals(messages.get(i).get("role"))) {
+                assertEquals("user", messages.get(i - 1).get("role"));
+            }
+        }
+    }
+
     @Test
     void clearForgetsEverything() {
         ScriptedClient client = new ScriptedClient().text("a").text("b");
