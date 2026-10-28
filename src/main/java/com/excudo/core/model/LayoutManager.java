@@ -24,6 +24,9 @@ public class LayoutManager {
     private final DocumentBuilder documentBuilder;
     private final XPath xpath;
     private final Map<String, LayoutInfo> layoutCache;
+    // Where to re-read layouts from after a layout/master edit (see markStale)
+    private volatile java.util.function.Supplier<Map<String, LayoutInfo>> refreshSource;
+    private volatile boolean stale = false;
 
     /**
      * Construct from pre-parsed layout data (no disk access needed).
@@ -46,7 +49,7 @@ public class LayoutManager {
      * @return List of LayoutInfo objects describing available layouts
      */
     public List<LayoutInfo> getAvailableLayouts() throws XMLParsingException {
-        List<LayoutInfo> sorted = new ArrayList<>(layoutCache.values());
+        List<LayoutInfo> sorted = new ArrayList<>(layouts().values());
         sorted.sort(Comparator.comparingInt(l -> {
             String id = l.getLayoutId();
             try {
@@ -66,7 +69,7 @@ public class LayoutManager {
      * @return LayoutInfo or null if not found
      */
     public LayoutInfo getLayoutInfo(String layoutId) throws XMLParsingException {
-        return layoutCache.get(layoutId);
+        return layouts().get(layoutId);
     }
 
     /**
@@ -143,11 +146,37 @@ public class LayoutManager {
     }
 
     /**
-     * Clear cached layouts so they are re-parsed from disk on next access.
-     * Call after theme application which overwrites layout files.
+     * Source of fresh layout data (the document's revision-keyed parse),
+     * used to rebuild the snapshot after {@link #markStale()}.
      */
+    public void setRefreshSource(java.util.function.Supplier<Map<String, LayoutInfo>> source) {
+        this.refreshSource = source;
+    }
+
+    /**
+     * Layouts or the master changed: rebuild the snapshot on next access.
+     * Cheap, so it is safe to call once per changed part.
+     */
+    public void markStale() {
+        stale = true;
+    }
+
+    /** @deprecated use {@link #markStale()}; kept for existing callers. */
+    @Deprecated
     public void reload() {
-        layoutCache.clear();
+        markStale();
+    }
+
+    private synchronized Map<String, LayoutInfo> layouts() {
+        if (stale && refreshSource != null) {
+            Map<String, LayoutInfo> fresh = refreshSource.get();
+            if (fresh != null) {
+                layoutCache.clear();
+                layoutCache.putAll(fresh);
+                stale = false;
+            }
+        }
+        return layoutCache;
     }
 
     /**
@@ -462,7 +491,7 @@ public class LayoutManager {
      * This tells us how many SPIDs are reserved for layout content.
      */
     public int getContentPlaceholderCount(String layoutId) throws XMLParsingException {
-        LayoutInfo cached = layoutCache.get(layoutId);
+        LayoutInfo cached = layouts().get(layoutId);
         return cached != null ? cached.getContentPlaceholderCount() : 0;
     }
     

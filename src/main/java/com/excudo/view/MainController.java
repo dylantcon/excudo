@@ -243,6 +243,49 @@ public class MainController implements Initializable, OrchestrationStateListener
             }
         });
     }
+
+    // Slides restyled by theme/master/layout edits, gathered until the next
+    // FX pulse: one command (e.g. apply-theme) fires this per changed part.
+    private final java.util.Set<Integer> pendingRestyled = new java.util.TreeSet<>();
+    private boolean restyleRefreshQueued = false;
+
+    @Override
+    public void onSlidesRestyled(java.util.Set<Integer> slideNumbers) {
+        synchronized (pendingRestyled) {
+            pendingRestyled.addAll(slideNumbers);
+            if (restyleRefreshQueued) return;
+            restyleRefreshQueued = true;
+        }
+        Platform.runLater(this::refreshRestyledSlides);
+    }
+
+    /**
+     * Re-render the slide on screen if it inherited the change (staying on
+     * it), and refresh the explorer, whose titles and layout names may differ.
+     */
+    private void refreshRestyledSlides() {
+        java.util.Set<Integer> affected;
+        synchronized (pendingRestyled) {
+            affected = new java.util.TreeSet<>(pendingRestyled);
+            pendingRestyled.clear();
+            restyleRefreshQueued = false;
+        }
+        PPTXOrchestrator orch = getOrchestrator();
+        if (orch == null) return;
+        try {
+            if (explorerController != null) {
+                explorerController.updatePresentation(orch.getPresentationMetadata(), orch.getAllSlideMetadata());
+            }
+            if (editorController != null) {
+                int current = editorController.getCurrentSlideNumber();
+                if (current > 0 && affected.contains(current)) {
+                    editorController.loadSlide(current);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to refresh restyled slides: " + e.getMessage());
+        }
+    }
     
     // ========== INITIALIZATION ==========
     

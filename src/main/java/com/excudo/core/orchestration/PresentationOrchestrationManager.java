@@ -256,7 +256,7 @@ public class PresentationOrchestrationManager {
                 return Optional.empty();
             }
 
-            String slideTitle = "Slide " + slideNumber;
+            String slideTitle = com.excudo.core.model.SlideTitles.titleOf(context.getDocument(), slideNumber);
             int shapeCount = slideData.getShapeRegistry().getAllShapes().size();
             int animationCount = slideData.getAnimationBindings().size();
 
@@ -338,6 +338,11 @@ public class PresentationOrchestrationManager {
      *
      * @return true if bg1="dk1" (dark background), false otherwise
      */
+    /** Re-detect dark/light on next {@link #isDarkTheme()} (master or theme changed). */
+    public void invalidateDarkThemeCache() {
+        darkThemeCache = null;
+    }
+
     public boolean isDarkTheme() {
         // Check if SlideMasterOrchestrationManager invalidated our cache
         if (context != null && Boolean.TRUE.equals(context.getContextData().get("darkThemeCacheInvalid"))) {

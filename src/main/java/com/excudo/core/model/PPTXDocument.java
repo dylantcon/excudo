@@ -270,6 +270,49 @@ public class PPTXDocument implements AutoCloseable {
         int r = extractSlideRelsNumber(partName);
         if (r > 0) { bumpSlideRevision(r); return; }
         deckMutations.incrementAndGet();
+        if (isStylePart(partName)) notifyStylePartChanged(partName);
+    }
+
+    // ========== STYLE-PART CHANGE NOTIFICATION ==========
+    //
+    // Slides inherit from their layout, master, and theme, so a change to any
+    // of those restyles every slide that uses it. Listeners (the orchestrator)
+    // hear about each changed part and refresh their derived state; this fires
+    // on every put/remove/markDirty of such a part regardless of which code
+    // path made the edit. Fires per part -- listeners should only mark state
+    // stale here, and UI consumers should coalesce.
+
+    /** Receives the part name of a changed theme, master, or layout part (or its rels). */
+    @FunctionalInterface
+    public interface StylePartListener {
+        void onStylePartChanged(String partName);
+    }
+
+    private final java.util.List<StylePartListener> stylePartListeners =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public void addStylePartListener(StylePartListener listener) {
+        if (listener != null) stylePartListeners.add(listener);
+    }
+
+    public void removeStylePartListener(StylePartListener listener) {
+        stylePartListeners.remove(listener);
+    }
+
+    public static boolean isStylePart(String partName) {
+        return partName != null && (partName.startsWith("ppt/theme/")
+            || partName.startsWith("ppt/slideMasters/")
+            || partName.startsWith("ppt/slideLayouts/"));
+    }
+
+    private void notifyStylePartChanged(String partName) {
+        for (StylePartListener listener : stylePartListeners) {
+            try {
+                listener.onStylePartChanged(partName);
+            } catch (RuntimeException e) {
+                logger.warn("Style-part listener failed for {}: {}", partName, e.getMessage());
+            }
+        }
     }
 
     /**

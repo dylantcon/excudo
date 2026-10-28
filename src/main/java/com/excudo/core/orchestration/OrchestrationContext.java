@@ -68,7 +68,16 @@ public class OrchestrationContext {
     public ContextService getContextService() { return contextService; }
     public Instant getInitializationTime() { return initializationTime; }
     public Map<String, Object> getContextData() { return contextData; }
-    public PPTXDocumentParser.ParsedPresentationState getParsedState() { return parsedState; }
+    /**
+     * Current derived state (layouts, slide->layout map, ...). Read from the
+     * document's revision-keyed cache so it reflects slides created and
+     * layouts/masters edited after load; the load-time snapshot is only a
+     * fallback if re-parsing fails.
+     */
+    public PPTXDocumentParser.ParsedPresentationState getParsedState() {
+        PPTXDocumentParser.ParsedPresentationState live = document.getParsedState();
+        return live != null ? live : parsedState;
+    }
     public void setParsedState(PPTXDocumentParser.ParsedPresentationState state) { this.parsedState = state; }
 
     /**

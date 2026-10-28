@@ -42,6 +42,16 @@ public interface OrchestrationStateListener {
     default void onSlideModified(int slideNumber) {}
 
     /**
+     * Fired when a theme, slide master, or layout changed, which restyles
+     * every slide that inherits from it -- without the slides' own XML
+     * changing. Fires once per changed part, so a single command (e.g.
+     * apply-theme) can fire it many times; GUI implementers should coalesce.
+     *
+     * @param slideNumbers 1-based numbers of the affected slides
+     */
+    default void onSlidesRestyled(java.util.Set<Integer> slideNumbers) {}
+
+    /**
      * Fired when the global active-session pointer changes. The active
      * session is the one every console engine + GUI surface should
      * read from; this callback is the sole handoff between the engine

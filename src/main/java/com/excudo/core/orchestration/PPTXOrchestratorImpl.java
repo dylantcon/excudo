@@ -161,6 +161,15 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             this.slideMasterOrchestrationManager = new SlideMasterOrchestrationManager(context);
             this.utilityOrchestrationManager = new UtilityOrchestrationManager(this);
 
+            // Theme/master/layout edits restyle the slides that inherit from
+            // them: keep derived state in sync and notify listeners.
+            layoutManager.setRefreshSource(() -> {
+                var state = pptxDocument.getParsedState();
+                return state != null ? state.getLayouts() : null;
+            });
+            pptxDocument.addStylePartListener(new StylePropagator(
+                pptxDocument, context, slideMasterOrchestrationManager, presentationOrchestrationManager));
+
             logger.debug("Initialized orchestrator from PPTXDocument (fully in-memory, no stub dir)");
             return ExecutionResult.success("Initialize", context);
 

@@ -355,7 +355,8 @@ public class LLMOrchestrationManager {
             List<Integer> slideNumbers = (pptxDoc != null) ? pptxDoc.getSlideNumbers() : new ArrayList<>();
 
             for (int slideNumber : slideNumbers) {
-                slides.add(new SlideMetadata(slideNumber, "Slide " + slideNumber,
+                slides.add(new SlideMetadata(slideNumber,
+                    com.excudo.core.model.SlideTitles.titleOf(pptxDoc, slideNumber),
                     SlideType.CONTENT, 0, List.of(), 0, "Unknown Layout"));
             }
             return slides;

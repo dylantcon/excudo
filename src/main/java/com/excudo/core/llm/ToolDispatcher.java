@@ -1637,6 +1637,10 @@ public class ToolDispatcher {
             if (result == null) {
                 return "Error: createSlide returned null -- orchestrator may not be initialized";
             }
+            if (result.isSuccess()) {
+                // Same as CreateSlideCommand: let the GUI rebuild its slide list
+                com.excudo.core.orchestration.SessionManager.getInstance().firePresentationStructureChanged();
+            }
 
             int newSlideNumber = result.getSlideNumber();
             StringBuilder sb = new StringBuilder();

@@ -360,6 +360,22 @@ public class SessionManager {
     }
 
     /**
+     * Notify listeners that inherited styling (theme/master/layout) changed
+     * for these slides.
+     */
+    public void fireSlidesRestyled(java.util.Set<Integer> slideNumbers) {
+        if (slideNumbers == null || slideNumbers.isEmpty()) return;
+        java.util.Set<Integer> snapshot = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(slideNumbers));
+        for (OrchestrationStateListener listener : stateListeners) {
+            try {
+                listener.onSlidesRestyled(snapshot);
+            } catch (RuntimeException e) {
+                logger.warn("State listener threw during onSlidesRestyled: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Shutdown session manager and cleanup all sessions
      */
     public void shutdown() {
