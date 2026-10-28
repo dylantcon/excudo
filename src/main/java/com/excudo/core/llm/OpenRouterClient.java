@@ -99,15 +99,18 @@ public class OpenRouterClient extends LLMClient {
                     ? response.substring(0, 2000) + "..." : response);
                 return parseResponse(response);
             } else {
-                String error = readResponseStream(conn.getErrorStream());
+                // Thrown, not returned as text: callers must not mistake an
+                // error body for the model's reply.
+                String error = conn.getErrorStream() != null ? readResponseStream(conn.getErrorStream()) : "";
                 logger.error("OpenRouter returned HTTP {}: {}", code, error);
-                return List.of(new APIResponse(
-                    "text", "OpenRouter error " + code + ": " + error, null, null, null));
+                String hint = code == 401 ? "\nThe API key was rejected; check OPENROUTER_API_KEY." : "";
+                throw new LLMApiException("OpenRouter error " + code + ": " + error + hint, code);
             }
+        } catch (LLMApiException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("OpenRouter request failed: {}", e.getMessage());
-            return List.of(new APIResponse(
-                "text", "OpenRouter error: " + e.getMessage(), null, null, null));
+            throw new LLMApiException("OpenRouter request failed: " + e.getMessage(), e);
         }
     }
 

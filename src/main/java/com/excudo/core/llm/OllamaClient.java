@@ -116,22 +116,18 @@ public class OllamaClient extends LLMClient {
                 String response = readResponse(conn.getInputStream());
                 return parseResponse(response);
             } else {
-                String error = readResponse(conn.getErrorStream());
-                List<LLMClient.APIResponse> errors = new ArrayList<>();
-                errors.add(new LLMClient.APIResponse(
-                    "text", "Ollama error " + code + ": " + error, null, null, null));
-                return errors;
+                // Thrown, not returned as text: callers must not mistake an
+                // error body for the model's reply.
+                String error = conn.getErrorStream() != null ? readResponse(conn.getErrorStream()) : "";
+                throw new LLMApiException("Ollama error " + code + ": " + error, code);
             }
+        } catch (LLMApiException e) {
+            throw e;
         } catch (ConnectException e) {
-            List<LLMClient.APIResponse> errors = new ArrayList<>();
-            errors.add(new LLMClient.APIResponse(
-                "text", "Cannot connect to Ollama at " + baseUrl, null, null, null));
-            return errors;
+            throw new LLMApiException("Cannot connect to Ollama at " + baseUrl
+                + " (is it running? check OLLAMA_BASE_URL)", e);
         } catch (Exception e) {
-            List<LLMClient.APIResponse> errors = new ArrayList<>();
-            errors.add(new LLMClient.APIResponse(
-                "text", "Ollama error: " + e.getMessage(), null, null, null));
-            return errors;
+            throw new LLMApiException("Ollama request failed: " + e.getMessage(), e);
         }
     }
 
