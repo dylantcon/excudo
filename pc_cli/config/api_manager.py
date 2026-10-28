@@ -13,6 +13,8 @@ from typing import Optional, Dict, Any
 import re
 
 
+DEFAULT_MODEL = "claude-opus-5-5"
+
 class APIConfigManager:
     """Manages API keys and configuration for distribution-ready deployment"""
     
@@ -66,13 +68,13 @@ class APIConfigManager:
         # Model Selection
         print("\n📋 STEP 3: Model Selection (Optional)")
         print("-" * 35)
-        print("Default: claude-3-5-sonnet-20241022 (recommended)")
+        print(f"Default: {DEFAULT_MODEL} (recommended)")
         print("Advanced users can specify a different Claude model.")
         print()
         
-        model = input("Claude model [claude-3-5-sonnet-20241022]: ").strip()
+        model = input(f"Claude model [{DEFAULT_MODEL}]: ").strip()
         if not model:
-            model = "claude-3-5-sonnet-20241022"
+            model = DEFAULT_MODEL
             
         # Extended Thinking
         print("\n📋 STEP 4: Extended Thinking (Optional)")
@@ -181,7 +183,8 @@ class APIConfigManager:
                 
     def _validate_anthropic_key(self, key: str) -> bool:
         """Validate Anthropic API key format"""
-        return bool(re.match(r'^sk-ant-api03-[A-Za-z0-9_-]{95}$', key))
+        # Prefix + plausible length only; exact lengths have changed over time.
+        return bool(re.match(r'^sk-ant-[A-Za-z0-9_-]{20,}$', key))
         
     def _validate_freepik_key(self, key: str) -> bool:
         """Validate Freepik API key format"""
@@ -190,17 +193,13 @@ class APIConfigManager:
     def _test_anthropic_api(self, api_key: str) -> tuple[bool, Optional[str]]:
         """Test Anthropic API key with a simple request"""
         try:
-            response = requests.post(
-                "https://api.anthropic.com/v1/messages",
+            # Listing models authenticates the key without spending tokens and
+            # without depending on any particular model still being available.
+            response = requests.get(
+                "https://api.anthropic.com/v1/models",
                 headers={
                     "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": "claude-3-5-sonnet-20241022",
-                    "max_tokens": 10,
-                    "messages": [{"role": "user", "content": "Hello"}]
                 },
                 timeout=10
             )
