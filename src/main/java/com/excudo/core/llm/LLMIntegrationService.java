@@ -491,8 +491,23 @@ public class LLMIntegrationService {
                                          CommandFactory commandFactory, CommandInvoker commandInvoker,
                                          CommandDisplay displayAdapter,
                                          AgenticLLMService.ProgressListener progressListener) {
+        return processRequestAgenticWithUsage(userRequest, orchestrator, llmClient,
+            commandFactory, commandInvoker, displayAdapter, progressListener, null);
+    }
+
+    /**
+     * @param conversation arrange-mode memory to continue, or null for a
+     *                     one-off request with no history
+     */
+    public AgenticLLMService.AgenticResult processRequestAgenticWithUsage(String userRequest,
+                                         PPTXOrchestrator orchestrator, LLMClient llmClient,
+                                         CommandFactory commandFactory, CommandInvoker commandInvoker,
+                                         CommandDisplay displayAdapter,
+                                         AgenticLLMService.ProgressListener progressListener,
+                                         ArrangeConversation conversation) {
         AgenticLLMService agenticService = new AgenticLLMService(
             llmClient, orchestrator, commandFactory, commandInvoker);
+        agenticService.setConversation(conversation);
         agenticService.setDisplayAdapter(displayAdapter);
         if (progressListener != null) {
             agenticService.setProgressListener(progressListener);

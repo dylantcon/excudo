@@ -498,6 +498,15 @@ public class LLMConsoleHandler implements LLMHandler {
             String request, CommandInvoker commandInvoker,
             com.excudo.core.commands.CommandDisplay displayAdapter,
             AgenticLLMService.ProgressListener progressListener) throws Exception {
+        return processEditRequestAgenticWithUsage(request, commandInvoker, displayAdapter,
+            progressListener, null);
+    }
+
+    public AgenticLLMService.AgenticResult processEditRequestAgenticWithUsage(
+            String request, CommandInvoker commandInvoker,
+            com.excudo.core.commands.CommandDisplay displayAdapter,
+            AgenticLLMService.ProgressListener progressListener,
+            com.excudo.core.llm.ArrangeConversation conversation) throws Exception {
         if (apiClient == null) {
             throw new Exception("LLM client not initialized. Use 'llm config set' to configure.");
         }
@@ -505,7 +514,7 @@ public class LLMConsoleHandler implements LLMHandler {
             new com.excudo.core.commands.CommandFactory(orchestrator);
         return llmService.processRequestAgenticWithUsage(
             request, orchestrator, apiClient, commandFactory, commandInvoker,
-            (com.excudo.core.commands.CommandDisplay) displayAdapter, progressListener);
+            displayAdapter, progressListener, conversation);
     }
 
     @Override

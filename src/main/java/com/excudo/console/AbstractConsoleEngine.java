@@ -124,6 +124,8 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
 
     // Arrange mode state
     protected boolean arrangeMode = false;
+    // Transient agent memory for the current arrange session
+    protected com.excudo.core.llm.ArrangeConversation arrangeConversation;
 
     // MCP server mode state. Null when not serving; holds the live
     // transport reference while a server is running so /exit can stop it
@@ -195,14 +197,23 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
             displayMessage("         Consider using 'llm edit <request>' for single-step edits instead.");
         }
         this.arrangeMode = true;
+        this.arrangeConversation = new com.excudo.core.llm.ArrangeConversation();
         displaySuccess("Entered arrange mode. Type or paste, then press Enter on a blank line to send.");
-        displayMessage("  /exit       - leave arrange mode");
+        displayMessage("  The agent remembers this conversation until you leave arrange mode.");
+        displayMessage("  /exit       - leave arrange mode (forgets the conversation)");
+        displayMessage("  /clear      - forget the conversation and start fresh");
         displayMessage("  /<command>  - run a console command directly");
     }
 
     public void exitArrangeMode() {
         this.arrangeMode = false;
+        this.arrangeConversation = null;
         displaySuccess("Exited arrange mode.");
+    }
+
+    /** Arrange-mode memory, or null outside arrange mode. */
+    public com.excudo.core.llm.ArrangeConversation getArrangeConversation() {
+        return arrangeConversation;
     }
 
     /**
@@ -239,12 +250,22 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                 };
 
             com.excudo.core.llm.AgenticLLMService.AgenticResult result =
-                llmHandler.processEditRequestAgenticWithUsage(input, invoker, this, progressListener);
+                llmHandler.processEditRequestAgenticWithUsage(input, invoker, this, progressListener,
+                    arrangeConversation);
             displayMessage(result.summary());
             if (result.inputTokens() > 0 || result.outputTokens() > 0) {
                 String tokenInfo = "Tokens: " + result.inputTokens() + " in / " + result.outputTokens() + " out";
                 if (result.cost() > 0) {
                     tokenInfo += String.format(" ($%.4f)", result.cost());
+                }
+                if (arrangeConversation != null && arrangeConversation.getTurnCount() > 1) {
+                    tokenInfo += String.format("  |  session: %d turns, %d in / %d out",
+                        arrangeConversation.getTurnCount(),
+                        arrangeConversation.getTotalInputTokens(),
+                        arrangeConversation.getTotalOutputTokens());
+                    if (arrangeConversation.getTotalCost() > 0) {
+                        tokenInfo += String.format(" ($%.4f)", arrangeConversation.getTotalCost());
+                    }
                 }
                 displayStyled(tokenInfo, ConsoleStyle.DIM);
             }
@@ -407,10 +428,20 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
                 exitArrangeMode();
                 return;
             }
+            if (commandString.equals("/clear")) {
+                if (arrangeConversation != null) arrangeConversation.clear();
+                displaySuccess("Conversation cleared. The agent starts fresh on your next message "
+                    + "(the command reference it already loaded is kept).");
+                return;
+            }
             if (commandString.startsWith("/")) {
                 // Strip leading slash and route to normal command pipeline
                 String normalCommand = commandString.substring(1);
                 executeCommandNormal(normalCommand);
+                // Tell the agent, so it doesn't act on a stale picture of the deck
+                if (arrangeConversation != null && !arrangeConversation.isEmpty()) {
+                    arrangeConversation.addNote("The user ran the console command: " + normalCommand.trim());
+                }
                 return;
             }
             // Raw text -> agentic LLM

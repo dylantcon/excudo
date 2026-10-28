@@ -111,7 +111,9 @@ public final class HelpCatalog {
         out.add("");
         out.add("Arrange mode (AI agentic editing):");
         out.add("  arrange        Enter arrange mode: type a request, blank line to send.");
-        out.add("                 Inside it, /exit leaves and /<command> runs a console command.");
+        out.add("                 The agent remembers the conversation until you leave.");
+        out.add("                 Inside it: /exit leaves, /clear forgets the conversation,");
+        out.add("                 /<command> runs a console command (the agent is told about it).");
         out.add("  arrange mcp    Start the in-process MCP HTTP server.");
         out.add("");
         out.add("Categories: " + categoryTopicList());

@@ -93,6 +93,9 @@ public class AgenticLLMService {
     // Session-level guard: once 'new' has been called, block all subsequent 'new' calls
     private boolean presentationCreated = false;
 
+    // Arrange-mode memory across turns; null = single-shot request
+    private ArrangeConversation conversation;
+
     // Training data capture
     private List<Map<String, Object>> lastConversation;
     private String lastSystemPrompt;
@@ -138,12 +141,42 @@ public class AgenticLLMService {
      * Process a user request and return both the summary and token usage.
      */
     public AgenticResult processRequestWithUsage(String userRequest) {
-        AgenticResult result = processRequestInternal(userRequest);
-        dumpTrainingData();
-        return result;
+        if (conversation == null) {
+            AgenticResult result = processRequestInternal(userRequest,
+                new ArrayList<>(), new LinkedHashSet<>());
+            dumpTrainingData();
+            return result;
+        }
+
+        // Multi-turn: continue the session's history. On failure, roll back
+        // to the last completed turn so no dangling tool_use survives.
+        conversation.trimToRecentTurns(ArrangeConversation.MAX_REMEMBERED_TURNS);
+        int checkpoint = conversation.checkpoint();
+        try {
+            AgenticResult result = processRequestInternal(
+                conversation.notesPrefix() + userRequest,
+                conversation.messages(), conversation.activeToolNames());
+            conversation.clearNotes();
+            conversation.completeTurn(result.inputTokens(), result.outputTokens(), result.cost());
+            dumpTrainingData();
+            return result;
+        } catch (RuntimeException e) {
+            conversation.rollbackTo(checkpoint);
+            throw e;
+        }
     }
 
-    private AgenticResult processRequestInternal(String userRequest) {
+    /**
+     * Attach session memory: later {@link #processRequestWithUsage} calls
+     * continue this conversation instead of starting fresh.
+     */
+    public void setConversation(ArrangeConversation conversation) {
+        this.conversation = conversation;
+    }
+
+    private AgenticResult processRequestInternal(String userRequest,
+                                                 List<Map<String, Object>> messages,
+                                                 Set<String> activeToolNames) {
         boolean smallModel = llmClient.isLocalModel();
         boolean hasPresentation = getContextService() != null;
         presentationCreated = hasPresentation; // Lock 'new' if presentation already exists
@@ -159,7 +192,6 @@ public class AgenticLLMService {
 
         // For small models: use flat tool set (no deferred pattern).
         // For full models: start with core tools only; deferred tools are discovered on demand.
-        Set<String> activeToolNames = new LinkedHashSet<>();
         String toolsJson;
         if (smallModel) {
             toolsJson = LLMToolDefinitions.toSmallModelToolsJson();
@@ -168,8 +200,7 @@ public class AgenticLLMService {
         }
         boolean toolsJsonDirty = false;
 
-        // Conversation history - starts with the user request as a simple string message
-        List<Map<String, Object>> messages = new ArrayList<>();
+        // This turn's request, as a plain-string user message (turn boundary)
         messages.add(Map.of("role", "user", "content", userRequest));
 
         // Capture for training data export
@@ -206,8 +237,7 @@ public class AgenticLLMService {
             accumulateTokenUsage();
 
             if (responses == null || responses.isEmpty()) {
-                return new AgenticResult("Error: No response from LLM",
-                    cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+                return endTurn(messages, "Error: No response from LLM");
             }
 
             // Check for model-side errors (e.g. Gemini MALFORMED_FUNCTION_CALL).
@@ -222,10 +252,9 @@ public class AgenticLLMService {
                 logger.warn("Model-side error on round {} (retry {}/{}): {}",
                     round + 1, modelRetries, MAX_MODEL_RETRIES, responses.get(0).content());
                 if (modelRetries > MAX_MODEL_RETRIES) {
-                    return new AgenticResult(
+                    return endTurn(messages,
                         "Model repeatedly failed to generate valid tool calls after "
-                        + MAX_MODEL_RETRIES + " retries. Try a different model or simplify the request.",
-                        cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+                        + MAX_MODEL_RETRIES + " retries. Try a different model or simplify the request.");
                 }
                 if (progressListener != null) {
                     progressListener.onProgress(round + 1, maxRounds, "retry",
@@ -234,10 +263,10 @@ public class AgenticLLMService {
                 // Feed the error back to the model so it can reformulate
                 messages.add(Map.of("role", "assistant", "content",
                     "I attempted a function call but it was malformed."));
-                messages.add(Map.of("role", "user", "content",
+                messages.add(Map.of("role", "user", "content", List.of(Map.of("type", "text", "text",
                     "Your function call was malformed. Do not apologize. "
                     + "Escape special characters in parameters, use smaller batches, "
-                    + "and immediately try again."));
+                    + "and immediately try again."))));
                 round--; // Don't count this as a used round
                 continue;
             }
@@ -253,8 +282,7 @@ public class AgenticLLMService {
                         result.append(r.content());
                     }
                 }
-                return new AgenticResult(result.toString(),
-                    cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+                return endTurn(messages, result.toString());
             }
 
             // Append assistant's turn (may contain both text and tool_use blocks)
@@ -276,6 +304,7 @@ public class AgenticLLMService {
                         messages.add(buildToolResultMessage(response.toolUseId(), toolResult));
                     } else {
                         String toolResult = toolDispatcher.dispatch(response.toolName(), response.toolInput());
+                        rememberReference(response.toolName(), toolResult);
                         toolResult = truncateToolResult(toolResult);
                         messages.add(buildToolResultMessage(response.toolUseId(), toolResult));
                         // Sync orchestrator reference back in case a 'new' command updated it
@@ -320,9 +349,47 @@ public class AgenticLLMService {
      * what remains. The LLM has full conversation context so it produces
      * a much better report than we could assemble mechanically.
      */
+    /**
+     * Keep command-reference lookups in the conversation's reference store
+     * (separate from the history) so later turns don't re-fetch them.
+     * Entries are regenerated from the live schemas, keyed by the command
+     * names that appear as "name:" headers in the tool output.
+     */
+    private void rememberReference(String toolName, String toolResult) {
+        if (conversation == null || toolResult == null) return;
+        if ("list_commands".equals(toolName)) {
+            conversation.markCommandListLoaded();
+        } else if ("get_command_schemas".equals(toolName)) {
+            for (String line : toolResult.split("\n")) {
+                if (line.isEmpty() || Character.isWhitespace(line.charAt(0)) || !line.endsWith(":")) continue;
+                String name = line.substring(0, line.length() - 1);
+                com.excudo.core.parsing.CommandSchema schema =
+                    com.excudo.core.parsing.CommandRegistry.getSchema(name);
+                if (schema != null && name.equals(schema.getName())) {
+                    conversation.rememberCommandReference(name, ToolDispatcher.formatCommandSchema(schema));
+                }
+            }
+        }
+    }
+
+    /**
+     * Finish the turn: record the assistant's final reply in the history (so
+     * the next turn sees it and roles keep alternating) and package the result.
+     */
+    private AgenticResult endTurn(List<Map<String, Object>> messages, String summary) {
+        // The API rejects empty assistant content; never store a blank reply.
+        String text = (summary == null || summary.isBlank()) ? "(no reply)" : summary;
+        messages.add(Map.of("role", "assistant", "content", text));
+        return new AgenticResult(summary == null ? "" : summary,
+            cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+    }
+
     private AgenticResult requestBudgetSummary(String systemPrompt,
                                                 List<Map<String, Object>> messages) {
-        messages.add(Map.of("role", "user", "content", BUDGET_SUMMARY_PROMPT));
+        // Marked as a block list so it isn't mistaken for a turn boundary
+        // (plain-string user content) when trimming old turns.
+        messages.add(Map.of("role", "user", "content",
+            List.of(Map.of("type", "text", "text", BUDGET_SUMMARY_PROMPT))));
 
         try {
             // Send without tools so the LLM is forced to respond with text
@@ -338,8 +405,7 @@ public class AgenticLLMService {
                     }
                 }
                 if (!result.isEmpty()) {
-                    return new AgenticResult(result.toString(),
-                        cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+                    return endTurn(messages, result.toString());
                 }
             }
         } catch (Exception e) {
@@ -347,10 +413,9 @@ public class AgenticLLMService {
         }
 
         // Fallback if the summary call itself fails
-        return new AgenticResult(
+        return endTurn(messages,
             "The agent used its full tool budget on this request. "
-            + "Send a follow-up message to continue where it left off.",
-            cumulativeInputTokens, cumulativeOutputTokens, cumulativeCost);
+            + "Send a follow-up message to continue where it left off.");
     }
 
     private static final String BUDGET_SUMMARY_PROMPT =
@@ -444,6 +509,12 @@ public class AgenticLLMService {
             JsonObject entry = new JsonObject();
             entry.addProperty("timestamp", java.time.Instant.now().toString());
             entry.addProperty("model", lastModelId != null ? lastModelId : "unknown");
+            if (conversation != null) {
+                // Each turn re-dumps the whole history; consumers keep the
+                // highest turn per conversation_id.
+                entry.addProperty("conversation_id", conversation.getId());
+                entry.addProperty("turn", conversation.getTurnCount());
+            }
             entry.addProperty("input_tokens", cumulativeInputTokens);
             entry.addProperty("output_tokens", cumulativeOutputTokens);
             entry.addProperty("cost", cumulativeCost);
@@ -509,6 +580,16 @@ public class AgenticLLMService {
         }
 
         sb.append("COORDINATES: 914400 EMU = 1 inch. Slide = 9144000 x 6858000 EMU.");
+
+        if (conversation != null) {
+            String reference = conversation.referencePromptSection();
+            if (!reference.isEmpty()) {
+                sb.append("\n\n").append(reference.strip());
+                sb.append("\n\nThis is a continuing conversation: the first steps above are only ")
+                  .append("needed for commands NOT in the loaded reference. Still re-check slide ")
+                  .append("state (get_presentation_overview / get_slide_shapes) when it may have changed.");
+            }
+        }
         return sb.toString();
     }
 
@@ -698,9 +779,11 @@ public class AgenticLLMService {
                 for (Map.Entry<String, Object> entry : block.entrySet()) {
                     Object val = entry.getValue();
                     if (val instanceof String sVal) {
-                        // Embed raw JSON objects/arrays verbatim (e.g. tool_use input)
-                        if ((sVal.startsWith("{") && sVal.endsWith("}"))
-                                || (sVal.startsWith("[") && sVal.endsWith("]"))) {
+                        // Only tool_use.input is a JSON object. Text and
+                        // tool_result content must stay strings even when they
+                        // look like JSON, or the API rejects the request.
+                        if ("input".equals(entry.getKey())
+                                && sVal.startsWith("{") && sVal.endsWith("}")) {
                             try {
                                 obj.add(entry.getKey(), JsonParser.parseString(sVal));
                             } catch (JsonSyntaxException e) {

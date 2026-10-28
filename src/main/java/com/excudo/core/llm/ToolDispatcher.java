@@ -469,6 +469,33 @@ public class ToolDispatcher {
         return sb.toString();
     }
 
+    /**
+     * One command's parameter reference as the agent sees it. Shared with
+     * arrange-mode memory, which keeps fetched entries across turns.
+     */
+    public static String formatCommandSchema(com.excudo.core.parsing.CommandSchema schema) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(schema.getName()).append(":\n");
+        for (com.excudo.core.parsing.Parameter<?> p : schema.getParameters()) {
+            sb.append("  ").append(p.getEffectiveLlmName());
+            sb.append(" (").append(p.getType()).append(")");
+            if (p.isRequired()) sb.append(" REQUIRED");
+            if (p.getDefaultValue() != null) sb.append(" default=").append(p.getDefaultValue());
+            if (p.getValidValues() != null && !p.getValidValues().isEmpty()) {
+                sb.append(" values=[").append(String.join("|", p.getValidValues())).append("]");
+            }
+            if (p.getDescription() != null && !p.getDescription().isEmpty()) {
+                sb.append(" -- ").append(p.getDescription());
+            }
+            sb.append("\n");
+        }
+        String llmDesc = schema.getLlmDescription();
+        if (llmDesc != null && !llmDesc.isEmpty()) {
+            sb.append("  NOTE: ").append(llmDesc).append("\n");
+        }
+        return sb.toString();
+    }
+
     private String handleGetCommandSchemas(String toolInput) {
         try {
             // Check if specific commands were requested (string, array, or omitted)
@@ -499,27 +526,7 @@ public class ToolDispatcher {
                 if (!schema.isLlmEnabled()) continue;
                 if (requested != null && !requested.contains(schema.getName())) continue;
                 matched.add(schema.getName());
-
-                sb.append(schema.getName()).append(":\n");
-                for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
-                    String llmName = p.getEffectiveLlmName();
-                    sb.append("  ").append(llmName);
-                    sb.append(" (").append(p.getType()).append(")");
-                    if (p.isRequired()) sb.append(" REQUIRED");
-                    if (p.getDefaultValue() != null) sb.append(" default=").append(p.getDefaultValue());
-                    if (p.getValidValues() != null && !p.getValidValues().isEmpty()) {
-                        sb.append(" values=[").append(String.join("|", p.getValidValues())).append("]");
-                    }
-                    if (p.getDescription() != null && !p.getDescription().isEmpty()) {
-                        sb.append(" -- ").append(p.getDescription());
-                    }
-                    sb.append("\n");
-                }
-                String llmDesc = schema.getLlmDescription();
-                if (llmDesc != null && !llmDesc.isEmpty()) {
-                    sb.append("  NOTE: ").append(llmDesc).append("\n");
-                }
-                sb.append("\n");
+                sb.append(formatCommandSchema(schema)).append("\n");
             }
 
             // If the caller asked for specific names and any didn't match,
