@@ -26,12 +26,6 @@ class SlideLayoutParserTest {
         documentBuilder = XMLFactoryProvider.createDocumentBuilder();
     }
 
-    @AfterEach
-    void resetParser() {
-        // Re-initialize with null PPTXDocument to clear static state between tests
-        SlideLayoutParser.initialize(PPTXDocument.createEmpty());
-    }
-
     private PPTXDocument buildPptxDocument() throws Exception {
         PPTXDocument doc = PPTXDocument.createEmpty();
 
@@ -105,32 +99,30 @@ class SlideLayoutParserTest {
         return doc;
     }
 
-    // ========== INITIALIZATION AND EDGE CASES ==========
+    private static SlideLayoutParser layouts(PPTXDocument doc) {
+        return SlideLayoutParser.forDocument(doc);
+    }
+
+    // ========== EDGE CASES ==========
 
     @Test
-    @DisplayName("getPlaceholderGeometry returns null when not initialized")
-    void testNotInitialized() {
-        SlideLayoutParser.initialize(PPTXDocument.createEmpty());
-        ShapeGeometry geo = SlideLayoutParser.getPlaceholderGeometry("title", "", 1);
-        assertNull(geo, "Should return null when not initialized");
+    @DisplayName("getPlaceholderGeometry returns null for an empty deck")
+    void testEmptyDeck() {
+        assertNull(layouts(PPTXDocument.createEmpty()).getPlaceholderGeometry("title", "", 1));
     }
 
     @Test
-    @DisplayName("Legacy getPlaceholderGeometry always returns null")
-    void testLegacyMethodReturnsNull() {
-        ShapeGeometry geo = SlideLayoutParser.getPlaceholderGeometry("title", "");
-        assertNull(geo, "Legacy method should always return null");
+    @DisplayName("forDocument(null) and foreign DOMs have no layout parser")
+    void testNoOwner() throws Exception {
+        assertNull(SlideLayoutParser.forDocument(null));
+        org.w3c.dom.Document foreign = documentBuilder.newDocument();
+        assertNull(SlideLayoutParser.forNode(foreign), "a DOM not handed out by a PPTXDocument has no owner");
     }
 
     @Test
     @DisplayName("getPlaceholderGeometry returns null for missing slide rels")
-    void testMissingSlideRels() throws Exception {
-        // PPTXDocument with no slide rels
-        PPTXDocument doc = PPTXDocument.createEmpty();
-        SlideLayoutParser.initialize(doc);
-
-        ShapeGeometry geo = SlideLayoutParser.getPlaceholderGeometry("title", "", 99);
-        assertNull(geo, "Should return null when slide rels are missing");
+    void testMissingSlideRels() {
+        assertNull(layouts(PPTXDocument.createEmpty()).getPlaceholderGeometry("title", "", 99));
     }
 
     // ========== SYNTHETIC LAYOUT TESTS ==========
@@ -138,10 +130,7 @@ class SlideLayoutParserTest {
     @Test
     @DisplayName("Resolves placeholder geometry from synthetic layout")
     void testResolvePlaceholderGeometry() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        ShapeGeometry geo = SlideLayoutParser.getPlaceholderGeometry("title", "", 1);
+        ShapeGeometry geo = layouts(buildPptxDocument()).getPlaceholderGeometry("title", "", 1);
         assertNotNull(geo, "Should resolve title placeholder geometry");
         assertEquals(457200, geo.getX());
         assertEquals(274638, geo.getY());
@@ -152,22 +141,46 @@ class SlideLayoutParserTest {
     @Test
     @DisplayName("Caches layout geometry across repeated calls")
     void testLayoutCaching() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        ShapeGeometry first = SlideLayoutParser.getPlaceholderGeometry("title", "", 1);
-        ShapeGeometry second = SlideLayoutParser.getPlaceholderGeometry("title", "", 1);
+        SlideLayoutParser parser = layouts(buildPptxDocument());
+        ShapeGeometry first = parser.getPlaceholderGeometry("title", "", 1);
         assertNotNull(first);
-        assertSame(first, second, "Second call should return cached geometry");
+        assertSame(first, parser.getPlaceholderGeometry("title", "", 1), "Second call should return cached geometry");
+    }
+
+    @Test
+    @DisplayName("A layout edit refreshes cached geometry")
+    void testCacheRefreshesAfterLayoutEdit() throws Exception {
+        PPTXDocument doc = buildPptxDocument();
+        assertEquals(457200, layouts(doc).getPlaceholderGeometry("title", "", 1).getX());
+
+        org.w3c.dom.Document layout = doc.getXmlPart("ppt/slideLayouts/slideLayout1.xml");
+        org.w3c.dom.Element off = (org.w3c.dom.Element) layout.getElementsByTagNameNS(
+            "http://schemas.openxmlformats.org/drawingml/2006/main", "off").item(0);
+        off.setAttribute("x", "999");
+        doc.markDirty("ppt/slideLayouts/slideLayout1.xml");
+
+        assertEquals(999, layouts(doc).getPlaceholderGeometry("title", "", 1).getX());
+    }
+
+    @Test
+    @DisplayName("Two open decks never see each other's layouts")
+    void testDecksAreIsolated() throws Exception {
+        PPTXDocument a = buildPptxDocument();
+        PPTXDocument b = buildPptxDocument();
+        org.w3c.dom.Element offB = (org.w3c.dom.Element) b.getXmlPart("ppt/slideLayouts/slideLayout1.xml")
+            .getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/main", "off").item(0);
+        offB.setAttribute("x", "12345");
+        b.markDirty("ppt/slideLayouts/slideLayout1.xml");
+
+        assertEquals(457200, layouts(a).getPlaceholderGeometry("title", "", 1).getX());
+        assertEquals(12345, layouts(b).getPlaceholderGeometry("title", "", 1).getX());
+        assertEquals(457200, layouts(a).getPlaceholderGeometry("title", "", 1).getX(), "deck A unaffected by deck B");
     }
 
     @Test
     @DisplayName("Resolves body placeholder by idx")
     void testBodyPlaceholderByIdx() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        ShapeGeometry geo = SlideLayoutParser.getPlaceholderGeometry("body", "1", 1);
+        ShapeGeometry geo = layouts(buildPptxDocument()).getPlaceholderGeometry("body", "1", 1);
         assertNotNull(geo, "Should resolve body placeholder geometry");
         assertEquals(457200, geo.getX());
         assertEquals(1600200, geo.getY());
@@ -178,21 +191,13 @@ class SlideLayoutParserTest {
     @Test
     @DisplayName("layoutHasTitlePlaceholder detects title in layout")
     void testLayoutHasTitlePlaceholder() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        assertTrue(SlideLayoutParser.layoutHasTitlePlaceholder("ppt/slideLayouts/slideLayout1.xml"),
-            "Layout with title placeholder should return true");
+        assertTrue(layouts(buildPptxDocument()).layoutHasTitlePlaceholder("ppt/slideLayouts/slideLayout1.xml"));
     }
 
     @Test
     @DisplayName("layoutHasTitlePlaceholder returns false for non-existent part")
-    void testLayoutHasTitlePlaceholderMissingFile() throws Exception {
-        PPTXDocument doc = PPTXDocument.createEmpty();
-        SlideLayoutParser.initialize(doc);
-
-        assertFalse(SlideLayoutParser.layoutHasTitlePlaceholder("ppt/slideLayouts/nonexistent.xml"),
-            "Non-existent part should return false");
+    void testLayoutHasTitlePlaceholderMissingFile() {
+        assertFalse(layouts(PPTXDocument.createEmpty()).layoutHasTitlePlaceholder("ppt/slideLayouts/nonexistent.xml"));
     }
 
     @Test
@@ -212,45 +217,30 @@ class SlideLayoutParserTest {
                   </p:spTree></p:cSld>
                 </p:sldLayout>
                 """))));
-        SlideLayoutParser.initialize(doc);
-
-        assertFalse(SlideLayoutParser.layoutHasTitlePlaceholder("ppt/slideLayouts/noTitle.xml"),
-            "Layout without title/ctrTitle should return false");
+        assertFalse(layouts(doc).layoutHasTitlePlaceholder("ppt/slideLayouts/noTitle.xml"));
     }
 
     @Test
     @DisplayName("slideLayoutHasTitlePlaceholder resolves via slide number")
     void testSlideLayoutHasTitlePlaceholderBySlideNumber() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        assertTrue(SlideLayoutParser.slideLayoutHasTitlePlaceholder(1),
-            "Slide 1 uses a layout with title placeholder");
+        assertTrue(layouts(buildPptxDocument()).slideLayoutHasTitlePlaceholder(1));
     }
 
     @Test
     @DisplayName("slideLayoutHasTitlePlaceholder returns false for missing slide")
     void testSlideLayoutHasTitlePlaceholderMissingSlide() throws Exception {
-        PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
-
-        assertFalse(SlideLayoutParser.slideLayoutHasTitlePlaceholder(99),
-            "Non-existent slide should return false");
+        assertFalse(layouts(buildPptxDocument()).slideLayoutHasTitlePlaceholder(99));
     }
 
     // ========== parseSlide WITH PPTXDocument ==========
 
     @Test
-    @DisplayName("parseSlide(Document, int) parses slide successfully")
+    @DisplayName("parseSlide(Document, int) reaches the owning deck's layout")
     void testParseSlideWithPptxDocument() throws Exception {
         PPTXDocument doc = buildPptxDocument();
-        SlideLayoutParser.initialize(doc);
+        var result = new SlideXMLParser().parseSlide(doc.getSlideDocument(1), 1);
 
-        SlideXMLParser parser = new SlideXMLParser();
-        org.w3c.dom.Document slideDoc = doc.getXmlPart("ppt/slides/slide1.xml");
-        var result = parser.parseSlide(slideDoc, 1);
-
-        assertNotNull(result, "Should parse slide successfully");
         assertNotNull(result.getShapeRegistry(), "Should have a shape registry");
+        assertEquals("slideLayout1", result.getLayoutId(), "layout resolved through the slide DOM's owner");
     }
 }

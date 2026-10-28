@@ -121,8 +121,8 @@ public final class ShapeStyleExtractor {
                 if (schemeClr != null && schemeClr.hasAttribute("val")) {
                     String phColorHex = slideCtx.resolveSchemeColor(schemeClr.getAttribute("val"));
 
-                    if (idx > 0 && ThemeManager.isThemeLoaded()) {
-                        ResolvedFill resolved = ThemeManager.resolveFillStyle(idx, phColorHex);
+                    if (idx > 0 && ThemeManager.forDocument(slideCtx.getDocument()).isThemeLoaded()) {
+                        ResolvedFill resolved = ThemeManager.forDocument(slideCtx.getDocument()).resolveFillStyle(idx, phColorHex);
                         return convertToSurfacePaint(resolved, aspectW, aspectH);
                     }
 
@@ -205,9 +205,9 @@ public final class ShapeStyleExtractor {
                     phAlpha = rc.alpha();
                 }
 
-                if (idx > 0 && ThemeManager.isThemeLoaded()) {
+                if (idx > 0 && ThemeManager.forDocument(slideCtx.getDocument()).isThemeLoaded()) {
                     FmtSchemeResolver.ResolvedLineStyle resolved =
-                        ThemeManager.resolveLineStyle(idx, phColorHex);
+                        ThemeManager.forDocument(slideCtx.getDocument()).resolveLineStyle(idx, phColorHex);
                     SurfacePaint.Solid lineColor = solidFromHex(resolved.colorHex());
                     double alpha = resolved.alpha() * phAlpha;
                     if (alpha < 1.0) {
@@ -863,7 +863,7 @@ public final class ShapeStyleExtractor {
 
     /** Shadow from p:style effectRef via the theme effectStyleLst, or null. */
     private static ShadowStyle resolveStyleRefShadow(SlideShape shape, SlideRenderContext slideCtx) {
-        if (slideCtx == null || !ThemeManager.isThemeLoaded()) return null;
+        if (slideCtx == null || !ThemeManager.forDocument(slideCtx.getDocument()).isThemeLoaded()) return null;
         Element pStyle = getChild(shape.getXmlElement(), "p:style");
         Element effectRef = pStyle != null ? getChild(pStyle, "a:effectRef") : null;
         if (effectRef == null) return null;
@@ -887,7 +887,7 @@ public final class ShapeStyleExtractor {
 
         FmtSchemeResolver.ResolvedShadow resolved;
         try {
-            resolved = ThemeManager.resolveEffectStyle(idx, phColorHex);
+            resolved = ThemeManager.forDocument(slideCtx.getDocument()).resolveEffectStyle(idx, phColorHex);
         } catch (IllegalStateException | IllegalArgumentException e) {
             return null; // theme without fmtScheme effects
         }

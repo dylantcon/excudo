@@ -512,7 +512,7 @@ public class PresentationOrchestrationManager {
             }
 
             // Theme name and fonts
-            themeName = com.excudo.core.themes.ThemeManager.getCurrentThemeName();
+            themeName = com.excudo.core.themes.ThemeManager.forDocument(pptxDoc).getCurrentThemeName();
             if ("Default (No Theme Loaded)".equals(themeName)) themeName = null;
 
             // Extract fonts from theme and master DOMs

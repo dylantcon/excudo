@@ -89,7 +89,6 @@ public class ShapeStyleExtractorTest {
 
         com.excudo.core.model.PPTXDocument doc =
             com.excudo.core.model.PPTXDocument.loadFromZip(testFile);
-        ThemeManager.initialize(doc);
 
         java.util.Map<String, String> clrMap = java.util.Map.of(
             "accent1", "accent1", "tx1", "lt1", "bg1", "dk1");
@@ -142,7 +141,6 @@ public class ShapeStyleExtractorTest {
 
         com.excudo.core.model.PPTXDocument doc =
             com.excudo.core.model.PPTXDocument.loadFromZip(testFile);
-        ThemeManager.initialize(doc);
 
         java.util.Map<String, String> clrMap = java.util.Map.of(
             "accent1", "accent1", "tx1", "lt1", "bg1", "dk1");

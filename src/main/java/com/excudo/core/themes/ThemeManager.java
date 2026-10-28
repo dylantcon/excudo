@@ -1,47 +1,61 @@
 package com.excudo.core.themes;
 
 import com.excudo.core.model.PPTXDocument;
-import com.excudo.core.utils.XMLFactoryProvider;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
 import com.excudo.core.utils.ComponentLogger;
 import com.excudo.core.utils.Logger;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Manages PowerPoint theme files and provides theme-based color/font resolution.
- * Handles theme discovery, parsing, and caching for efficient rendering.
- * Returns colors as hex strings to avoid JavaFX dependencies in core.
+ * Theme color / font / format-scheme resolution for one presentation.
+ *
+ * <p>Each open deck has its own instance ({@link #forDocument}), attached
+ * to the document itself, so two open decks never see each other's theme.
+ * The parsed theme refreshes automatically when the deck revision changes
+ * (any theme, master, or layout edit), so callers never initialize or
+ * invalidate it. Colors are returned as {@link HexColor} to keep JavaFX out
+ * of core.
  */
-public class ThemeManager {
+public final class ThemeManager {
 
     private static final ComponentLogger logger = Logger.console();
-    private static final Map<String, ThemeParser> themeCache = new HashMap<>();
-    private static ThemeParser defaultTheme = null;
+    private static final ThemeManager NO_DOCUMENT = new ThemeManager(null);
 
-    private final XPath xpath;
-    
-    public ThemeManager() {
-        this.xpath = XMLFactoryProvider.createXPath();
+    private final PPTXDocument document;
+    private ThemeParser theme;
+    private long parsedAtDeckRevision = Long.MIN_VALUE;
+
+    private ThemeManager(PPTXDocument document) {
+        this.document = document;
     }
-    
-    /**
-     * Initialize theme manager from PPTXDocument's in-memory parts.
-     * Parses theme directly from in-memory DOM when available.
-     * Falls back to directory-based initialization if needed.
-     */
-    public static void initialize(PPTXDocument pptxDocument) {
-        themeCache.clear();
-        defaultTheme = null;
 
+    /**
+     * The theme resolver for {@code document} (never null; for a null
+     * document it reports no theme loaded).
+     */
+    public static ThemeManager forDocument(PPTXDocument document) {
+        if (document == null) return NO_DOCUMENT;
+        return document.derived(ThemeManager.class, () -> new ThemeManager(document));
+    }
+
+    /** The parsed theme, re-parsed when the deck has changed since last time. */
+    private synchronized ThemeParser theme() {
+        if (document == null) return null;
+        long revision = document.getDeckRevision();
+        if (revision != parsedAtDeckRevision) {
+            theme = parseTheme(document);
+            parsedAtDeckRevision = revision;
+        }
+        return theme;
+    }
+
+    /** Parse the theme slideMaster1 points at (falls back to theme1.xml). */
+    private static ThemeParser parseTheme(PPTXDocument pptxDocument) {
         try {
-            // Try to find theme from slide master rels
             Document masterRels = pptxDocument.getXmlPart("ppt/slideMasters/_rels/slideMaster1.xml.rels");
             String themeTarget = null;
             if (masterRels != null) {
@@ -55,48 +69,40 @@ public class ThemeManager {
                 }
             }
 
-            // Resolve theme part name
-            String themePartName = "ppt/theme/theme1.xml"; // default
+            String themePartName = "ppt/theme/theme1.xml";
             if (themeTarget != null) {
-                if (themeTarget.startsWith("../")) {
-                    themePartName = "ppt/" + themeTarget.substring(3);
-                } else {
-                    themePartName = "ppt/slideMasters/" + themeTarget;
-                }
+                themePartName = themeTarget.startsWith("../")
+                    ? "ppt/" + themeTarget.substring(3)
+                    : "ppt/slideMasters/" + themeTarget;
             }
 
-            // Parse theme from in-memory DOM
             Document themeDom = pptxDocument.getXmlPart(themePartName);
             if (themeDom != null) {
                 ThemeParser parser = new ThemeParser();
-                if (parser.parseTheme(themeDom)) {
-                    defaultTheme = parser;
-                    themeCache.put("default", parser);
-                }
+                if (parser.parseTheme(themeDom)) return parser;
             }
         } catch (Exception e) {
-            logger.warn("Failed to initialize ThemeManager from PPTXDocument: " + e.getMessage());
+            logger.warn("Failed to parse theme from PPTXDocument: " + e.getMessage());
         }
-    }
-    
-    /** Get theme color by name as a typed {@link HexColor}. Consumers
-     *  call {@code .withHash()} or {@code .bare()} explicitly — the
-     *  Adapter prevents the double-prepend family of bugs. */
-    public static HexColor getThemeColor(String colorName) {
-        if (defaultTheme == null) {
-            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
-        }
-        return defaultTheme.getThemeColor(colorName);
+        return null;
     }
 
-    /**
-     * Get theme font by name or alias
-     */
-    public static String getThemeFont(String fontReference) {
-        if (defaultTheme == null) {
-            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
+    private ThemeParser requireTheme() {
+        ThemeParser t = theme();
+        if (t == null) {
+            throw new IllegalStateException("No theme loaded for this presentation.");
         }
-        return defaultTheme.getThemeFont(fontReference);
+        return t;
+    }
+
+    /** Theme color by scheme name (accent1, dk1, ...). */
+    public HexColor getThemeColor(String colorName) {
+        return requireTheme().getThemeColor(colorName);
+    }
+
+    /** Theme font by name or alias (major / minor / +mj-lt ...). */
+    public String getThemeFont(String fontReference) {
+        return requireTheme().getThemeFont(fontReference);
     }
 
     /**
@@ -104,15 +110,8 @@ public class ThemeManager {
      * @param idx fill reference index (1-3 for fills, 1001-1003 for bg fills)
      * @param phColorHex resolved scheme color to substitute for phClr
      */
-    public static ResolvedFill resolveFillStyle(int idx, String phColorHex) {
-        if (defaultTheme == null) {
-            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
-        }
-        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
-        if (!resolver.isParsed()) {
-            throw new IllegalStateException("fmtScheme not parsed from theme.");
-        }
-        return resolver.resolveFillByIndex(idx, phColorHex);
+    public ResolvedFill resolveFillStyle(int idx, String phColorHex) {
+        return parsedFmtScheme().resolveFillByIndex(idx, phColorHex);
     }
 
     /**
@@ -120,79 +119,56 @@ public class ThemeManager {
      * @param idx line reference index (1-3)
      * @param phColorHex resolved scheme color to substitute for phClr
      */
-    public static FmtSchemeResolver.ResolvedLineStyle resolveLineStyle(int idx, String phColorHex) {
-        if (defaultTheme == null) {
-            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
-        }
-        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
-        if (!resolver.isParsed()) {
-            throw new IllegalStateException("fmtScheme not parsed from theme.");
-        }
-        return resolver.resolveLineByIndex(idx, phColorHex);
+    public FmtSchemeResolver.ResolvedLineStyle resolveLineStyle(int idx, String phColorHex) {
+        return parsedFmtScheme().resolveLineByIndex(idx, phColorHex);
     }
 
     /**
      * Resolve an effect style's outer shadow from the theme's fmtScheme.
-     * @param idx effect reference index (1-3)
-     * @param phColorHex resolved scheme color to substitute for phClr
      * @return the shadow, or null when the style has no outer shadow
      */
-    public static FmtSchemeResolver.ResolvedShadow resolveEffectStyle(int idx, String phColorHex) {
-        if (defaultTheme == null) {
-            throw new IllegalStateException("No theme loaded. Call ThemeManager.initialize() first.");
-        }
-        FmtSchemeResolver resolver = defaultTheme.getFmtSchemeResolver();
+    public FmtSchemeResolver.ResolvedShadow resolveEffectStyle(int idx, String phColorHex) {
+        return parsedFmtScheme().resolveEffectByIndex(idx, phColorHex);
+    }
+
+    private FmtSchemeResolver parsedFmtScheme() {
+        FmtSchemeResolver resolver = requireTheme().getFmtSchemeResolver();
         if (!resolver.isParsed()) {
             throw new IllegalStateException("fmtScheme not parsed from theme.");
         }
-        return resolver.resolveEffectByIndex(idx, phColorHex);
+        return resolver;
     }
-    
-    /**
-     * Get current theme name
-     */
-    public static String getCurrentThemeName() {
-        if (defaultTheme != null) {
-            return defaultTheme.getThemeName();
-        }
-        return "Default (No Theme Loaded)";
+
+    /** The theme's name, or "Default (No Theme Loaded)". */
+    public String getCurrentThemeName() {
+        ThemeParser t = theme();
+        return t != null ? t.getThemeName() : "Default (No Theme Loaded)";
     }
-    
-    /**
-     * Check if a theme is loaded
-     */
-    public static boolean isThemeLoaded() {
-        return defaultTheme != null && defaultTheme.isThemeLoaded();
+
+    public boolean isThemeLoaded() {
+        ThemeParser t = theme();
+        return t != null && t.isThemeLoaded();
     }
-    
-    /**
-     * Get theme information for debugging
-     */
-    public static String getThemeInfo() {
-        if (defaultTheme == null) {
-            return "No theme loaded";
-        }
-        
+
+    /** Theme summary for debugging. */
+    public String getThemeInfo() {
+        ThemeParser t = theme();
+        if (t == null) return "No theme loaded";
+
         StringBuilder info = new StringBuilder();
-        info.append("Theme: ").append(defaultTheme.getThemeName()).append("\\n");
-        info.append("Colors: ").append(defaultTheme.getColorScheme().size()).append("\\n");
-        info.append("Fonts: ").append(defaultTheme.getFontScheme().size()).append("\\n");
-        
-        // List some key colors
-        Map<String, String> colors = defaultTheme.getColorScheme();
+        info.append("Theme: ").append(t.getThemeName()).append("\n");
+        info.append("Colors: ").append(t.getColorScheme().size()).append("\n");
+        info.append("Fonts: ").append(t.getFontScheme().size()).append("\n");
+        Map<String, String> colors = t.getColorScheme();
         for (String colorName : new String[]{"accent1", "accent2", "dk1", "lt1"}) {
             if (colors.containsKey(colorName)) {
-                String color = colors.get(colorName);
-                info.append(colorName).append(": ").append(color).append("\\n");
+                info.append(colorName).append(": ").append(colors.get(colorName)).append("\n");
             }
         }
-        
         return info.toString();
     }
-    
-    /**
-     * Get all available bundled themes.
-     */
+
+    /** All bundled themes (the theme library, not tied to any deck). */
     public static List<ThemeDefinition> getAvailableThemes() {
         return ThemeLoader.getAll();
     }

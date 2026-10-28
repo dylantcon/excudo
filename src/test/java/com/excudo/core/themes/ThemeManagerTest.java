@@ -8,7 +8,7 @@ import java.io.File;
 import static org.junit.Assert.*;
 
 /**
- * Tests ThemeManager static initialization and color/font resolution.
+ * Tests per-document ThemeManager color/font resolution.
  */
 public class ThemeManagerTest {
 
@@ -24,21 +24,21 @@ public class ThemeManagerTest {
     public void initializeFromPPTXLoadsTheme() throws Exception {
         if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
-        ThemeManager.initialize(doc);
+        ThemeManager tm = ThemeManager.forDocument(doc);
 
-        assertTrue("Theme should be loaded after initialize", ThemeManager.isThemeLoaded());
-        assertNotNull(ThemeManager.getCurrentThemeName());
+        assertTrue("Theme should be loaded", tm.isThemeLoaded());
+        assertNotNull(tm.getCurrentThemeName());
         assertFalse("Theme name should not be default placeholder",
-            ThemeManager.getCurrentThemeName().contains("No Theme"));
+            tm.getCurrentThemeName().contains("No Theme"));
     }
 
     @Test
     public void getThemeColorReturnsAccentColors() throws Exception {
         if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
-        ThemeManager.initialize(doc);
+        ThemeManager tm = ThemeManager.forDocument(doc);
 
-        com.excudo.core.themes.HexColor accent1 = ThemeManager.getThemeColor("accent1");
+        com.excudo.core.themes.HexColor accent1 = tm.getThemeColor("accent1");
         assertNotNull(accent1);
         assertEquals("#569CD6", accent1.withHash());
         assertEquals("569CD6", accent1.bare());
@@ -48,33 +48,45 @@ public class ThemeManagerTest {
     public void getThemeColorReturnsDkLtColors() throws Exception {
         if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
-        ThemeManager.initialize(doc);
+        ThemeManager tm = ThemeManager.forDocument(doc);
 
-        assertNotNull(ThemeManager.getThemeColor("dk1"));
-        assertNotNull(ThemeManager.getThemeColor("lt1"));
-        assertNotNull(ThemeManager.getThemeColor("dk2"));
-        assertNotNull(ThemeManager.getThemeColor("lt2"));
+        assertNotNull(tm.getThemeColor("dk1"));
+        assertNotNull(tm.getThemeColor("lt1"));
+        assertNotNull(tm.getThemeColor("dk2"));
+        assertNotNull(tm.getThemeColor("lt2"));
     }
 
     @Test
     public void getThemeFontReturnsFonts() throws Exception {
         if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
-        ThemeManager.initialize(doc);
+        ThemeManager tm = ThemeManager.forDocument(doc);
 
-        assertNotNull(ThemeManager.getThemeFont("major"));
-        assertNotNull(ThemeManager.getThemeFont("minor"));
+        assertNotNull(tm.getThemeFont("major"));
+        assertNotNull(tm.getThemeFont("minor"));
     }
 
     @Test
     public void getThemeInfoContainsColorData() throws Exception {
         if (!TEST_FILE.exists()) fail("Required fixture not found: " + TEST_FILE.getAbsolutePath());
         PPTXDocument doc = PPTXDocument.loadFromZip(TEST_FILE);
-        ThemeManager.initialize(doc);
+        ThemeManager tm = ThemeManager.forDocument(doc);
 
-        String info = ThemeManager.getThemeInfo();
+        String info = tm.getThemeInfo();
         assertNotNull(info);
         assertTrue("Info should mention accent1", info.contains("accent1"));
+    }
+
+    @Test
+    public void openDecksKeepTheirOwnThemes() throws Exception {
+        PPTXDocument minimal = com.excudo.core.orchestration.PresentationScaffolder.scaffoldDocument("minimal");
+        PPTXDocument corporate = com.excudo.core.orchestration.PresentationScaffolder.scaffoldDocument("corporate");
+
+        assertEquals("Minimal", ThemeManager.forDocument(minimal).getCurrentThemeName());
+        assertEquals("Corporate", ThemeManager.forDocument(corporate).getCurrentThemeName());
+        assertEquals("Inter", ThemeManager.forDocument(minimal).getThemeFont("major"));
+        assertEquals("Calibri", ThemeManager.forDocument(corporate).getThemeFont("major"));
+        assertSame(ThemeManager.forDocument(minimal), ThemeManager.forDocument(minimal));
     }
 
     @Test
@@ -86,9 +98,7 @@ public class ThemeManagerTest {
 
     @Test
     public void getCurrentThemeNameWhenNotLoaded() {
-        // Force unloaded state
-        ThemeManager.initialize(null);
-        String name = ThemeManager.getCurrentThemeName();
+        String name = ThemeManager.forDocument(null).getCurrentThemeName();
         assertTrue("Should indicate no theme loaded",
             name.contains("No Theme") || name.equals("Default"));
     }

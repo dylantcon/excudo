@@ -69,7 +69,7 @@ public final class SlideBackgroundResolver {
         // bgPr > solidFill (srgbClr / schemeClr)
         Element bgPr = firstChildNS(bg, PNS, "bgPr");
         if (bgPr != null) {
-            String hex = extractBgPrSolidHex(bgPr, clrMap);
+            String hex = extractBgPrSolidHex(doc, bgPr, clrMap);
             if (hex != null) return new SlideBackground.Solid(hex);
         }
 
@@ -79,16 +79,16 @@ public final class SlideBackgroundResolver {
         int idx = 0;
         try { idx = Integer.parseInt(bgRef.getAttribute("idx")); }
         catch (NumberFormatException ignored) {}
-        if (idx <= 0 || !ThemeManager.isThemeLoaded()) return null;
+        if (idx <= 0 || !ThemeManager.forDocument(doc).isThemeLoaded()) return null;
 
         Element scheme = firstChildNS(bgRef, ANS, "schemeClr");
         if (scheme == null || !scheme.hasAttribute("val")) return null;
 
         String colorName = scheme.getAttribute("val");
         String resolvedName = clrMap != null ? clrMap.getOrDefault(colorName, colorName) : colorName;
-        HexColor phColor = ThemeManager.getThemeColor(resolvedName);
+        HexColor phColor = ThemeManager.forDocument(doc).getThemeColor(resolvedName);
 
-        ResolvedFill fill = ThemeManager.resolveFillStyle(idx, phColor.withHash());
+        ResolvedFill fill = ThemeManager.forDocument(doc).resolveFillStyle(idx, phColor.withHash());
         if (fill instanceof ResolvedFill.BlipFill blip && blip.relId() != null) {
             SlideBackground.BlipImage img = loadBlipImage(doc, blip);
             if (img != null) return img;
@@ -111,7 +111,7 @@ public final class SlideBackgroundResolver {
         return new SlideBackground.Solid(phColor.withHash());
     }
 
-    private static String extractBgPrSolidHex(Element bgPr, Map<String, String> clrMap) {
+    private static String extractBgPrSolidHex(PPTXDocument doc, Element bgPr, Map<String, String> clrMap) {
         Element solidFill = firstChildNS(bgPr, ANS, "solidFill");
         if (solidFill == null) return null;
         Element srgb = firstChildNS(solidFill, ANS, "srgbClr");
@@ -122,7 +122,7 @@ public final class SlideBackgroundResolver {
         if (scheme != null && scheme.hasAttribute("val")) {
             String colorName = scheme.getAttribute("val");
             String resolved = clrMap != null ? clrMap.getOrDefault(colorName, colorName) : colorName;
-            return ThemeManager.getThemeColor(resolved).withHash();
+            return ThemeManager.forDocument(doc).getThemeColor(resolved).withHash();
         }
         return null;
     }

@@ -47,11 +47,6 @@ final class StylePropagator implements PPTXDocument.StylePartListener {
         presentationManager.invalidateDarkThemeCache();
         if (context.getLayoutManager() != null) context.getLayoutManager().markStale();
         if (context.getContextService() != null) context.getContextService().invalidateAllSlides();
-        // Placeholder geometry cache (static, keyed by layout path)
-        com.excudo.xml.parsers.SlideXMLParser.SlideLayoutParser.initialize(document);
-        if (partName.startsWith("ppt/theme/") || partName.startsWith("ppt/slideMasters/_rels/")) {
-            com.excudo.core.themes.ThemeManager.initialize(document);
-        }
 
         Set<Integer> affected = affectedSlides(partName);
         logger.debug("Style part {} changed; restyling slides {}", partName, affected);

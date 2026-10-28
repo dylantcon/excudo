@@ -241,13 +241,14 @@ public class SlideRenderContext {
         // Resolve through the slide master's clrMap (e.g. tx1->lt1, bg1->dk1)
         String resolved = clrMap.getOrDefault(colorName, colorName);
 
-        if (ThemeManager.isThemeLoaded()) {
-            return ThemeManager.getThemeColor(resolved).withHash();
+        ThemeManager themes = ThemeManager.forDocument(document);
+        if (themes.isThemeLoaded()) {
+            return themes.getThemeColor(resolved).withHash();
         }
 
         throw new IllegalStateException("No theme color for '" + colorName
             + "' (resolved='" + resolved + "'). ThemeManager.isThemeLoaded()="
-            + ThemeManager.isThemeLoaded());
+            + themes.isThemeLoaded());
     }
 
 

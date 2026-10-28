@@ -96,7 +96,8 @@ public class SlideXMLParser {
       List<AnimationBinding> animationBindings = extractAnimationBindings(document, timingTree);
 
       // Resolve layout ID from slide rels (e.g., "slideLayout2")
-      String layoutId = (slideNumber > 0) ? SlideLayoutParser.resolveLayoutId(slideNumber) : null;
+      SlideLayoutParser layouts = (slideNumber > 0) ? SlideLayoutParser.forNode(document) : null;
+      String layoutId = layouts != null ? layouts.resolveLayoutId(slideNumber) : null;
 
       return new ParsedSlideData(shapeRegistry, timingTree, animationBindings, layoutId);
 
@@ -823,7 +824,9 @@ public class SlideXMLParser {
       
       // Try to get geometry from actual slide layout XML
       if (slideNumber > 0) {
-        ShapeGeometry layoutGeometry = SlideLayoutParser.getPlaceholderGeometry(placeholderType, placeholderIdx, slideNumber);
+        SlideLayoutParser layouts = SlideLayoutParser.forNode(ph);
+        ShapeGeometry layoutGeometry = layouts != null
+            ? layouts.getPlaceholderGeometry(placeholderType, placeholderIdx, slideNumber) : null;
         if (layoutGeometry != null) {
           return layoutGeometry;
         }
@@ -856,266 +859,148 @@ public class SlideXMLParser {
    * Nested parser for slide layout XML files
    * Handles parsing slideLayout*.xml files to extract placeholder geometry
    */
-  public static class SlideLayoutParser {
-    private static final Map<String, ShapeGeometry> layoutCache = new HashMap<>();
-    private static String currentLayoutPath = null;
-    private static final Map<String, String> masterLayoutIdToRIdMap = new HashMap<>();
-    private static com.excudo.core.model.PPTXDocument pptxDocumentRef = null;
+  public static final class SlideLayoutParser {
+    private final com.excudo.core.model.PPTXDocument document;
+    // layout part name -> ("type:idx" -> geometry); cleared on deck revision change
+    private final Map<String, Map<String, ShapeGeometry>> geometryByLayout = new HashMap<>();
+    private long cachedAtDeckRevision = Long.MIN_VALUE;
+
+    private SlideLayoutParser(com.excudo.core.model.PPTXDocument document) {
+      this.document = document;
+    }
+
+    /** Layout lookups for one deck (state lives on the deck, never shared). */
+    public static SlideLayoutParser forDocument(com.excudo.core.model.PPTXDocument document) {
+      if (document == null) return null;
+      return document.derived(SlideLayoutParser.class, () -> new SlideLayoutParser(document));
+    }
 
     /**
-     * Initialize from PPTXDocument's in-memory parts.
+     * Layout lookups for the deck a slide DOM (or node within it) came from,
+     * or null when the DOM isn't owned by a PPTXDocument.
      */
-    public static void initialize(com.excudo.core.model.PPTXDocument pptxDocument) {
-      pptxDocumentRef = pptxDocument;
-      // A new document invalidates the previous deck's cached layout geometry
-      // and parse guards. layoutCache is keyed by layout PATH (e.g.
-      // "ppt/slideLayouts/slideLayout2.xml"), which collides across decks, so
-      // without clearing it a second deck silently reads the first deck's
-      // placeholder geometry. currentLayoutPath gates re-parsing within a
-      // document and must reset too. This static state also coupled test
-      // ordering -- clearing on initialize() makes each load self-contained.
-      layoutCache.clear();
-      currentLayoutPath = null;
-      // In-memory mode: parse master from PPTXDocument
-      try {
-        org.w3c.dom.Document masterDoc = pptxDocument.getXmlPart("ppt/slideMasters/slideMaster1.xml");
-        if (masterDoc != null) {
-          masterLayoutIdToRIdMap.clear();
-          javax.xml.xpath.XPath xpath = com.excudo.core.utils.XMLFactoryProvider.createXPath();
-          org.w3c.dom.NodeList layoutIds = (org.w3c.dom.NodeList) xpath.evaluate(
-              "//p:sldLayoutIdLst/p:sldLayoutId", masterDoc, javax.xml.xpath.XPathConstants.NODESET);
-          for (int i = 0; i < layoutIds.getLength(); i++) {
-            org.w3c.dom.Element el = (org.w3c.dom.Element) layoutIds.item(i);
-            String id = el.getAttribute("id");
-            String rId = el.getAttribute("r:id");
-            if (!id.isEmpty() && !rId.isEmpty()) {
-              masterLayoutIdToRIdMap.put(id, rId);
-            }
-          }
-        }
-      } catch (Exception e) {
-        logger.warn("Failed to initialize SlideLayoutParser from PPTXDocument: {}", e.getMessage());
-      }
+    public static SlideLayoutParser forNode(org.w3c.dom.Node node) {
+      return forDocument(com.excudo.core.model.PPTXDocument.ownerOf(node));
     }
-    
+
     /**
-     * Get placeholder geometry from slide layout XML for a specific slide
+     * Placeholder geometry from the slide's layout, or null if the layout has
+     * no explicit geometry for that placeholder.
      */
-    public static ShapeGeometry getPlaceholderGeometry(String placeholderType, String placeholderIdx, int slideNumber) {
+    public synchronized ShapeGeometry getPlaceholderGeometry(String placeholderType, String placeholderIdx, int slideNumber) {
       try {
-        // Resolve actual layout file for this slide
         String layoutPath = resolveSlideLayoutPath(slideNumber);
-        if (layoutPath == null) {
-          return null;
+        if (layoutPath == null) return null;
+
+        long revision = document.getDeckRevision();
+        if (revision != cachedAtDeckRevision) {
+          geometryByLayout.clear();
+          cachedAtDeckRevision = revision;
         }
-        
-        // Check cache first
-        String cacheKey = layoutPath + ":" + placeholderType + ":" + (placeholderIdx.isEmpty() ? "default" : placeholderIdx);
-        if (layoutCache.containsKey(cacheKey)) {
-          return layoutCache.get(cacheKey);
-        }
-        
-        // Parse layout file if not cached or if layout changed
-        if (!layoutPath.equals(currentLayoutPath)) {
-          parseLayoutFile(layoutPath);
-          currentLayoutPath = layoutPath;
-        }
-        
-        // Return cached result
-        return layoutCache.get(cacheKey);
-        
+        Map<String, ShapeGeometry> geometries = geometryByLayout.computeIfAbsent(layoutPath, this::parseLayout);
+        String idx = placeholderIdx == null || placeholderIdx.isEmpty() ? "default" : placeholderIdx;
+        return geometries.get(placeholderType + ":" + idx);
       } catch (Exception e) {
         logger.warn("Failed to parse slide layout: {}", e.getMessage());
         return null;
       }
     }
-    
-    /**
-     * Get placeholder geometry (legacy method for backwards compatibility)
-     */
-    public static ShapeGeometry getPlaceholderGeometry(String placeholderType, String placeholderIdx) {
-      // This method now returns null to indicate it needs the slide number
-      // TODO: Update callers to use the new method with slide number
-      return null;
-    }
-    
-    /**
-     * CRITICAL: Check if a specific layout has title placeholder enabled.
-     * This determines whether SPID 2 should be used or skipped.
-     * 
-     * @param layoutPath Path to the layout XML file
-     * @return true if layout has title placeholder checkbox enabled, false otherwise
-     */
-    public static boolean layoutHasTitlePlaceholder(String layoutPath) {
+
+    /** Whether a layout part has a title / ctrTitle placeholder. */
+    public boolean layoutHasTitlePlaceholder(String layoutPath) {
       try {
-        // Try PPTXDocument first, fall back to file
-        Document document = null;
-        if (pptxDocumentRef != null) {
-          // layoutPath may be absolute file path or virtual part name
-          String partName = layoutPath;
-          if (partName.contains("slideLayouts/")) {
-            partName = "ppt/slideLayouts/" + partName.substring(partName.lastIndexOf("slideLayouts/") + "slideLayouts/".length());
-          }
-          document = pptxDocumentRef.getXmlPart(partName);
-        }
-        if (document == null) {
+        Document layoutDom = document.getXmlPart(toPartName(layoutPath));
+        if (layoutDom == null) {
           logger.warn("Layout document not available for path: {}", layoutPath);
           return false;
         }
-        XPath xpath = XMLFactoryProvider.createXPath();
-
-        // Look for title placeholder in layout
-        NodeList titlePlaceholders = (NodeList) xpath.evaluate(
-            "//p:sp[.//p:ph[@type='title' or @type='ctrTitle']]", 
-            document, XPathConstants.NODESET);
-        
-        boolean hasTitle = titlePlaceholders.getLength() > 0;
-
-        return hasTitle;
-        
+        NodeList titlePlaceholders = (NodeList) XMLFactoryProvider.createXPath().evaluate(
+            "//p:sp[.//p:ph[@type='title' or @type='ctrTitle']]", layoutDom, XPathConstants.NODESET);
+        return titlePlaceholders.getLength() > 0;
       } catch (Exception e) {
         logger.warn("Failed to check title placeholder in layout {}: {}", layoutPath, e.getMessage());
-        return false; // Default to no title on error
+        return false;
       }
     }
-    
-    /**
-     * Check if a slide's layout has title placeholder by slide number.
-     * This uses the existing layout resolution logic.
-     * 
-     * @param slideNumber The slide number to check
-     * @return true if the slide's layout has title placeholder enabled
-     */
-    public static boolean slideLayoutHasTitlePlaceholder(int slideNumber) {
-      try {
-        String layoutPath = resolveSlideLayoutPath(slideNumber);
-        return layoutPath != null && layoutHasTitlePlaceholder(layoutPath);
-      } catch (Exception e) {
-        logger.warn("Failed to check slide {} layout title placeholder: {}", slideNumber, e.getMessage());
-        return false; // Default to no title on error
-      }
+
+    /** Whether slide {@code slideNumber}'s layout has a title placeholder. */
+    public boolean slideLayoutHasTitlePlaceholder(int slideNumber) {
+      String layoutPath = resolveSlideLayoutPath(slideNumber);
+      return layoutPath != null && layoutHasTitlePlaceholder(layoutPath);
     }
-    
-    /**
-     * Parse a slide layout XML file and cache placeholder geometries
-     */
-    private static void parseLayoutFile(String layoutPath) {
+
+    /** Layout ID stem (e.g. "slideLayout2") for a slide, from its rels; null if unresolvable. */
+    public String resolveLayoutId(int slideNumber) {
+      String layoutPath = resolveSlideLayoutPath(slideNumber);
+      if (layoutPath == null) return null;
+      String filename = layoutPath.substring(layoutPath.lastIndexOf('/') + 1);
+      return filename.endsWith(".xml") ? filename.substring(0, filename.length() - 4) : filename;
+    }
+
+    private static String toPartName(String layoutPath) {
+      if (layoutPath.contains("slideLayouts/")) {
+        return "ppt/slideLayouts/" + layoutPath.substring(layoutPath.lastIndexOf("slideLayouts/") + "slideLayouts/".length());
+      }
+      return layoutPath;
+    }
+
+    /** All placeholder geometries in a layout, keyed "type:idx". */
+    private Map<String, ShapeGeometry> parseLayout(String layoutPath) {
+      Map<String, ShapeGeometry> geometries = new HashMap<>();
       try {
-        Document document = null;
-        if (pptxDocumentRef != null) {
-          String partName = layoutPath;
-          if (partName.contains("slideLayouts/")) {
-            partName = "ppt/slideLayouts/" + partName.substring(partName.lastIndexOf("slideLayouts/") + "slideLayouts/".length());
-          }
-          document = pptxDocumentRef.getXmlPart(partName);
-        }
-        if (document == null) {
+        Document layoutDom = document.getXmlPart(toPartName(layoutPath));
+        if (layoutDom == null) {
           logger.warn("Layout document not available for path: {}", layoutPath);
-          return;
+          return geometries;
         }
         XPath xpath = XMLFactoryProvider.createXPath();
-
-        // Find all placeholder shapes in the layout
-        NodeList placeholders = (NodeList) xpath.evaluate("//p:sp[.//p:ph]", document, XPathConstants.NODESET);
-        
+        NodeList placeholders = (NodeList) xpath.evaluate("//p:sp[.//p:ph]", layoutDom, XPathConstants.NODESET);
         for (int i = 0; i < placeholders.getLength(); i++) {
           Element placeholder = (Element) placeholders.item(i);
-          
-          // Extract placeholder type and index
           Element ph = (Element) xpath.evaluate(".//p:ph", placeholder, XPathConstants.NODE);
           String type = ph.getAttribute("type");
           String idx = ph.getAttribute("idx");
-          
-          if (type.isEmpty()) {
-            type = "body"; // Default type
-          }
-          
-          // Extract geometry
+          if (type.isEmpty()) type = "body";
+
           String xStr = (String) xpath.evaluate(".//a:xfrm/a:off/@x", placeholder, XPathConstants.STRING);
           String yStr = (String) xpath.evaluate(".//a:xfrm/a:off/@y", placeholder, XPathConstants.STRING);
           String cxStr = (String) xpath.evaluate(".//a:xfrm/a:ext/@cx", placeholder, XPathConstants.STRING);
           String cyStr = (String) xpath.evaluate(".//a:xfrm/a:ext/@cy", placeholder, XPathConstants.STRING);
-          
           if (!xStr.isEmpty() && !yStr.isEmpty() && !cxStr.isEmpty() && !cyStr.isEmpty()) {
-            long x = Long.parseLong(xStr);
-            long y = Long.parseLong(yStr);
-            long cx = Long.parseLong(cxStr);
-            long cy = Long.parseLong(cyStr);
-            
-            ShapeGeometry geometry = new ShapeGeometry(x, y, cx, cy);
-
-            // Cache with type and index
-            String cacheKey = layoutPath + ":" + type + ":" + (idx.isEmpty() ? "default" : idx);
-            layoutCache.put(cacheKey, geometry);
+            geometries.put(type + ":" + (idx.isEmpty() ? "default" : idx), new ShapeGeometry(
+                Long.parseLong(xStr), Long.parseLong(yStr), Long.parseLong(cxStr), Long.parseLong(cyStr)));
           }
         }
-        
       } catch (Exception e) {
         logger.warn("Failed to parse layout file {}: {}", layoutPath, e.getMessage());
       }
-    }
-    
-    
-    /**
-     * Resolve the layout ID (e.g., "slideLayout2") for a specific slide
-     * by reading its .rels file.
-     *
-     * @param slideNumber The 1-based slide number
-     * @return The layout ID stem, or null if unresolvable
-     */
-    public static String resolveLayoutId(int slideNumber) {
-      String layoutPath = resolveSlideLayoutPath(slideNumber);
-      if (layoutPath == null) return null;
-      String filename = layoutPath.contains("/")
-          ? layoutPath.substring(layoutPath.lastIndexOf('/') + 1)
-          : layoutPath;
-      return filename.endsWith(".xml") ? filename.substring(0, filename.length() - 4) : filename;
+      return geometries;
     }
 
-    /**
-     * Resolve the actual layout file path for a specific slide
-     */
-    private static String resolveSlideLayoutPath(int slideNumber) {
+    /** "ppt/slideLayouts/slideLayoutN.xml" for a slide, from its rels; null if unresolvable. */
+    private String resolveSlideLayoutPath(int slideNumber) {
       try {
-        if (pptxDocumentRef == null) {
-          return null;
-        }
-
-        String relsPartName = "ppt/slides/_rels/slide" + slideNumber + ".xml.rels";
-        Document document = pptxDocumentRef.getXmlPart(relsPartName);
-
-        if (document == null) {
+        Document rels = document.getXmlPart("ppt/slides/_rels/slide" + slideNumber + ".xml.rels");
+        if (rels == null) {
           logger.warn("Slide .rels not available for slide {}", slideNumber);
           return null;
         }
-
         XPath xpath = XMLFactoryProvider.createXPathWithoutNamespace();
         NodeList relationships = (NodeList) xpath.evaluate(
             "//*[local-name()='Relationship'][@Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout']",
-            document, XPathConstants.NODESET);
-
+            rels, XPathConstants.NODESET);
         if (relationships.getLength() > 0) {
-          Element layoutRel = (Element) relationships.item(0);
-          String target = layoutRel.getAttribute("Target");
-
+          String target = ((Element) relationships.item(0)).getAttribute("Target");
           if (!target.isEmpty()) {
-            // Return a normalized virtual path for in-memory resolution
-            // Target is typically "../slideLayouts/slideLayout1.xml"
-            if (target.startsWith("../")) {
-              return "ppt/" + target.substring(3);
-            }
-            return target;
+            return target.startsWith("../") ? "ppt/" + target.substring(3) : target;
           }
         }
-
         return null;
-
       } catch (Exception e) {
         logger.warn("Failed to resolve slide layout path for slide {}: {}", slideNumber, e.getMessage());
         return null;
       }
     }
-    
   }
 
   // PowerPointNamespaceContext moved to XMLConstants.PowerPointNamespaceContext

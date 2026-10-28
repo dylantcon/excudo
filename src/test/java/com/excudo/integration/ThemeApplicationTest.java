@@ -139,10 +139,13 @@ public class ThemeApplicationTest {
         pptxDoc.putXmlPart("ppt/slideMasters/slideMaster1.xml", masterDoc);
         pptxDoc.putXmlPart("ppt/slideMasters/_rels/slideMaster1.xml.rels", masterRelsDoc);
 
-        // Initialize ThemeManager from in-memory document
-        ThemeManager.initialize(pptxDoc);
-        assertTrue("Theme should be loaded", ThemeManager.isThemeLoaded());
-        assertEquals("Minimal", ThemeManager.getCurrentThemeName());
+        ThemeManager themes = ThemeManager.forDocument(pptxDoc);
+        assertTrue("Theme should be loaded", themes.isThemeLoaded());
+        assertEquals("Minimal", themes.getCurrentThemeName());
+
+        // Writing a different theme part is picked up with no re-initialization
+        pptxDoc.putXmlPart("ppt/theme/theme1.xml", generator.generateThemeXML(BundledThemes.get("corporate")));
+        assertEquals("Corporate", ThemeManager.forDocument(pptxDoc).getCurrentThemeName());
     }
 
     @Test

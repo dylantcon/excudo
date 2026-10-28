@@ -34,6 +34,7 @@ public class ThemeParser {
         this.colorScheme = new HashMap<>();
         this.fontScheme = new HashMap<>();
         this.fmtSchemeResolver = new FmtSchemeResolver();
+        this.fmtSchemeResolver.setSchemeColorLookup(this::getThemeColor);
     }
     
     /**

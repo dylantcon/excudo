@@ -62,7 +62,7 @@ public class SlideCreator {
 
     boolean layoutHasTitle = false;
     try {
-      layoutHasTitle = SlideXMLParser.SlideLayoutParser.slideLayoutHasTitlePlaceholder(insertPosition);
+      layoutHasTitle = slideLayoutHasTitle(insertPosition);
     } catch (Exception e) {
       logger.warn("Failed to check layout title support for slide {}: {}", insertPosition, e.getMessage());
     }
@@ -104,7 +104,7 @@ public class SlideCreator {
           } else {
             boolean hasTitle = false;
             try {
-              hasTitle = SlideXMLParser.SlideLayoutParser.slideLayoutHasTitlePlaceholder(slideNum);
+              hasTitle = slideLayoutHasTitle(slideNum);
             } catch (Exception e) {
               logger.warn("Failed to check layout title for slide {}: {}", slideNum, e.getMessage());
             }
@@ -207,6 +207,12 @@ public class SlideCreator {
    * Set the PPTXDocument on the insertion pipeline so slide creation
    * operates on in-memory DOMs instead of disk.
    */
+  private boolean slideLayoutHasTitle(int slideNumber) {
+    SlideXMLParser.SlideLayoutParser layouts =
+        SlideXMLParser.SlideLayoutParser.forDocument(pipeline.getPPTXDocument());
+    return layouts != null && layouts.slideLayoutHasTitlePlaceholder(slideNumber);
+  }
+
   public void setPPTXDocument(PPTXDocument pptxDocument) {
     pipeline.setPPTXDocument(pptxDocument);
   }

@@ -273,6 +273,45 @@ public class PPTXDocument implements AutoCloseable {
         if (isStylePart(partName)) notifyStylePartChanged(partName);
     }
 
+    // ========== OWNER TAG ON SLIDE DOMS ==========
+    //
+    // Slide DOMs handed out by this document carry a reference back to it
+    // (DOM user data), so code that only receives a slide Document -- e.g. a
+    // parser invoked through getParsedSlideData -- can reach this deck's
+    // layouts and theme without any global "current document".
+
+    private static final String OWNER_KEY = "com.excudo.core.model.PPTXDocument.owner";
+
+    private void tagOwner(Document dom) {
+        if (dom != null && dom.getUserData(OWNER_KEY) != this) dom.setUserData(OWNER_KEY, this, null);
+    }
+
+    /** The PPTXDocument a slide DOM came from, or null if it came from elsewhere. */
+    public static PPTXDocument ownerOf(org.w3c.dom.Node node) {
+        if (node == null) return null;
+        Document dom = node instanceof Document d ? d : node.getOwnerDocument();
+        Object owner = dom == null ? null : dom.getUserData(OWNER_KEY);
+        return owner instanceof PPTXDocument p ? p : null;
+    }
+
+    // ========== PER-DOCUMENT DERIVED STATE ==========
+    //
+    // State derived from this document (theme resolution, layout geometry,
+    // ...) belongs to the document, not to static fields shared by every
+    // open deck. Layers that compile after core/model attach it here, keyed
+    // by their class, and typically self-refresh by comparing revisions.
+
+    private final Map<Object, Object> derivedState = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Per-document state for {@code key}, created on first use. The factory
+     * must not itself call {@code derived} on this document.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T derived(Object key, java.util.function.Supplier<T> factory) {
+        return (T) derivedState.computeIfAbsent(key, k -> factory.get());
+    }
+
     // ========== STYLE-PART CHANGE NOTIFICATION ==========
     //
     // Slides inherit from their layout, master, and theme, so a change to any
@@ -464,6 +503,7 @@ public class PPTXDocument implements AutoCloseable {
             throw new IllegalArgumentException("Slide " + slideNumber + " not found in PPTXDocument. " +
                 "Available slides: " + getSlideNumbers());
         }
+        tagOwner(doc);
         return doc;
     }
 
@@ -473,6 +513,7 @@ public class PPTXDocument implements AutoCloseable {
 
     public void putSlideDocument(int slideNumber, Document document) {
         String partName = slidePartName(slideNumber);
+        tagOwner(document);
         xmlParts.put(partName, document);
         dirtyParts.add(partName);
         mutations.incrementAndGet();

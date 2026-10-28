@@ -413,7 +413,6 @@ public class SessionManager {
         
         // Keep expensive objects alive
         private final SPIDManager spidManager;
-        private final ThemeManager themeManager;
         private final RelationshipManager relationshipManager;
         private final CommandInvoker commandInvoker;
         
@@ -466,7 +465,6 @@ public class SessionManager {
 
             // Initialize expensive components (keep them alive)
             this.spidManager = context.getSpidManager();
-            this.themeManager = new ThemeManager();
             this.relationshipManager = context.getRelationshipManager();
             this.commandInvoker = new CommandInvoker();
             
@@ -491,7 +489,6 @@ public class SessionManager {
             this.lastAccessed = System.currentTimeMillis();
             this.tempDirectory = null;
             this.spidManager = null;
-            this.themeManager = new ThemeManager();
             this.relationshipManager = null;
             this.commandInvoker = new CommandInvoker();
         }
@@ -500,7 +497,11 @@ public class SessionManager {
         public String getSessionId() { return sessionId; }
         public PPTXOrchestrator getOrchestrator() { return orchestrator; }
         public SPIDManager getSPIDManager() { return spidManager; }
-        public ThemeManager getThemeManager() { return themeManager; }
+        /** Theme resolution for this session's deck. */
+        public ThemeManager getThemeManager() {
+            return ThemeManager.forDocument(orchestrator == null ? null
+                : orchestrator.getContext().map(OrchestrationContext::getDocument).orElse(null));
+        }
         public RelationshipManager getRelationshipManager() { return relationshipManager; }
         public CommandInvoker getCommandInvoker() { return commandInvoker; }
         

@@ -332,7 +332,7 @@ public class SlideMasterOrchestrationManager {
                     String colorName = scheme.getAttribute("val");
                     Map<String, String> clrMap = getClrMap();
                     String resolved = clrMap.getOrDefault(colorName, colorName);
-                    return com.excudo.core.themes.ThemeManager.getThemeColor(resolved).withHash();
+                    return com.excudo.core.themes.ThemeManager.forDocument(context.getDocument()).getThemeColor(resolved).withHash();
                 }
             }
         }
@@ -351,11 +351,11 @@ public class SlideMasterOrchestrationManager {
                 Map<String, String> clrMap = getClrMap();
                 String resolved = clrMap.getOrDefault(colorName, colorName);
                 com.excudo.core.themes.HexColor phColor =
-                    com.excudo.core.themes.ThemeManager.getThemeColor(resolved);
+                    com.excudo.core.themes.ThemeManager.forDocument(context.getDocument()).getThemeColor(resolved);
 
-                if (idx > 0 && com.excudo.core.themes.ThemeManager.isThemeLoaded()) {
+                if (idx > 0 && com.excudo.core.themes.ThemeManager.forDocument(context.getDocument()).isThemeLoaded()) {
                     com.excudo.core.themes.ResolvedFill fill =
-                        com.excudo.core.themes.ThemeManager.resolveFillStyle(idx, phColor.withHash());
+                        com.excudo.core.themes.ThemeManager.forDocument(context.getDocument()).resolveFillStyle(idx, phColor.withHash());
 
                     if (fill instanceof com.excudo.core.themes.ResolvedFill.SolidFill solid) {
                         return solid.hex();

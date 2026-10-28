@@ -208,15 +208,29 @@ public class FmtSchemeResolver {
         return switch (color) {
             case FmtSchemeModel.SrgbColor s -> applyMods(s.hex(), s.modifiers());
             case FmtSchemeModel.SchemeColor sc ->
-                // Non-phClr scheme colors resolve through ThemeManager.
-                // HexColor's .withHash() is the explicit adapter — no
-                // String-concat ambiguity.
-                applyMods(ThemeManager.getThemeColor(sc.val()).withHash(), sc.modifiers());
+                // Non-phClr scheme colors resolve through the owning theme's
+                // color scheme (never another deck's). HexColor's .withHash()
+                // is the explicit adapter — no String-concat ambiguity.
+                applyMods(requireSchemeColorLookup().apply(sc.val()).withHash(), sc.modifiers());
             case FmtSchemeModel.PlaceholderColor p ->
                 applyMods(
                     phColorHex.startsWith("#") ? phColorHex : "#" + phColorHex,
                     p.modifiers());
         };
+    }
+
+    private java.util.function.Function<String, HexColor> schemeColorLookup;
+
+    /** Scheme-color source: the color scheme of the theme this fmtScheme belongs to. */
+    public void setSchemeColorLookup(java.util.function.Function<String, HexColor> lookup) {
+        this.schemeColorLookup = lookup;
+    }
+
+    private java.util.function.Function<String, HexColor> requireSchemeColorLookup() {
+        if (schemeColorLookup == null) {
+            throw new IllegalStateException("FmtSchemeResolver has no scheme-color lookup (not owned by a ThemeParser)");
+        }
+        return schemeColorLookup;
     }
 
     private ColorModifierUtils.ColorWithAlpha applyMods(

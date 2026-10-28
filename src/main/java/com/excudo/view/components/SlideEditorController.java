@@ -301,7 +301,7 @@ public class SlideEditorController implements Initializable {
 
             // Resolve theme from ThemeManager (already initialized by orchestrator)
             ThemeDefinition theme = null;
-            String themeName = ThemeManager.getCurrentThemeName();
+            String themeName = ThemeManager.forDocument(ctx.getDocument()).getCurrentThemeName();
             if (themeName != null && !themeName.contains("No Theme")) {
                 for (ThemeDefinition t : ThemeManager.getAvailableThemes()) {
                     if (t.getDisplayName().equalsIgnoreCase(themeName)

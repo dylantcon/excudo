@@ -163,7 +163,6 @@ public class ApplyThemeCommand implements Command {
                 doc.markContentTypesDirty();
             }
 
-            ThemeManager.initialize(doc);
 
             executed = true;
             displayMsg("Applied theme '" + theme.getDisplayName() + "' successfully");

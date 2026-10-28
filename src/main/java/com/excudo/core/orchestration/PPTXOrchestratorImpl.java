@@ -126,9 +126,6 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             com.excudo.utils.NotesSlideRegistry notesSlideRegistry = new com.excudo.utils.NotesSlideRegistry();
             notesSlideRegistry.loadFromParsedState(parsedState.getNotesToSlideMap());
 
-            // Layout/theme init from PPTXDocument
-            com.excudo.xml.parsers.SlideXMLParser.SlideLayoutParser.initialize(pptxDocument);
-            com.excudo.core.themes.ThemeManager.initialize(pptxDocument);
 
             if (timing) {
                 long t2 = System.nanoTime();
