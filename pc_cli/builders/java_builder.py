@@ -586,7 +586,10 @@ public class JavaFXTest extends Application {
         argfile.write_text(
             "\n".join('"' + str(f).replace("\\", "/") + '"' for f in test_files),
             encoding="utf-8")
-        cmd = [javac, "-cp", classpath + ":build", "-d", "build/test"] + javafx_modules + [f"@{argfile}"]
+        # build/test on the classpath so an incremental compile of one test
+        # still sees the other (unchanged) test classes, e.g. shared utils.
+        test_classpath = os.pathsep.join([classpath, "build", "build/test"])
+        cmd = [javac, "-cp", test_classpath, "-d", "build/test"] + javafx_modules + [f"@{argfile}"]
 
         # Use xvfb-run on Linux for headless environments with JavaFX tests
         is_headless_system = (
