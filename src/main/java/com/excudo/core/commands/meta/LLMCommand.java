@@ -64,6 +64,7 @@ public class LLMCommand implements Command {
         if (handler == null) {
             throw new IllegalStateException("LLM handler not available");
         }
+        if (ctx.display() != null) handler.setOutput(ctx.display());
         return new LLMCommand(handler, llmCtx.getCurrentOrchestrator(),
             llmCtx.getCurrentCommandInvoker(),
             p.get(SUBCOMMAND).trim().toLowerCase(),

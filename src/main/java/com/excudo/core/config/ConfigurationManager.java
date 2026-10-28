@@ -211,6 +211,25 @@ public class ConfigurationManager {
         saveConfiguration();
     }
 
+    /** Save (or with null/empty, remove) the API key for the active provider. */
+    public void setProviderApiKey(String apiKey) {
+        setProviderProperty(getProviderName() + ".api.key", apiKey);
+    }
+
+    /** Save (or with null/empty, remove) the model for the active provider. */
+    public void setProviderModel(String model) {
+        setProviderProperty(getProviderName() + ".model", model);
+    }
+
+    private void setProviderProperty(String key, String value) {
+        if (value == null || value.isEmpty()) {
+            properties.remove(key);
+        } else {
+            properties.setProperty(key, value);
+        }
+        saveConfiguration();
+    }
+
     public void setModel(String model) {
         if (model == null || model.isEmpty()) {
             properties.remove("anthropic.model");
@@ -242,13 +261,13 @@ public class ConfigurationManager {
         sb.append("2. Set environment variable: ").append(envVar).append("=<api-key>\n");
         sb.append("3. Add to .env file: ").append(envVar).append("=<api-key>\n");
         sb.append("\nModel Configuration:\n");
-        sb.append("1. Set via command: llm model <model-name>\n");
+        sb.append("1. Set via command: llm config model <model-name>\n");
         sb.append("2. Set environment variable: ").append(modelVar).append("=<model-name>\n");
         sb.append("3. Add to .env file: ").append(modelVar).append("=<model-name>\n");
         sb.append("\nProvider Selection:\n");
         sb.append("1. Set via command: llm config provider <name>\n");
         sb.append("2. Set environment variable: LLM_PROVIDER=<name>\n");
-        sb.append("   Supported: anthropic, ollama, openai, gemini\n");
+        sb.append("   Supported: anthropic, ollama, openrouter\n");
         sb.append("\nDefault model: ").append(getDefaultModel(provider));
         sb.append("\nConfiguration file: ").append(configFile.getAbsolutePath());
         return sb.toString();

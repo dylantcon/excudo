@@ -22,14 +22,16 @@ import com.excudo.core.parsing.Parameter;
 public class LLMConfigCommand implements Command {
 
     static final Parameter<String> ACTION = Parameter.ofString("action")
-        .description("Config action (show, set, clear, provider, ...)")
+        .description("show | set <api-key> | clear | provider <anthropic|ollama|openrouter> | model <name> | env <file>")
         .required(false).variableLength(true).build();
 
     public static final CommandSchema SCHEMA = CommandSchema.builder()
-        .description("Configure the LLM provider/credentials")
+        .description("Configure the LLM provider, API key, and model")
         .parameter(ACTION)
         .example("llm-config show")
-        .example("llm-config set provider openai")
+        .example("llm-config env .env")
+        .example("llm-config provider openrouter")
+        .example("llm-config model claude-opus-5-5")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(LLMConfigCommand.class);
@@ -40,6 +42,7 @@ public class LLMConfigCommand implements Command {
         if (handler == null) {
             throw new IllegalStateException("LLM handler not available");
         }
+        if (ctx.display() != null) handler.setOutput(ctx.display());
         return new LLMConfigCommand(handler, p.opt(ACTION).orElse(""));
     }
 

@@ -10,6 +10,12 @@ import com.excudo.core.orchestration.BatchExecutionResult;
 public interface LLMHandler {
 
     /**
+     * Where informational output goes (the console / GUI display). Handlers
+     * default to stdout, which the GUI console never shows.
+     */
+    default void setOutput(com.excudo.core.commands.CommandDisplay display) {}
+
+    /**
      * Process a natural language edit request and return a proposal.
      */
     LLMEditProposal processEditRequest(String request) throws Exception;

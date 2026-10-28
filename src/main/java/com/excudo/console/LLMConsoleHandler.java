@@ -27,6 +27,28 @@ public class LLMConsoleHandler implements LLMHandler {
     private LLMClient apiClient;
     private boolean verboseMode = false;
 
+    private com.excudo.core.commands.CommandDisplay output;
+
+    @Override
+    public void setOutput(com.excudo.core.commands.CommandDisplay display) {
+        this.output = display;
+    }
+
+    /** Informational line to the attached display, or stdout when none is attached. */
+    private void out(Object message) {
+        String text = String.valueOf(message);
+        if (output != null) {
+            output.displayMessage(text);
+        } else {
+            System.out.println(text);
+        }
+    }
+
+    /** Blank line. */
+    private void out() {
+        out("");
+    }
+
     public LLMConsoleHandler(PPTXOrchestrator orchestrator) {
         this.orchestrator = orchestrator;
         this.configManager = new ConfigurationManager();
@@ -75,7 +97,7 @@ public class LLMConsoleHandler implements LLMHandler {
                 if (parts.length > 1) {
                     handleEdit(parts[1], scanner, commandInvoker);
                 } else {
-                    System.out.println("Please provide an edit request. Example: llm edit add fade animation to all titles");
+                    out("Please provide an edit request. Example: llm edit add fade animation to all titles");
                 }
                 break;
 
@@ -89,17 +111,17 @@ public class LLMConsoleHandler implements LLMHandler {
 
             case "verbose":
                 verboseMode = !verboseMode;
-                System.out.println("Verbose mode: " + (verboseMode ? "ON" : "OFF"));
+                out("Verbose mode: " + (verboseMode ? "ON" : "OFF"));
                 break;
 
             default:
-                System.out.println("Unknown LLM command: " + subCommand);
-                System.out.println("Type 'llm help' for available commands");
+                out("Unknown LLM command: " + subCommand);
+                out("Type 'llm help' for available commands");
         }
     }
 
     private void showHelp() {
-        System.out.println("""
+        out("""
             LLM Commands:
 
             llm config              - Show configuration status
@@ -131,48 +153,48 @@ public class LLMConsoleHandler implements LLMHandler {
                 System.out.print("Enter your API key: ");
                 String apiKey = scanner.nextLine().trim();
                 if (!apiKey.isEmpty()) {
-                    configManager.setApiKey(apiKey);
+                    configManager.setProviderApiKey(apiKey);
                     initializeAPIClient();
-                    System.out.println("API key saved successfully!");
+                    out("API key saved successfully!");
                 }
                 break;
 
             case "clear":
-                configManager.clearApiKey();
+                configManager.setProviderApiKey(null);
                 apiClient = null;
-                System.out.println("API key cleared.");
+                out("API key cleared.");
                 break;
 
             case "provider":
                 if (actionParts.length > 1) {
                     String provider = actionParts[1].trim().toLowerCase();
                     configManager.setProviderName(provider);
-                    System.out.println("LLM provider set to: " + provider);
+                    out("LLM provider set to: " + provider);
                     initializeAPIClient();
                     if (apiClient != null) {
-                        System.out.println("Client initialized: " + apiClient.getProviderName()
+                        out("Client initialized: " + apiClient.getProviderName()
                             + " (model: " + apiClient.getModel() + ")");
                     } else {
-                        System.out.println("API key not configured for provider '" + provider + "'.");
-                        System.out.println("Use 'llm config set' or set the appropriate environment variable.");
+                        out("API key not configured for provider '" + provider + "'.");
+                        out("Use 'llm config set' or set the appropriate environment variable.");
                     }
                 } else {
-                    System.out.println("Current provider: " + configManager.getProviderName());
-                    System.out.println("Supported: anthropic, ollama, openai, gemini");
-                    System.out.println("Usage: llm config provider <name>");
+                    out("Current provider: " + configManager.getProviderName());
+                    out("Supported: anthropic, ollama, openai, gemini");
+                    out("Usage: llm config provider <name>");
                 }
                 break;
 
             default:
-                System.out.println(configManager.getConfigurationStatus());
-                System.out.println();
-                System.out.println(configManager.getConfigurationInstructions());
+                out(configManager.getConfigurationStatus());
+                out();
+                out(configManager.getConfigurationInstructions());
         }
     }
 
     private void handleEdit(String request, Scanner scanner, CommandInvoker commandInvoker) {
         if (apiClient == null) {
-            System.out.println("API key not configured. Use 'llm config set' to configure.");
+            out("API key not configured. Use 'llm config set' to configure.");
             return;
         }
 
@@ -181,7 +203,7 @@ public class LLMConsoleHandler implements LLMHandler {
             handleEditSingleShot(request, scanner, commandInvoker);
         } else {
             // Cloud models use agentic multi-turn path
-            System.out.println("Using agentic mode (selective context retrieval)...");
+            out("Using agentic mode (selective context retrieval)...");
             handleEditAgentic(request, commandInvoker);
         }
     }
@@ -192,7 +214,7 @@ public class LLMConsoleHandler implements LLMHandler {
      * multi-turn tool calling reliably.
      */
     private void handleEditSingleShot(String request, Scanner scanner, CommandInvoker commandInvoker) {
-        System.out.println("Analyzing presentation...");
+        out("Analyzing presentation...");
 
         try {
             LLMHandler.LLMEditProposal proposal = processEditRequest(request);
@@ -202,20 +224,20 @@ public class LLMConsoleHandler implements LLMHandler {
                 return;
             }
 
-            System.out.println("\nProposed operations:");
-            System.out.println(proposal.getOperationsSummary());
+            out("\nProposed operations:");
+            out(proposal.getOperationsSummary());
 
             if (verboseMode) {
-                System.out.println("\n=== JSON COMMAND ===");
-                System.out.println(proposal.getJsonCommand());
-                System.out.println("=== END JSON ===\n");
+                out("\n=== JSON COMMAND ===");
+                out(proposal.getJsonCommand());
+                out("=== END JSON ===\n");
             }
 
             boolean autoApprove = "true".equalsIgnoreCase(System.getenv("PC_AUTO_APPROVE"));
             String confirm;
 
             if (autoApprove) {
-                System.out.println("\nAuto-approving proposal (PC_AUTO_APPROVE=true)...");
+                out("\nAuto-approving proposal (PC_AUTO_APPROVE=true)...");
                 confirm = "y";
             } else {
                 System.out.print("\nExecute? (y/n): ");
@@ -223,18 +245,18 @@ public class LLMConsoleHandler implements LLMHandler {
             }
 
             if (confirm.equals("y") || confirm.equals("yes")) {
-                System.out.println("Executing...");
+                out("Executing...");
                 BatchExecutionResult result = executeApprovedProposal(proposal, commandInvoker);
 
                 if (result.isSuccess()) {
-                    System.out.println("[OK] Completed: " + result.getSuccessfulOperations()
+                    out("[OK] Completed: " + result.getSuccessfulOperations()
                         + "/" + result.getTotalOperations() + " operations");
                 } else {
                     logger.error("Failed: {} of {} operations failed",
                         result.getFailedOperations(), result.getTotalOperations());
                 }
             } else {
-                System.out.println("Cancelled.");
+                out("Cancelled.");
             }
 
         } catch (Exception e) {
@@ -260,10 +282,10 @@ public class LLMConsoleHandler implements LLMHandler {
                 llmService.processRequestAgenticWithUsage(
                     request, orchestrator, apiClient, commandFactory, commandInvoker);
 
-            System.out.println();
-            System.out.println(result.summary());
+            out();
+            out(result.summary());
             if (result.inputTokens() > 0 || result.outputTokens() > 0) {
-                System.out.println(com.excudo.console.utils.ConsoleColors.dim(
+                out(com.excudo.console.utils.ConsoleColors.dim(
                     "Tokens: " + result.inputTokens() + " in / " + result.outputTokens() + " out"));
             }
         } catch (Exception e) {
@@ -272,19 +294,19 @@ public class LLMConsoleHandler implements LLMHandler {
     }
 
     private void handleAnalyze(String target) {
-        System.out.println("Analyzing presentation...");
+        out("Analyzing presentation...");
 
         try {
             if (target.equals("all")) {
                 String context = llmService.generateEnhancedLLMContext(orchestrator, true);
-                System.out.println("\n=== PRESENTATION ANALYSIS ===");
-                System.out.println(context);
+                out("\n=== PRESENTATION ANALYSIS ===");
+                out(context);
             } else {
                 try {
                     int slideNum = Integer.parseInt(target);
                     String context = llmService.generateSlideContext(orchestrator, List.of(slideNum));
-                    System.out.println("\n=== SLIDE " + slideNum + " ANALYSIS ===");
-                    System.out.println(context);
+                    out("\n=== SLIDE " + slideNum + " ANALYSIS ===");
+                    out(context);
                 } catch (NumberFormatException e) {
                     logger.warn("Invalid slide number: {}", target);
                 }
@@ -296,11 +318,11 @@ public class LLMConsoleHandler implements LLMHandler {
 
     private void handleSuggest() {
         if (apiClient == null) {
-            System.out.println("API key not configured. Use 'llm config set' to configure.");
+            out("API key not configured. Use 'llm config set' to configure.");
             return;
         }
 
-        System.out.println("Analyzing presentation for improvement suggestions...");
+        out("Analyzing presentation for improvement suggestions...");
 
         try {
             String context = llmService.generateEnhancedLLMContext(orchestrator, false);
@@ -321,9 +343,9 @@ public class LLMConsoleHandler implements LLMHandler {
             );
 
             if (apiResult.isSuccess()) {
-                System.out.println("\n=== AI SUGGESTIONS ===");
-                System.out.println(apiResult.getData().orElse("No suggestions available"));
-                System.out.println("=== END SUGGESTIONS ===");
+                out("\n=== AI SUGGESTIONS ===");
+                out(apiResult.getData().orElse("No suggestions available"));
+                out("=== END SUGGESTIONS ===");
             } else {
                 logger.error("Failed to get suggestions: {}", apiResult.getMessage());
             }
@@ -378,7 +400,7 @@ public class LLMConsoleHandler implements LLMHandler {
             : llmService.generateEnhancedLLMContext(orchestrator, true);
 
         if (verboseMode) {
-            System.out.println("Context size: " + context.length() + " chars"
+            out("Context size: " + context.length() + " chars"
                 + (compact ? " (compact)" : " (full)"));
         }
 
@@ -391,9 +413,9 @@ public class LLMConsoleHandler implements LLMHandler {
         String llmResponse = apiResult.getData().orElse("");
 
         if (verboseMode) {
-            System.out.println("\n=== RAW LLM RESPONSE ===");
-            System.out.println(llmResponse);
-            System.out.println("=== END RAW RESPONSE ===\n");
+            out("\n=== RAW LLM RESPONSE ===");
+            out(llmResponse);
+            out("=== END RAW RESPONSE ===\n");
         }
 
         String jsonCommand = extractJsonFromResponse(llmResponse);
@@ -532,47 +554,66 @@ public class LLMConsoleHandler implements LLMHandler {
                 if (parts.length > 1 && !parts[1].trim().isEmpty()) {
                     String value = parts[1].trim();
                     if (value.endsWith(".env") || value.contains(".env.") || new java.io.File(value).isFile()) {
-                        System.out.println("'" + value + "' is a file, not an API key -- loading it as an env file instead.");
+                        out("'" + value + "' is a file, not an API key -- loading it as an env file instead.");
                         handleConfigAction("env " + value);
                         break;
                     }
                     if ("anthropic".equalsIgnoreCase(configManager.getProviderName())
                             && !value.startsWith("sk-ant-")) {
-                        System.out.println("Warning: Anthropic API keys start with 'sk-ant-'; saving anyway.");
+                        out("Warning: Anthropic API keys start with 'sk-ant-'; saving anyway.");
                     }
-                    configManager.setApiKey(value);
+                    configManager.setProviderApiKey(value);
                     initializeAPIClient();
-                    System.out.println("API key saved successfully!");
+                    out("API key saved successfully!");
                     if (apiClient != null) {
-                        System.out.println("Client initialized: " + apiClient.getProviderName()
+                        out("Client initialized: " + apiClient.getProviderName()
                             + " (model: " + apiClient.getModel() + ")");
                     }
                 } else {
-                    System.out.println("Usage: llm config set <api-key>");
+                    out("Usage: llm config set <api-key>");
                 }
                 break;
             case "clear":
-                configManager.clearApiKey();
+                configManager.setProviderApiKey(null);
                 apiClient = null;
-                System.out.println("API key cleared.");
+                out("API key cleared.");
+                break;
+            case "model":
+                if (parts.length > 1 && parts[1].trim().equalsIgnoreCase("default")) {
+                    configManager.setProviderModel(null);
+                    initializeAPIClient();
+                    out("Saved model cleared; using " + configManager.getProviderModel());
+                } else if (parts.length > 1 && !parts[1].trim().isEmpty()) {
+                    configManager.setProviderModel(parts[1].trim());
+                    initializeAPIClient();
+                    out("Model for " + configManager.getProviderName() + " set to: " + parts[1].trim());
+                    if (apiClient != null) {
+                        out("Client initialized: " + apiClient.getProviderName()
+                            + " (model: " + apiClient.getModel() + ")");
+                    }
+                } else {
+                    out("Current model: " + configManager.getProviderModel());
+                    out("Usage: llm config model <model-name>   (saved setting overrides the env var;"
+                        + " 'llm config model default' removes it)");
+                }
                 break;
             case "provider":
                 if (parts.length > 1 && !parts[1].trim().isEmpty()) {
                     String provider = parts[1].trim().toLowerCase();
                     configManager.setProviderName(provider);
-                    System.out.println("LLM provider set to: " + provider);
+                    out("LLM provider set to: " + provider);
                     initializeAPIClient();
                     if (apiClient != null) {
-                        System.out.println("Client initialized: " + apiClient.getProviderName()
+                        out("Client initialized: " + apiClient.getProviderName()
                             + " (model: " + apiClient.getModel() + ")");
                     } else {
-                        System.out.println("API key not configured for provider '" + provider + "'.");
-                        System.out.println("Use 'llm config set <key>' or set the appropriate environment variable.");
+                        out("API key not configured for provider '" + provider + "'.");
+                        out("Use 'llm config set <key>' or set the appropriate environment variable.");
                     }
                 } else {
-                    System.out.println("Current provider: " + configManager.getProviderName());
-                    System.out.println("Supported: anthropic, ollama, openai, gemini");
-                    System.out.println("Usage: llm config provider <name>");
+                    out("Current provider: " + configManager.getProviderName());
+                    out("Supported: anthropic, ollama, openai, gemini");
+                    out("Usage: llm config provider <name>");
                 }
                 break;
             case "env":
@@ -580,34 +621,34 @@ public class LLMConsoleHandler implements LLMHandler {
                     String envPath = parts[1].trim();
                     int count = com.excudo.core.utils.EnvLoader.loadFromPath(envPath);
                     if (count < 0) {
-                        System.out.println("File not found: " + envPath);
+                        out("File not found: " + envPath);
                     } else {
-                        System.out.println("Loaded env file: " + envPath + " (" + count + " new variables)");
+                        out("Loaded env file: " + envPath + " (" + count + " new variables)");
                         // If the env file specifies LLM_PROVIDER, update the config manager
                         // so it takes precedence over the persisted properties file.
                         String envProvider = com.excudo.core.utils.EnvLoader.get("LLM_PROVIDER");
                         if (envProvider != null && !envProvider.trim().isEmpty()) {
                             configManager.setProviderName(envProvider.trim());
-                            System.out.println("Provider set from env file: " + envProvider.trim());
+                            out("Provider set from env file: " + envProvider.trim());
                         }
                         initializeAPIClient();
                         if (apiClient != null) {
-                            System.out.println("Client initialized: " + apiClient.getProviderName()
+                            out("Client initialized: " + apiClient.getProviderName()
                                 + " (model: " + apiClient.getModel() + ")");
                         } else {
-                            System.out.println("No API key found in env file. Expected key: "
+                            out("No API key found in env file. Expected key: "
                                 + configManager.getProviderName().toUpperCase() + "_API_KEY");
                         }
                     }
                 } else {
-                    System.out.println("Usage: llm config env <path-to-.env-file>");
+                    out("Usage: llm config env <path-to-.env-file>");
                 }
                 break;
             case "show":
             default:
-                System.out.println(configManager.getConfigurationStatus());
-                System.out.println();
-                System.out.println(configManager.getConfigurationInstructions());
+                out(configManager.getConfigurationStatus());
+                out();
+                out(configManager.getConfigurationInstructions());
                 break;
         }
     }
