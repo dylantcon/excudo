@@ -464,7 +464,6 @@ public class ShapeRegistryTest {
     public void testWithRealPptxData() throws Exception {
         // Test ShapeRegistry with real PPTX data to improve code coverage
         File tempDir = Files.createTempDirectory("shape-registry-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             // Copy test PPTX structure
@@ -547,27 +546,8 @@ public class ShapeRegistryTest {
     
     private void copyTestPptxStructure(File targetDir) throws IOException {
         // Path to the extracted generalist test file
-        Path sourceDir = Path.of("generalist_extracted");
-        
-        if (!Files.exists(sourceDir)) {
-            // Extract the test PPTX if not already extracted
-            Files.createDirectories(sourceDir);
-            try (java.util.zip.ZipFile zipFile = new java.util.zip.ZipFile("test-pptx-samples/generalist_test_file.pptx")) {
-                java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zipFile.entries();
-                
-                while (entries.hasMoreElements()) {
-                    java.util.zip.ZipEntry entry = entries.nextElement();
-                    Path entryPath = sourceDir.resolve(entry.getName());
-                    
-                    if (entry.isDirectory()) {
-                        Files.createDirectories(entryPath);
-                    } else {
-                        Files.createDirectories(entryPath.getParent());
-                        Files.copy(zipFile.getInputStream(entry), entryPath, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-            }
-        }
+        // Extracted once per JVM into a temp dir (never the repo root)
+        Path sourceDir = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file");
         
         // Copy the extracted structure to our target directory
         copyDirectory(sourceDir, targetDir.toPath());

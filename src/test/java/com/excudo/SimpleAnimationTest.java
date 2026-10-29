@@ -2,83 +2,77 @@ package com.excudo;
 
 import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.model.ShapeGeometry;
+import com.excudo.test.utils.FixtureDecks;
 import com.excudo.xml.writers.SlideXMLWriter;
+import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.*;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.File;
-import org.junit.Test;
+import java.nio.file.Files;
+
 import static org.junit.Assert.*;
 
+/**
+ * Entrance + exit animations injected into a real slide produce the timing
+ * structure PowerPoint expects: visibility sets, a build-list entry for the
+ * target, and one click-triggered effect per animation.
+ */
 public class SimpleAnimationTest {
+
+    private static final String PNS = "http://schemas.openxmlformats.org/presentationml/2006/main";
+
     @Test
     public void testSimpleAnimationStructure() throws Exception {
-        System.out.println("=== Simple Animation Structure Test ===");
-            
-            // Read slide 2 from the extracted generalist test file
-            File slideFile = new File("test-pptx-samples/generalist_extracted/ppt/slides/slide2.xml");
-            if (!slideFile.exists()) {
-                fail("Required fixture not found: " + slideFile.getPath());
+        File slideFile = FixtureDecks.extracted("generalist_test_file").resolve("ppt/slides/slide2.xml").toFile();
+        assertTrue("fixture slide present", slideFile.exists());
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(slideFile);
+
+        SlideXMLWriter writer = new SlideXMLWriter(doc);
+        int targetSpid = 2;
+        ShapeGeometry geo = new ShapeGeometry(0, 0, 914400, 914400);
+        writer.injectAnimation(AnimationBinding.builder()
+            .target(targetSpid).type("fade").entrance()
+            .duration("500").delay("0").clickTrigger(1).animationGroup("on-click").build(), geo);
+        writer.injectAnimation(AnimationBinding.builder()
+            .target(targetSpid).type("fade").exit()
+            .duration("500").delay("0").clickTrigger(2).animationGroup("on-click").build(), geo);
+
+        File out = Files.createTempFile("simple-animation", ".xml").toFile();
+        try {
+            writer.writeXML(out);
+            assertTrue("output written", out.length() > 0);
+            Document written = builder.parse(out);
+
+            int visibilitySets = 0;
+            NodeList attrNames = written.getElementsByTagNameNS(PNS, "attrName");
+            for (int i = 0; i < attrNames.getLength(); i++) {
+                if ("style.visibility".equals(attrNames.item(i).getTextContent().trim())) visibilitySets++;
             }
-            
-            // Parse the XML
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(slideFile);
-            
-            System.out.println("Original slide loaded from: " + slideFile.getPath());
-            
-            // Create a copy for testing
-            File testOutput = new File("test-pptx-samples/animations-crud/raw/generalist_animation_output.xml");
-            testOutput.getParentFile().mkdirs();
+            assertTrue("entrance and exit each toggle visibility", visibilitySets >= 2);
 
-            // Create writer and add animations with our improvements
-            SlideXMLWriter writer = new SlideXMLWriter(doc);
-            
-            System.out.println("\nAdding animations with improved structure:");
-            
-            // Find a shape to animate - we'll need to check what shapes exist in slide 2
-            // For now, let's use a common SPID that might exist
-            int targetSpid = 2; // Common SPID for first content shape
-            
-            ShapeGeometry geo = new ShapeGeometry(0, 0, 914400, 914400);
+            boolean built = false;
+            NodeList bldPs = written.getElementsByTagNameNS(PNS, "bldP");
+            for (int i = 0; i < bldPs.getLength(); i++) {
+                if (String.valueOf(targetSpid).equals(((Element) bldPs.item(i)).getAttribute("spid"))) built = true;
+            }
+            assertTrue("build list has an entry for the animated shape", built);
 
-            System.out.println("- Adding fade in animation (click 1) to shape " + targetSpid + "...");
-            AnimationBinding fadeIn = AnimationBinding.builder()
-                .target(targetSpid).type("fade").entrance()
-                .duration("500").delay("0").clickTrigger(1).animationGroup("on-click").build();
-            writer.injectAnimation(fadeIn, geo);
-
-            System.out.println("- Adding fade out animation (click 2) to shape " + targetSpid + "...");
-            AnimationBinding fadeOut = AnimationBinding.builder()
-                .target(targetSpid).type("fade").exit()
-                .duration("500").delay("0").clickTrigger(2).animationGroup("on-click").build();
-            writer.injectAnimation(fadeOut, geo);
-            
-            // Write the output
-            writer.writeXML(testOutput);
-            System.out.println("\nModified XML written to: " + testOutput.getPath());
-            
-            // Now let's examine what was created
-            System.out.println("\nKey improvements added:");
-            System.out.println("1. Visibility controls (p:set elements) for entrance/exit");
-            System.out.println("2. Text element targeting (p:txEl) in shape targets");
-            System.out.println("3. Group IDs (grpId attributes) for animation grouping");
-            System.out.println("4. Build list entries (p:bldP) for each animation");
-            
-            System.out.println("\nTo verify the structure matches PowerPoint's expectations:");
-            System.out.println("1. Compare with test-pptx-samples/analysis/repaired/ppt/slides/slide1.xml");
-            System.out.println("2. Look for p:set elements with style.visibility");
-            System.out.println("3. Check that p:bldLst contains entries for spid='15'");
-            System.out.println("4. Verify unique timing node IDs");
-            
-            // Verify output file was created
-            assertTrue("Output file should exist", testOutput.exists());
-            assertTrue("Output file should have content", testOutput.length() > 0);
+            int clickEffects = 0;
+            NodeList cTns = written.getElementsByTagNameNS(PNS, "cTn");
+            for (int i = 0; i < cTns.getLength(); i++) {
+                if ("clickEffect".equals(((Element) cTns.item(i)).getAttribute("nodeType"))) clickEffects++;
+            }
+            assertTrue("two click-triggered effects (fade in, fade out); found " + clickEffects, clickEffects >= 2);
+        } finally {
+            out.delete();
+        }
     }
 }

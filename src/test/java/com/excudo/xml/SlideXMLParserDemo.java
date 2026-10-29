@@ -18,7 +18,7 @@ public class SlideXMLParserDemo {
       SlideXMLParser parser = new SlideXMLParser();
 
       // Parse your slide2.xml file - use the actual extracted directory
-      File slideFile = Paths.get("test-pptx-samples", "generalist_extracted", "ppt", "slides", "slide2.xml").toFile();
+      File slideFile = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file").resolve("ppt/slides/slide2.xml").toFile();
 
       if (!slideFile.exists()) {
         System.err.println("Demo failed: Slide file not found: " + slideFile.getAbsolutePath());

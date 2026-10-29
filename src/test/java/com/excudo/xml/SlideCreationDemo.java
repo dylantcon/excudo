@@ -23,7 +23,7 @@ public class SlideCreationDemo {
       System.out.println();
 
       // Point to our extracted PPTX directory - use the actual extracted directory
-      File extractedDir = Paths.get("test-pptx-samples", "generalist_extracted").toFile();
+      File extractedDir = com.excudo.test.utils.FixtureDecks.copyOf("generalist_test_file").toFile();
       if (!extractedDir.exists()) {
         System.err.println("Demo failed: Extracted PPTX directory not found: " + extractedDir.getAbsolutePath());
         System.err.println("This demo requires extracted PPTX files to be present.");
@@ -38,6 +38,7 @@ public class SlideCreationDemo {
       SPIDManager spidManager = SPIDManager.createFromParsedState(parsedState, layoutManager);
       RelationshipManager relationshipManager = new RelationshipManager(pptxDoc, parsedState);
       SlideCreator creator = new SlideCreator(relationshipManager, spidManager, layoutManager);
+      creator.setPPTXDocument(pptxDoc);
 
       // List existing slides before insertion
       System.out.println("BEFORE SLIDE INSERTION:");
@@ -52,6 +53,7 @@ public class SlideCreationDemo {
       int newSlideNumber = creator.insertBlankSlide(3, "NEW SLIDE CREATED BY PRESENTATION CHOREOGRAPHER");
 
       System.out.println("  [OK] New slide created: slide" + newSlideNumber + ".xml");
+      pptxDoc.flush(); // write the in-memory change to the (private copy) directory listed below
       System.out.println();
 
       // List slides after insertion

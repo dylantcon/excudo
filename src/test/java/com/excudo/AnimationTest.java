@@ -29,7 +29,7 @@ public class AnimationTest {
             
             // Test file path - use the existing generalist test file
             String testFile = "test-pptx-samples/generalist_test_file.pptx";
-            String outputFile = "test-pptx-samples/animations-crud/raw/generalist_animation_test.pptx";
+            String outputFile = "test-output/animations-crud/generalist_animation_test.pptx";
             new File(outputFile).getParentFile().mkdirs();
 
             // Check if test file exists before proceeding

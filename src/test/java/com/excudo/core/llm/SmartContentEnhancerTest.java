@@ -34,8 +34,10 @@ public class SmartContentEnhancerTest {
         // Create temporary cache directory
         tempCacheDir = Files.createTempDirectory("smart-content-test").toString();
         
-        // Initialize enhancer with extracted test directory
-        enhancer = new SmartContentEnhancer(tempCacheDir, "test-pptx-samples/generalist_extracted");
+        // Initialize enhancer with a private, writable copy of the sample deck
+        // (never the repo's own files -- the enhancer can rewrite slide XML)
+        enhancer = new SmartContentEnhancer(tempCacheDir,
+            com.excudo.test.utils.FixtureDecks.copyOf("generalist_test_file").toString());
         
         // Create test slide data
         createTestSlideData();
@@ -265,9 +267,8 @@ public class SmartContentEnhancerTest {
      */
     @Test
     public void testCompleteOOXMLImageInjectionWithRealPPTX() throws Exception {
-        // Use real extracted PPTX test data from test-pptx-samples
-        Path projectRoot = Path.of(System.getProperty("user.dir"));
-        Path realPptxDir = projectRoot.resolve("test-pptx-samples/generalist_extracted");
+        // Real PPTX test data, extracted from the committed sample deck
+        Path realPptxDir = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file");
         
         assertTrue("Real PPTX test data should exist: " + realPptxDir, 
                   Files.exists(realPptxDir) && Files.isDirectory(realPptxDir));

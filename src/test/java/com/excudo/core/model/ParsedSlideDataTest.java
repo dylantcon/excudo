@@ -691,32 +691,8 @@ class ParsedSlideDataTest {
      */
     private void copyTestPptxStructure() throws IOException {
         // Path to the extracted generalist test file
-        Path sourceDir = Path.of("generalist_extracted");
-        
-        if (!Files.exists(sourceDir)) {
-            // Extract the test PPTX if not already extracted
-            try {
-                Files.createDirectories(sourceDir);
-                // Use Java's built-in ZIP support to extract
-                java.util.zip.ZipFile zipFile = new java.util.zip.ZipFile("test-pptx-samples/generalist_test_file.pptx");
-                java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zipFile.entries();
-                
-                while (entries.hasMoreElements()) {
-                    java.util.zip.ZipEntry entry = entries.nextElement();
-                    Path entryPath = sourceDir.resolve(entry.getName());
-                    
-                    if (entry.isDirectory()) {
-                        Files.createDirectories(entryPath);
-                    } else {
-                        Files.createDirectories(entryPath.getParent());
-                        Files.copy(zipFile.getInputStream(entry), entryPath, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-                zipFile.close();
-            } catch (Exception e) {
-                throw new IOException("Failed to extract test PPTX file", e);
-            }
-        }
+        // Extracted once per JVM into a temp dir (never the repo root)
+        Path sourceDir = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file");
         
         // Copy the extracted structure to our temp directory
         copyDirectory(sourceDir, extractedPptxDir.toPath());

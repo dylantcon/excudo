@@ -22,7 +22,7 @@ public class AnimationInjectionDemo {
       System.out.println();
 
       // Load the original slide - use the actual extracted directory
-      File originalSlide = Paths.get("test-pptx-samples", "generalist_extracted", "ppt", "slides", "slide2.xml").toFile();
+      File originalSlide = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file").resolve("ppt/slides/slide2.xml").toFile();
       if (!originalSlide.exists()) {
         System.err.println("Demo failed: Original slide not found: " + originalSlide.getAbsolutePath());
         System.err.println("This demo requires extracted PPTX files to be present.");
@@ -92,7 +92,7 @@ public class AnimationInjectionDemo {
       System.out.println();
 
       // Step 3: Write the modified slide
-      File modifiedSlide = Paths.get("test-pptx-samples", "slide2_with_animations.xml").toFile();
+      File modifiedSlide = new File("test-output", "slide2_with_animations.xml"); modifiedSlide.getParentFile().mkdirs();
       writer.writeXML(modifiedSlide);
 
       System.out.println("ANIMATION INJECTION COMPLETE:");

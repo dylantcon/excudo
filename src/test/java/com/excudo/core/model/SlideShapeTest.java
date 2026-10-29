@@ -352,7 +352,6 @@ public class SlideShapeTest {
     public void testRealPptxShapeTypes() throws Exception {
         // Test with real PPTX data to verify shape type detection from actual OOXML
         java.io.File tempDir = java.nio.file.Files.createTempDirectory("slideShape-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             // Copy test PPTX structure
@@ -426,7 +425,6 @@ public class SlideShapeTest {
     public void testRealPptxShapeGeometry() throws Exception {
         // Test that real PPTX shapes have valid geometry data
         java.io.File tempDir = java.nio.file.Files.createTempDirectory("slideShape-geometry-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             copyTestPptxStructure(tempDir);
@@ -474,7 +472,6 @@ public class SlideShapeTest {
     public void testRealPptxTextShapes() throws Exception {
         // Test real PPTX text shapes and their content
         java.io.File tempDir = java.nio.file.Files.createTempDirectory("slideShape-text-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             copyTestPptxStructure(tempDir);
@@ -538,7 +535,6 @@ public class SlideShapeTest {
     public void testRealPptxComplexShapes() throws Exception {
         // Test complex shapes from real PPTX that might require SAT collision detection
         java.io.File tempDir = java.nio.file.Files.createTempDirectory("slideShape-complex-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             copyTestPptxStructure(tempDir);
@@ -583,7 +579,6 @@ public class SlideShapeTest {
     public void testShapeRegistryIntegration() throws Exception {
         // Test that SlideShape objects work correctly with ShapeRegistry
         java.io.File tempDir = java.nio.file.Files.createTempDirectory("slideShape-registry-test").toFile();
-        tempDir.deleteOnExit();
         
         try {
             copyTestPptxStructure(tempDir);
@@ -636,28 +631,8 @@ public class SlideShapeTest {
     
     private void copyTestPptxStructure(java.io.File targetDir) throws java.io.IOException {
         // Path to the extracted generalist test file
-        java.nio.file.Path sourceDir = java.nio.file.Path.of("generalist_extracted");
-        
-        if (!java.nio.file.Files.exists(sourceDir)) {
-            // Extract the test PPTX if not already extracted
-            java.nio.file.Files.createDirectories(sourceDir);
-            try (java.util.zip.ZipFile zipFile = new java.util.zip.ZipFile("test-pptx-samples/generalist_test_file.pptx")) {
-                java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zipFile.entries();
-                
-                while (entries.hasMoreElements()) {
-                    java.util.zip.ZipEntry entry = entries.nextElement();
-                    java.nio.file.Path entryPath = sourceDir.resolve(entry.getName());
-                    
-                    if (entry.isDirectory()) {
-                        java.nio.file.Files.createDirectories(entryPath);
-                    } else {
-                        java.nio.file.Files.createDirectories(entryPath.getParent());
-                        java.nio.file.Files.copy(zipFile.getInputStream(entry), entryPath, 
-                                               java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                }
-            }
-        }
+        // Extracted once per JVM into a temp dir (never the repo root)
+        java.nio.file.Path sourceDir = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file");
         
         // Copy the extracted structure to our target directory
         copyDirectory(sourceDir, targetDir.toPath());

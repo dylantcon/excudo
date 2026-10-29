@@ -49,8 +49,9 @@ import static org.junit.Assert.*;
  */
 public class OracleReproductionTest {
 
-    private static final String ORACLE_DIR =
-        "test-pptx-samples/textel-and-shape-crud-oracle-file_extracted";
+    /** The oracle deck, extracted from the committed .pptx (read-only). */
+    private static final File ORACLE_DIR =
+        com.excudo.test.utils.FixtureDecks.extracted("textel-and-shape-crud-oracle-file").toFile();
 
     // Lorem ipsum text used in slides 5 and 7
     private static final String LOREM_IPSUM =
@@ -126,8 +127,8 @@ public class OracleReproductionTest {
         assertTrue("Failed to save presentation: " + saveResult.getMessage(),
             saveResult.isSuccess());
 
-        // Copy to test-pptx-samples for manual PowerPoint validation
-        File outputDir = new File("test-pptx-samples/oracle-reproduction-raw");
+        // Copy to test-output/ (git-ignored) for manual PowerPoint validation
+        File outputDir = new File("test-output/oracle-reproduction");
         if (!outputDir.exists()) outputDir.mkdirs();
         File persistedCopy = new File(outputDir, "oracle-reproduction.pptx");
         Files.copy(outputPptx.toPath(), persistedCopy.toPath(),
