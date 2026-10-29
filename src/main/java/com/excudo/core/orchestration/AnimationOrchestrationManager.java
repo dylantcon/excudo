@@ -98,7 +98,7 @@ public class AnimationOrchestrationManager {
             // Apply animation based on type
             if (animationBinding.getAnimationType().isMotionPath()) {
                 return addMotionPathAnimation(writer, slideNumber, animationBinding, usePptxDoc);
-            } else if (animationBinding.isParagraphLevelAnimation()) {
+            } else if (animationBinding.isTextRangeAnimation()) {
                 return addParagraphLevelAnimation(writer, slideNumber, animationBinding, usePptxDoc);
             } else {
                 return addShapeLevelAnimation(writer, slideNumber, animationBinding, usePptxDoc);
@@ -164,9 +164,13 @@ public class AnimationOrchestrationManager {
             saveAfterAnimation(slideNumber, writer, usePptxDoc);
 
             String animationId = generateAnimationId(slideNumber, animationBinding, "paragraph");
-            logger.info("Added paragraph-level animation {} to slide {} for SPID {} (paragraphs {}-{})",
+            logger.info("Added text-range animation {} to slide {} for SPID {} ({} {}-{})",
                        animationId, slideNumber, animationBinding.getTargetSpid(),
-                       animationBinding.getParagraphStart(), animationBinding.getParagraphEnd());
+                       animationBinding.isCharacterRangeAnimation() ? "chars" : "paragraphs",
+                       animationBinding.isCharacterRangeAnimation()
+                           ? animationBinding.getCharStart() : animationBinding.getParagraphStart(),
+                       animationBinding.isCharacterRangeAnimation()
+                           ? animationBinding.getCharEnd() : animationBinding.getParagraphEnd());
 
             return ExecutionResult.success("AddAnimation", animationId);
 

@@ -688,6 +688,20 @@ public class SlideXMLParser {
         int st = Integer.parseInt(pStart);
         builder.paragraphRange(st, pEnd.isEmpty() ? st : Integer.parseInt(pEnd));
       } catch (NumberFormatException ignored) {}
+    } else {
+      // Character-range target (p:txEl/p:charRg), written by PowerPoint when an
+      // effect is applied to selected text. Unread, it looked like a whole-shape
+      // effect: listings were wrong and the targeting check let paragraph
+      // effects mix with it.
+      String cStart = (String) xpath.evaluate(
+          ".//p:spTgt/p:txEl/p:charRg/@st", targetElement, XPathConstants.STRING);
+      String cEnd = (String) xpath.evaluate(
+          ".//p:spTgt/p:txEl/p:charRg/@end", targetElement, XPathConstants.STRING);
+      if (!cStart.isEmpty() && !cEnd.isEmpty()) {
+        try {
+          builder.charRange(Integer.parseInt(cStart), Integer.parseInt(cEnd));
+        } catch (NumberFormatException ignored) {}
+      }
     }
 
     extractEffectParams(parElement, animType, builder);

@@ -296,6 +296,12 @@ public class AddAnimationCommand implements Command {
         String animGroup = binding.getAnimationGroup() != null ? binding.getAnimationGroup() : trigger;
         Map<String, String> params = binding.getEffectParams() != null
             ? binding.getEffectParams() : Collections.emptyMap();
+        if (binding.isCharacterRangeAnimation()) {
+            // No constructor slot for a char range; thread it like durationMs
+            params = new HashMap<>(params);
+            params.put(AnimationBinding.PARAM_CHAR_START, String.valueOf(binding.getCharStart()));
+            params.put(AnimationBinding.PARAM_CHAR_END, String.valueOf(binding.getCharEnd()));
+        }
         Integer pStart = binding.getParagraphStart();
         Integer pEnd   = binding.getParagraphEnd();
         return new AddAnimationCommand(slideNumber, binding.getTargetSpid(), type, direction,
@@ -376,9 +382,18 @@ public class AddAnimationCommand implements Command {
                 logger.debug("DEBUG AddAnimationCommand: No animationGroup provided (null or empty)");
             }
 
-            // Forward effectParams into the binding
+            // Forward effectParams into the binding; a threaded char range
+            // becomes the binding's target instead of a param
             for (Map.Entry<String, String> entry : effectParams.entrySet()) {
+                if (AnimationBinding.PARAM_CHAR_START.equals(entry.getKey())
+                        || AnimationBinding.PARAM_CHAR_END.equals(entry.getKey())) continue;
                 builder.effectParam(entry.getKey(), entry.getValue());
+            }
+            String charStartValue = effectParams.get(AnimationBinding.PARAM_CHAR_START);
+            String charEndValue = effectParams.get(AnimationBinding.PARAM_CHAR_END);
+            if (charStartValue != null && charEndValue != null
+                    && (paragraphStart == null || paragraphEnd == null)) {
+                builder.charRange(parseIntOrDefault(charStartValue, 0), parseIntOrDefault(charEndValue, 0));
             }
 
             // Extract and apply motionPath from effectParams to the builder's dedicated field

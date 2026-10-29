@@ -27,6 +27,10 @@ public class AnimationBinding {
   public static final String PARAM_DELAY_MS = "delayMs";
   /** Override duration in milliseconds (default 500). */
   public static final String PARAM_DURATION_MS = "durationMs";
+  /** Character-range target carried through AddAnimationCommand's effectParams
+   *  (internal; applied as {@link Builder#charRange} and not kept as a param). */
+  public static final String PARAM_CHAR_START = "charStart";
+  public static final String PARAM_CHAR_END = "charEnd";
   // ========== OOXML IDENTITY ==========
 
   /**
@@ -35,6 +39,15 @@ public class AnimationBinding {
    * -1 indicates not set (e.g., for programmatically created bindings).
    */
   private int timingNodeId = -1;
+
+  /**
+   * Character-range text target ({@code p:txEl/p:charRg}, start inclusive,
+   * end exclusive, paragraph breaks counting one character each). PowerPoint
+   * writes these when an effect is applied to selected text; null for shape-
+   * and paragraph-level targets. Set by the builder like timingNodeId.
+   */
+  private Integer charStart = null;
+  private Integer charEnd = null;
 
   // ========== CORE ANIMATION PROPERTIES ==========
 
@@ -192,6 +205,8 @@ public class AnimationBinding {
   public String getDelay() { return delay; }
   public Integer getParagraphStart() { return paragraphStart; }
   public Integer getParagraphEnd() { return paragraphEnd; }
+  public Integer getCharStart() { return charStart; }
+  public Integer getCharEnd() { return charEnd; }
   public int getClickTrigger() { return clickTrigger; }
   public String getAnimationGroup() { return animationGroup; }
   public String getMotionPath() { return motionPath; }
@@ -249,8 +264,19 @@ public class AnimationBinding {
     return paragraphStart != null && paragraphEnd != null;
   }
   
+  /** Targets a character range of the shape's text (p:charRg). */
+  public boolean isCharacterRangeAnimation() {
+    return charStart != null && charEnd != null;
+  }
+
+  /** Targets part of the shape's text -- a paragraph range or a character range. */
+  public boolean isTextRangeAnimation() {
+    return isParagraphLevelAnimation() || isCharacterRangeAnimation();
+  }
+
   public boolean isShapeLevelAnimation() {
-    return paragraphStart == null && paragraphEnd == null;
+    // A partial paragraph range (one bound set) is neither shape- nor paragraph-level
+    return paragraphStart == null && paragraphEnd == null && !isCharacterRangeAnimation();
   }
   
   public boolean hasMotionPath() {
@@ -307,6 +333,8 @@ public class AnimationBinding {
     private String delay = DEFAULT_DELAY;
     private Integer paragraphStart = null;
     private Integer paragraphEnd = null;
+    private Integer charStart = null;
+    private Integer charEnd = null;
     private int clickTrigger = DEFAULT_CLICK_TRIGGER;
     private String animationGroup = DEFAULT_ANIMATION_GROUP;
     private String motionPath = null;
@@ -328,6 +356,8 @@ public class AnimationBinding {
       this.delay = existing.delay;
       this.paragraphStart = existing.paragraphStart;
       this.paragraphEnd = existing.paragraphEnd;
+      this.charStart = existing.charStart;
+      this.charEnd = existing.charEnd;
       this.clickTrigger = existing.clickTrigger;
       this.animationGroup = existing.animationGroup;
       this.motionPath = existing.motionPath;
@@ -434,6 +464,15 @@ public class AnimationBinding {
       this.paragraphEnd = index;
       return this;
     }
+
+    /** Character-range target (p:charRg st/end); clears any paragraph range. */
+    public Builder charRange(int start, int end) {
+      this.charStart = start;
+      this.charEnd = end;
+      this.paragraphStart = null;
+      this.paragraphEnd = null;
+      return this;
+    }
     
     public Builder motionPath(String path) {
       this.motionPath = path;
@@ -509,6 +548,10 @@ public class AnimationBinding {
                                  acceleration, deceleration, autoReverse, repeatCount, effectParams);
       if (timingNodeId >= 0) {
         binding.setTimingNodeId(timingNodeId);
+      }
+      if (charStart != null && charEnd != null) {
+        binding.charStart = charStart;
+        binding.charEnd = charEnd;
       }
       return binding;
     }
@@ -625,6 +668,10 @@ public class AnimationBinding {
       }
     }
     
+    if (isCharacterRangeAnimation()) {
+      sb.append(", chars=").append(charStart).append("-").append(charEnd);
+    }
+
     if (hasMotionPath()) sb.append(", motionPath");
     if (hasCustomEasing()) sb.append(", easing=").append(acceleration).append("/").append(deceleration);
     if (autoReverse) sb.append(", autoReverse");

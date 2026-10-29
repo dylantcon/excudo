@@ -139,6 +139,9 @@ public final class SpecRewriter {
         if (b.getParagraphStart() != null && b.getParagraphEnd() != null) {
             bld.paragraphRange(b.getParagraphStart(), b.getParagraphEnd());
         }
+        if (b.isCharacterRangeAnimation()) {
+            bld.charRange(b.getCharStart(), b.getCharEnd());
+        }
         if (b.getEffectParams() != null) {
             for (var e : b.getEffectParams().entrySet()) {
                 bld.effectParam(e.getKey(), e.getValue());

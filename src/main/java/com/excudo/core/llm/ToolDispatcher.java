@@ -1063,6 +1063,8 @@ public class ToolDispatcher {
                         }
                         if (binding.isParagraphLevelAnimation()) {
                             sb.append(" | ").append(describeParagraphTarget(slideNumber, binding));
+                        } else if (binding.isCharacterRangeAnimation()) {
+                            sb.append(" | ").append(describeCharacterTarget(slideNumber, binding));
                         }
                         for (Map.Entry<String, String> param : binding.getEffectParams().entrySet()) {
                             String key = param.getKey();
@@ -1113,6 +1115,52 @@ public class ToolDispatcher {
                 sep = " / ";
             }
             if (end >= count) sb.append(" (shape has only ").append(count).append(" paragraphs)");
+        } catch (Exception e) {
+            // Range alone is still useful; text is best-effort
+        }
+        return sb.toString();
+    }
+
+    /**
+     * "chars 0-59 = paragraphs 0-1 \"CI pipeline\" / \"Every commit...\"": a
+     * character-range target (PowerPoint writes these when an effect is applied
+     * to selected text) and the paragraphs it overlaps. A range over several
+     * paragraphs is flagged: PowerPoint plays it unreliably (some of the text
+     * shows from the start), and the fix is one paragraph-level effect each.
+     */
+    private String describeCharacterTarget(int slideNumber, AnimationBinding binding) {
+        int start = binding.getCharStart();
+        int end = binding.getCharEnd();
+        StringBuilder sb = new StringBuilder("chars " + start + "-" + end);
+        try {
+            SlideShape shape = getContextService().getSlideContext(slideNumber)
+                .getSlideData().getShapeRegistry().getShape(binding.getTargetSpid());
+            if (shape == null) return sb.toString();
+            List<String> paragraphs = shape.getOoxmlParagraphs();
+            // Paragraph k spans [offset, offset + length]; the break after it counts one char
+            List<Integer> covered = new ArrayList<>();
+            int offset = 0;
+            for (int k = 0; k < paragraphs.size(); k++) {
+                int pEnd = offset + paragraphs.get(k).length() + 1;
+                if (offset < end && pEnd > start) covered.add(k);
+                offset = pEnd;
+            }
+            if (covered.isEmpty()) return sb.toString();
+            int first = covered.get(0);
+            int last = covered.get(covered.size() - 1);
+            sb.append(" = ").append(first == last ? "paragraph " + first : "paragraphs " + first + "-" + last);
+            String sep = " ";
+            for (int k : covered) {
+                String text = paragraphs.get(k).strip();
+                if (text.isEmpty()) text = "(empty paragraph)";
+                if (text.length() > 60) text = text.substring(0, 57) + "...";
+                sb.append(sep).append('"').append(text).append('"');
+                sep = " / ";
+            }
+            if (first != last) {
+                sb.append(" [WARNING: one effect over several paragraphs plays unreliably in ")
+                  .append("PowerPoint -- replace it with one paragraph-level effect per paragraph]");
+            }
         } catch (Exception e) {
             // Range alone is still useful; text is best-effort
         }

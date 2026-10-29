@@ -124,7 +124,7 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       // Oracle (slides 89, 90, 115-118): emphasis animations DO have grpId + bldP.
       // Omitted only for explicit per-paragraph animations (no grpId; PowerPoint targets
       // paragraphs via pRg without bldP, per native PowerPoint output).
-      if (!binding.isParagraphLevelAnimation()) {
+      if (!binding.isTextRangeAnimation()) {
         Element buildEntry = factory.createBuildListEntry(document, binding);
         addToBuildList(timingElement, buildEntry);
       }
@@ -476,7 +476,9 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       for (int i = 0; i < existingTargets.getLength(); i++) {
         Element target = (Element) existingTargets.item(i);
         Element txEl = findChildElement(target, "p:txEl");
-        if (txEl != null && findChildElement(txEl, "p:pRg") != null) {
+        if (txEl != null && (findChildElement(txEl, "p:pRg") != null
+            || findChildElement(txEl, "p:charRg") != null)) {
+          // Paragraph or character range: both target part of the text
           existingHasParagraph = true;
         } else {
           // Check this is from an entrance/exit animation, not just a visibility set or emphasis
@@ -491,7 +493,7 @@ public class AnimationInjector implements TimingNodeIdGenerator {
         }
       }
 
-      boolean newIsParagraph = binding.isParagraphLevelAnimation();
+      boolean newIsParagraph = binding.isTextRangeAnimation();
       boolean newIsShape = binding.isShapeLevelAnimation();
 
       // Conflict: existing paragraph-level + new shape-level entrance/exit

@@ -269,6 +269,8 @@ public class ListAnimationsCommand implements Command {
             } else {
                 extras.add("para:" + start + "-" + end);
             }
+        } else if (anim.isCharacterRangeAnimation()) {
+            extras.add("chars:" + anim.getCharStart() + "-" + anim.getCharEnd());
         }
 
         // Repeat

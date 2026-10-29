@@ -114,6 +114,45 @@ public class AnimationReadBackTest {
         assertEquals("undo removes every expanded effect", 0, all().size());
     }
 
+    @Test
+    public void characterRangeIsReadBackNotShapeLevel() {
+        // PowerPoint writes p:txEl/p:charRg when an effect is applied to selected text
+        add(AnimationBinding.builder().target(spid).type(AnimationType.FADE).entrance()
+            .duration("500").delay("0").animationGroup("on-click").charRange(0, 5).build());
+
+        AnimationBinding parsed = only();
+        assertTrue(parsed.isCharacterRangeAnimation());
+        assertFalse("a char range is not a whole-shape target", parsed.isShapeLevelAnimation());
+        assertFalse(parsed.isParagraphLevelAnimation());
+        assertEquals(Integer.valueOf(0), parsed.getCharStart());
+        assertEquals(Integer.valueOf(5), parsed.getCharEnd());
+
+        // Native form: like paragraph targets, no grpId and no bldP
+        var dom = orchestrator.getContext().get().getDocument().getSlideDocument(1);
+        assertEquals(0, dom.getElementsByTagName("p:bldP").getLength());
+        org.w3c.dom.NodeList ctns = dom.getElementsByTagName("p:cTn");
+        for (int i = 0; i < ctns.getLength(); i++) {
+            var c = (org.w3c.dom.Element) ctns.item(i);
+            if (c.hasAttribute("presetClass")) assertFalse(c.hasAttribute("grpId"));
+        }
+    }
+
+    @Test
+    public void characterRangeSurvivesReAdd() {
+        // The path clear-slide-content undo and remove-animation undo use
+        var cmd = com.excudo.core.commands.mutating.slide.AddAnimationCommand.fromBinding(1,
+            AnimationBinding.builder().target(spid).type(AnimationType.FADE).entrance()
+                .duration("500").delay("0").animationGroup("on-click").charRange(6, 12).build(),
+            orchestrator, null);
+        cmd.execute();
+
+        AnimationBinding parsed = only();
+        assertEquals(Integer.valueOf(6), parsed.getCharStart());
+        assertEquals(Integer.valueOf(12), parsed.getCharEnd());
+        assertFalse("the threaded range must not linger as an effect param",
+            parsed.getEffectParams().containsKey(AnimationBinding.PARAM_CHAR_START));
+    }
+
     private List<AnimationBinding> all() {
         var doc = orchestrator.getContext().get().getDocument();
         return doc.getParsedSlideData(1, (dom, n) -> new SlideXMLParser().parseSlide(dom, n)).getAnimationBindings();

@@ -196,6 +196,8 @@ public final class CommandSpecJson {
             o.addProperty("deceleration", b.getDeceleration());
             if (b.getParagraphStart() != null) o.addProperty("paragraphStart", b.getParagraphStart());
             if (b.getParagraphEnd()   != null) o.addProperty("paragraphEnd",   b.getParagraphEnd());
+            if (b.getCharStart() != null) o.addProperty("charStart", b.getCharStart());
+            if (b.getCharEnd()   != null) o.addProperty("charEnd",   b.getCharEnd());
             // Transition disposition captured by the three boolean flags.
             if (b.isEntranceAnimation())  o.addProperty("disposition", "entrance");
             else if (b.isExitAnimation()) o.addProperty("disposition", "exit");
@@ -232,6 +234,9 @@ public final class CommandSpecJson {
             }
             if (o.has("paragraphStart") && o.has("paragraphEnd")) {
                 bld.paragraphRange(o.get("paragraphStart").getAsInt(), o.get("paragraphEnd").getAsInt());
+            }
+            if (o.has("charStart") && o.has("charEnd")) {
+                bld.charRange(o.get("charStart").getAsInt(), o.get("charEnd").getAsInt());
             }
             String disp = o.has("disposition") ? o.get("disposition").getAsString() : null;
             if ("entrance".equals(disp)) bld.entrance();

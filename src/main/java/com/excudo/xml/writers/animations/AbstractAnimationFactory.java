@@ -79,7 +79,7 @@ public abstract class AbstractAnimationFactory implements com.excudo.core.animat
         // grpId is omitted only for explicit per-paragraph animations
         // (no bldP entry; grpId requires bldLst match).
         // Emphasis animations DO have grpId per oracle (slides 89, 90, 115-118).
-        if (!binding.isParagraphLevelAnimation()) {
+        if (!binding.isTextRangeAnimation()) {
             cTn.setAttribute("grpId", String.valueOf(getAnimationGroupId(binding)));
         }
         cTn.setAttribute("nodeType", determineNodeType(binding));
@@ -126,6 +126,14 @@ public abstract class AbstractAnimationFactory implements com.excudo.core.animat
             pRg.setAttribute("st", String.valueOf(binding.getParagraphStart()));
             pRg.setAttribute("end", String.valueOf(binding.getParagraphEnd()));
             txEl.appendChild(pRg);
+        } else if (binding.isCharacterRangeAnimation()) {
+            Element txEl = document.createElementNS(PRESENTATION_NS, "p:txEl");
+            spTgt.appendChild(txEl);
+
+            Element charRg = document.createElementNS(PRESENTATION_NS, "p:charRg");
+            charRg.setAttribute("st", String.valueOf(binding.getCharStart()));
+            charRg.setAttribute("end", String.valueOf(binding.getCharEnd()));
+            txEl.appendChild(charRg);
         }
 
         return tgtEl;

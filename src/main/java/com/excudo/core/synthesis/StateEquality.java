@@ -243,7 +243,9 @@ public final class StateEquality {
             && a.getAnimationType() == b.getAnimationType()
             && a.getClickTrigger() == b.getClickTrigger()
             && Objects.equals(a.getParagraphStart(), b.getParagraphStart())
-            && Objects.equals(a.getParagraphEnd(), b.getParagraphEnd());
+            && Objects.equals(a.getParagraphEnd(), b.getParagraphEnd())
+            && Objects.equals(a.getCharStart(), b.getCharStart())
+            && Objects.equals(a.getCharEnd(), b.getCharEnd());
     }
 
     /** Duration, delay, and timing-only fields comparison. Identity is
