@@ -118,7 +118,7 @@ public class OpenRouterClient extends LLMClient {
     // Request building -- OpenAI-compatible format
     // ------------------------------------------------------------------
 
-    private String buildRequest(String systemPrompt, List<Map<String, String>> messages, String toolsJson) {
+    String buildRequest(String systemPrompt, List<Map<String, String>> messages, String toolsJson) {
         JsonObject body = new JsonObject();
         body.addProperty("model", model);
         body.addProperty("max_tokens", 16384);
@@ -133,14 +133,21 @@ public class OpenRouterClient extends LLMClient {
             msgArray.add(sysMsg);
         }
 
-        // Conversation messages -- convert Anthropic format to OpenAI format
+        // Conversation messages -- convert Anthropic format to OpenAI format.
+        // Tool messages are text-only in the OpenAI format, so images inside
+        // tool results are held back and sent as one user message right after
+        // the run of tool messages (a user message mid-run would break it).
+        JsonArray pendingImages = new JsonArray();
         for (Map<String, String> msg : messages) {
             String role = msg.get("role");
             String content = msg.get("content");
+            boolean toolResults = "user".equals(role) && content != null
+                && content.startsWith("[") && content.contains("\"tool_result\"");
+            if (!toolResults) flushImages(msgArray, pendingImages);
 
             if (content != null && content.startsWith("[")) {
                 // Complex content (tool_use / tool_result arrays) -- convert
-                convertComplexMessages(msgArray, role, content);
+                convertComplexMessages(msgArray, role, content, pendingImages);
             } else {
                 JsonObject m = new JsonObject();
                 m.addProperty("role", role);
@@ -148,6 +155,7 @@ public class OpenRouterClient extends LLMClient {
                 msgArray.add(m);
             }
         }
+        flushImages(msgArray, pendingImages);
 
         body.add("messages", msgArray);
 
@@ -178,7 +186,8 @@ public class OpenRouterClient extends LLMClient {
      * Convert Anthropic-format complex content arrays to OpenAI message format.
      * Handles tool_use blocks (assistant) and tool_result blocks (user->tool role).
      */
-    private void convertComplexMessages(JsonArray msgArray, String role, String contentJson) {
+    private void convertComplexMessages(JsonArray msgArray, String role, String contentJson,
+                                        JsonArray pendingImages) {
         try {
             JsonArray blocks = JsonParser.parseString(contentJson).getAsJsonArray();
 
@@ -229,8 +238,7 @@ public class OpenRouterClient extends LLMClient {
                         JsonObject toolMsg = new JsonObject();
                         toolMsg.addProperty("role", "tool");
                         toolMsg.addProperty("tool_call_id", b.get("tool_use_id").getAsString());
-                        toolMsg.addProperty("content",
-                            b.has("content") ? b.get("content").getAsString() : "");
+                        toolMsg.addProperty("content", toolResultText(b, pendingImages));
                         msgArray.add(toolMsg);
                     } else if ("text".equals(type)) {
                         JsonObject userMsg = new JsonObject();
@@ -247,6 +255,52 @@ public class OpenRouterClient extends LLMClient {
             m.addProperty("content", contentJson);
             msgArray.add(m);
         }
+    }
+
+    /**
+     * Text of a tool_result block. Its content is a string, or a list of
+     * text and image parts (a slide render); images are queued on
+     * pendingImages as OpenAI image_url parts.
+     */
+    private static String toolResultText(JsonObject block, JsonArray pendingImages) {
+        if (!block.has("content")) return "";
+        JsonElement content = block.get("content");
+        if (!content.isJsonArray()) return content.getAsString();
+        StringBuilder text = new StringBuilder();
+        for (JsonElement el : content.getAsJsonArray()) {
+            JsonObject part = el.getAsJsonObject();
+            String type = part.has("type") ? part.get("type").getAsString() : "";
+            if ("text".equals(type) && part.has("text")) {
+                if (text.length() > 0) text.append('\n');
+                text.append(part.get("text").getAsString());
+            } else if ("image".equals(type) && part.has("source")) {
+                JsonObject source = part.getAsJsonObject("source");
+                JsonObject url = new JsonObject();
+                url.addProperty("url", "data:" + source.get("media_type").getAsString()
+                    + ";base64," + source.get("data").getAsString());
+                JsonObject imagePart = new JsonObject();
+                imagePart.addProperty("type", "image_url");
+                imagePart.add("image_url", url);
+                pendingImages.add(imagePart);
+            }
+        }
+        return text.toString();
+    }
+
+    /** Emit queued tool-result images as one user message, then clear the queue. */
+    private static void flushImages(JsonArray msgArray, JsonArray pendingImages) {
+        if (pendingImages.isEmpty()) return;
+        JsonArray parts = new JsonArray();
+        JsonObject label = new JsonObject();
+        label.addProperty("type", "text");
+        label.addProperty("text", "Rendered image(s) returned by the tool call(s) above.");
+        parts.add(label);
+        parts.addAll(pendingImages);
+        JsonObject userMsg = new JsonObject();
+        userMsg.addProperty("role", "user");
+        userMsg.add("content", parts);
+        msgArray.add(userMsg);
+        while (!pendingImages.isEmpty()) pendingImages.remove(0);
     }
 
     // ------------------------------------------------------------------

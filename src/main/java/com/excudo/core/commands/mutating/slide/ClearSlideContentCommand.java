@@ -19,12 +19,18 @@ import com.excudo.core.synthesis.SlideStateBuilder;
 import com.excudo.core.synthesis.spec.CommandSpec;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Revert a slide to its layout baseline: remove every user-added shape,
- * every animation, and any slide-level transition override. Placeholders
- * that came from the layout are preserved.
+ * every animation, any slide-level transition override, and the text in
+ * every remaining shape. Placeholders that came from the layout are
+ * preserved. A {@code scope} narrows the clear to some of those parts
+ * ({@code shapes}, {@code text}, {@code animations}, {@code transition},
+ * comma-separated); the default {@code all} clears every part.
  *
  * <p>Built on top of the synthesizer's state infrastructure: the command
  * diffs (baseline &larr; current), inverts the resulting spec set into
@@ -39,26 +45,64 @@ import java.util.List;
  */
 public class ClearSlideContentCommand implements Command {
 
+    /** What a clear can wipe. {@code all} in the scope parameter means every part. */
+    public enum Part { SHAPES, TEXT, ANIMATIONS, TRANSITION }
+
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
         .slideNumber().description("Slide number").llmName("slideNumber").required().build();
+    static final Parameter<String> SCOPE = Parameter.ofString("scope")
+        .description("What to clear: all (default), or one or more of shapes, text, "
+            + "animations, transition, comma-separated (e.g. 'animations,transition'). "
+            + "shapes removes user-added shapes (and their animations); text empties the "
+            + "text of every shape, placeholders included, keeping the shapes; animations "
+            + "removes every animation; transition drops a slide-level transition override.")
+        .defaultValue("all").build();
 
     public static final CommandSchema SCHEMA = CommandSchema.builder()
-        .description("Revert a slide to its layout baseline (remove user-added shapes, animations, transition)")
+        .description("Clear a slide back to its layout baseline, or only its shapes, text, animations or transition")
         .llmEnabled(true)
-        .llmDescription("Revert a slide to its layout baseline: remove every user-added "
-            + "shape, every animation, and any slide-level transition override. Layout-"
-            + "originated placeholders are preserved. Undoable.")
+        .llmDescription("Clear a slide. Default scope 'all' reverts it to its layout baseline: "
+            + "removes every user-added shape, every animation, any slide-level transition "
+            + "override, and empties placeholder text. Pass scope to clear only some parts "
+            + "(shapes, text, animations, transition; comma-separated). Layout-originated "
+            + "placeholders are never removed. Undoable.")
         .parameter(SLIDE)
+        .parameter(SCOPE)
         .example("clear-slide-content 3")
+        .example("clear-slide-content 3 animations")
+        .example("clear-slide-content 3 text")
+        .example("clear-slide-content --slide 3 --scope animations,transition")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(ClearSlideContentCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
-        return new ClearSlideContentCommand(p.get(SLIDE), ctx.orchestrator());
+        return new ClearSlideContentCommand(p.get(SLIDE), parseScope(p.get(SCOPE)), ctx.orchestrator());
+    }
+
+    /** "all" or a comma-separated list of part names, case-insensitive. */
+    public static Set<Part> parseScope(String scope) {
+        if (scope == null || scope.isBlank()) return EnumSet.allOf(Part.class);
+        Set<Part> parts = EnumSet.noneOf(Part.class);
+        for (String token : scope.split("[,\\s]+")) {
+            String t = token.trim().toLowerCase(java.util.Locale.ROOT);
+            if (t.isEmpty()) continue;
+            if (t.equals("all")) return EnumSet.allOf(Part.class);
+            switch (t) {
+                case "shapes", "shape" -> parts.add(Part.SHAPES);
+                case "text" -> parts.add(Part.TEXT);
+                case "animations", "animation" -> parts.add(Part.ANIMATIONS);
+                case "transition", "transitions" -> parts.add(Part.TRANSITION);
+                default -> throw new IllegalArgumentException("Unknown clear scope '" + token
+                    + "'. Use all, or any of: shapes, text, animations, transition");
+            }
+        }
+        if (parts.isEmpty()) return EnumSet.allOf(Part.class);
+        return parts;
     }
 
     private final int slideNumber;
+    private final Set<Part> scope;
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
 
@@ -67,6 +111,13 @@ public class ClearSlideContentCommand implements Command {
     private SlideState preClearSnapshot = null;
 
     public ClearSlideContentCommand(int slideNumber, PPTXOrchestrator orchestrator) {
+        this(slideNumber, EnumSet.allOf(Part.class), orchestrator);
+    }
+
+    public ClearSlideContentCommand(int slideNumber, Set<Part> scope, PPTXOrchestrator orchestrator) {
+        if (scope == null || scope.isEmpty()) {
+            throw new IllegalArgumentException("Clear scope cannot be empty");
+        }
         if (orchestrator == null) {
             throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
         }
@@ -74,6 +125,7 @@ public class ClearSlideContentCommand implements Command {
             throw new IllegalArgumentException("Slide number must be positive");
         }
         this.slideNumber = slideNumber;
+        this.scope = EnumSet.copyOf(scope);
         this.orchestrator = orchestrator;
     }
 
@@ -142,7 +194,15 @@ public class ClearSlideContentCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Clear user-added content on slide " + slideNumber;
+        if (scope.size() == Part.values().length) {
+            return "Clear user-added content on slide " + slideNumber;
+        }
+        StringBuilder parts = new StringBuilder();
+        for (Part part : scope) {
+            if (parts.length() > 0) parts.append(", ");
+            parts.append(part.name().toLowerCase(java.util.Locale.ROOT));
+        }
+        return "Clear " + parts + " on slide " + slideNumber;
     }
 
     // ========== Script composition ==========
@@ -166,25 +226,42 @@ public class ClearSlideContentCommand implements Command {
         // but makes the script hash stable.
         java.util.List<ShapeSnapshot> sortedShapes = new ArrayList<>(current.shapes().values());
         sortedShapes.sort((x, y) -> Integer.compare(x.spid(), y.spid()));
+        Set<Integer> removedSpids = new HashSet<>();
         for (ShapeSnapshot s : sortedShapes) {
-            if (isLayoutShape(s)) continue;
-            b.add(new CommandSpec.RemoveShapeSpec(slideNumber, s.spid()));
+            if (scope.contains(Part.SHAPES) && !isLayoutShape(s)) {
+                removedSpids.add(s.spid());
+                continue;
+            }
+            // Shapes that stay keep their geometry and style; only the text goes.
+            if (scope.contains(Part.TEXT) && hasText(s)) {
+                b.add(new CommandSpec.SetTextSpec(slideNumber, s.spid(), blankText(s.textBody())));
+            }
         }
 
-        // Remove every animation that still has a resolvable cTn id.
-        // Missing-id animations can't be removed per-cTn today; they
-        // survive the clear rather than getting mass-stripped via a
-        // blunt timing-tree wipe (the synthesizer convention).
+        // Remove animations: all of them, or (shapes without animations in
+        // scope) the ones whose target is going away, so none is left
+        // pointing at nothing. Missing-id animations can't be removed
+        // per-cTn today; they survive the clear rather than getting
+        // mass-stripped via a blunt timing-tree wipe (the synthesizer
+        // convention).
         for (var anim : current.animations()) {
             int id = anim.getTimingNodeId();
-            if (id > 0) {
+            if (id <= 0) continue;
+            if (scope.contains(Part.ANIMATIONS) || removedSpids.contains(anim.getTargetSpid())) {
                 b.add(new CommandSpec.RemoveAnimationSpec(slideNumber, id));
+            }
+        }
+
+        for (ShapeSnapshot s : sortedShapes) {
+            if (removedSpids.contains(s.spid())) {
+                b.add(new CommandSpec.RemoveShapeSpec(slideNumber, s.spid()));
             }
         }
 
         // If the slide has a SLIDE-level transition override, clear it so
         // the slide falls back to layout/master inheritance.
-        if (current.transition() != null
+        if (scope.contains(Part.TRANSITION)
+                && current.transition() != null
                 && current.transition().source() == com.excudo.core.introspection.TransitionDescriptor.Source.SLIDE) {
             b.add(new CommandSpec.ClearTransitionSpec(slideNumber));
         }
@@ -199,7 +276,13 @@ public class ClearSlideContentCommand implements Command {
         List<CommandSpec> added = new ArrayList<>();
 
         for (ShapeSnapshot s : snapshot.shapes().values()) {
-            if (nowState.shapes().containsKey(s.spid())) continue;
+            if (nowState.shapes().containsKey(s.spid())) {
+                // Surviving shape: put back text the clear emptied.
+                if (scope.contains(Part.TEXT) && hasText(s)) {
+                    b.add(new CommandSpec.SetTextSpec(slideNumber, s.spid(), s.textBody()));
+                }
+                continue;
+            }
             if (isLayoutShape(s)) continue; // never re-add layout artifacts
             CommandSpec.AddShapeSpec addSpec = new CommandSpec.AddShapeSpec(
                 slideNumber, s.type(), s.geometry(),
@@ -211,7 +294,11 @@ public class ClearSlideContentCommand implements Command {
         // Re-register animations with SPID remapping. Register AddAnimationSpec
         // after the shape adds so the script-runner's spidMap has already
         // caught up by the time the animations execute.
+        Set<Integer> survivingIds = new HashSet<>();
+        for (var anim : nowState.animations()) survivingIds.add(anim.getTimingNodeId());
         for (var anim : snapshot.animations()) {
+            // A narrower scope leaves some animations in place; don't duplicate them.
+            if (anim.getTimingNodeId() > 0 && survivingIds.contains(anim.getTimingNodeId())) continue;
             CommandSpec animSpec = new CommandSpec.AddAnimationSpec(slideNumber, anim);
             b.add(animSpec);
             // Tie the animation to the shape add that will allocate the
@@ -225,7 +312,8 @@ public class ClearSlideContentCommand implements Command {
             }
         }
         // Transition restoration.
-        if (snapshot.transition() != null
+        if (scope.contains(Part.TRANSITION)
+                && snapshot.transition() != null
                 && snapshot.transition().source() == com.excudo.core.introspection.TransitionDescriptor.Source.SLIDE) {
             var t = snapshot.transition();
             b.add(new CommandSpec.SetTransitionSpec(slideNumber, t.type(), t.speed(), t.autoAdvanceMs()));
@@ -246,6 +334,20 @@ public class ClearSlideContentCommand implements Command {
             return true;
         }
         return false;
+    }
+
+    private static boolean hasText(ShapeSnapshot s) {
+        return s.textBody() != null && !flattenPlain(s.textBody()).isEmpty();
+    }
+
+    /** One empty paragraph, keeping the body properties (insets, anchoring, autofit). */
+    private static com.excudo.core.model.TextBody blankText(com.excudo.core.model.TextBody body) {
+        var empty = com.excudo.core.model.TextBody.fromPlainText("", body.isPlaceholder());
+        var tb = com.excudo.core.model.TextBody.builder()
+            .placeholder(body.isPlaceholder())
+            .bodyProperties(body.getBodyProperties());
+        empty.getParagraphs().forEach(tb::addParagraph);
+        return tb.build();
     }
 
     private static String flattenPlain(com.excudo.core.model.TextBody body) {

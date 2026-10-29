@@ -676,6 +676,22 @@ public class SlideXMLParser {
         }
     }
 
+    // Paragraph-level (per-bullet) target: p:spTgt/p:txEl/p:pRg, 0-based
+    // inclusive, as AbstractAnimationFactory writes it. Without this every
+    // bullet animation read back as a whole-shape animation.
+    String pStart = (String) xpath.evaluate(
+        ".//p:spTgt/p:txEl/p:pRg/@st", targetElement, XPathConstants.STRING);
+    String pEnd = (String) xpath.evaluate(
+        ".//p:spTgt/p:txEl/p:pRg/@end", targetElement, XPathConstants.STRING);
+    if (!pStart.isEmpty()) {
+      try {
+        int st = Integer.parseInt(pStart);
+        builder.paragraphRange(st, pEnd.isEmpty() ? st : Integer.parseInt(pEnd));
+      } catch (NumberFormatException ignored) {}
+    }
+
+    extractEffectParams(parElement, animType, builder);
+
     // Set the correct transition type based on presetClass attribute
     if ("exit".equals(presetClass)) {
         builder.exit();
@@ -686,6 +702,46 @@ public class SlideXMLParser {
     }
 
     return builder.build();
+  }
+
+  /**
+   * Read back the effect parameters the animation writers encode, so
+   * introspection (list-animations, get_slide_animations) can show them and
+   * synthesize/restore paths re-emit them instead of falling back to defaults.
+   */
+  private void extractEffectParams(Element parElement, AnimationType animType,
+                                   AnimationBinding.Builder builder) throws XPathExpressionException {
+    switch (animType) {
+      case TRANSPARENCY -> {
+        // p:set style.opacity carries the opacity; the param is transparency
+        String val = (String) xpath.evaluate(
+            ".//p:set[p:cBhvr/p:attrNameLst/p:attrName='style.opacity']/p:to/p:strVal/@val",
+            parElement, XPathConstants.STRING);
+        if (!val.isEmpty()) {
+          try {
+            long pct = Math.round((1.0 - Double.parseDouble(val)) * 100);
+            builder.transparency((int) Math.max(0, Math.min(100, pct)));
+          } catch (NumberFormatException ignored) {}
+        }
+      }
+      case SPIN -> {
+        String by = (String) xpath.evaluate(".//p:animRot/@by", parElement, XPathConstants.STRING);
+        if (!by.isEmpty()) {
+          try {
+            builder.rotationDegrees((int) (Long.parseLong(by) / 60000L)); // 60000 units/deg
+          } catch (NumberFormatException ignored) {}
+        }
+      }
+      case PULSE -> {
+        String x = (String) xpath.evaluate(".//p:animScale/p:by/@x", parElement, XPathConstants.STRING);
+        if (!x.isEmpty()) {
+          try {
+            builder.scalePercent(Integer.parseInt(x) / 1000); // 105000 = 105%
+          } catch (NumberFormatException ignored) {}
+        }
+      }
+      default -> { }
+    }
   }
 
   /**

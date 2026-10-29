@@ -349,12 +349,47 @@ public class AnimationInjector implements TimingNodeIdGenerator {
           case "presetSubtype":
             targetCTn.setAttribute("presetSubtype", value);
             break;
+          case "transparency":
+            updateTransparency(targetCTn, value);
+            break;
           default:
             throw new XMLParsingException("Unsupported animation property: " + key);
         }
       }
     } catch (XPathExpressionException e) {
       throw new XMLParsingException("Failed to update animation properties for id=" + timingNodeId, e);
+    }
+  }
+
+  /**
+   * Rewrite a transparency emphasis's level. The value is a transparency
+   * percentage (25 = 25% see-through); OOXML stores the resulting opacity
+   * on both the p:set (style.opacity) and the p:animEffect prLst.
+   */
+  private void updateTransparency(Element presetCTn, String transparencyPct)
+      throws XPathExpressionException, XMLParsingException {
+    Element strVal = (Element) xpath.evaluate(
+        ".//p:set[p:cBhvr/p:attrNameLst/p:attrName='style.opacity']/p:to/p:strVal",
+        presetCTn, XPathConstants.NODE);
+    if (strVal == null) {
+      throw new XMLParsingException("Animation id=" + presetCTn.getAttribute("id")
+          + " is not a transparency emphasis");
+    }
+    int pct;
+    try {
+      pct = Integer.parseInt(transparencyPct.trim().replace("%", ""));
+    } catch (NumberFormatException e) {
+      throw new XMLParsingException("Transparency must be a percentage 0-100, got: " + transparencyPct);
+    }
+    if (pct < 0 || pct > 100) {
+      throw new XMLParsingException("Transparency must be a percentage 0-100, got: " + transparencyPct);
+    }
+    String opacity = com.excudo.xml.writers.animations.EmphasisEffectFactory.formatOpacity(100 - pct);
+    strVal.setAttribute("val", opacity);
+    NodeList effects = (NodeList) xpath.evaluate(
+        ".//p:animEffect[@filter='image']", presetCTn, XPathConstants.NODESET);
+    for (int i = 0; i < effects.getLength(); i++) {
+      ((Element) effects.item(i)).setAttribute("prLst", "opacity: " + opacity);
     }
   }
 
@@ -379,14 +414,12 @@ public class AnimationInjector implements TimingNodeIdGenerator {
    * The intermediate container is the parent par of the animation par.
    */
   private void updateDelay(Element presetCTn, String newDelay) throws XPathExpressionException {
-    // The delay condition is on the intermediate container's stCondLst,
-    // which is the grandparent par's cTn's stCondLst
-    Element animPar = (Element) presetCTn.getParentNode();
-    Element intermediateChildTnLst = (Element) animPar.getParentNode();
-    Element intermediateCTn = (Element) intermediateChildTnLst.getParentNode();
-
+    // An effect's own delay is the cond on its preset cTn's stCondLst (where
+    // AbstractAnimationFactory writes it and SlideXMLParser reads it). The
+    // intermediate container's cond is shared by every effect in the group,
+    // so writing there shifted all of them instead of this one.
     Element delayCond = (Element) xpath.evaluate(
-        "./p:stCondLst/p:cond", intermediateCTn, XPathConstants.NODE);
+        "./p:stCondLst/p:cond", presetCTn, XPathConstants.NODE);
     if (delayCond != null) {
       delayCond.setAttribute("delay", newDelay);
     }

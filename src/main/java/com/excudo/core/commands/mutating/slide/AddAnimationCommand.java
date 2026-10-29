@@ -74,11 +74,16 @@ public class AddAnimationCommand implements Command {
         .description("Start paragraph index (0-based) for paragraph-level targeting")
         .required(false).build();
     static final Parameter<Integer> PARAGRAPH_END = Parameter.ofInt("paragraphEnd")
-        .description("End paragraph index (0-based) for paragraph-level targeting")
+        .description("End paragraph index (0-based, inclusive) for paragraph-level targeting. "
+            + "A range wider than one paragraph is written as one effect per paragraph "
+            + "(the rest with-previous), since PowerPoint can't play a single effect "
+            + "over several paragraphs; each shows as its own row in get_slide_animations")
         .required(false).build();
-    static final Parameter<Integer> OPACITY = Parameter.ofInt("opacity")
-        .description("Opacity percentage for transparency emphasis (25, 50, 75, 100)")
-        .llmName("opacity")
+    static final Parameter<Integer> TRANSPARENCY = Parameter.ofInt("transparency")
+        .description("How see-through the transparency emphasis makes the shape, as a "
+            + "percentage (25, 50, 75, 100): 25 leaves it 75% opaque, 100 makes it invisible. "
+            + "Default 25.")
+        .llmName("transparency")
         .validValues("25", "50", "75", "100")
         .required(false).build();
 
@@ -88,10 +93,10 @@ public class AddAnimationCommand implements Command {
         .llmDescription("Add animation to a shape.")
         .parameter(SLIDE).parameter(SPID).parameter(TYPE)
         .parameter(DIRECTION).parameter(TRIGGER).parameter(DURATION).parameter(DELAY)
-        .parameter(PATH).parameter(PARAGRAPH_START).parameter(PARAGRAPH_END).parameter(OPACITY)
+        .parameter(PATH).parameter(PARAGRAPH_START).parameter(PARAGRAPH_END).parameter(TRANSPARENCY)
         .example("add-animation 1 2 fade in on-click")
         .example("add-animation 1 2 fly-in-left in with-previous 1000")
-        .example("add-animation 1 2 transparency emphasis on-click --opacity 50")
+        .example("add-animation 1 2 transparency emphasis on-click --transparency 50")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(AddAnimationCommand.class);
@@ -103,7 +108,7 @@ public class AddAnimationCommand implements Command {
         Map<String, String> effectParams = new HashMap<>();
         p.opt(PATH).filter(s -> !s.isBlank())
             .ifPresent(v -> effectParams.put(AnimationBinding.PARAM_MOTION_PATH, v));
-        p.opt(OPACITY).ifPresent(v -> effectParams.put(AnimationBinding.PARAM_OPACITY, String.valueOf(v)));
+        p.opt(TRANSPARENCY).ifPresent(v -> effectParams.put(AnimationBinding.PARAM_TRANSPARENCY, String.valueOf(v)));
         effectParams.put(AnimationBinding.PARAM_DELAY_MS, String.valueOf(p.get(DELAY)));
         effectParams.put(AnimationBinding.PARAM_DURATION_MS, String.valueOf(p.get(DURATION)));
 
@@ -189,6 +194,10 @@ public class AddAnimationCommand implements Command {
      *  attribute (the signal that identifies the animation preset root,
      *  not the intermediate container or bookkeeping nodes). */
     private Integer undoTimingNodeId = null;
+
+    /** Handles for the extra per-paragraph effects a multi-paragraph range
+     *  was expanded into (see {@link #execute()}); removed on undo too. */
+    private final java.util.List<Integer> extraUndoTimingNodeIds = new java.util.ArrayList<>();
 
     /**
      * Create an AddAnimationCommand with animation group and effectParams.
@@ -391,9 +400,16 @@ public class AddAnimationCommand implements Command {
                 builder.easing(accel, decel);
             }
 
-            // Set paragraph-level targeting if specified
+            // Set paragraph-level targeting if specified. PowerPoint only ever
+            // writes single-paragraph ranges (pRg st == end) and doesn't play
+            // a multi-paragraph one correctly: the covered paragraphs show
+            // from the start and their effects do nothing. So the first
+            // paragraph takes the requested trigger and each further one is
+            // added as its own with-previous effect, below.
+            boolean expandRange = paragraphStart != null && paragraphEnd != null
+                && paragraphEnd > paragraphStart;
             if (paragraphStart != null && paragraphEnd != null) {
-                builder.paragraphRange(paragraphStart, paragraphEnd);
+                builder.paragraphRange(paragraphStart, expandRange ? paragraphStart : paragraphEnd);
             }
 
             AnimationBinding binding = builder.build();
@@ -411,6 +427,20 @@ public class AddAnimationCommand implements Command {
             if (result.isSuccess()) {
                 addedAnimationId = result.getData().orElse(null);
                 undoTimingNodeId = findNewPresetCTnId(slideNumber, preIds);
+                if (expandRange) {
+                    try {
+                        addRemainingParagraphs(binding);
+                    } catch (CommandExecutionException e) {
+                        // Don't leave part of the range behind
+                        for (int i = extraUndoTimingNodeIds.size() - 1; i >= 0; i--) {
+                            orchestrator.removeAnimation(slideNumber, extraUndoTimingNodeIds.get(i));
+                        }
+                        extraUndoTimingNodeIds.clear();
+                        if (undoTimingNodeId != null) orchestrator.removeAnimation(slideNumber, undoTimingNodeId);
+                        undoTimingNodeId = null;
+                        throw e;
+                    }
+                }
                 executed = true;
                 logger.debug("Successfully added animation with ID: " + addedAnimationId
                     + " (undo handle cTn id=" + undoTimingNodeId + ")");
@@ -451,6 +481,16 @@ public class AddAnimationCommand implements Command {
         }
 
         try {
+            // Extra per-paragraph effects first (newest last in the tree)
+            for (int i = extraUndoTimingNodeIds.size() - 1; i >= 0; i--) {
+                ExecutionResult<Void> extra = orchestrator.removeAnimation(slideNumber, extraUndoTimingNodeIds.get(i));
+                if (!extra.isSuccess()) {
+                    throw new CommandExecutionException(getDescription(), "undo",
+                        "removeAnimation failed: " + extra.getMessage());
+                }
+            }
+            extraUndoTimingNodeIds.clear();
+
             ExecutionResult<Void> result = orchestrator.removeAnimation(slideNumber, undoTimingNodeId);
             if (!result.isSuccess()) {
                 throw new CommandExecutionException(getDescription(), "undo",
@@ -472,6 +512,24 @@ public class AddAnimationCommand implements Command {
                 "Failed to undo animation addition: " + e.getMessage(),
                 e
             );
+        }
+    }
+
+    /**
+     * Add paragraphStart+1..paragraphEnd as single-paragraph with-previous
+     * copies of the first effect, so they play together on its trigger.
+     */
+    private void addRemainingParagraphs(AnimationBinding first) {
+        for (int p = paragraphStart + 1; p <= paragraphEnd; p++) {
+            AnimationBinding next = AnimationBinding.builder(first).paragraph(p).withPrevious().build();
+            java.util.Set<Integer> before = captureTimingNodeIds(slideNumber);
+            ExecutionResult<String> r = orchestrator.addAnimation(slideNumber, next, groupIdManager);
+            if (!r.isSuccess()) {
+                throw new CommandExecutionException(getDescription(), "execute",
+                    "Failed to add animation for paragraph " + p + ": " + r.getMessage());
+            }
+            Integer id = findNewPresetCTnId(slideNumber, before);
+            if (id != null) extraUndoTimingNodeIds.add(id);
         }
     }
 

@@ -135,9 +135,11 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "get_slide_animations",
-            "Animation bindings on one or more slides. Each row: target SPID, "
-            + "animation type, trigger (on-click/with-previous/after-previous), "
-            + "duration in ms. Same slideNumber/slideNumbers shape as get_slide_shapes.",
+            "Animation bindings on one or more slides. Each row: animation id (pass it to "
+            + "remove-animation / update-animation), target SPID, animation type, trigger "
+            + "(on-click/with-previous/after-previous), duration, then any delay, paragraph "
+            + "range, and effect parameters (e.g. transparency %). Same slideNumber/slideNumbers "
+            + "shape as get_slide_shapes.",
             "{\"type\":\"object\",\"properties\":{"
             + "\"slideNumber\":{\"type\":\"integer\",\"description\":\"Single-slide form.\"},"
             + "\"slideNumbers\":{\"description\":\"Batch form: integer array, range string \\\"1-10\\\", comma-separated \\\"1,3,5-9\\\", or \\\"all\\\".\"}"

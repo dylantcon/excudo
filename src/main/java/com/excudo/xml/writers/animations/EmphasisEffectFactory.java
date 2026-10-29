@@ -53,13 +53,9 @@ public class EmphasisEffectFactory extends AbstractAnimationFactory {
      * Both elements use dur="indefinite".
      */
     private void createTransparencyElements(Document document, AnimationBinding binding, List<Element> elements) {
-        // Read opacity from effectParams (0-100 percentage), default 75 -> 0.75 OOXML
-        int opacityPct = 75;
-        String opacityParam = binding.getEffectParam(AnimationBinding.PARAM_OPACITY);
-        if (opacityParam != null) {
-            try { opacityPct = Integer.parseInt(opacityParam); } catch (NumberFormatException ignored) {}
-        }
-        String opacity = String.format("%.2f", opacityPct / 100.0);
+        // effectParams carry transparency (PowerPoint's 25/50/75/100% menu);
+        // OOXML stores the resulting opacity. Default 25% -> opacity 0.75.
+        String opacity = toOoxmlOpacity(binding.getEffectParam(AnimationBinding.PARAM_TRANSPARENCY));
 
         // 1. p:set for style.opacity
         Element set = document.createElementNS(PRESENTATION_NS, "p:set");
@@ -90,6 +86,21 @@ public class EmphasisEffectFactory extends AbstractAnimationFactory {
         animEffect.appendChild(effectCBhvr);
 
         elements.add(animEffect);
+    }
+
+    /** Transparency percentage (null = default 25) to the OOXML opacity string. */
+    static String toOoxmlOpacity(String transparencyParam) {
+        int transparencyPct = 25;
+        if (transparencyParam != null) {
+            try { transparencyPct = Integer.parseInt(transparencyParam.trim()); } catch (NumberFormatException ignored) {}
+        }
+        transparencyPct = Math.max(0, Math.min(100, transparencyPct));
+        return formatOpacity(100 - transparencyPct);
+    }
+
+    /** Opacity percent as an OOXML opacity string: 75 -> "0.75", 50 -> "0.50". */
+    public static String formatOpacity(int opacityPct) {
+        return String.format(java.util.Locale.ROOT, "%.2f", opacityPct / 100.0);
     }
 
     /**

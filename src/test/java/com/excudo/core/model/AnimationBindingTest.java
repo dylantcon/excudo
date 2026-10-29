@@ -597,13 +597,13 @@ public class AnimationBindingTest {
     }
 
     @Test
-    public void testOpacityConvenience() {
+    public void testTransparencyConvenience() {
         AnimationBinding binding = AnimationBinding.builder()
             .target(1).type(AnimationType.TRANSPARENCY).emphasis()
-            .opacity(50)
+            .transparency(50)
             .build();
 
-        assertEquals("50", binding.getEffectParam(AnimationBinding.PARAM_OPACITY));
+        assertEquals("50", binding.getEffectParam(AnimationBinding.PARAM_TRANSPARENCY));
     }
 
     @Test
@@ -676,7 +676,7 @@ public class AnimationBindingTest {
         assertEquals("rotationDegrees", AnimationBinding.PARAM_ROTATION_DEGREES);
         assertEquals("scalePercent", AnimationBinding.PARAM_SCALE_PERCENT);
         assertEquals("color", AnimationBinding.PARAM_COLOR);
-        assertEquals("opacity", AnimationBinding.PARAM_OPACITY);
+        assertEquals("transparency", AnimationBinding.PARAM_TRANSPARENCY);
         assertEquals("intensity", AnimationBinding.PARAM_INTENSITY);
     }
 

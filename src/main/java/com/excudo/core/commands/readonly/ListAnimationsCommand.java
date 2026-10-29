@@ -295,6 +295,16 @@ public class ListAnimationsCommand implements Command {
             extras.add("motion-path");
         }
 
+        // Effect parameters (transparency %, spin degrees, pulse scale, ...)
+        for (var param : anim.getEffectParams().entrySet()) {
+            String key = param.getKey();
+            if (AnimationBinding.PARAM_DELAY_MS.equals(key)
+                    || AnimationBinding.PARAM_DURATION_MS.equals(key)
+                    || AnimationBinding.PARAM_MOTION_PATH.equals(key)) continue;
+            String suffix = AnimationBinding.PARAM_TRANSPARENCY.equals(key) ? "%" : "";
+            extras.add(key + ":" + param.getValue() + suffix);
+        }
+
         return String.join("  ", extras);
     }
 

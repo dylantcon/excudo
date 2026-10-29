@@ -79,6 +79,7 @@ import java.util.Collections;
 import java.util.Scanner;
 import java.io.File;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -960,9 +961,18 @@ public abstract class AbstractConsoleEngine implements ConsoleEngine,
     
     @Override
     public void setCurrentSession(String sessionId, PPTXOrchestrator orchestrator, Object llmHandler, File currentFile) {
+        // A null handler means "keep the one the console already has" (an
+        // in-place load into the current session passes null). Assigning it
+        // blindly left llmHandler null, so every later llm / llm-config /
+        // arrange turn failed with "LLM handler not available".
+        if (llmHandler != null) {
+            this.llmHandler = (LLMConsoleHandler) llmHandler;
+        } else if ((this.llmHandler == null || !Objects.equals(sessionId, this.currentSessionId))
+                && orchestrator != null) {
+            this.llmHandler = new LLMConsoleHandler(orchestrator);
+        }
         this.currentSessionId = sessionId;
         this.orchestrator = orchestrator;
-        this.llmHandler = (LLMConsoleHandler) llmHandler;
         this.currentFile = currentFile;
         if (sessionManager != null) sessionManager.setActiveSession(sessionId);
     }

@@ -18,7 +18,9 @@ public class AnimationBinding {
   public static final String PARAM_ROTATION_DEGREES = "rotationDegrees";
   public static final String PARAM_SCALE_PERCENT = "scalePercent";
   public static final String PARAM_COLOR = "color";
-  public static final String PARAM_OPACITY = "opacity";
+  /** Transparency percentage for the TRANSPARENCY emphasis, as PowerPoint
+   *  presents it: 25 means 25% transparent (opacity 0.75), 100 fully clear. */
+  public static final String PARAM_TRANSPARENCY = "transparency";
   public static final String PARAM_INTENSITY = "intensity";
   public static final String PARAM_MOTION_PATH = "motionPath";
   /** Delay in milliseconds before the animation starts. */
@@ -490,8 +492,8 @@ public class AnimationBinding {
       return effectParam(PARAM_COLOR, hexColor);
     }
 
-    public Builder opacity(int percent) {
-      return effectParam(PARAM_OPACITY, String.valueOf(percent));
+    public Builder transparency(int percent) {
+      return effectParam(PARAM_TRANSPARENCY, String.valueOf(percent));
     }
 
     public Builder intensity(int percent) {

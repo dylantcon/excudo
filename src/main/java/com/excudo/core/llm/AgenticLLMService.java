@@ -317,7 +317,10 @@ public class AgenticLLMService {
                         String toolResult = toolDispatcher.dispatch(response.toolName(), response.toolInput());
                         rememberReference(response.toolName(), toolResult);
                         toolResult = truncateToolResult(toolResult);
-                        messages.add(buildToolResultMessage(response.toolUseId(), toolResult));
+                        byte[] png = renderedImageFor(response.toolName(), toolResult);
+                        messages.add(png != null
+                            ? buildImageToolResultMessage(response.toolUseId(), toolResult, png)
+                            : buildToolResultMessage(response.toolUseId(), toolResult));
                         // Sync orchestrator reference back in case a 'new' command updated it
                         PPTXOrchestrator dispatchedOrch = toolDispatcher.getOrchestrator();
                         if (dispatchedOrch != this.orchestrator) {
@@ -545,7 +548,8 @@ public class AgenticLLMService {
                 if (content instanceof String s) {
                     turn.addProperty("content", s);
                 } else {
-                    turn.addProperty("content", serializeContent(content));
+                    // Renders are kept as text: base64 PNGs would bloat every re-dump
+                    turn.addProperty("content", serializeContent(withoutImages(content)));
                 }
                 turns.add(turn);
             }
@@ -651,6 +655,42 @@ public class AgenticLLMService {
         return Map.of("role", "user", "content", content);
     }
 
+    /** Largest render handed to the model; bigger PNGs fall back to the text result. */
+    private static final int MAX_INLINE_IMAGE_BYTES = 3_500_000;
+
+    /**
+     * The PNG a successful render_slide / render_slides call just wrote, so
+     * the model can look at it, or null. The text result alone is only a temp
+     * file path the model has no way to open. Local models get text only:
+     * most aren't vision models.
+     */
+    private byte[] renderedImageFor(String toolName, String toolResult) {
+        if (!"render_slide".equals(toolName) && !"render_slides".equals(toolName)) return null;
+        if (toolResult == null || toolResult.startsWith("Error") || llmClient.isLocalModel()) return null;
+        byte[] png = toolDispatcher.getLastRenderBytes();
+        if (png == null || png.length == 0 || png.length > MAX_INLINE_IMAGE_BYTES) return null;
+        return png;
+    }
+
+    /** tool_result whose content is the text result followed by the rendered image. */
+    private Map<String, Object> buildImageToolResultMessage(String toolUseId, String result, byte[] png) {
+        Map<String, Object> source = new HashMap<>();
+        source.put("type", "base64");
+        source.put("media_type", "image/png");
+        source.put("data", java.util.Base64.getEncoder().encodeToString(png));
+        List<Map<String, Object>> parts = new ArrayList<>();
+        parts.add(Map.of("type", "text", "text", result));
+        parts.add(Map.of("type", "image", "source", source));
+
+        Map<String, Object> block = new HashMap<>();
+        block.put("type", "tool_result");
+        block.put("tool_use_id", toolUseId);
+        block.put("content", parts);
+        List<Map<String, Object>> content = new ArrayList<>();
+        content.add(block);
+        return Map.of("role", "user", "content", content);
+    }
+
     // ------------------------------------------------------------------
     // Conversation compaction -- reduce quadratic token growth
     // ------------------------------------------------------------------
@@ -734,6 +774,11 @@ public class AgenticLLMService {
             if ("thinking".equals(type) || "redacted_thinking".equals(type)) {
                 // Old reasoning: dropped (allowed for earlier assistant turns)
                 continue;
+            } else if ("tool_result".equals(type) && block.get("content") instanceof List) {
+                // A render from an earlier round: drop the image, keep the text
+                Map<String, Object> compactBlock = new HashMap<>(block);
+                compactBlock.put("content", textWithoutImages(block.get("content")));
+                compactedBlocks.add(compactBlock);
             } else if ("tool_result".equals(type)) {
                 // Summarize tool results
                 Object resultContent = block.get("content");
@@ -770,6 +815,41 @@ public class AgenticLLMService {
         Map<String, Object> compactedMsg = new HashMap<>(message);
         compactedMsg.put("content", compactedBlocks);
         return compactedMsg;
+    }
+
+    /** Content blocks with every block-list tool_result reduced to its text. */
+    @SuppressWarnings("unchecked")
+    private static Object withoutImages(Object content) {
+        if (!(content instanceof List)) return content;
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> block : (List<Map<String, Object>>) content) {
+            if ("tool_result".equals(block.get("type")) && block.get("content") instanceof List) {
+                Map<String, Object> copy = new HashMap<>(block);
+                copy.put("content", textWithoutImages(block.get("content")));
+                out.add(copy);
+            } else {
+                out.add(block);
+            }
+        }
+        return out;
+    }
+
+    /** The text parts of a block-list tool_result, with each image noted as omitted. */
+    @SuppressWarnings("unchecked")
+    private static String textWithoutImages(Object content) {
+        StringBuilder sb = new StringBuilder();
+        for (Object part : (List<Object>) content) {
+            if (!(part instanceof Map)) continue;
+            Map<String, Object> p = (Map<String, Object>) part;
+            if ("text".equals(p.get("type"))) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(p.get("text"));
+            } else if ("image".equals(p.get("type"))) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append("[image from an earlier round omitted; render again to see it]");
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -839,6 +919,9 @@ public class AgenticLLMService {
                         obj.addProperty(entry.getKey(), num);
                     } else if (val instanceof Boolean bool) {
                         obj.addProperty(entry.getKey(), bool);
+                    } else if (val instanceof List || val instanceof Map) {
+                        // Nested blocks, e.g. a tool_result carrying text + image parts
+                        obj.add(entry.getKey(), GSON.toJsonTree(val));
                     } else {
                         obj.addProperty(entry.getKey(), String.valueOf(val));
                     }

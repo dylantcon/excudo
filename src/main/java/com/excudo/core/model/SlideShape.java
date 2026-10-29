@@ -272,6 +272,45 @@ public class SlideShape {
   public int getParagraphCount() {
     return hasParagraphMetadata() ? paragraphMetadata.getParagraphCount() : 0;
   }
+
+  /**
+   * Text of every {@code <a:p>} in the shape's own txBody, in document order,
+   * empty paragraphs included. This is the indexing animation paragraph
+   * targets ({@code p:pRg st/end}) use; {@link ParagraphMetadata} skips empty
+   * paragraphs, so its indices drift after a blank line. Empty when the shape
+   * has no XML or no text body.
+   */
+  public java.util.List<String> getOoxmlParagraphs() {
+    java.util.List<String> out = new java.util.ArrayList<>();
+    if (xmlElement == null) return out;
+    for (org.w3c.dom.Node n = xmlElement.getFirstChild(); n != null; n = n.getNextSibling()) {
+      if (!"txBody".equals(localName(n))) continue;
+      for (org.w3c.dom.Node p = n.getFirstChild(); p != null; p = p.getNextSibling()) {
+        if (!"p".equals(localName(p))) continue;
+        StringBuilder text = new StringBuilder();
+        appendRunText(p, text);
+        out.add(text.toString());
+      }
+    }
+    return out;
+  }
+
+  /** Concatenated text of every a:t under the node. */
+  private static void appendRunText(org.w3c.dom.Node node, StringBuilder text) {
+    for (org.w3c.dom.Node c = node.getFirstChild(); c != null; c = c.getNextSibling()) {
+      if ("t".equals(localName(c))) text.append(c.getTextContent());
+      else if (c.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) appendRunText(c, text);
+    }
+  }
+
+  /** Element local name whether or not the DOM was parsed namespace-aware; null for non-elements. */
+  private static String localName(org.w3c.dom.Node n) {
+    if (n.getNodeType() != org.w3c.dom.Node.ELEMENT_NODE) return null;
+    if (n.getLocalName() != null) return n.getLocalName();
+    String name = n.getNodeName();
+    int colon = name.indexOf(':');
+    return colon >= 0 ? name.substring(colon + 1) : name;
+  }
   
   /**
    * Get bullet point content by bullet index (not paragraph index)

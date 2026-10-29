@@ -1046,16 +1046,34 @@ public class ToolDispatcher {
                 if (animCtx.getAnimationBindings().isEmpty()) {
                     sb.append("  (none)\n");
                 } else {
-                    // Format: Target SPID <n> | <type> | <trigger> | <duration>ms
+                    // Format: id <cTn> | Target SPID <n> | <type> | <trigger> | <duration> [| extras]
+                    // The id is what remove-animation / update-animation take.
                     // Trigger comes from animationGroup ("on-click"/"with-previous"/"after-previous").
-                    // Duration is appended with an explicit "ms" suffix so agents can plan
-                    // staggered effects without re-reading the schema.
                     for (AnimationBinding binding : animCtx.getAnimationBindings()) {
-                        sb.append("  Target SPID ").append(binding.getTargetSpid());
+                        sb.append("  id ").append(binding.getTimingNodeId() > 0
+                            ? String.valueOf(binding.getTimingNodeId()) : "?");
+                        sb.append(" | Target SPID ").append(binding.getTargetSpid());
                         sb.append(" | ").append(binding.getAnimationType());
                         sb.append(" | ").append(binding.getAnimationGroup());
-                        String dur = binding.getDuration();
-                        sb.append(" | ").append(dur != null ? dur : "0").append("ms");
+                        sb.append(" | ").append(formatAnimationMs(binding.getDuration()));
+                        String delay = binding.getDelay();
+                        if (delay != null && !delay.isEmpty() && !"0".equals(delay)
+                                && !"indefinite".equals(delay)) {
+                            sb.append(" | delay ").append(formatAnimationMs(delay));
+                        }
+                        if (binding.isParagraphLevelAnimation()) {
+                            sb.append(" | ").append(describeParagraphTarget(slideNumber, binding));
+                        }
+                        for (Map.Entry<String, String> param : binding.getEffectParams().entrySet()) {
+                            String key = param.getKey();
+                            if (AnimationBinding.PARAM_DELAY_MS.equals(key)
+                                    || AnimationBinding.PARAM_DURATION_MS.equals(key)) continue;
+                            if (AnimationBinding.PARAM_TRANSPARENCY.equals(key)) {
+                                sb.append(" | transparency ").append(param.getValue()).append("%");
+                            } else {
+                                sb.append(" | ").append(key).append(" ").append(param.getValue());
+                            }
+                        }
                         sb.append("\n");
                     }
                 }
@@ -1065,6 +1083,47 @@ public class ToolDispatcher {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * "paragraph 2 \"Second bullet\"" or "paragraphs 0-1 \"First\" / \"Second\"":
+     * the 0-based range an animation targets (what add-animation's
+     * paragraphStart/paragraphEnd take) plus the text, so the agent can tell
+     * which bullets animate without cross-referencing the shape listing.
+     */
+    private String describeParagraphTarget(int slideNumber, AnimationBinding binding) {
+        int start = binding.getParagraphStart();
+        int end = binding.getParagraphEnd();
+        StringBuilder sb = new StringBuilder(start == end
+            ? "paragraph " + start : "paragraphs " + start + "-" + end);
+        try {
+            SlideShape shape = getContextService().getSlideContext(slideNumber)
+                .getSlideData().getShapeRegistry().getShape(binding.getTargetSpid());
+            if (shape == null) return sb.toString();
+            // OOXML indexing (empty paragraphs count), matching p:pRg
+            List<String> paragraphs = shape.getOoxmlParagraphs();
+            int count = paragraphs.size();
+            if (count == 0) return sb.toString();
+            String sep = " ";
+            for (int i = start; i <= end && i < count; i++) {
+                String text = paragraphs.get(i).strip();
+                if (text.isEmpty()) text = "(empty paragraph)";
+                if (text.length() > 60) text = text.substring(0, 57) + "...";
+                sb.append(sep).append('"').append(text).append('"');
+                sep = " / ";
+            }
+            if (end >= count) sb.append(" (shape has only ").append(count).append(" paragraphs)");
+        } catch (Exception e) {
+            // Range alone is still useful; text is best-effort
+        }
+        return sb.toString();
+    }
+
+    /** "500" -> "500ms"; "indefinite" (held until the next click) reads as such. */
+    private static String formatAnimationMs(String value) {
+        if (value == null || value.isEmpty()) return "0ms";
+        if ("indefinite".equals(value)) return "until next click";
+        return value.chars().allMatch(Character::isDigit) ? value + "ms" : value;
     }
 
     /**
@@ -1835,6 +1894,7 @@ public class ToolDispatcher {
     }
 
     private String handleRenderSlides(String toolInput) {
+        lastRenderFile = null; // a failed render must not hand back the previous image
         try {
             JsonObject input = JsonHelper.parseObject(toolInput);
             int thumbWidth  = JsonHelper.getInt(input, "thumbWidth",  320);

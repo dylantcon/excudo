@@ -246,7 +246,11 @@ public class OllamaClient extends LLMClient {
             if (block.has("type") && "tool_result".equals(block.get("type").getAsString())) {
                 JsonObject msgObj = new JsonObject();
                 msgObj.addProperty("role", "tool");
-                String resultContent = block.has("content") ? block.get("content").getAsString() : "";
+                // Content is a string, or text + image parts (images are dropped here)
+                String resultContent = !block.has("content") ? ""
+                    : block.get("content").isJsonArray()
+                        ? extractTextFromBlocks(block.get("content").toString())
+                        : block.get("content").getAsString();
                 msgObj.addProperty("content", resultContent);
                 msgArray.add(msgObj);
             }

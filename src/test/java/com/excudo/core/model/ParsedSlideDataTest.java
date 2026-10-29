@@ -496,20 +496,21 @@ class ParsedSlideDataTest {
                     assertTrue(shape.hasText(),
                              "Shape with paragraph animations should have text content");
                     
-                    // Test paragraph index bounds
+                    // Test paragraph index bounds. p:pRg indexes every <a:p>,
+                    // empty ones included, so bound by the OOXML paragraph
+                    // count (ParagraphMetadata skips empty paragraphs).
+                    int ooxmlParagraphs = shape.getOoxmlParagraphs().size();
+                    assertTrue(ooxmlParagraphs > 0,
+                             "Shape with paragraph animations should have paragraphs");
                     for (AnimationBinding paragraphAnim : paragraphAnims) {
-                        if (paragraphAnim.getParagraphStart() != null && shape.hasParagraphMetadata()) {
-                            assertTrue(paragraphAnim.getParagraphStart() >= 0,
-                                     "Paragraph animation start index should be valid");
-                            assertTrue(paragraphAnim.getParagraphStart() < shape.getParagraphCount(),
-                                     "Paragraph animation start index should be within bounds");
-                        }
-                        if (paragraphAnim.getParagraphEnd() != null && shape.hasParagraphMetadata()) {
-                            assertTrue(paragraphAnim.getParagraphEnd() >= 0,
-                                     "Paragraph animation end index should be valid");
-                            assertTrue(paragraphAnim.getParagraphEnd() < shape.getParagraphCount(),
-                                     "Paragraph animation end index should be within bounds");
-                        }
+                        assertTrue(paragraphAnim.getParagraphStart() >= 0,
+                                 "Paragraph animation start index should be valid");
+                        assertTrue(paragraphAnim.getParagraphStart() < ooxmlParagraphs,
+                                 "Paragraph animation start index should be within bounds");
+                        assertTrue(paragraphAnim.getParagraphEnd() >= paragraphAnim.getParagraphStart(),
+                                 "Paragraph animation end index should not precede start");
+                        assertTrue(paragraphAnim.getParagraphEnd() < ooxmlParagraphs,
+                                 "Paragraph animation end index should be within bounds");
                     }
                 }
             }

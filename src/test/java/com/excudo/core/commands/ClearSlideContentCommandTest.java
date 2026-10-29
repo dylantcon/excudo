@@ -90,15 +90,99 @@ public class ClearSlideContentCommandTest {
         assertTrue(cmd.isExecuted());
     }
 
+    @Test
+    public void animationsScopeKeepsShapes() {
+        orchestrator.createSlide(1, "Anim Clear", "slideLayout7");
+        int spid = addRect(0, 0, 1_000_000, 500_000, "keep me");
+        addFade(spid);
+        assertEquals(1, animationCount(1));
+
+        ClearSlideContentCommand cmd = new ClearSlideContentCommand(1,
+            ClearSlideContentCommand.parseScope("animations"), orchestrator);
+        cmd.execute();
+        assertEquals("Animations cleared", 0, animationCount(1));
+        assertEquals("Shape kept", 1, shapeCount(1));
+        assertEquals("Text kept", "keep me", textOf(1, spid));
+
+        cmd.undo();
+        assertEquals("Undo restores the animation", 1, animationCount(1));
+    }
+
+    @Test
+    public void textScopeEmptiesTextKeepsShapesAndAnimations() {
+        orchestrator.createSlide(1, "Text Clear", "slideLayout7");
+        int spid = addRect(0, 0, 1_000_000, 500_000, "wipe me");
+        addFade(spid);
+
+        ClearSlideContentCommand cmd = new ClearSlideContentCommand(1,
+            ClearSlideContentCommand.parseScope("text"), orchestrator);
+        cmd.execute();
+        assertEquals("Text emptied", "", textOf(1, spid));
+        assertEquals("Shape kept", 1, shapeCount(1));
+        assertEquals("Animation kept", 1, animationCount(1));
+
+        cmd.undo();
+        assertEquals("Undo restores the text", "wipe me", textOf(1, spid));
+    }
+
+    @Test
+    public void shapesScopeTakesTheirAnimationsAlong() {
+        orchestrator.createSlide(1, "Shape Clear", "slideLayout7");
+        int spid = addRect(0, 0, 1_000_000, 500_000, "");
+        addFade(spid);
+
+        new ClearSlideContentCommand(1, ClearSlideContentCommand.parseScope("shapes"), orchestrator)
+            .execute();
+        assertEquals(0, shapeCount(1));
+        assertEquals("No animation left targeting a removed shape", 0, animationCount(1));
+    }
+
+    @Test
+    public void parseScopeAcceptsListsAndRejectsUnknownParts() {
+        assertEquals(java.util.EnumSet.allOf(ClearSlideContentCommand.Part.class),
+            ClearSlideContentCommand.parseScope("all"));
+        assertEquals(java.util.EnumSet.of(ClearSlideContentCommand.Part.ANIMATIONS,
+                ClearSlideContentCommand.Part.TRANSITION),
+            ClearSlideContentCommand.parseScope("Animations, transition"));
+        assertThrows(IllegalArgumentException.class,
+            () -> ClearSlideContentCommand.parseScope("pictures"));
+    }
+
     // ========== Helpers ==========
 
     private int addRect(long x, long y, long w, long h) {
+        return addRect(x, y, w, h, "");
+    }
+
+    private int addRect(long x, long y, long w, long h, String text) {
         ExecutionResult<Integer> r = orchestrator.addShape(1,
             SlideShape.ShapeType.RECTANGLE,
             new ShapeGeometry(x, y, w, h),
-            "", "UserRect", ShapeStyle.defaultStyle());
+            text, "UserRect", ShapeStyle.defaultStyle());
         assertTrue(r.isSuccess());
         return r.getData().orElseThrow();
+    }
+
+    private void addFade(int spid) {
+        var binding = com.excudo.core.model.AnimationBinding.builder()
+            .target(spid).type(com.excudo.core.model.AnimationType.FADE).entrance()
+            .duration("500").delay("0").animationGroup("on-click").build();
+        assertTrue(orchestrator.addAnimation(1, binding).isSuccess());
+    }
+
+    private com.excudo.core.model.ParsedSlideData parsed(int slideNumber) {
+        var doc = orchestrator.getContext().get().getDocument();
+        return doc.getParsedSlideData(slideNumber,
+            (dom, n) -> new com.excudo.xml.parsers.SlideXMLParser().parseSlide(dom, n));
+    }
+
+    private int animationCount(int slideNumber) {
+        return parsed(slideNumber).getAnimationBindings().size();
+    }
+
+    private String textOf(int slideNumber, int spid) {
+        String text = parsed(slideNumber).getShapeRegistry().getShape(spid).getTextContent();
+        return text == null ? "" : text.trim();
     }
 
     private int shapeCount(int slideNumber) {

@@ -229,24 +229,51 @@ class AnimationCRUDIntegrationTest {
   // ========== Test 5: Update delay ==========
 
   @Test
-  @DisplayName("Update delay changes condition on intermediate container")
+  @DisplayName("Update delay changes the effect's own condition, not the shared container's")
   void testUpdateDelay() throws Exception {
     injector.injectAnimation(buildBinding(3, "fade", "in", 1, "on-click"), DEFAULT_GEO);
 
     int nodeId = findPresetCTnId(3);
 
-    injector.updateAnimationProperties(nodeId, Map.of("delay", "500"));
-
-    // The delay is on the intermediate container's stCondLst/cond
-    // The intermediate is the grandparent par of the animation par
     Element presetCTn = (Element) xpath.evaluate(
         "//p:cTn[@id='" + nodeId + "']", slideDocument, XPathConstants.NODE);
     Element animPar = (Element) presetCTn.getParentNode();
     Element intermediateChildTnLst = (Element) animPar.getParentNode();
     Element intermediateCTn = (Element) intermediateChildTnLst.getParentNode();
+    String containerDelayBefore = xpath.evaluate("./p:stCondLst/p:cond/@delay", intermediateCTn);
 
-    String delay = xpath.evaluate("./p:stCondLst/p:cond/@delay", intermediateCTn);
-    assertEquals("500", delay, "Intermediate container delay should be updated");
+    injector.updateAnimationProperties(nodeId, Map.of("delay", "500"));
+
+    // The effect delay is on the preset cTn's stCondLst/cond -- where the
+    // factories write it and SlideXMLParser reads it back
+    assertEquals("500", xpath.evaluate("./p:stCondLst/p:cond/@delay", presetCTn),
+        "Effect delay should be updated");
+    assertEquals(containerDelayBefore, xpath.evaluate("./p:stCondLst/p:cond/@delay", intermediateCTn),
+        "Intermediate container delay (shared by the group) should be untouched");
+  }
+
+  @Test
+  @DisplayName("Update transparency rewrites opacity as 100 - transparency")
+  void testUpdateTransparency() throws Exception {
+    injector.injectAnimation(buildBinding(3, "transparency", "emphasis", 1, "on-click"), DEFAULT_GEO);
+    int nodeId = findPresetCTnId(3);
+
+    injector.updateAnimationProperties(nodeId, Map.of("transparency", "75"));
+
+    Element presetCTn = (Element) xpath.evaluate(
+        "//p:cTn[@id='" + nodeId + "']", slideDocument, XPathConstants.NODE);
+    assertEquals("0.25", xpath.evaluate(".//p:set/p:to/p:strVal/@val", presetCTn));
+    assertEquals("opacity: 0.25", xpath.evaluate(".//p:animEffect/@prLst", presetCTn));
+  }
+
+  @Test
+  @DisplayName("Update transparency on a non-transparency effect fails")
+  void testUpdateTransparencyRejectsOtherEffects() throws Exception {
+    injector.injectAnimation(buildBinding(3, "fade", "in", 1, "on-click"), DEFAULT_GEO);
+    int nodeId = findPresetCTnId(3);
+
+    assertThrows(XMLParsingException.class, () ->
+        injector.updateAnimationProperties(nodeId, Map.of("transparency", "50")));
   }
 
   // ========== Test 6: Add + Delete roundtrip ==========

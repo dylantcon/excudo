@@ -5,6 +5,8 @@ import com.excudo.core.commands.CommandClassRegistry;
 import com.excudo.core.commands.CommandContext;
 import com.excudo.core.commands.CommandExecutionException;
 
+import com.excudo.core.introspection.SlideIntrospector;
+import com.excudo.core.model.AnimationBinding;
 import com.excudo.core.orchestration.PPTXOrchestrator;
 import com.excudo.core.parsing.CommandParameters;
 import com.excudo.core.parsing.CommandSchema;
@@ -27,12 +29,17 @@ public class RemoveAnimationCommand implements Command {
     private static final ComponentLogger logger = Logger.animation();
 
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
-        .slideNumber().description("Slide number").required().build();
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
     static final Parameter<Integer> TIMING_NODE_ID = Parameter.ofInt("timingNodeId")
-        .description("Timing node ID (cTn id) of the animation to remove").required().build();
+        .description("Timing node ID (cTn id) of the animation to remove: the 'id' column "
+            + "of get_slide_animations / list-animations").required().build();
 
     public static final CommandSchema SCHEMA = CommandSchema.builder()
         .description("Remove an animation from a slide by timing node ID")
+        .llmEnabled(true)
+        .llmDescription("Remove one animation from a slide, leaving the shape and its other "
+            + "animations alone. Take the id from get_slide_animations. Undo re-adds the "
+            + "effect at the end of the slide's sequence.")
         .parameter(SLIDE)
         .parameter(TIMING_NODE_ID)
         .example("remove-animation 1 15")
@@ -49,6 +56,8 @@ public class RemoveAnimationCommand implements Command {
     private final int timingNodeId;
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
+    /** The removed effect, captured before removal so undo can re-add it. */
+    private AnimationBinding removedBinding = null;
 
     public RemoveAnimationCommand(int slideNumber, int timingNodeId, PPTXOrchestrator orchestrator) {
         if (orchestrator == null) {
@@ -73,10 +82,12 @@ public class RemoveAnimationCommand implements Command {
 
         try {
             logger.debug("Removing animation: slide " + slideNumber + ", timingNodeId " + timingNodeId);
+            AnimationBinding before = findBinding();
 
             ExecutionResult<Void> result = orchestrator.removeAnimation(slideNumber, timingNodeId);
 
             if (result.isSuccess()) {
+                removedBinding = before;
                 executed = true;
                 logger.info("Removed animation (timingNodeId=" + timingNodeId + ") from slide " + slideNumber);
             } else {
@@ -96,15 +107,42 @@ public class RemoveAnimationCommand implements Command {
         }
     }
 
+    /** The binding with this command's timing node id, or null if it can't be read. */
+    private AnimationBinding findBinding() {
+        try {
+            for (AnimationBinding b : new SlideIntrospector(orchestrator).listAnimations(slideNumber)) {
+                if (b.getTimingNodeId() == timingNodeId) return b;
+            }
+        } catch (Exception e) {
+            logger.debug("Could not snapshot animation " + timingNodeId + " for undo: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Re-add the removed effect (same shape, type, trigger, parameters and
+     * duration). It goes to the end of the slide's sequence and gets a new id.
+     */
     @Override
     public void undo() {
-        throw new CommandExecutionException(getDescription(), "undo",
-            "Undo not supported for remove-animation (requires XML snapshot)");
+        if (!canUndo()) {
+            throw new CommandExecutionException(getDescription(), "undo",
+                "Undo not available: the removed animation could not be captured");
+        }
+        AnimationBinding.Builder restore = AnimationBinding.builder(removedBinding);
+        String dur = removedBinding.getDuration();
+        if (dur != null && !dur.isEmpty() && dur.chars().allMatch(Character::isDigit)
+                && removedBinding.getEffectParam(AnimationBinding.PARAM_DURATION_MS) == null) {
+            restore.effectParam(AnimationBinding.PARAM_DURATION_MS, dur);
+        }
+        AddAnimationCommand.fromBinding(slideNumber, restore.build(), orchestrator, null).execute();
+        executed = false;
+        removedBinding = null;
     }
 
     @Override
     public boolean canUndo() {
-        return false;
+        return executed && removedBinding != null;
     }
 
     @Override

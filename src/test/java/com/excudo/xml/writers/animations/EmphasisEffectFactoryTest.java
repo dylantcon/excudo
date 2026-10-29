@@ -190,17 +190,32 @@ public class EmphasisEffectFactoryTest {
 
     // ========== HELPERS ==========
 
+    @Test
+    public void testTransparencyParamIsTransparencyNotOpacity() throws Exception {
+        // 75% transparency must write opacity 0.25 (it used to write 0.75)
+        EmphasisEffectFactory factory = WriterTestFixtures.configureFactory(new EmphasisEffectFactory());
+        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+        AnimationBinding binding = baseBinding(AnimationType.TRANSPARENCY).transparency(75).build();
+        List<Element> elements = factory.createAnimationElements(doc, binding, null);
+
+        Element strVal = getChildByTag(getChildByTag(elements.get(0), "p:to"), "p:strVal");
+        assertEquals("0.25", strVal.getAttribute("val"));
+        assertEquals("opacity: 0.25", elements.get(1).getAttribute("prLst"));
+    }
+
     private List<Element> createElements(EmphasisEffectFactory factory, AnimationType type) throws Exception {
         Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-        AnimationBinding binding = AnimationBinding.builder()
+        return factory.createAnimationElements(doc, baseBinding(type).build(), null);
+    }
+
+    private AnimationBinding.Builder baseBinding(AnimationType type) {
+        return AnimationBinding.builder()
             .type(type)
             .target(3)
             .emphasis()
             .duration("500")
             .delay("0")
-            .animationGroup("on-click")
-            .build();
-        return factory.createAnimationElements(doc, binding, null);
+            .animationGroup("on-click");
     }
 
     private Element getChildByTag(Element parent, String tagName) {

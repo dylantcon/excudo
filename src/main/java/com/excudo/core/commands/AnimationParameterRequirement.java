@@ -118,8 +118,9 @@ public class AnimationParameterRequirement {
         new ParameterDefinition("scale", "Scale percentage (e.g., '150' for 150%)", false, "150");
     private static final ParameterDefinition COLOR_PARAM =
         new ParameterDefinition("color", "Target color hex (e.g., 'FF0000')", false, "181818");
-    private static final ParameterDefinition OPACITY_PARAM =
-        new ParameterDefinition("opacity", "Opacity percentage 0-100", false, "75");
+    private static final ParameterDefinition TRANSPARENCY_PARAM =
+        new ParameterDefinition("transparency",
+            "Transparency percentage (25, 50, 75, 100); 25 = 25% see-through", false, "25");
     private static final ParameterDefinition INTENSITY_PARAM =
         new ParameterDefinition("intensity", "Effect intensity percentage 0-100", false, "100");
 
@@ -182,7 +183,7 @@ public class AnimationParameterRequirement {
                 params.add(COLOR_PARAM);
                 break;
             case TRANSPARENCY:
-                params.add(OPACITY_PARAM);
+                params.add(TRANSPARENCY_PARAM);
                 break;
             case DARKEN:
             case LIGHTEN:
