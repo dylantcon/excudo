@@ -481,6 +481,13 @@ class PCTester:
                         if "failed" in line.lower() or "error" in line.lower():
                             print(f"    {line.strip()}")
 
+            # The launcher exits 0 when a class yields no tests (e.g. a
+            # non-public JUnit 4 class), which would otherwise count as a pass.
+            found = re.search(r"\[\s*(\d+) tests found\s*\]", result.stdout or "")
+            if result.returncode == 0 and found and int(found.group(1)) == 0:
+                print(f"  FAIL: {simple_name}: no tests found (JUnit 4 classes and @Test methods must be public)")
+                return False
+
             return result.returncode == 0
         except Exception as e:
             print(f"Error running JUnit test {test_class}: {e}")

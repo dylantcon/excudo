@@ -22,14 +22,7 @@ import com.excudo.test.utils.XMLTemplateBuilder;
  * @author Excudo Test Suite
  * @version 2.0 - Real Data Focus
  */
-class SPIDManagerTest {
-
-  private Path tempDir;
-
-  @Before
-  public void setUp() throws Exception {
-    tempDir = java.nio.file.Files.createTempDirectory("spid-test");
-  }
+public class SPIDManagerTest {
 
   /**
    * Test SPIDManager with real PPTX data to improve coverage
@@ -65,10 +58,14 @@ class SPIDManagerTest {
         assertNotNull("Should have shape name for " + spid, spidInfo.getShapeName());
       }
       
-      // Test allocation doesn't conflict with existing SPIDs
+      // Allocation doesn't conflict with the slide's existing SPIDs. Shape ids
+      // are unique per slide in OOXML (cNvPr/@id scope is the part), and the
+      // allocator is per-slide by design, so other slides' ids may repeat.
       if (!allSpids.isEmpty()) {
+        Set<Integer> slide1Before = new HashSet<>(realSpidManager.getSpidsForSlide(1));
         int newSpid = realSpidManager.allocateSpidForShape("test_shape", 1, false, false, null);
-        assertFalse("New SPID should not conflict with existing", allSpids.contains(newSpid));
+        assertFalse("New SPID " + newSpid + " should not conflict with slide 1's " + slide1Before,
+            slide1Before.contains(newSpid));
         assertTrue("New SPID should be positive", newSpid > 0);
       }
       
@@ -127,27 +124,8 @@ class SPIDManagerTest {
    */
   private void copyTestPptxStructure(File targetDir) throws IOException {
     // Path to the extracted generalist test file
-    Path sourceDir = Paths.get("generalist_extracted");
-    
-    if (!java.nio.file.Files.exists(sourceDir)) {
-      // Extract the test PPTX if not already extracted
-      java.nio.file.Files.createDirectories(sourceDir);
-      try (java.util.zip.ZipFile zipFile = new java.util.zip.ZipFile("test-pptx-samples/generalist_test_file.pptx")) {
-        java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zipFile.entries();
-        
-        while (entries.hasMoreElements()) {
-          java.util.zip.ZipEntry entry = entries.nextElement();
-          Path entryPath = sourceDir.resolve(entry.getName());
-          
-          if (entry.isDirectory()) {
-            java.nio.file.Files.createDirectories(entryPath);
-          } else {
-            java.nio.file.Files.createDirectories(entryPath.getParent());
-            java.nio.file.Files.copy(zipFile.getInputStream(entry), entryPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-          }
-        }
-      }
-    }
+    // Extracted once per JVM into a temp dir (never the repo root)
+        Path sourceDir = com.excudo.test.utils.FixtureDecks.extracted("generalist_test_file");
     
     // Copy the extracted structure to our target directory
     copyDirectory(sourceDir, targetDir.toPath());
