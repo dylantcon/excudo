@@ -31,6 +31,22 @@ public class AgenticLLMService {
     private static final ComponentLogger logger = Logger.llm();
     private static final int MAX_ROUND_TRIPS = 25;
     private static final int MAX_MODEL_RETRIES = 3;
+    /** Lookup-only rounds per turn that don't count against MAX_ROUND_TRIPS. */
+    static final int MAX_FREE_LOOKUP_ROUNDS = 8;
+    /** Tools that only discover what's available; rounds made of these alone are free. */
+    static final Set<String> LOOKUP_TOOLS = Set.of(
+        "fetch_tool_schemas", "get_command_schemas", "list_commands");
+
+    /** True when every tool call in the round is a schema/command lookup. */
+    static boolean isLookupOnlyRound(List<LLMClient.APIResponse> responses) {
+        boolean anyTool = false;
+        for (LLMClient.APIResponse r : responses) {
+            if (!r.isToolUse()) continue;
+            anyTool = true;
+            if (!LOOKUP_TOOLS.contains(r.toolName())) return false;
+        }
+        return anyTool;
+    }
     private static final Gson GSON = new Gson();
 
     /**
@@ -220,6 +236,7 @@ public class AgenticLLMService {
         this.lastConversation = messages; // Same reference -- will grow during the loop
 
         int modelRetries = 0;
+        int freeLookupRounds = 0;
         for (int round = 0; round < maxRounds; round++) {
             // Rebuild tools JSON if new schemas were discovered last round
             if (toolsJsonDirty && !smallModel) {
@@ -330,6 +347,15 @@ public class AgenticLLMService {
                         }
                     }
                 }
+            }
+
+            // Discovering schemas (progressive tool exposure) doesn't spend the
+            // turn's budget: a round made only of lookups gives its round back,
+            // up to a cap so a model stuck looking things up still stops.
+            if (isLookupOnlyRound(responses) && freeLookupRounds < MAX_FREE_LOOKUP_ROUNDS) {
+                freeLookupRounds++;
+                logger.info("Lookup-only round; not counted ({}/{} free)", freeLookupRounds, MAX_FREE_LOOKUP_ROUNDS);
+                round--;
             }
         }
 

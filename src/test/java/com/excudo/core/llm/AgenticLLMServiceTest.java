@@ -54,6 +54,83 @@ public class AgenticLLMServiceTest {
         }
     }
 
+    /**
+     * Stub that answers the first {@code lookups} calls with a schema lookup
+     * (get_command_schemas), then plain text. Counts the lookup rounds served.
+     */
+    private static class LookupThenTextClient extends LLMClient {
+        private final int lookups;
+        int lookupRoundsServed = 0;
+
+        LookupThenTextClient(int lookups) {
+            super("stub-api-key", "stub-model");
+            this.lookups = lookups;
+        }
+
+        @Override
+        public ExecutionResult<String> sendMessage(String systemPrompt, String userMessage) {
+            return ExecutionResult.success("StubSend", "summary");
+        }
+
+        @Override
+        public String getProviderName() {
+            return "StubProvider";
+        }
+
+        @Override
+        public List<LLMClient.APIResponse> sendMessageWithTools(
+                String systemPrompt, List<Map<String, String>> messages, String toolsJson) {
+            if (lookupRoundsServed < lookups) {
+                lookupRoundsServed++;
+                return List.of(new LLMClient.APIResponse("tool_use", null, "get_command_schemas",
+                    "{\"commands\":[\"add-animation\"]}", "tu_" + lookupRoundsServed));
+            }
+            return List.of(new LLMClient.APIResponse("text", "done", null, null, null));
+        }
+    }
+
+    // ========== LOOKUP ROUNDS ==========
+
+    @Test
+    @DisplayName("Schema-lookup rounds don't count against the round budget")
+    void lookupRoundsAreFree() {
+        // 30 lookup rounds > the 25-round budget; with 8 free, only 22 count
+        LookupThenTextClient client = new LookupThenTextClient(30);
+        StubPPTXOrchestrator stub = new StubPPTXOrchestrator();
+        AgenticLLMService service = new AgenticLLMService(client, stub, new CommandFactory(stub), new CommandInvoker());
+
+        String result = service.processRequest("Add a fade");
+
+        assertEquals(30, client.lookupRoundsServed, "every lookup round was served");
+        assertEquals("done", result, "turn ends normally instead of hitting the budget");
+    }
+
+    @Test
+    @DisplayName("Free lookup rounds are capped so a lookup loop still ends")
+    void freeLookupRoundsAreCapped() {
+        LookupThenTextClient client = new LookupThenTextClient(1000);
+        StubPPTXOrchestrator stub = new StubPPTXOrchestrator();
+        AgenticLLMService service = new AgenticLLMService(client, stub, new CommandFactory(stub), new CommandInvoker());
+
+        service.processRequest("Add a fade");
+
+        assertTrue(client.lookupRoundsServed <= 25 + AgenticLLMService.MAX_FREE_LOOKUP_ROUNDS + 1,
+            "stopped after budget + free cap, served " + client.lookupRoundsServed);
+    }
+
+    @Test
+    @DisplayName("A round that mixes a lookup with real work counts")
+    void mixedRoundIsNotLookupOnly() {
+        assertTrue(AgenticLLMService.isLookupOnlyRound(List.of(
+            new LLMClient.APIResponse("tool_use", null, "get_command_schemas", "{}", "a"),
+            new LLMClient.APIResponse("tool_use", null, "list_commands", "{}", "b"))));
+        assertFalse(AgenticLLMService.isLookupOnlyRound(List.of(
+            new LLMClient.APIResponse("tool_use", null, "get_command_schemas", "{}", "a"),
+            new LLMClient.APIResponse("tool_use", null, "get_slide_shapes", "{}", "b"))));
+        assertFalse(AgenticLLMService.isLookupOnlyRound(List.of(
+            new LLMClient.APIResponse("text", "hi", null, null, null))));
+    }
+
     // ========== CONSTRUCTION ==========
 
     @Test
