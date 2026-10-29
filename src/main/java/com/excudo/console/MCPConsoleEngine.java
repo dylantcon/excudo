@@ -108,7 +108,8 @@ public class MCPConsoleEngine extends AbstractConsoleEngine {
 
     @Override
     public List<String> getAvailableCommands() {
-        // In MCP mode, commands are exposed as tools, not typed commands
-        return List.of("Tools available via MCP tools/call protocol");
+        // In MCP mode the client drives commands through the execute_commands
+        // tool, which accepts the LLM-enabled subset of the registry.
+        return com.excudo.core.parsing.CommandRegistry.getLlmEnabledCommandNames();
     }
 }
