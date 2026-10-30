@@ -87,25 +87,62 @@ public class AddAnimationCommand implements Command {
         .validValues("25", "50", "75", "100")
         .required(false).build();
 
+    static final Parameter<Integer> WITH_ANIMATION = Parameter.ofInt("withAnimationId")
+        .description("Place this effect in the same click as the animation with this id "
+            + "(the 'id' column of get_slide_animations), right after it, playing with it. "
+            + "Use to change what an existing click does without re-adding the slide.")
+        .llmName("withAnimationId").required(false).build();
+    static final Parameter<Integer> AFTER_ANIMATION = Parameter.ofInt("afterAnimationId")
+        .description("Start a new click right after the click containing the animation with this id")
+        .llmName("afterAnimationId").required(false).build();
+    static final Parameter<Integer> BEFORE_ANIMATION = Parameter.ofInt("beforeAnimationId")
+        .description("Start a new click right before the click containing the animation with this id")
+        .llmName("beforeAnimationId").required(false).build();
+
     public static final CommandSchema SCHEMA = CommandSchema.builder()
         .description("Add animation to a shape")
         .llmEnabled(true)
-        .llmDescription("Add animation to a shape.")
+        .llmDescription("Add animation to a shape. Appends to the end of the slide's sequence "
+            + "unless withAnimationId / afterAnimationId / beforeAnimationId places it relative "
+            + "to an existing animation (ids from get_slide_animations).")
         .parameter(SLIDE).parameter(SPID).parameter(TYPE)
         .parameter(DIRECTION).parameter(TRIGGER).parameter(DURATION).parameter(DELAY)
         .parameter(PATH).parameter(PARAGRAPH_START).parameter(PARAGRAPH_END).parameter(TRANSPARENCY)
+        .parameter(WITH_ANIMATION).parameter(AFTER_ANIMATION).parameter(BEFORE_ANIMATION)
         .example("add-animation 1 2 fade in on-click")
         .example("add-animation 1 2 fly-in-left in with-previous 1000")
         .example("add-animation 1 2 transparency emphasis on-click --transparency 50")
+        .example("add-animation 4 4 fade in --paragraphStart 0 --paragraphEnd 0 --withAnimationId 57")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(AddAnimationCommand.class);
 
     public static Command fromParameters(CommandParameters p, CommandContext ctx) {
         String cleanTrigger = normalizeTrigger(p.get(TRIGGER));
-        String animationGroup = determineGroup(cleanTrigger);
 
         Map<String, String> effectParams = new HashMap<>();
+        int placements = 0;
+        if (p.opt(WITH_ANIMATION).isPresent()) {
+            placements++;
+            effectParams.put(AnimationBinding.PARAM_WITH_ANIMATION_ID, String.valueOf(p.opt(WITH_ANIMATION).get()));
+            cleanTrigger = AnimationParameterRequirement.TRIGGER_WITH_PREVIOUS; // it joins that click
+        }
+        if (p.opt(AFTER_ANIMATION).isPresent()) {
+            placements++;
+            effectParams.put(AnimationBinding.PARAM_AFTER_ANIMATION_ID, String.valueOf(p.opt(AFTER_ANIMATION).get()));
+            cleanTrigger = AnimationParameterRequirement.TRIGGER_ON_CLICK; // it opens a new click
+        }
+        if (p.opt(BEFORE_ANIMATION).isPresent()) {
+            placements++;
+            effectParams.put(AnimationBinding.PARAM_BEFORE_ANIMATION_ID, String.valueOf(p.opt(BEFORE_ANIMATION).get()));
+            cleanTrigger = AnimationParameterRequirement.TRIGGER_ON_CLICK;
+        }
+        if (placements > 1) {
+            throw new IllegalArgumentException(
+                "Use only one of withAnimationId, afterAnimationId, beforeAnimationId");
+        }
+        String animationGroup = determineGroup(cleanTrigger);
+
         p.opt(PATH).filter(s -> !s.isBlank())
             .ifPresent(v -> effectParams.put(AnimationBinding.PARAM_MOTION_PATH, v));
         p.opt(TRANSPARENCY).ifPresent(v -> effectParams.put(AnimationBinding.PARAM_TRANSPARENCY, String.valueOf(v)));
@@ -535,8 +572,17 @@ public class AddAnimationCommand implements Command {
      * copies of the first effect, so they play together on its trigger.
      */
     private void addRemainingParagraphs(AnimationBinding first) {
+        Integer previousId = undoTimingNodeId;
         for (int p = paragraphStart + 1; p <= paragraphEnd; p++) {
-            AnimationBinding next = AnimationBinding.builder(first).paragraph(p).withPrevious().build();
+            // Each follower joins the click of the effect before it (not the
+            // slide's last click), so a placed add stays together
+            AnimationBinding.Builder nb = AnimationBinding.builder(first).paragraph(p).withPrevious()
+                .withoutEffectParam(AnimationBinding.PARAM_AFTER_ANIMATION_ID)
+                .withoutEffectParam(AnimationBinding.PARAM_BEFORE_ANIMATION_ID);
+            if (previousId != null) {
+                nb.effectParam(AnimationBinding.PARAM_WITH_ANIMATION_ID, String.valueOf(previousId));
+            }
+            AnimationBinding next = nb.build();
             java.util.Set<Integer> before = captureTimingNodeIds(slideNumber);
             ExecutionResult<String> r = orchestrator.addAnimation(slideNumber, next, groupIdManager);
             if (!r.isSuccess()) {
@@ -544,7 +590,10 @@ public class AddAnimationCommand implements Command {
                     "Failed to add animation for paragraph " + p + ": " + r.getMessage());
             }
             Integer id = findNewPresetCTnId(slideNumber, before);
-            if (id != null) extraUndoTimingNodeIds.add(id);
+            if (id != null) {
+                extraUndoTimingNodeIds.add(id);
+                previousId = id;
+            }
         }
     }
 

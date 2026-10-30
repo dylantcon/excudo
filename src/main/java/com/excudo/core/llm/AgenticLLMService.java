@@ -333,7 +333,7 @@ public class AgenticLLMService {
                     } else {
                         String toolResult = toolDispatcher.dispatch(response.toolName(), response.toolInput());
                         rememberReference(response.toolName(), toolResult);
-                        toolResult = truncateToolResult(toolResult);
+                        toolResult = truncateToolResult(response.toolName(), toolResult);
                         byte[] png = renderedImageFor(response.toolName(), toolResult);
                         messages.add(png != null
                             ? buildImageToolResultMessage(response.toolUseId(), toolResult, png)
@@ -727,8 +727,16 @@ public class AgenticLLMService {
     static final int COMPACT_STEP = 6;
     /** Tool result content longer than this gets summarized in old rounds. */
     private static final int COMPACT_THRESHOLD_CHARS = 120;
-    /** Max chars for any tool result before truncation (prevents single huge results). */
-    private static final int MAX_TOOL_RESULT_CHARS = 1500;
+    /**
+     * Max chars for a tool result before truncation (prevents single huge
+     * results). Was 1500, which cut the add-animation schema before its
+     * placement parameters and an 11-click slide's animation list before half
+     * its rows -- the agent then re-requested the same results in a loop.
+     * Older results are still compacted, so this only bounds the recent ones.
+     */
+    static final int MAX_TOOL_RESULT_CHARS = 8000;
+    /** Reference documentation: always delivered whole (rememberReference keeps it too). */
+    private static final Set<String> UNTRUNCATED_TOOLS = Set.of("get_command_schemas");
 
     /**
      * Return a compacted copy of the conversation history.
@@ -882,13 +890,15 @@ public class AgenticLLMService {
      * Truncate a tool result to MAX_TOOL_RESULT_CHARS to prevent any single result
      * from dominating the conversation context.
      */
-    private String truncateToolResult(String result) {
-        if (result == null || result.length() <= MAX_TOOL_RESULT_CHARS) {
+    static String truncateToolResult(String toolName, String result) {
+        if (result == null || result.length() <= MAX_TOOL_RESULT_CHARS
+                || UNTRUNCATED_TOOLS.contains(toolName)) {
             return result;
         }
-        // Keep the beginning (most useful) and note the truncation
+        // Keep the beginning (most useful) and say how to see the rest
         return result.substring(0, MAX_TOOL_RESULT_CHARS)
-            + "\n[... truncated, " + result.length() + " total chars]";
+            + "\n[... truncated, " + result.length() + " total chars. Narrow the request "
+            + "(e.g. one slide, one shape) to see the rest.]";
     }
 
     /**

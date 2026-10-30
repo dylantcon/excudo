@@ -31,6 +31,12 @@ public class AnimationBinding {
    *  (internal; applied as {@link Builder#charRange} and not kept as a param). */
   public static final String PARAM_CHAR_START = "charStart";
   public static final String PARAM_CHAR_END = "charEnd";
+  /** Placement relative to an existing animation (its preset cTn id), read by
+   *  AnimationInjector: join that animation's click right after it ... */
+  public static final String PARAM_WITH_ANIMATION_ID = "withAnimationId";
+  /** ... or open a new click straight after / before that animation's click. */
+  public static final String PARAM_AFTER_ANIMATION_ID = "afterAnimationId";
+  public static final String PARAM_BEFORE_ANIMATION_ID = "beforeAnimationId";
   // ========== OOXML IDENTITY ==========
 
   /**
@@ -516,6 +522,11 @@ public class AnimationBinding {
 
     public Builder effectParam(String key, String value) {
       this.effectParams.put(key, value);
+      return this;
+    }
+
+    public Builder withoutEffectParam(String key) {
+      this.effectParams.remove(key);
       return this;
     }
 

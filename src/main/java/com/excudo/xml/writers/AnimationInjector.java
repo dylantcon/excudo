@@ -78,7 +78,22 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       }
 
       Element clickNode;
-      if (binding.isWithPrevious() || binding.isAfterPrevious()) {
+      Element placeAfterIntermediate = null;
+      String withId = binding.getEffectParam(AnimationBinding.PARAM_WITH_ANIMATION_ID);
+      String afterId = binding.getEffectParam(AnimationBinding.PARAM_AFTER_ANIMATION_ID);
+      String beforeId = binding.getEffectParam(AnimationBinding.PARAM_BEFORE_ANIMATION_ID);
+      if (withId != null) {
+        // Join the referenced animation's click, right after it
+        Element[] placement = locateInMainSequence(timingElement, withId);
+        clickNode = placement[0];
+        placeAfterIntermediate = placement[1];
+      } else if (afterId != null || beforeId != null) {
+        // A new click next to the referenced animation's click
+        Element refClick = locateInMainSequence(timingElement, afterId != null ? afterId : beforeId)[0];
+        clickNode = createClickTriggerElement(0);
+        refClick.getParentNode().insertBefore(clickNode,
+            afterId != null ? refClick.getNextSibling() : refClick);
+      } else if (binding.isWithPrevious() || binding.isAfterPrevious()) {
         clickNode = findLastClickTriggerNode(timingElement);
         if (clickNode == null) {
           throw new XMLParsingException(
@@ -92,7 +107,12 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       // Create intermediate container FIRST so its timing node ID
       // precedes the factory's IDs in document order (per oracle)
       Element intermediateContainer = createIntermediateContainer();
-      appendToClickTrigger(clickNode, intermediateContainer);
+      if (placeAfterIntermediate != null) {
+        placeAfterIntermediate.getParentNode().insertBefore(
+            intermediateContainer, placeAfterIntermediate.getNextSibling());
+      } else {
+        appendToClickTrigger(clickNode, intermediateContainer);
+      }
 
       AnimationType enumType = binding.getAnimationType();
 
@@ -253,6 +273,8 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       }
       Element intermediateCTn = (Element) intermediateChildTnLst.getParentNode();
       Element intermediatePar = (Element) intermediateCTn.getParentNode();
+      Element leadClickPar = (Element) intermediatePar.getParentNode().getParentNode().getParentNode();
+      boolean wasClickLead = "clickEffect".equals(targetCTn.getAttribute("nodeType"));
 
       // 4. Remove the animation par from intermediate's childTnLst
       intermediateChildTnLst.removeChild(animationPar);
@@ -269,6 +291,14 @@ public class AnimationInjector implements TimingNodeIdGenerator {
           Element mainSeqChildTnLst = (Element) clickPar.getParentNode();
           mainSeqChildTnLst.removeChild(clickPar);
         }
+      }
+
+      // 6b. The removed effect led its click: the next effect in that click
+      // now leads it, or the click is left with only with-/after-previous
+      // effects and no click effect
+      if (wasClickLead && leadClickPar.getParentNode() != null) {
+        Element next = (Element) xpath.evaluate(".//p:cTn[@presetClass]", leadClickPar, XPathConstants.NODE);
+        if (next != null) next.setAttribute("nodeType", "clickEffect");
       }
 
       // 7. Clean up bldLst if needed
@@ -703,6 +733,32 @@ public class AnimationInjector implements TimingNodeIdGenerator {
     } catch (XPathExpressionException e) {
       throw new XMLParsingException("Failed to find last click trigger node", e);
     }
+  }
+
+  /**
+   * Resolve an animation id (its preset cTn id, as get_slide_animations lists
+   * it) to {click par, intermediate par} in the main sequence.
+   */
+  private Element[] locateInMainSequence(Element timingElement, String animationId)
+      throws XMLParsingException, XPathExpressionException {
+    Element ref = (Element) xpath.evaluate(
+        ".//p:cTn[@id='" + animationId + "'][@presetClass]", timingElement, XPathConstants.NODE);
+    if (ref == null) {
+      throw new XMLParsingException("No animation with id " + animationId
+          + " on this slide (use the 'id' column of get_slide_animations)");
+    }
+    Element below = null;
+    for (Node n = ref.getParentNode(); n != null && n.getNodeType() == Node.ELEMENT_NODE; n = n.getParentNode()) {
+      Element el = (Element) n;
+      if (!"p:par".equals(el.getNodeName())) continue;
+      Node list = el.getParentNode();
+      Node owner = list != null ? list.getParentNode() : null;
+      if (owner instanceof Element o && "mainSeq".equals(o.getAttribute("nodeType"))) {
+        return new Element[] { el, below };
+      }
+      below = el;
+    }
+    throw new XMLParsingException("Animation " + animationId + " is not in the slide's main click sequence");
   }
 
   private Element createNewClickTrigger(Element timingElement, int clickNumber) throws XMLParsingException {

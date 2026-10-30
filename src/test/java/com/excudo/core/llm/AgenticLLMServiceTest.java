@@ -119,6 +119,19 @@ public class AgenticLLMServiceTest {
     }
 
     @Test
+    @DisplayName("Command schemas reach the agent whole; other results are capped")
+    void toolResultTruncation() {
+        String big = "x".repeat(AgenticLLMService.MAX_TOOL_RESULT_CHARS + 500);
+        assertEquals(big, AgenticLLMService.truncateToolResult("get_command_schemas", big),
+            "schemas are reference docs -- cutting them hid add-animation's placement params");
+        String cut = AgenticLLMService.truncateToolResult("get_slide_animations", big);
+        assertTrue(cut.startsWith("x".repeat(AgenticLLMService.MAX_TOOL_RESULT_CHARS)));
+        assertTrue(cut.contains("truncated"));
+        String slideSized = "y".repeat(6000); // an 11-click slide's listing
+        assertEquals(slideSized, AgenticLLMService.truncateToolResult("get_slide_animations", slideSized));
+    }
+
+    @Test
     @DisplayName("A round that mixes a lookup with real work counts")
     void mixedRoundIsNotLookupOnly() {
         assertTrue(AgenticLLMService.isLookupOnlyRound(List.of(
