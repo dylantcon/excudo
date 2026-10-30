@@ -104,7 +104,7 @@ public class ScriptToolsDispatchTest {
         String out = dispatcher.dispatch("run_slide_script",
             "{\"slideNumber\":2}");
         assertTrue("Missing script must be reported: " + out,
-            out.toLowerCase().contains("script is required"));
+            out.toLowerCase().contains("missing required parameter 'script'"));
     }
 
     @Test

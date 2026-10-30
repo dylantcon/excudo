@@ -122,6 +122,12 @@ public class ToolDispatcher {
                 : "(none)";
             logger.info("TOOL_CALL {} | input: {}", toolName, inputSnippet);
 
+            String inputError = validateToolInput(toolName, toolInput);
+            if (inputError != null) {
+                logger.info("TOOL_RESULT {} | rejected: {}", toolName, inputError);
+                return "Error: " + inputError;
+            }
+
             String result = switch (toolName) {
                 case "get_presentation_overview" -> handleGetPresentationOverview();
                 case "get_slide_shapes"          -> handleGetSlideShapes(toolInput);
@@ -1518,6 +1524,119 @@ public class ToolDispatcher {
      * llmEnabled) and unknown keys were passed through to the factory which
      * then read the canonical name and got null.
      */
+    /**
+     * Required parameters must be present under one of their names, and a
+     * parameter must not be given under both names with different values.
+     * A missing key used to surface as whatever the command did with the
+     * fallback -- e.g. set-font without targetSpid failed with "SPID must be
+     * positive".
+     */
+    private static String validateRequiredAndAliases(String commandName,
+            com.excudo.core.parsing.CommandSchema schema, Map<String, Object> params) {
+        List<String> missing = new ArrayList<>();
+        for (com.excudo.core.parsing.Parameter p : schema.getParameters()) {
+            String llm = p.getEffectiveLlmName();
+            String canonical = p.getName();
+            boolean hasLlm = params.containsKey(llm);
+            boolean hasCanonical = !canonical.equals(llm) && params.containsKey(canonical);
+            if (hasLlm && hasCanonical
+                    && !String.valueOf(params.get(llm)).equals(String.valueOf(params.get(canonical)))) {
+                return "'" + commandName + "' got both '" + llm + "' and '" + canonical
+                    + "' (two names for the same parameter) with different values; send only '" + llm + "'.";
+            }
+            if (p.isRequired() && p.getDefaultValue() == null && !hasLlm && !hasCanonical) {
+                missing.add("'" + llm + "'" + (p.getDescription() != null && !p.getDescription().isBlank()
+                    ? " (" + p.getDescription() + ")" : ""));
+            }
+        }
+        if (missing.isEmpty()) return null;
+        return "Missing required parameter" + (missing.size() > 1 ? "s" : "") + " for '" + commandName + "': "
+            + String.join(", ", missing) + ". See get_command_schemas.";
+    }
+
+    /**
+     * Best guess at the parameter a mistyped key meant. Names that start with
+     * or contain the key win over edit distance -- plain edit distance offered
+     * 'spid' for 'slide' when 'slideNumber' was meant.
+     */
+    static String suggestKey(String key, java.util.Collection<String> candidates) {
+        String k = key.toLowerCase(java.util.Locale.ROOT);
+        String best = null;
+        for (String c : candidates) {
+            String lc = c.toLowerCase(java.util.Locale.ROOT);
+            if (lc.equals(k)) return c;
+            boolean related = lc.startsWith(k) || k.startsWith(lc) || lc.contains(k) || k.contains(lc);
+            if (related && (best == null || Math.abs(c.length() - key.length()) < Math.abs(best.length() - key.length()))) {
+                best = c;
+            }
+        }
+        if (best != null) return best;
+        return com.excudo.utils.FuzzyMatcher.findClosestMatch(key, candidates, 3);
+    }
+
+    /** Every tool definition the agent or an MCP client can be given, by name. */
+    private static final Map<String, LLMToolDefinitions.ToolDefinition> TOOL_DEFINITIONS = buildToolIndex();
+
+    private static Map<String, LLMToolDefinitions.ToolDefinition> buildToolIndex() {
+        Map<String, LLMToolDefinitions.ToolDefinition> index = new HashMap<>();
+        for (List<LLMToolDefinitions.ToolDefinition> list : List.of(
+                LLMToolDefinitions.getCoreTools(), LLMToolDefinitions.getDeferredTools(),
+                LLMToolDefinitions.getContextTools(), LLMToolDefinitions.getSmallModelTools())) {
+            for (LLMToolDefinitions.ToolDefinition t : list) index.putIfAbsent(t.name(), t);
+        }
+        return index;
+    }
+
+    /**
+     * Check a tool call's input against the tool's declared input schema:
+     * unknown keys and missing required keys are rejected with a suggestion.
+     * Handlers read inputs with fallbacks (slideNumber defaults to 1), so a
+     * misspelled key used to act on slide 1 instead of failing.
+     *
+     * @return an error message, or null when the input is acceptable
+     */
+    static String validateToolInput(String toolName, String toolInput) {
+        LLMToolDefinitions.ToolDefinition def = TOOL_DEFINITIONS.get(toolName);
+        if (def == null) return null; // unknown tools are reported by the dispatch switch
+        JsonObject schema;
+        try {
+            schema = JsonParser.parseString(def.inputSchema()).getAsJsonObject();
+        } catch (Exception e) {
+            return null;
+        }
+        JsonObject input;
+        if (toolInput == null || toolInput.isBlank()) {
+            input = new JsonObject();
+        } else {
+            try {
+                JsonElement parsed = JsonParser.parseString(toolInput);
+                if (!parsed.isJsonObject()) return toolName + " expects a JSON object of named parameters.";
+                input = parsed.getAsJsonObject();
+            } catch (Exception e) {
+                return toolName + " input isn't valid JSON: " + e.getMessage();
+            }
+        }
+        Set<String> declared = schema.has("properties")
+            ? schema.getAsJsonObject("properties").keySet() : Collections.emptySet();
+        List<String> problems = new ArrayList<>();
+        for (String key : input.keySet()) {
+            if (!declared.contains(key)) {
+                String closest = suggestKey(key, declared);
+                problems.add("unknown parameter '" + key + "'" + (closest != null ? " (did you mean '" + closest + "'?)" : ""));
+            }
+        }
+        if (schema.has("required")) {
+            for (JsonElement r : schema.getAsJsonArray("required")) {
+                if (!input.has(r.getAsString())) problems.add("missing required parameter '" + r.getAsString() + "'");
+            }
+        }
+        if (problems.isEmpty()) return null;
+        List<String> valid = new ArrayList<>(declared);
+        Collections.sort(valid);
+        return toolName + ": " + String.join("; ", problems) + ". Valid parameters: "
+            + (valid.isEmpty() ? "(none)" : String.join(", ", valid)) + ".";
+    }
+
     static String validateActionStrictly(RequestSchema.ActionRequest action) {
         String actionType = action.getType();
         if (actionType == null || actionType.isBlank()) {
@@ -1554,18 +1673,20 @@ public class ToolDispatcher {
         }
 
         Map<String, Object> params = action.getParameters();
-        if (params == null || params.isEmpty()) return null;
+        if (params == null) params = Collections.emptyMap();
 
         List<String> unknownKeys = new ArrayList<>();
         for (String key : params.keySet()) {
             if (!accepted.contains(key)) unknownKeys.add(key);
         }
-        if (unknownKeys.isEmpty()) return null;
+        if (unknownKeys.isEmpty()) {
+            return validateRequiredAndAliases(commandName, schema, params);
+        }
 
         StringBuilder msg = new StringBuilder("Unknown parameter(s) for '")
             .append(commandName).append("':");
         for (String u : unknownKeys) {
-            String closest = com.excudo.utils.FuzzyMatcher.findClosestMatch(u, accepted, 3);
+            String closest = suggestKey(u, accepted);
             msg.append(" '").append(u).append("'");
             if (closest != null) msg.append(" (did you mean '").append(closest).append("'?)");
             msg.append(",");

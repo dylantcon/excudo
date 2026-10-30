@@ -160,6 +160,61 @@ public class ToolDispatcherStrictKeysTest {
         assertTrue(err, err.contains("Missing 'type' field"));
     }
 
+    // ========== Required parameters and alias conflicts ==========
+
+    @Test
+    public void missingRequiredParameterIsNamed() {
+        // Used to fail downstream as "SPID must be positive"
+        String err = ToolDispatcher.validateActionStrictly(action("set-font", Map.of(
+            "slideNumber", "1", "size", "24")));
+        assertNotNull("missing targetSpid must reject", err);
+        assertTrue(err, err.contains("Missing required parameter"));
+        assertTrue(err, err.contains("'targetSpid'"));
+    }
+
+    @Test
+    public void canonicalNamesStillWork() {
+        // spid / text are content-edit's canonical names; targetSpid / newText its aliases
+        assertNull(ToolDispatcher.validateActionStrictly(action("content-edit", Map.of(
+            "slideNumber", "1", "spid", "2", "text", "Hello"))));
+        assertNull(ToolDispatcher.validateActionStrictly(action("content-edit", Map.of(
+            "slideNumber", "1", "targetSpid", "2", "newText", "Hello"))));
+    }
+
+    @Test
+    public void bothNamesWithDifferentValuesIsRejected() {
+        String err = ToolDispatcher.validateActionStrictly(action("content-edit", Map.of(
+            "slideNumber", "1", "targetSpid", "2", "spid", "3", "newText", "x")));
+        assertNotNull("conflicting aliases must reject", err);
+        assertTrue(err, err.contains("both 'targetSpid' and 'spid'"));
+    }
+
+    // ========== Tool inputs ==========
+
+    @Test
+    public void toolInputWithUnknownKeyIsRejected() {
+        // Handlers read with fallbacks: 'slide' instead of 'slideNumber' used to act on slide 1
+        String err = ToolDispatcher.validateToolInput("get_shape_detail", "{\"slide\":3,\"spid\":4}");
+        assertNotNull(err);
+        assertTrue(err, err.contains("unknown parameter 'slide'"));
+        assertTrue(err, err.contains("did you mean 'slideNumber'"));
+        assertTrue(err, err.contains("missing required parameter 'slideNumber'"));
+    }
+
+    @Test
+    public void validToolInputPasses() {
+        assertNull(ToolDispatcher.validateToolInput("get_shape_detail", "{\"slideNumber\":3,\"spid\":4}"));
+        assertNull(ToolDispatcher.validateToolInput("get_slide_animations", "{\"slideNumbers\":\"all\"}"));
+        assertNull(ToolDispatcher.validateToolInput("get_presentation_overview", ""));
+    }
+
+    @Test
+    public void toolInputMustBeAnObject() {
+        String err = ToolDispatcher.validateToolInput("render_slide", "[1]");
+        assertNotNull(err);
+        assertTrue(err, err.contains("expects a JSON object"));
+    }
+
     private static RequestSchema.ActionRequest action(String type, Map<String, ?> params) {
         Map<String, Object> p = new HashMap<>(params);
         return new RequestSchema.ActionRequest(type, p, null, null);
