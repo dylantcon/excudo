@@ -343,6 +343,7 @@ public class ToolDispatcher {
             if (shape.hasText()) {
                 sb.append("Text:\n");
                 com.excudo.core.model.ShapeTextWriter.writeTo(shape, sb, "  ");
+                appendTextRuns(sb, slideNumber, shape);
             }
 
             ContextService.AnimationContext animCtx = getContextService().getAnimationContext(slideNumber);
@@ -356,6 +357,77 @@ public class ToolDispatcher {
         } catch (Exception e) {
             return "Error getting shape detail: " + e.getMessage();
         }
+    }
+
+    /**
+     * Per-run colour, font and size, resolved through placeholder / list-style
+     * / theme inheritance, each tagged with where it came from. Default dark
+     * text on a dark background went unnoticed because none of this was visible.
+     * Consecutive runs with identical properties are merged.
+     */
+    private void appendTextRuns(StringBuilder sb, int slideNumber, SlideShape shape) {
+        if (shape.getXmlElement() == null) return;
+        List<com.excudo.core.introspection.TextRunInspector.RunReport> runs;
+        try {
+            runs = com.excudo.core.introspection.TextRunInspector.inspect(
+                orchestrator.getContext().get().getDocument(), slideNumber, shape.getXmlElement(),
+                orchestrator.getClrMap());
+        } catch (Exception e) {
+            sb.append("Text runs: unavailable (").append(e.getMessage()).append(")\n");
+            return;
+        }
+        if (runs.isEmpty()) return;
+        sb.append("Text runs (resolved value [where it comes from]):\n");
+        int i = 0;
+        while (i < runs.size()) {
+            var first = runs.get(i);
+            StringBuilder text = new StringBuilder(first.text());
+            int j = i + 1;
+            while (j < runs.size() && runs.get(j).paragraph() == first.paragraph() && sameStyle(runs.get(j), first)) {
+                text.append(runs.get(j).text());
+                j++;
+            }
+            String shown = text.toString().strip();
+            if (shown.length() > 40) shown = shown.substring(0, 37) + "...";
+            sb.append("  p").append(first.paragraph()).append(" \"").append(shown).append("\": ")
+              .append("colour ").append(first.color().value()).append(" [").append(first.color().source()).append("]")
+              .append(" | font ").append(first.font().value()).append(" [").append(first.font().source()).append("]")
+              .append(" | ").append(first.size().value()).append("pt [").append(first.size().source()).append("]");
+            if ("true".equals(first.bold().value())) sb.append(" | bold");
+            if ("true".equals(first.italic().value())) sb.append(" | italic");
+            sb.append("\n");
+            i = j;
+        }
+    }
+
+    /** One line: the distinct resolved text colours on the shape (get_shape_style). */
+    private void appendTextColourSummary(StringBuilder sb, int slideNumber, int spid) {
+        try {
+            SlideShape shape = getContextService().getSlideContext(slideNumber)
+                .getSlideData().getShapeRegistry().getShape(spid);
+            if (shape == null || shape.getXmlElement() == null) return;
+            var runs = com.excudo.core.introspection.TextRunInspector.inspect(
+                orchestrator.getContext().get().getDocument(), slideNumber, shape.getXmlElement(),
+                orchestrator.getClrMap());
+            if (runs.isEmpty()) return;
+            java.util.LinkedHashMap<String, String> colours = new java.util.LinkedHashMap<>();
+            for (var r : runs) {
+                if (!r.text().isBlank()) colours.putIfAbsent(r.color().value(), r.color().source());
+            }
+            if (colours.isEmpty()) return;
+            List<String> parts = new ArrayList<>();
+            colours.forEach((c, src) -> parts.add(c + " [" + src + "]"));
+            sb.append("  text colour: ").append(String.join(", ", parts))
+              .append(" (per run: get_shape_detail)").append('\n');
+        } catch (Exception ignored) {
+            // Style is still useful without the text summary
+        }
+    }
+
+    private static boolean sameStyle(com.excudo.core.introspection.TextRunInspector.RunReport a,
+                                     com.excudo.core.introspection.TextRunInspector.RunReport b) {
+        return a.color().equals(b.color()) && a.font().equals(b.font()) && a.size().equals(b.size())
+            && a.bold().equals(b.bold()) && a.italic().equals(b.italic());
     }
 
     private String getThemeCatalog() {
@@ -650,6 +722,7 @@ public class ToolDispatcher {
             sb.append("  fill: ").append(formatFill(style.getFill())).append('\n');
             sb.append("  line: ").append(formatLine(style.getLine())).append('\n');
             sb.append("  themeStyle: ").append(formatThemeStyleRef(style.getThemeStyle())).append('\n');
+            appendTextColourSummary(sb, slideNumber, spid);
             return sb.toString();
         } catch (Exception e) {
             return "Error: " + e.getMessage();

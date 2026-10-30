@@ -129,7 +129,9 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "get_shape_detail",
-            "Full detail for one shape: text, font, style, animations.",
+            "Full detail for one shape: text, animations, and each text run's colour, font family "
+            + "and size as resolved through placeholder / list-style / theme inheritance, with "
+            + "where each value comes from.",
             "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"},\"spid\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\",\"spid\"]}"
         ));
 
