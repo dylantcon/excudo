@@ -9,7 +9,12 @@ public final class LayoutIssue {
         TEXT_OVERFLOW,
         SHAPE_OVERLAP,
         OFF_SLIDE,
-        TEXT_TOO_SMALL
+        TEXT_TOO_SMALL,
+        /** Text nearly invisible against what's behind it (under 2:1): fix it. */
+        LOW_CONTRAST,
+        /** Below WCAG AA but readable (2:1 up to 4.5:1, or 3:1 for large text), or
+         *  not checkable (picture behind the text). Often fine for big bold labels. */
+        CONTRAST_ADVISORY
     }
 
     private final Type type;

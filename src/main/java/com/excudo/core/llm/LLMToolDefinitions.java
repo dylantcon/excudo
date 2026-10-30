@@ -150,7 +150,9 @@ public class LLMToolDefinitions {
 
         tools.add(new ToolDefinition(
             "validate_layout",
-            "Check slide for text overflow, shape overlap, off-slide, text too small.",
+            "Check slide for text overflow, shape overlap, off-slide, text too small, and text whose "
+            + "colour is too close to what's behind it (shape fill, a shape underneath, or the slide "
+            + "background), by WCAG contrast ratio.",
             "{\"type\":\"object\",\"properties\":{\"slideNumber\":{\"type\":\"integer\"}},\"required\":[\"slideNumber\"]}"
         ));
 

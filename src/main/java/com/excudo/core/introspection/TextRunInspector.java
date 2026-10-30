@@ -231,7 +231,7 @@ public final class TextRunInspector {
         }
     }
 
-    private static Map<String, String> effectiveClrMap(Document slide, Document layout, Map<String, String> master) {
+    static Map<String, String> effectiveClrMap(Document slide, Document layout, Map<String, String> master) {
         Map<String, String> map = new HashMap<>(master != null ? master : Map.of());
         if (map.isEmpty()) {
             // Office default mapping

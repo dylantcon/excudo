@@ -1875,7 +1875,9 @@ public class ToolDispatcher {
             List<SlideShape> shapes = slideCtx.getSlideData().getShapeRegistry().getAllShapes();
 
             LayoutValidator validator = new LayoutValidator();
-            List<LayoutIssue> issues = validator.validate(shapes);
+            List<LayoutIssue> issues = new ArrayList<>(validator.validate(shapes));
+            issues.addAll(com.excudo.core.introspection.ContrastChecker.check(
+                orchestrator.getContext().get().getDocument(), slideNumber, shapes, orchestrator.getClrMap()));
 
             if (issues.isEmpty()) {
                 return "Slide " + slideNumber + " layout is valid. No issues detected.";

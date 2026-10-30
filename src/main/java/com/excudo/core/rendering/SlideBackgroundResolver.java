@@ -21,8 +21,10 @@ import java.util.Map;
  * orchestrator) can compute the same typed background the orchestrator
  * exposes, without plumbing a new argument through every builder site.
  *
- * <p>Walks slide p:bg -> master p:bg, then follows any bgRef through
- * the theme's fmtScheme. Returns null if no background is defined.
+ * <p>Walks slide p:bg -> layout p:bg -> master p:bg, then follows any
+ * bgRef through the theme's fmtScheme. Returns null if no background is
+ * defined. (The layout step was missing, so a layout's own background --
+ * a dark section-header layout, say -- was ignored.)
  */
 public final class SlideBackgroundResolver {
 
@@ -49,10 +51,31 @@ public final class SlideBackgroundResolver {
             SlideBackground bg = extract(doc, slideDom, clrMap);
             if (bg != null) return bg;
         }
+        Document layoutDom = layoutOf(doc, slideNumber);
+        if (layoutDom != null) {
+            SlideBackground bg = extract(doc, layoutDom, clrMap);
+            if (bg != null) return bg;
+        }
         Document masterDom = doc.getXmlPart(MASTER_PART);
         if (masterDom != null) {
             SlideBackground bg = extract(doc, masterDom, clrMap);
             if (bg != null) return bg;
+        }
+        return null;
+    }
+
+    /** The slide's layout part, via its relationships; null if it has none. */
+    private static Document layoutOf(PPTXDocument doc, int slideNumber) {
+        Document rels = doc.getXmlPart("ppt/slides/_rels/slide" + slideNumber + ".xml.rels");
+        if (rels == null) return null;
+        org.w3c.dom.NodeList list = rels.getElementsByTagNameNS("*", "Relationship");
+        for (int i = 0; i < list.getLength(); i++) {
+            Element r = (Element) list.item(i);
+            if (!r.getAttribute("Type").endsWith("/slideLayout")) continue;
+            String target = r.getAttribute("Target");
+            String part = target.startsWith("/") ? target.substring(1)
+                : "ppt/" + target.replaceFirst("^\\.\\./", "");
+            return doc.getXmlPart(part);
         }
         return null;
     }
