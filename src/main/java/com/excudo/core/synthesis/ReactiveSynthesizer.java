@@ -43,8 +43,9 @@ import java.util.function.Consumer;
  */
 public final class ReactiveSynthesizer implements OrchestrationStateListener {
 
-    private static final int DEBOUNCE_MS = 150;
+    private static final int DEFAULT_DEBOUNCE_MS = 150;
 
+    private final int debounceMs;
     private final PPTXOrchestrator orchestrator;
     private final SlideStateBuilder builder;
     private final Timer debounceTimer = new Timer("reactive-synthesizer", true);
@@ -61,9 +62,15 @@ public final class ReactiveSynthesizer implements OrchestrationStateListener {
     private final CopyOnWriteArrayList<Consumer<ReactiveResult>> subscribers = new CopyOnWriteArrayList<>();
 
     public ReactiveSynthesizer(PPTXOrchestrator orchestrator) {
+        this(orchestrator, DEFAULT_DEBOUNCE_MS);
+    }
+
+    /** With a custom quiet window; tests use a wide one so timing on slow CI runners can't split a burst. */
+    ReactiveSynthesizer(PPTXOrchestrator orchestrator, int debounceMs) {
         if (orchestrator == null) {
             throw new IllegalArgumentException("orchestrator must not be null");
         }
+        this.debounceMs = debounceMs;
         this.orchestrator = orchestrator;
         this.builder = new SlideStateBuilder(orchestrator);
         SessionManager.getInstance().addStateListener(this);
@@ -145,7 +152,7 @@ public final class ReactiveSynthesizer implements OrchestrationStateListener {
             }
         };
         pending.put(slideNumber, t);
-        debounceTimer.schedule(t, DEBOUNCE_MS);
+        debounceTimer.schedule(t, debounceMs);
     }
 
     private ScriptSynthesizer.Result synthesizeInternal(int slideNumber) {

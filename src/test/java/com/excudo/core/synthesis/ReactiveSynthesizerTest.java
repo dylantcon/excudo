@@ -82,14 +82,17 @@ public class ReactiveSynthesizerTest {
             new ShapeGeometry(1_000_000, 1_000_000, 2_000_000, 1_000_000),
             "", "R", ShapeStyle.defaultStyle());
 
-        // 150ms debounce window + generous safety margin for CI timing.
-        Thread.sleep(400);
+        // Poll instead of a fixed sleep: under load (parallel runs, slow CI
+        // runners) the debounce + synth can take longer than any fixed wait.
         assertTrue("Subscriber must fire at least once after debounce",
-            fires.get() >= 1);
+            waitFor(() -> fires.get() >= 1, 5_000));
     }
 
     @Test
     public void rapidMutationsCollapseToOneSynthPerSlide() throws Exception {
+        // A wide quiet window, so three in-memory edits always land inside it
+        // even on a slow runner (with 150ms a slow burst legitimately fires twice)
+        reactive = new ReactiveSynthesizer(orchestrator, 1_000);
         AtomicInteger fires = new AtomicInteger(0);
         reactive.subscribe(r -> fires.incrementAndGet());
 
@@ -100,7 +103,18 @@ public class ReactiveSynthesizerTest {
                 new ShapeGeometry(i * 1_000_000L, 0, 500_000, 500_000),
                 "", "R", ShapeStyle.defaultStyle());
         }
-        Thread.sleep(400);
+        assertTrue("the collapsed synth must fire", waitFor(() -> fires.get() >= 1, 6_000));
+        Thread.sleep(1_200); // one more quiet window: nothing else may fire
         assertEquals("Three quick mutations must collapse into one fire", 1, fires.get());
+    }
+
+    private static boolean waitFor(java.util.function.BooleanSupplier condition, long timeoutMs)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean()) return true;
+            Thread.sleep(20);
+        }
+        return condition.getAsBoolean();
     }
 }
