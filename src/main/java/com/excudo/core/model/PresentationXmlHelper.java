@@ -140,6 +140,33 @@ public class PresentationXmlHelper {
      * @param rId     The relationship ID to remove (e.g., "rId3")
      * @return true if found and removed
      */
+    /**
+     * Notes slides point back at their slide (../slides/slideK.xml). Shift those
+     * numbered >= {@code fromSlideNumber} by {@code delta} after slide parts
+     * are renamed by an insert or delete.
+     */
+    public static void shiftNotesSlideBackReferences(com.excudo.core.model.PPTXDocument doc,
+                                                     int fromSlideNumber, int delta) {
+        java.util.regex.Pattern target = java.util.regex.Pattern.compile("(.*/slides/slide)(\\d+)(\\.xml)$");
+        for (String part : doc.getPartNamesByPrefix("ppt/notesSlides/_rels/")) {
+            Document rels = doc.getXmlPart(part);
+            if (rels == null) continue;
+            boolean changed = false;
+            NodeList list = rels.getElementsByTagName("Relationship");
+            for (int i = 0; i < list.getLength(); i++) {
+                Element rel = (Element) list.item(i);
+                java.util.regex.Matcher m = target.matcher(rel.getAttribute("Target"));
+                if (!m.matches()) continue;
+                int n = Integer.parseInt(m.group(2));
+                if (n >= fromSlideNumber) {
+                    rel.setAttribute("Target", m.group(1) + (n + delta) + m.group(3));
+                    changed = true;
+                }
+            }
+            if (changed) doc.putXmlPart(part, rels);
+        }
+    }
+
     public static boolean removeSlideId(Document presDoc, String rId) {
         NodeList sldIds = presDoc.getElementsByTagNameNS(PNS, "sldId");
         for (int i = 0; i < sldIds.getLength(); i++) {

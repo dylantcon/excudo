@@ -138,42 +138,87 @@ public class SlideCreator {
         logger.warn("Position " + insertPosition + " exceeds slide count (" + maxSlideNumber + "), creating slide " + actualPosition + " instead");
       }
 
-      // Stage 2: Shift subsequent slides
-      pptxDoc.rekeySlides(actualPosition, +1);
-
-      // Stage 3: Load and copy source slide
+      // Stage 2: Snapshot the source BEFORE shifting -- a source at or after
+      // the insert position moves up by one in the rekey below
       if (!pptxDoc.hasSlide(sourceSlideNumber)) {
         throw new XMLParsingException("Source slide " + sourceSlideNumber + " not found in PPTXDocument");
       }
       Document sourceSlide = (Document) pptxDoc.getSlideDocument(sourceSlideNumber).cloneNode(true);
       Document modifiedSlide = copyManager.modifySlideForCopy(sourceSlide, newSlideTitle);
+      Document sourceRels = pptxDoc.getXmlPart("ppt/slides/_rels/slide" + sourceSlideNumber + ".xml.rels");
+      Document copiedRels = sourceRels != null ? (Document) sourceRels.cloneNode(true) : null;
 
-      // Stage 4: Store copied slide
-      pptxDoc.putSlideDocument(actualPosition, modifiedSlide);
-      logger.info("Stored copied slide {} in PPTXDocument", actualPosition);
+      // Relationship ids are local to the part, so they're kept as-is -- the
+      // slide XML refers to them (r:embed, r:link). Notes and comments belong
+      // to the source slide only.
+      if (copiedRels != null) {
+        removeRelationshipsOfType(copiedRels, "/notesSlide", "/comments");
+      }
 
-      // Stage 5: Copy relationships and create coordinated presentation relationship
-      copyManager.copySlideRelationships(sourceSlideNumber, actualPosition);
-
-      String coordinatedRId = relationshipManager.allocateSlideRelationshipIdForPosition(actualPosition);
-      relationshipManager.addPresentationRelationship(coordinatedRId,
-          XMLConstants.RELATIONSHIP_TYPE_SLIDE,
-          "slides/slide" + actualPosition + ".xml");
-      logger.info("Coordinated rID allocated: " + coordinatedRId);
-
-      // Stage 6: Update presentation.xml and content types
-      PresentationXmlHelper.insertSlideIdWithCascade(
-          pptxDoc.getPresentationXml(), actualPosition, coordinatedRId);
-      pptxDoc.markPresentationXmlDirty();
-      PresentationXmlHelper.rebuildSlideContentTypes(
-          pptxDoc.getContentTypesDoc(), pptxDoc.getSlideNumbers());
-      pptxDoc.markContentTypesDirty();
-
+      int placed = insertSlideParts(actualPosition, modifiedSlide, copiedRels);
       logger.info("Slide copying complete");
-      return actualPosition;
+      return placed;
 
     } catch (Exception e) {
       throw new XMLParsingException("Failed to copy slide " + sourceSlideNumber + " to position " + insertPosition, e);
+    }
+  }
+
+  /**
+   * Insert a slide's parts at a position: shift later slides (their parts, the
+   * presentation relationships pointing at them, and notes back-references),
+   * store the slide and its relationships, and register it in presentation.xml
+   * with a relationship id above every existing one. Shared by copy, restore
+   * and move.
+   *
+   * <p>Everything is keyed by slide number, which is the part number here. The
+   * older positional rId scheme assumed rId order follows slide order, which
+   * stops being true once slides are copied, deleted or moved.
+   *
+   * @return the position the slide landed at (clamped to the end of the deck)
+   */
+  public int insertSlideParts(int insertPosition, Document slideDoc, Document slideRels) throws XMLParsingException {
+    PPTXDocument pptxDoc = pipeline.getPPTXDocument();
+    if (pptxDoc == null) {
+      throw new XMLParsingException("PPTXDocument not set -- call setPPTXDocument() first");
+    }
+    List<Integer> existingSlides = pipeline.getExistingSlideNumbers();
+    int maxSlideNumber = existingSlides.isEmpty() ? 0 : existingSlides.stream().mapToInt(Integer::intValue).max().orElse(0);
+    int position = Math.max(1, Math.min(insertPosition, maxSlideNumber + 1));
+
+    pptxDoc.rekeySlides(position, +1);
+    relationshipManager.shiftSlideTargets(position, +1);
+    PresentationXmlHelper.shiftNotesSlideBackReferences(pptxDoc, position, +1);
+
+    pptxDoc.putSlideDocument(position, slideDoc);
+    if (slideRels != null) {
+      pptxDoc.putXmlPart("ppt/slides/_rels/slide" + position + ".xml.rels", slideRels);
+    }
+
+    String rId = relationshipManager.nextUnusedPresentationRId();
+    relationshipManager.addPresentationRelationship(rId, XMLConstants.RELATIONSHIP_TYPE_SLIDE,
+        "slides/slide" + position + ".xml");
+    relationshipManager.resyncReservedRIds();
+
+    PresentationXmlHelper.insertSlideIdWithCascade(pptxDoc.getPresentationXml(), position, rId);
+    pptxDoc.markPresentationXmlDirty();
+    PresentationXmlHelper.rebuildSlideContentTypes(pptxDoc.getContentTypesDoc(), pptxDoc.getSlideNumbers());
+    pptxDoc.markContentTypesDirty();
+    logger.info("Inserted slide parts at {} ({})", position, rId);
+    return position;
+  }
+
+  /** Remove relationships whose Type ends with any of the given suffixes. */
+  public static void removeRelationshipsOfType(Document relsDoc, String... typeSuffixes) {
+    NodeList rels = relsDoc.getElementsByTagName("Relationship");
+    for (int i = rels.getLength() - 1; i >= 0; i--) {
+      Element rel = (Element) rels.item(i);
+      for (String suffix : typeSuffixes) {
+        if (rel.getAttribute("Type").endsWith(suffix)) {
+          rel.getParentNode().removeChild(rel);
+          break;
+        }
+      }
     }
   }
 

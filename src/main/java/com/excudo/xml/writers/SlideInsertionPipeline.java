@@ -80,9 +80,15 @@ public class SlideInsertionPipeline {
         logger.warn("Position " + insertPosition + " exceeds slide count (" + maxSlideNumber + "), creating slide " + actualPosition + " instead");
       }
 
-      // Stage 2: Shift subsequent slides (in-memory rekey or file rename)
+      // Stage 2: Shift subsequent slides (in-memory rekey or file rename), and
+      // the presentation relationships + notes back-references that point at
+      // them -- by slide number, not by rId: once slides have been copied,
+      // deleted or reordered, rId order no longer follows slide order
       if (pptxDocument != null) {
         pptxDocument.rekeySlides(actualPosition, +1);
+        relationshipManager.shiftSlideTargets(actualPosition, +1);
+        com.excudo.core.model.PresentationXmlHelper.shiftNotesSlideBackReferences(
+            pptxDocument, actualPosition, +1);
       }
       renameSubsequentSlides(actualPosition);
 
@@ -162,11 +168,14 @@ public class SlideInsertionPipeline {
       logger.info("Created slide relationships file: " + slideRelsResult.getRelationshipFile().getName());
       logger.debug("Slide relationships: " + slideRelsResult.getCreatedRelationshipIds());
 
-      String coordinatedRId = relationshipManager.allocateSlideRelationshipIdForPosition(slideNumber);
+      // An id above every existing one: the rels and sldId cascades then have
+      // nothing to renumber (the positional id assumed rId order == slide order)
+      String coordinatedRId = relationshipManager.nextUnusedPresentationRId();
 
       relationshipManager.addPresentationRelationship(coordinatedRId,
           XMLConstants.RELATIONSHIP_TYPE_SLIDE,
           "slides/slide" + slideNumber + ".xml");
+      relationshipManager.resyncReservedRIds();
 
       logger.info("Coordinated rID allocated: " + coordinatedRId);
       logger.debug("Will be used in BOTH presentation.xml and presentation.xml.rels");

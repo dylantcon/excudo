@@ -204,15 +204,9 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             return SlideExecutionResult.slideActionFailed("Copy Slide", targetPosition, "Orchestrator not initialized");
         }
 
-        try {
-            // Implementation would use existing slide copy functionality
-            Set<Integer> originalSpids = Set.of(1000 + sourceSlide);
-            Set<Integer> newSpids = Set.of(1000 + targetPosition);
-
-            return SlideExecutionResult.slideCopied(sourceSlide, targetPosition, originalSpids, newSpids);
-        } catch (Exception e) {
-            return SlideExecutionResult.slideActionFailed("Copy Slide", targetPosition, e);
-        }
+        // This used to return success with placeholder SPIDs without copying
+        // anything ("copy-slide returned OK but no slide appeared")
+        return slideOrchestrationManager.copySlide(sourceSlide, targetPosition, newTitle);
     }
 
     @Override

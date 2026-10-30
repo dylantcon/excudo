@@ -708,6 +708,7 @@ public class PPTXDocument implements AutoCloseable {
     public void save(File outputFile) throws IOException {
         logger.info("Saving presentation: {} XML parts, {} media parts, {} dirty",
                     xmlParts.size(), mediaParts.size(), dirtyParts.size());
+        requireIntactPackage();
 
         if (extractedDir != null) {
             // Legacy path: flush to disk, then zip the directory
@@ -725,9 +726,25 @@ public class PPTXDocument implements AutoCloseable {
      * Save the presentation to an output stream as a ZIP.
      */
     public void save(OutputStream outputStream) throws IOException {
+        requireIntactPackage();
         try (ZipOutputStream zipOut = new ZipOutputStream(outputStream)) {
             writePartsToZip(zipOut);
         }
+    }
+
+    /**
+     * Refuse to write a package PowerPoint would "repair" on open -- it does so
+     * by dropping slides or animations without saying which. A failed save
+     * leaves the session intact to fix; a repaired file loses work silently.
+     */
+    private void requireIntactPackage() throws IOException {
+        List<String> problems = PackageIntegrityValidator.validate(this);
+        if (problems.isEmpty()) return;
+        StringBuilder msg = new StringBuilder("Refusing to save: PowerPoint would have to repair this file "
+            + "(and would drop content doing it). Problems:");
+        for (String p : problems) msg.append("\n  - ").append(p);
+        logger.error("{}", msg);
+        throw new IOException(msg.toString());
     }
 
     // ========== MEDIA RECOVERY ==========

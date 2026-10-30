@@ -57,16 +57,18 @@ public class AnimationTest {
             
             ShapeGeometry geo = new ShapeGeometry(0, 0, 914400, 914400);
 
-            // Add animations to the existing text box (SPID 15)
+            // Add animations to an existing shape on slide 2 (SPID 5, the rounded
+            // rectangle). This used to target SPID 15, which isn't on the slide, so the
+            // saved file had animations PowerPoint would strip on repair.
             System.out.println("Adding fade in animation (click 1)...");
             AnimationBinding fadeIn = AnimationBinding.builder()
-                .target(15).type("fade").entrance()
+                .target(5).type("fade").entrance()
                 .duration("500").delay("0").clickTrigger(1).animationGroup("on-click").build();
             writer.injectAnimation(fadeIn, geo);
 
             System.out.println("Adding fade out animation (click 2)...");
             AnimationBinding fadeOut = AnimationBinding.builder()
-                .target(15).type("fade").exit()
+                .target(5).type("fade").exit()
                 .duration("500").delay("0").clickTrigger(2).animationGroup("on-click").build();
             writer.injectAnimation(fadeOut, geo);
             

@@ -342,21 +342,50 @@ public class SPIDManager {
         try {
             XPath xpath = XMLFactoryProvider.createXPath();
 
-            // Find all shapes and assign new SPIDs
+            // Shape ids only have to be unique within a slide, and the source
+            // slide's already are, so a copy keeps them. This used to ask the
+            // allocator for a fresh id per shape, but the copy has no slide
+            // number yet (0), so the allocator saw an empty slide every time and
+            // gave every shape the same id. Only duplicates the source itself
+            // carried get new ids (the next above the slide's highest).
             NodeList spidNodes = (NodeList) xpath.evaluate("//p:cNvPr/@id", slideDocument, XPathConstants.NODESET);
-            
+            int maxSpid = 0;
+            for (int i = 0; i < spidNodes.getLength(); i++) {
+                try { maxSpid = Math.max(maxSpid, Integer.parseInt(spidNodes.item(i).getNodeValue())); }
+                catch (NumberFormatException e) { /* skip invalid SPID */ }
+            }
+            Set<Integer> seen = new HashSet<>();
             for (int i = 0; i < spidNodes.getLength(); i++) {
                 try {
                     int oldSpid = Integer.parseInt(spidNodes.item(i).getNodeValue());
-                    int newSpid = allocateSpidForShape("copied_shape", slideNumber, false, false, null);
-                    spidMappings.put(oldSpid, newSpid);
-                    spidNodes.item(i).setNodeValue(String.valueOf(newSpid));
+                    if (seen.add(oldSpid)) {
+                        spidMappings.putIfAbsent(oldSpid, oldSpid);
+                    } else {
+                        // References to a duplicated id stay with its first shape
+                        spidNodes.item(i).setNodeValue(String.valueOf(++maxSpid));
+                    }
                     shapesProcessed++;
                 } catch (NumberFormatException e) {
                     // Skip invalid SPID
                 }
             }
-            
+
+            // Everything that refers to a shape by id must follow it, or the copy's
+            // animations and build entries point at shapes that aren't on the slide
+            // (PowerPoint strips them on repair) and its connectors detach.
+            // Animation targets and build entries (bldP, bldGraphic, bldDgm, ...):
+            NodeList spidRefs = (NodeList) xpath.evaluate(
+                "//p:spTgt/@spid | //p:bldLst/*/@spid", slideDocument, XPathConstants.NODESET);
+            for (int i = 0; i < spidRefs.getLength(); i++) {
+                if (remapAttribute(spidRefs.item(i), spidMappings)) animationsUpdated++;
+            }
+            // Connector endpoints:
+            NodeList cxnRefs = (NodeList) xpath.evaluate(
+                "//a:stCxn/@id | //a:endCxn/@id", slideDocument, XPathConstants.NODESET);
+            for (int i = 0; i < cxnRefs.getLength(); i++) {
+                remapAttribute(cxnRefs.item(i), spidMappings);
+            }
+
             return new SPIDRegenerationResult(spidMappings, shapesProcessed, animationsUpdated);
             
         } catch (Exception e) {
@@ -364,6 +393,18 @@ public class SPIDManager {
         }
     }
     
+    /** Point an id attribute at its shape's new SPID; false when it isn't a remapped id. */
+    private static boolean remapAttribute(org.w3c.dom.Node attr, Map<Integer, Integer> spidMappings) {
+        try {
+            Integer mapped = spidMappings.get(Integer.parseInt(attr.getNodeValue()));
+            if (mapped == null) return false;
+            attr.setNodeValue(String.valueOf(mapped));
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
     /**
      * Get global registry for testing
      */

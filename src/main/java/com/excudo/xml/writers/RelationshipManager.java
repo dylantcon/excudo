@@ -155,6 +155,124 @@ public class RelationshipManager {
     return removedRId;
   }
 
+  private static final java.util.regex.Pattern SLIDE_TARGET =
+      java.util.regex.Pattern.compile("(.*(?:^|/)slides/slide)(\\d+)(\\.xml)$");
+
+  /**
+   * Remove slide {@code slideNumber}'s relationship from presentation.xml.rels
+   * and shift every later slide's Target down by one, matching parts that a
+   * delete renames (slideK.xml -> slide(K-1).xml).
+   *
+   * <p>The relationship is found by its Target, not computed from the slide's
+   * position: the rId pipeline assumes slide rIds are consecutive in slide
+   * order, which an edited deck breaks, and it never retargeted the remaining
+   * relationships. A mid-deck delete therefore left every later relationship
+   * pointing one part too far -- missing parts at the end of the list and
+   * unreferenced ones in the middle, which PowerPoint repairs by dropping
+   * slides and adding blank ones.
+   *
+   * @return the removed rId, or null if no relationship targets that slide
+   */
+  /**
+   * Shift presentation.xml.rels slide Targets numbered >= {@code fromSlideNumber}
+   * by {@code delta}, to follow parts renamed by an insert (+1).
+   */
+  public void shiftSlideTargets(int fromSlideNumber, int delta) throws XMLParsingException {
+    Document relsDoc = presentationRelsOrThrow();
+    NodeList relationshipElements = relsDoc.getElementsByTagName("Relationship");
+    for (int i = 0; i < relationshipElements.getLength(); i++) {
+      Element rel = (Element) relationshipElements.item(i);
+      if (!rel.getAttribute("Type").endsWith("/slide")) continue;
+      java.util.regex.Matcher m = SLIDE_TARGET.matcher(rel.getAttribute("Target"));
+      if (!m.matches()) continue;
+      int n = Integer.parseInt(m.group(2));
+      if (n >= fromSlideNumber) rel.setAttribute("Target", m.group(1) + (n + delta) + m.group(3));
+    }
+    storePresentationRels(relsDoc);
+  }
+
+  /**
+   * Relationship id above every id in presentation.xml.rels. A slide added
+   * with it needs no cascade: nothing at or above it gets renumbered.
+   */
+  public String nextUnusedPresentationRId() throws XMLParsingException {
+    Document relsDoc = presentationRelsOrThrow();
+    int max = 0;
+    NodeList relationshipElements = relsDoc.getElementsByTagName("Relationship");
+    for (int i = 0; i < relationshipElements.getLength(); i++) {
+      String id = ((Element) relationshipElements.item(i)).getAttribute("Id");
+      if (id.startsWith(XMLConstants.RID_PREFIX)) {
+        try { max = Math.max(max, Integer.parseInt(id.substring(XMLConstants.RID_PREFIX.length()))); }
+        catch (NumberFormatException ignored) {}
+      }
+    }
+    return XMLConstants.RID_PREFIX + (max + 1);
+  }
+
+  /** Rebuild the rId pipeline's position model from presentation.xml.rels as it now stands. */
+  public void resyncReservedRIds() throws XMLParsingException {
+    Document relsDoc = presentationRelsOrThrow();
+    int slides = 0;
+    NodeList relationshipElements = relsDoc.getElementsByTagName("Relationship");
+    for (int i = 0; i < relationshipElements.getLength(); i++) {
+      if (((Element) relationshipElements.item(i)).getAttribute("Type").endsWith("/slide")) slides++;
+    }
+    reservedRIdManager.reinitialize(slides, relsDoc);
+  }
+
+  private Document presentationRelsOrThrow() throws XMLParsingException {
+    if (pptxDocument == null) {
+      throw new XMLParsingException("Editing slide relationships requires a PPTXDocument");
+    }
+    Document relsDoc = pptxDocument.getXmlPart("ppt/_rels/presentation.xml.rels");
+    if (relsDoc == null) throw new XMLParsingException("presentation.xml.rels not found");
+    return relsDoc;
+  }
+
+  private void storePresentationRels(Document relsDoc) throws XMLParsingException {
+    File file = new File("ppt/_rels/presentation.xml.rels");
+    writeRelationshipDocumentPublic(relsDoc, file);
+    relationshipDocumentCache.put(pathResolver.getRelativePathFromExtractedDir(file), relsDoc);
+  }
+
+  public String removeSlideRelationshipAndShiftTargets(int slideNumber) throws XMLParsingException {
+    if (pptxDocument == null) {
+      throw new XMLParsingException("Removing a slide relationship requires a PPTXDocument");
+    }
+    String partName = "ppt/_rels/presentation.xml.rels";
+    Document relsDoc = pptxDocument.getXmlPart(partName);
+    if (relsDoc == null) {
+      throw new XMLParsingException("presentation.xml.rels not found");
+    }
+    String removed = null;
+    int remainingSlides = 0;
+    NodeList relationshipElements = relsDoc.getElementsByTagName("Relationship");
+    List<Element> slideRels = new ArrayList<>();
+    for (int i = 0; i < relationshipElements.getLength(); i++) {
+      Element rel = (Element) relationshipElements.item(i);
+      if (rel.getAttribute("Type").endsWith("/slide")) slideRels.add(rel);
+    }
+    for (Element rel : slideRels) {
+      java.util.regex.Matcher m = SLIDE_TARGET.matcher(rel.getAttribute("Target"));
+      if (!m.matches()) continue;
+      int n = Integer.parseInt(m.group(2));
+      if (n == slideNumber && removed == null) {
+        removed = rel.getAttribute("Id");
+        rel.getParentNode().removeChild(rel);
+        continue;
+      }
+      if (n > slideNumber) {
+        rel.setAttribute("Target", m.group(1) + (n - 1) + m.group(3));
+      }
+      remainingSlides++;
+    }
+    writeRelationshipDocumentPublic(relsDoc, new File(partName));
+    relationshipDocumentCache.put(pathResolver.getRelativePathFromExtractedDir(new File(partName)), relsDoc);
+    // The position model behind the rId pipeline must follow the real document
+    reservedRIdManager.reinitialize(remainingSlides, relsDoc);
+    return removed;
+  }
+
   // ========== DELEGATE TO SlideRelationshipWriter ==========
 
   public RelationshipCreationResult createSlideRelationships(int slideNumber,

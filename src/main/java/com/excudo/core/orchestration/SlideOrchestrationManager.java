@@ -132,6 +132,7 @@ public class SlideOrchestrationManager {
             
             // Create a copy of the slide
             int copiedSlideNumber = slideCreator.insertCopiedSlide(targetPosition, sourceSlide, newTitle);
+            context.getNotesSlideRegistry().buildRegistry(pptxDoc);
             
             // Invalidate all cached slide data after copy (slide numbers shift)
             com.excudo.core.services.ContextService cs = context.getContextService();
@@ -183,9 +184,14 @@ public class SlideOrchestrationManager {
             com.excudo.xml.writers.RelationshipManager relationshipManager =
                 context.getRelationshipManager();
 
-            // 1. Remove presentation relationship
-            String removedRId = relationshipManager.removePresentationSlideRelationship(slideNumber);
-            logger.debug("Mathematically removed slide relationship: {}", removedRId);
+            // 1. Remove the slide's presentation relationship (found by target)
+            //    and shift later slides' targets to match the parts renamed below
+            String removedRId = relationshipManager.removeSlideRelationshipAndShiftTargets(slideNumber);
+            if (removedRId == null) {
+                return SlideExecutionResult.slideActionFailed("Delete Slide", slideNumber,
+                    "No presentation relationship targets slide" + slideNumber + ".xml");
+            }
+            logger.debug("Removed slide relationship: {}", removedRId);
 
             // 2. Remove slide from PPTXDocument map
             pptxDoc.removeSlideDocument(slideNumber);
@@ -207,6 +213,7 @@ public class SlideOrchestrationManager {
             // 4. Rekey subsequent slides in PPTXDocument
             pptxDoc.rekeySlides(slideNumber + 1, -1);
             renameSubsequentSlidesAfterDelete(slideNumber);
+            PresentationXmlHelper.shiftNotesSlideBackReferences(pptxDoc, slideNumber + 1, -1);
 
             // 5. Rebuild Content_Types.xml
             PresentationXmlHelper.rebuildSlideContentTypes(
@@ -251,16 +258,38 @@ public class SlideOrchestrationManager {
      */
     public SlideExecutionResult restoreSlide(int slideNumber, String slideData, 
                                            String relationshipData, String notesData) {
+        // This used to report success without restoring anything, so undoing a
+        // delete-slide silently did nothing
         try {
-            // The restoration logic is implemented in this orchestration manager
-            // (Business logic was extracted from PPTXOrchestratorImpl here)
-            
-            logger.info("Restored slide at position {}", slideNumber);
-            
-            return SlideExecutionResult.slideCreated(
-                slideNumber, "Restored Slide", List.of() // SPIDs will be determined by restored content
-            );
-            
+            PPTXDocument pptxDoc = context.getDocument();
+            if (pptxDoc == null) {
+                return SlideExecutionResult.slideActionFailed("Restore Slide", slideNumber, "No document loaded");
+            }
+            if (slideData == null || slideData.isBlank()) {
+                return SlideExecutionResult.slideActionFailed("Restore Slide", slideNumber, "No slide XML captured");
+            }
+            org.w3c.dom.Document slideDoc = com.excudo.core.utils.XMLFactoryProvider.parseDocumentFromString(slideData);
+            org.w3c.dom.Document relsDoc = (relationshipData == null || relationshipData.isBlank()) ? null
+                : com.excudo.core.utils.XMLFactoryProvider.parseDocumentFromString(relationshipData);
+            boolean notesDropped = false;
+            if (relsDoc != null) {
+                // The delete removed the notes part; a relationship to it would dangle
+                org.w3c.dom.NodeList rels = relsDoc.getElementsByTagName("Relationship");
+                for (int i = 0; i < rels.getLength(); i++) {
+                    org.w3c.dom.Element rel = (org.w3c.dom.Element) rels.item(i);
+                    if (rel.getAttribute("Type").endsWith("/notesSlide")) notesDropped = true;
+                }
+                SlideCreator.removeRelationshipsOfType(relsDoc, "/notesSlide");
+            }
+            int placed = context.getSlideCreator().insertSlideParts(slideNumber, slideDoc, relsDoc);
+            context.getNotesSlideRegistry().buildRegistry(pptxDoc);
+            com.excudo.core.services.ContextService cs = context.getContextService();
+            if (cs != null) cs.invalidateAllSlides();
+
+            logger.info("Restored slide at position {}{}", placed,
+                notesDropped ? " (speaker notes were not restored)" : "");
+            return SlideExecutionResult.slideCreated(placed, "Restored Slide", List.of());
+
         } catch (Exception e) {
             logger.error("Failed to restore slide at position {}: {}", slideNumber, e.getMessage());
             return SlideExecutionResult.slideActionFailed("Restore Slide", slideNumber,
@@ -289,16 +318,62 @@ public class SlideOrchestrationManager {
                     "Source slide " + fromPosition + " not found");
             }
 
-            SlideCreator slideCreator = context.getSlideCreator();
-            
-            // The move logic is implemented using copy + delete approach
-            // (Business logic was extracted from PPTXOrchestratorImpl here)
-            
-            logger.info("Moved slide from position {} to position {}", fromPosition, toPosition);
-            
-            return SlideExecutionResult.slideCreated(
-                toPosition, "Moved Slide", List.of()
-            );
+            // This used to report success without moving anything.
+            // Detach the slide (keeping its parts and notes), close the gap,
+            // then insert the same parts at the destination.
+            int count = pptxDoc.getSlideNumbers().size();
+            if (toPosition < 1 || toPosition > count) {
+                return SlideExecutionResult.slideActionFailed("Move Slide", fromPosition,
+                    "Target position " + toPosition + " is outside 1-" + count);
+            }
+            org.w3c.dom.Document slideDoc = pptxDoc.getSlideDocument(fromPosition);
+            String relsPart = "ppt/slides/_rels/slide" + fromPosition + ".xml.rels";
+            org.w3c.dom.Document relsDoc = pptxDoc.getXmlPart(relsPart);
+
+            // The moving slide's notes point back at it; re-point them at the end
+            String notesRelsPart = null;
+            if (relsDoc != null) {
+                org.w3c.dom.NodeList rels = relsDoc.getElementsByTagName("Relationship");
+                for (int i = 0; i < rels.getLength(); i++) {
+                    org.w3c.dom.Element rel = (org.w3c.dom.Element) rels.item(i);
+                    if (rel.getAttribute("Type").endsWith("/notesSlide")) {
+                        String target = rel.getAttribute("Target"); // ../notesSlides/notesSlideK.xml
+                        String file = target.substring(target.lastIndexOf('/') + 1);
+                        notesRelsPart = "ppt/notesSlides/_rels/" + file + ".rels";
+                    }
+                }
+            }
+
+            com.excudo.xml.writers.RelationshipManager relationshipManager = context.getRelationshipManager();
+            String removedRId = relationshipManager.removeSlideRelationshipAndShiftTargets(fromPosition);
+            if (removedRId != null) {
+                PresentationXmlHelper.removeSlideId(pptxDoc.getPresentationXml(), removedRId);
+            }
+            pptxDoc.removeSlideDocument(fromPosition);
+            pptxDoc.rekeySlides(fromPosition + 1, -1);
+            PresentationXmlHelper.shiftNotesSlideBackReferences(pptxDoc, fromPosition + 1, -1);
+
+            int placed = context.getSlideCreator().insertSlideParts(toPosition, slideDoc, relsDoc);
+
+            if (notesRelsPart != null) {
+                org.w3c.dom.Document notesRels = pptxDoc.getXmlPart(notesRelsPart);
+                if (notesRels != null) {
+                    org.w3c.dom.NodeList rels = notesRels.getElementsByTagName("Relationship");
+                    for (int i = 0; i < rels.getLength(); i++) {
+                        org.w3c.dom.Element rel = (org.w3c.dom.Element) rels.item(i);
+                        if (rel.getAttribute("Type").endsWith("/slide")) {
+                            rel.setAttribute("Target", "../slides/slide" + placed + ".xml");
+                        }
+                    }
+                    pptxDoc.putXmlPart(notesRelsPart, notesRels);
+                }
+            }
+            context.getNotesSlideRegistry().buildRegistry(pptxDoc);
+            com.excudo.core.services.ContextService cs = context.getContextService();
+            if (cs != null) cs.invalidateAllSlides();
+
+            logger.info("Moved slide from position {} to position {}", fromPosition, placed);
+            return SlideExecutionResult.slideCreated(placed, "Moved Slide", List.of());
             
         } catch (Exception e) {
             logger.error("Failed to move slide from {} to {}: {}", fromPosition, toPosition, e.getMessage());
