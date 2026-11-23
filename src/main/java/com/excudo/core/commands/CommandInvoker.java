@@ -81,17 +81,56 @@ public class CommandInvoker {
             
             logger.debug("INVOKER EXECUTE SUCCESS: Command added to history");
             
+        } catch (CommandExecutionException e) {
+            // Already names the command; wrapping it again doubled the message
+            logger.error("INVOKER EXECUTE FAILED: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             logger.error("INVOKER EXECUTE FAILED: " + e.getMessage());
             throw new CommandExecutionException(
-                command.getDescription(), 
-                "execute", 
-                e.getMessage(), 
+                command.getDescription(),
+                "execute",
+                e.getMessage(),
                 e
             );
         }
     }
-    
+
+    /**
+     * Whether {@link #rollBack} can undo this batch: every command in it can be
+     * undone and they are the most recent entries in the undo history, in order.
+     */
+    public boolean canRollBack(List<Command> batch) {
+        if (batch.size() > executedCommands.size()) return false;
+        for (int i = 0; i < batch.size(); i++) {
+            Command c = batch.get(batch.size() - 1 - i);
+            if (!c.canUndo() || executedCommands.get(executedCommands.size() - 1 - i) != c) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Undo a batch that just ran, newest first, and drop it from history: it
+     * didn't happen, so it can't be redone either. Check {@link #canRollBack}
+     * first. Stops at the first undo that fails and throws; the commands not
+     * yet undone stay applied and in history.
+     */
+    public void rollBack(List<Command> batch) {
+        for (int i = batch.size() - 1; i >= 0; i--) {
+            Command c = batch.get(i);
+            if (executedCommands.isEmpty() || executedCommands.peek() != c) {
+                throw new CommandExecutionException(c.getDescription(), UndoCommand.NAME,
+                    "not the latest command in the undo history");
+            }
+            try {
+                c.undo();
+            } catch (Exception e) {
+                throw new CommandExecutionException(c.getDescription(), UndoCommand.NAME, e.getMessage(), e);
+            }
+            executedCommands.pop();
+        }
+    }
+
     /**
      * Undo the last executed command.
      * 

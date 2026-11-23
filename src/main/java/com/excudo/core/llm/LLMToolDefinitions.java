@@ -78,7 +78,8 @@ public class LLMToolDefinitions {
         tools.add(new ToolDefinition(
             "execute_commands",
             "Execute a JSON command array. The result names each shape a command created "
-            + "(\"created #2 add-shape: spid 7\": the 2nd command added shape 7), ready to style or animate.",
+            + "(\"created #2 add-shape: spid 7\": the 2nd command added shape 7), ready to style or animate. "
+            + "A batch applies as a whole: if a command fails, the ones before it are undone and the rest don't run.",
             "{\"type\":\"object\",\"properties\":{\"commands\":{\"type\":\"string\",\"description\":\"JSON array of command objects\"}},\"required\":[\"commands\"]}"
         ));
 
@@ -401,7 +402,8 @@ public class LLMToolDefinitions {
         tools.add(new ToolDefinition(
             "execute_commands",
             "Execute a JSON command array. The result names each shape a command created "
-            + "(\"created #2 add-shape: spid 7\": the 2nd command added shape 7), ready to style or animate.",
+            + "(\"created #2 add-shape: spid 7\": the 2nd command added shape 7), ready to style or animate. "
+            + "A batch applies as a whole: if a command fails, the ones before it are undone and the rest don't run.",
             "{\"type\":\"object\",\"properties\":{\"commands\":{\"type\":\"string\"}},\"required\":[\"commands\"]}"
         ));
 

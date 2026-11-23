@@ -1394,6 +1394,55 @@ public class ToolDispatcher {
     // Command execution handler
     // ------------------------------------------------------------------
 
+    /**
+     * The result of a batch that stopped at a failing command. The commands it
+     * already ran are undone, so the slide is as it was before the batch,
+     * unless one of them can't be undone (save, new-presentation, load, ...):
+     * then they stay applied and are listed, so the agent knows where it is.
+     */
+    private String batchFailure(int total, int failedAt, String details,
+            List<Command> applied, List<String> appliedNames) {
+        String failure = "";
+        for (String line : details.split("\n")) {
+            if (line.startsWith("FAILED: ")) failure = line.substring("FAILED: ".length());
+        }
+        int notRun = total - failedAt;
+        String after = notRun == 0 ? "" : notRun == 1 ? "the 1 after it wasn't run" : "the " + notRun + " after it weren't run";
+        StringBuilder out = new StringBuilder("FAILED at #").append(failedAt).append(" of ").append(total)
+            .append(": ").append(failure).append("\n");
+
+        if (applied.isEmpty() && appliedNames.isEmpty()) {
+            out.append("Nothing was applied").append(after.isEmpty() ? "." : "; " + after + ".");
+        } else if (commandInvoker.canRollBack(applied)) {
+            try {
+                commandInvoker.rollBack(applied);
+                int before = failedAt - 1;
+                out.append("Nothing was applied: the ").append(before)
+                   .append(before == 1 ? " command before it was undone" : " commands before it were undone")
+                   .append(after.isEmpty() ? "." : " and " + after + ".");
+            } catch (Exception e) {
+                logger.error("Rolling back a failed batch failed: {}", e.getMessage());
+                out.append("Undoing the commands before it also failed (").append(e.getMessage())
+                   .append("), so some of ").append(String.join(", ", appliedNames))
+                   .append(" may still be applied. Check the slide before sending the batch again.");
+                return out.toString();
+            }
+        } else {
+            out.append("Kept, because they can't be undone: ").append(String.join(", ", appliedNames)).append("\n");
+            for (String line : details.split("\n")) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("created ") || trimmed.startsWith("saved ") || trimmed.startsWith("rendered ")) {
+                    out.append("  ").append(trimmed).append("\n");
+                }
+            }
+            out.append("Fix #").append(failedAt).append(" and send it")
+               .append(notRun == 0 ? "" : " and the " + notRun + " after it").append(" again.");
+            return out.toString();
+        }
+        out.append(" Fix #").append(failedAt).append(" and send the whole batch again.");
+        return out.toString();
+    }
+
     /** "#2 add-shape: spid 4" -- which command (1-based) made which shapes. */
     private static String createdLine(int position, String actionType, List<Integer> spids) {
         StringBuilder line = new StringBuilder("#").append(position).append(' ').append(actionType)
@@ -1432,6 +1481,11 @@ public class ToolDispatcher {
             int failed = 0;
             StringBuilder details = new StringBuilder();
             int position = 0;
+            // A batch applies as a whole: it stops at the first failure and
+            // undoes the commands it already ran (see the result below)
+            int failedAt = 0;
+            List<Command> applied = new ArrayList<>();
+            List<String> appliedNames = new ArrayList<>();
 
             for (RequestSchema.ActionRequest action : actions) {
                 position++;
@@ -1451,7 +1505,8 @@ public class ToolDispatcher {
                         details.append("FAILED: new-presentation - A presentation already exists. ")
                                .append("Use 'create-slide' to add slides. Use 'delete-slide' to remove slides. ")
                                .append("Do NOT call 'new-presentation' again.\n");
-                        continue;
+                        failedAt = position;
+                        break;
                     }
 
                     // Block non-context-creating commands when no presentation is loaded
@@ -1460,7 +1515,8 @@ public class ToolDispatcher {
                         details.append("FAILED: ").append(actionType)
                                .append(" - No presentation loaded. Call 'new-presentation' to create a fresh deck ")
                                .append("or 'load' to open an existing .pptx file.\n");
-                        continue;
+                        failedAt = position;
+                        break;
                     }
 
                     // Strict-keys validation: reject unknown command type,
@@ -1473,7 +1529,8 @@ public class ToolDispatcher {
                         failed++;
                         details.append("FAILED: ").append(actionType)
                                .append(" - ").append(strictError).append("\n");
-                        continue;
+                        failedAt = position;
+                        break;
                     }
 
                     // Pre-validate parameter values against schema constraints
@@ -1482,7 +1539,8 @@ public class ToolDispatcher {
                         failed++;
                         details.append("FAILED: ").append(actionType)
                                .append(" - ").append(validationError).append("\n");
-                        continue;
+                        failedAt = position;
+                        break;
                     }
 
                     com.excudo.core.parsing.CommandSchema actionSchema =
@@ -1491,6 +1549,9 @@ public class ToolDispatcher {
                         actionSchema.bridgeLlmParams(action.getParameters());
                     Command command = commandFactory.createCommand(parsed, displayAdapter);
                     commandInvoker.executeCommand(command);
+                    // Read-only commands (render, inspect) change nothing to undo
+                    if (!command.getClass().getPackageName().endsWith(".readonly")) applied.add(command);
+                    appliedNames.add("#" + position + " " + actionType);
                     succeeded++;
                     details.append("OK: ").append(actionType).append("\n");
                     if (command instanceof com.excudo.core.commands.CreatesShapes creates
@@ -1543,6 +1604,8 @@ public class ToolDispatcher {
                     failed++;
                     details.append("FAILED: ").append(action.getType())
                            .append(" - ").append(e.getMessage()).append("\n");
+                    failedAt = position;
+                    break;
                 }
             }
 
@@ -1563,25 +1626,7 @@ public class ToolDispatcher {
                 }
                 return ok.toString();
             } else {
-                // Only include failure details -- successes don't need per-command output
-                StringBuilder failDetails = new StringBuilder();
-                failDetails.append(succeeded).append(" OK, ").append(failed).append(" failed:\n");
-                for (String line : details.toString().split("\n")) {
-                    if (line.startsWith("FAILED:")) {
-                        failDetails.append(line.substring("FAILED: ".length())).append("\n");
-                    }
-                }
-                // Also surface any successful save/render verifications in
-                // the mixed-outcome case -- the agent still needs to know
-                // whether at least one write landed even if others failed.
-                for (String line : details.toString().split("\n")) {
-                    String trimmed = line.trim();
-                    if (trimmed.startsWith("saved ") || trimmed.startsWith("rendered ")
-                            || trimmed.startsWith("created ")) {
-                        failDetails.append("  ").append(trimmed).append("\n");
-                    }
-                }
-                return failDetails.toString();
+                return batchFailure(actions.size(), failedAt, details.toString(), applied, appliedNames);
             }
         } catch (Exception e) {
             return "Command execution error: " + e.getMessage();
