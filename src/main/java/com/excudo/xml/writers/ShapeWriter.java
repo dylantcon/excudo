@@ -137,6 +137,7 @@ public class ShapeWriter {
         Element textElement = (Element) xpath.evaluate(".//a:t", shape, XPathConstants.NODE);
         if (textElement != null) {
           textElement.setTextContent(cleanText);
+          dropRestOfOldText(textElement);
         } else {
           // No <a:t> element (e.g. empty placeholder with only endParaRPr).
           // Remove existing txBody before appending new one to avoid duplicates.
@@ -150,6 +151,38 @@ public class ShapeWriter {
 
     } catch (XPathExpressionException e) {
       throw new XMLParsingException("Failed to update shape text", e);
+    }
+  }
+
+  /**
+   * After a single-line replace wrote into the first run, remove what still
+   * held the old text: the paragraph's other runs, fields and line breaks, and
+   * every other paragraph. Only the first a:t used to be replaced, so text
+   * PowerPoint had split into several runs (spell-check, partial formatting)
+   * kept its tail -- "new text" followed by the rest of the old sentence.
+   * The kept run keeps its formatting.
+   */
+  private static void dropRestOfOldText(Element firstText) {
+    Element firstRun = (Element) firstText.getParentNode();
+    Element paragraph = firstRun != null ? (Element) firstRun.getParentNode() : null;
+    if (paragraph == null) return;
+    for (org.w3c.dom.Node n = paragraph.getFirstChild(); n != null; ) {
+      org.w3c.dom.Node next = n.getNextSibling();
+      if (n != firstRun && n instanceof Element e) {
+        String local = e.getLocalName() != null ? e.getLocalName() : e.getNodeName().replaceFirst("^.*:", "");
+        if ("r".equals(local) || "fld".equals(local) || "br".equals(local)) paragraph.removeChild(e);
+      }
+      n = next;
+    }
+    org.w3c.dom.Node txBody = paragraph.getParentNode();
+    if (txBody == null) return;
+    for (org.w3c.dom.Node n = txBody.getFirstChild(); n != null; ) {
+      org.w3c.dom.Node next = n.getNextSibling();
+      if (n != paragraph && n instanceof Element e) {
+        String local = e.getLocalName() != null ? e.getLocalName() : e.getNodeName().replaceFirst("^.*:", "");
+        if ("p".equals(local)) txBody.removeChild(e);
+      }
+      n = next;
     }
   }
 
