@@ -68,6 +68,11 @@ public class AnimationInjector implements TimingNodeIdGenerator {
   public void injectAnimation(AnimationBinding binding, ShapeGeometry geometry) throws XMLParsingException {
     Element createdTiming = null;
     try {
+      // An animation on a shape that isn't on the slide was accepted, and
+      // only the save check caught it, after the agent had built on it
+      if (xpath.evaluate("//p:cNvPr[@id='" + binding.getTargetSpid() + "']", document, XPathConstants.NODE) == null) {
+        throw new XMLParsingException("No shape with id " + binding.getTargetSpid() + " on this slide");
+      }
       Element timingElement = (Element) xpath.evaluate("//p:timing", document, XPathConstants.NODE);
       if (timingElement == null) {
         timingElement = createTimingInfrastructure();

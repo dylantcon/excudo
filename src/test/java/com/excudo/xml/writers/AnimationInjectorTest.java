@@ -33,6 +33,10 @@ class AnimationInjectorTest {
   private AnimationFactoryRegistry animationRegistry;
   private SequentialGroupIdManager groupIdManager;
 
+  // Animations are only written for shapes that are on the slide, so the
+  // slide carries every id the tests animate
+  private static final int[] SHAPE_IDS = java.util.stream.IntStream.rangeClosed(2, 50).toArray();
+
   private static final ShapeGeometry DEFAULT_GEO = new ShapeGeometry(0, 0, 914400, 914400);
 
   @BeforeEach
@@ -42,7 +46,7 @@ class AnimationInjectorTest {
     animationRegistry = new AnimationFactoryRegistry();
     groupIdManager = new SequentialGroupIdManager();
 
-    slideDocument = WriterTestFixtures.createMinimalSlideDocument(documentBuilder);
+    slideDocument = WriterTestFixtures.createSlideWithShapes(documentBuilder, SHAPE_IDS);
     injector = new AnimationInjector(slideDocument, xpath, animationRegistry, groupIdManager);
   }
 
@@ -92,7 +96,7 @@ class AnimationInjectorTest {
   @DisplayName("Constructor reads existing timing IDs from document")
   void testConstructor_readsExistingIds() throws Exception {
     // Create doc with existing timing node
-    Document docWithTiming = WriterTestFixtures.createMinimalSlideDocument(documentBuilder);
+    Document docWithTiming = WriterTestFixtures.createSlideWithShapes(documentBuilder, SHAPE_IDS);
     Element root = docWithTiming.getDocumentElement();
 
     Element timing = docWithTiming.createElementNS(XMLConstants.PRESENTATION_NS, "p:timing");
