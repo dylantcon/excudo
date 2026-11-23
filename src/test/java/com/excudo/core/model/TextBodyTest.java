@@ -115,7 +115,7 @@ public class TextBodyTest {
         assertEquals(Integer.valueOf(1800), run.getFontSize());
         assertNotNull(run.getColor());
         assertTrue(run.getColor().isScheme());
-        assertEquals("lt1", run.getColor().getSchemeVal());
+        assertEquals("tx1", run.getColor().getSchemeVal());
     }
 
     @Test

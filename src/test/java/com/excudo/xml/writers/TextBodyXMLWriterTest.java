@@ -36,7 +36,7 @@ public class TextBodyXMLWriterTest {
 
         Element rPr = getRunProperties(paragraphs.item(0));
         assertEquals("1800", rPr.getAttribute("sz"));
-        assertSchemeColor(rPr, "lt1");
+        assertSchemeColor(rPr, "tx1");
     }
 
     @Test

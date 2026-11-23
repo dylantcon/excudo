@@ -128,11 +128,11 @@ public class ShapeStyleXMLWriterTest {
         assertEquals(1, shades.getLength());
         assertEquals("15000", ((Element) shades.item(0)).getAttribute("val"));
 
-        // fillRef -- lt1 for text shapes
+        // fillRef -- bg1, the theme background, for text shapes
         Element fillRef = (Element) style.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "fillRef").item(0);
         assertEquals("1", fillRef.getAttribute("idx"));
         Element fillClr = (Element) fillRef.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "schemeClr").item(0);
-        assertEquals("lt1", fillClr.getAttribute("val"));
+        assertEquals("bg1", fillClr.getAttribute("val"));
 
         // effectRef
         Element effectRef = (Element) style.getElementsByTagNameNS(XMLConstants.DRAWING_NS, "effectRef").item(0);

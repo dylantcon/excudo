@@ -233,7 +233,10 @@ public final class TextBody {
     private static TextRun buildRun(String text, boolean isPlaceholder, boolean bold, boolean italic) {
         TextRun.Builder runBuilder = TextRun.builder(text);
         if (!isPlaceholder) {
-            runBuilder.fontSize(1800).schemeColor("lt1");
+            // tx1 is the theme's text colour (the master's clrMap maps it to
+            // dk1 or lt1). lt1 is the light colour itself: white text on a
+            // light theme, invisible on its background
+            runBuilder.fontSize(1800).schemeColor("tx1");
         }
         if (bold) runBuilder.bold(true);
         if (italic) runBuilder.italic(true);

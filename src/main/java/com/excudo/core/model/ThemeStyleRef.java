@@ -50,13 +50,15 @@ public final class ThemeStyleRef {
      *
      * This eliminates the need to know the theme's dark/light mode at shape creation time.
      *
-     * @param hasText if true, fill uses "lt1" (light/transparent bg for text shape);
+     * @param hasText if true, fill uses "bg1", the theme's background colour,
+     *                so the tx1 text reads on it on light and dark themes
+     *                (lt1 was light on both, under light text on dark ones);
      *                if false, "accent1" (colored fill for non-text shapes)
      */
     public static ThemeStyleRef defaultStyle(boolean hasText) {
         return new ThemeStyleRef(
             2, "accent1", "15000",      // lnRef idx=2, accent1 with shade
-            1, hasText ? "lt1" : "accent1",  // fillRef idx=1
+            1, hasText ? "bg1" : "accent1",  // fillRef idx=1
             0, "accent1",               // effectRef idx=0
             "minor", "tx1"              // fontRef minor, logical text color via clrMap
         );

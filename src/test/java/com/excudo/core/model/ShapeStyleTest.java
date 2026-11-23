@@ -80,7 +80,7 @@ public class ShapeStyleTest {
         assertEquals("accent1", ref.getLineColor());
         assertEquals("15000", ref.getLineShadeVal());
         assertEquals(1, ref.getFillRefIdx());
-        assertEquals("lt1", ref.getFillColor()); // text-bearing: light bg
+        assertEquals("bg1", ref.getFillColor()); // text-bearing: the theme's background
         assertEquals(0, ref.getEffectRefIdx());
         assertEquals("minor", ref.getFontRefIdx());
         assertEquals("tx1", ref.getFontColor()); // logical text color, resolved via clrMap
