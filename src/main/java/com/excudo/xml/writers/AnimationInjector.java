@@ -146,6 +146,7 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       // paragraphs via pRg without bldP, per native PowerPoint output).
       if (!binding.isTextRangeAnimation()) {
         Element buildEntry = factory.createBuildListEntry(document, binding);
+        ensureUniqueGroupId(timingElement, container, buildEntry, binding.getTargetSpid());
         addToBuildList(timingElement, buildEntry);
       }
 
@@ -987,6 +988,39 @@ public class AnimationInjector implements TimingNodeIdGenerator {
   }
 
   // ========== BUILD LIST ==========
+
+  /**
+   * Give the new effect a group id its shape doesn't already use. Group ids
+   * come from the click group (with- and after-previous effects reuse the
+   * current one), so a second effect on the same shape in the same click --
+   * an entrance plus a with-previous motion path, say -- got the shape's
+   * existing id. The build list then held the same (spid, grpId) twice, which
+   * PowerPoint repairs by dropping animations. PowerPoint numbers group ids per
+   * shape (0, 1, 2 for its successive builds); on a clash this takes the
+   * shape's lowest unused id, on both the effect and its build entry.
+   */
+  private void ensureUniqueGroupId(Element timingElement, Element container, Element buildEntry, int spid)
+      throws XPathExpressionException {
+    if (buildEntry == null || !buildEntry.hasAttribute("grpId")) return;
+    String grpId = buildEntry.getAttribute("grpId");
+    Element newCTn = (Element) xpath.evaluate("./p:cTn", container, XPathConstants.NODE);
+
+    Set<String> used = new HashSet<>();
+    NodeList builds = (NodeList) xpath.evaluate(
+        "./p:bldLst/*[@spid='" + spid + "']/@grpId", timingElement, XPathConstants.NODESET);
+    for (int i = 0; i < builds.getLength(); i++) used.add(builds.item(i).getNodeValue());
+    NodeList effects = (NodeList) xpath.evaluate(
+        ".//p:cTn[@presetClass and @grpId][.//p:spTgt[@spid='" + spid + "']]", timingElement, XPathConstants.NODESET);
+    for (int i = 0; i < effects.getLength(); i++) {
+      if (effects.item(i) != newCTn) used.add(((Element) effects.item(i)).getAttribute("grpId"));
+    }
+    if (!used.contains(grpId)) return;
+
+    int candidate = 0;
+    while (used.contains(String.valueOf(candidate))) candidate++;
+    buildEntry.setAttribute("grpId", String.valueOf(candidate));
+    if (newCTn != null && newCTn.hasAttribute("grpId")) newCTn.setAttribute("grpId", String.valueOf(candidate));
+  }
 
   private void addToBuildList(Element timingElement, Element buildEntry) throws XMLParsingException {
     try {
