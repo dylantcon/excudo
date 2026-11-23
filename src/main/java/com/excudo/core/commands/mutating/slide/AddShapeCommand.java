@@ -73,13 +73,13 @@ public class AddShapeCommand implements Command, com.excudo.core.commands.Create
     static final Parameter<Double> HEIGHT = Parameter.ofDouble("height")
         .description("Height in EMU").required().build();
 
-    static final Parameter<String> FILL_COLOR = Parameter.ofString("fill-color")
+    static final Parameter<String> FILL_COLOR = Parameter.ofString("fill-color", ShapeCommandFactory::normalizeColor)
         .description("Fill color: hex (FF0000) or scheme name (accent1)")
         .llmName("fillColor")
         .required(false)
         .build();
 
-    static final Parameter<String> LINE_COLOR = Parameter.ofString("line-color")
+    static final Parameter<String> LINE_COLOR = Parameter.ofString("line-color", ShapeCommandFactory::normalizeColor)
         .description("Line color: hex (000000) or scheme name (dk1)")
         .llmName("lineColor")
         .required(false)
@@ -109,6 +109,25 @@ public class AddShapeCommand implements Command, com.excudo.core.commands.Create
             .required(false)
             .build();
 
+    // Text formatting, applied once the shape exists (as set-font would),
+    // so a text shape doesn't need a second command
+    static final Parameter<String> FONT_FAMILY = Parameter.ofString("font-family")
+        .description("Font family for the shape's text (e.g. Arial, Calibri)")
+        .llmName("fontFamily").required(false).build();
+    static final Parameter<Integer> FONT_SIZE = Parameter.of("font-size", ShapeCommandFactory::parseFontSize)
+        .type(Parameter.ParameterType.INTEGER)
+        .description("Font size in points for the shape's text")
+        .llmName("fontSize").required(false).build();
+    static final Parameter<String> FONT_COLOR = Parameter.ofString("font-color", ShapeCommandFactory::normalizeColor)
+        .description("Text colour as hex (e.g. FFFFFF) or scheme name (e.g. accent1)")
+        .llmName("fontColor").required(false).build();
+    static final Parameter<String> BOLD = Parameter.ofString("bold", ShapeCommandFactory::normalizeBoolean)
+        .description("Bold text: true or false").required(false).build();
+    static final Parameter<String> ITALIC = Parameter.ofString("italic", ShapeCommandFactory::normalizeBoolean)
+        .description("Italic text: true or false").required(false).build();
+    static final Parameter<String> UNDERLINE = Parameter.ofString("underline", ShapeCommandFactory::normalizeBoolean)
+        .description("Underlined text: true or false").required(false).build();
+
     /** Declarative parameter schema. Picked up by
      *  {@link com.excudo.core.parsing.CommandRegistry#registerCommandClass} via reflection. */
     public static final CommandSchema SCHEMA = CommandSchema.builder()
@@ -127,9 +146,16 @@ public class AddShapeCommand implements Command, com.excudo.core.commands.Create
         .parameter(FILL_ALPHA)
         .parameter(LINE_ALPHA)
         .parameter(ALIGN)
+        .parameter(FONT_FAMILY)
+        .parameter(FONT_SIZE)
+        .parameter(FONT_COLOR)
+        .parameter(BOLD)
+        .parameter(ITALIC)
+        .parameter(UNDERLINE)
         .example("add-shape 1 RECTANGLE \"Hello\" 100 100 200 100")
         .example("add-shape 1 RECTANGLE \"Styled\" 100 100 200 100 --fill-color FF0000 --line-color 000000")
         .example("add-shape 1 RECTANGLE \"  indented code\" 100 100 400 100 --align l")
+        .example("add-shape 1 TEXT_BOX \"513\" 100 100 400 200 --font-size 80 --bold true --font-color accent1")
         .build();
 
     public static final String NAME = CommandClassRegistry.nameOf(AddShapeCommand.class);
@@ -176,10 +202,27 @@ public class AddShapeCommand implements Command, com.excudo.core.commands.Create
 
         String alignment = p.opt(ALIGN).orElse(null);
 
-        return new AddShapeCommand(slide, shapeType, geometry, text,
+        AddShapeCommand command = new AddShapeCommand(slide, shapeType, geometry, text,
             isTextBoxAlias ? "TextBox" : "Shape",
             style, alignment, isTextBoxAlias,
             ctx.orchestrator(), ctx.displayAdapter());
+
+        java.util.Map<String, Object> font = new java.util.HashMap<>();
+        p.opt(FONT_FAMILY).ifPresent(v -> font.put("family", v));
+        p.opt(FONT_SIZE).ifPresent(v -> font.put("size", v));
+        p.opt(FONT_COLOR).ifPresent(v -> font.put("color", v));
+        p.opt(BOLD).ifPresent(v -> font.put("bold", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        p.opt(ITALIC).ifPresent(v -> font.put("italic", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        p.opt(UNDERLINE).ifPresent(v -> font.put("underline", "true".equalsIgnoreCase(v) || "1".equals(v)));
+        if (!font.isEmpty()) command.setFontProperties(font);
+        return command;
+    }
+
+    /** Font settings for the shape's text, applied as set-font would; null for the defaults. */
+    private java.util.Map<String, Object> fontProperties;
+
+    public void setFontProperties(java.util.Map<String, Object> fontProperties) {
+        this.fontProperties = fontProperties;
     }
 
     private final int slideNumber;
@@ -305,6 +348,19 @@ public class AddShapeCommand implements Command, com.excudo.core.commands.Create
                 // setBodyProperties path knows how to set this flag.
                 if (isTextBox) {
                     applyTextBoxMarker();
+                }
+
+                if (fontProperties != null && !fontProperties.isEmpty()) {
+                    ExecutionResult<Void> font =
+                        orchestrator.updateShapeTextProperties(slideNumber, createdSpid, fontProperties);
+                    if (!font.isSuccess()) {
+                        // All or nothing: don't leave an unformatted shape behind
+                        orchestrator.removeShape(slideNumber, createdSpid);
+                        createdSpid = null;
+                        executed = false;
+                        throw new CommandExecutionException(getDescription(), "execute",
+                            "Failed to set the text's font: " + font.getMessage());
+                    }
                 }
 
                 // Tier 3: warn when the new shape overlaps an existing

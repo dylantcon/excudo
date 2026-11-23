@@ -72,8 +72,46 @@ public final class ShapeCommandFactory {
     }
 
     private static boolean isSchemeColor(String val) {
-        String lower = val.toLowerCase();
-        return lower.startsWith("accent") || lower.startsWith("dk") || lower.startsWith("lt")
-            || "hlink".equals(lower) || "folhlink".equals(lower);
+        return com.excudo.core.model.TextColor.isSchemeName(val);
+    }
+
+    /**
+     * A colour as written to OOXML: six hex digits (a leading # is dropped)
+     * or a theme colour name. Anything else used to be written as-is
+     * ({@code <a:srgbClr val="red"/>}), which PowerPoint has to repair.
+     */
+    public static String normalizeColor(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String v = raw.trim();
+        if (v.startsWith("#")) v = v.substring(1);
+        if (v.matches("[0-9A-Fa-f]{6}")) return v.toUpperCase();
+        String scheme = com.excudo.core.model.TextColor.schemeName(v);
+        if (scheme != null) return scheme;
+        throw new IllegalArgumentException("Unrecognised colour '" + raw + "'. Use six hex digits (e.g. FF0000) "
+            + "or a theme colour: accent1-accent6, dk1, lt1, dk2, lt2, tx1, bg1, tx2, bg2, hlink, folHlink.");
+    }
+
+    /** A font size in points, 1 to 4000 (what OOXML can hold). */
+    public static Integer parseFontSize(String raw) {
+        int size;
+        try {
+            size = (int) Math.round(Double.parseDouble(raw.trim()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Font size must be a number of points, not '" + raw + "'");
+        }
+        if (size < 1 || size > 4000) {
+            throw new IllegalArgumentException("Font size must be 1 to 4000 points, not " + raw);
+        }
+        return size;
+    }
+
+    /** true/false (or 1/0, yes/no); anything else is an error rather than false. */
+    public static String normalizeBoolean(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        switch (raw.trim().toLowerCase()) {
+            case "true": case "1": case "yes": return "true";
+            case "false": case "0": case "no": return "false";
+            default: throw new IllegalArgumentException("Expected true or false, not '" + raw + "'");
+        }
     }
 }

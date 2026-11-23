@@ -107,8 +107,6 @@ public final class TextBodyJsonParser {
     }
 
     private static boolean isSchemeColor(String val) {
-        String lower = val.toLowerCase();
-        return lower.startsWith("accent") || lower.startsWith("dk") || lower.startsWith("lt")
-            || "hlink".equals(lower) || "folhlink".equals(lower);
+        return com.excudo.core.model.TextColor.isSchemeName(val);
     }
 }

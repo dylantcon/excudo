@@ -27,15 +27,16 @@ public class SetFontCommand implements Command {
         .spid().description("Shape ID").llmName("targetSpid").required().build();
     static final Parameter<String> FAMILY = Parameter.ofString("family")
         .description("Font family name (e.g. Arial, Calibri)").required(false).build();
-    static final Parameter<Integer> SIZE = Parameter.ofInt("size")
+    static final Parameter<Integer> SIZE = Parameter.of("size", com.excudo.core.commands.ShapeCommandFactory::parseFontSize)
+        .type(Parameter.ParameterType.INTEGER)
         .description("Font size in points").required(false).build();
-    static final Parameter<String> BOLD = Parameter.ofString("bold")
+    static final Parameter<String> BOLD = Parameter.ofString("bold", com.excudo.core.commands.ShapeCommandFactory::normalizeBoolean)
         .description("Bold: true or false").required(false).build();
-    static final Parameter<String> ITALIC = Parameter.ofString("italic")
+    static final Parameter<String> ITALIC = Parameter.ofString("italic", com.excudo.core.commands.ShapeCommandFactory::normalizeBoolean)
         .description("Italic: true or false").required(false).build();
-    static final Parameter<String> UNDERLINE = Parameter.ofString("underline")
+    static final Parameter<String> UNDERLINE = Parameter.ofString("underline", com.excudo.core.commands.ShapeCommandFactory::normalizeBoolean)
         .description("Underline: true or false").required(false).build();
-    static final Parameter<String> COLOR = Parameter.ofString("color")
+    static final Parameter<String> COLOR = Parameter.ofString("color", com.excudo.core.commands.ShapeCommandFactory::normalizeColor)
         .description("Font color as hex (e.g. FF0000) or scheme name (e.g. accent1)")
         .required(false).build();
 
