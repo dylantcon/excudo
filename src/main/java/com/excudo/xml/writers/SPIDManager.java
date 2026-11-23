@@ -233,6 +233,64 @@ public class SPIDManager {
         return 4; // After group(1), title(2), content(3)
     }
     
+    // ========== SHAPES ADDED TO AN EXISTING SLIDE ==========
+
+    private static final String SPID_HIGH_WATER = "excudo.spidHighWater";
+
+    /**
+     * Allocate the id for a shape added to an existing slide, and register it.
+     *
+     * <p>{@link #allocateSpidForShape} takes the lowest id missing from the
+     * registry, which is keyed by id alone across all slides: another slide
+     * registering the same id hides it, and a deleted shape's id is free again.
+     * Reusing one silently moved the deleted shape's animations, and any id the
+     * agent still held, onto the new shape. This reads the slide itself instead:
+     * see {@link #nextSpidOnSlide}.
+     */
+    public int allocateSpidOnSlide(Document slide, int slideNumber, String shapeName) {
+        int spid = nextSpidOnSlide(slide);
+        registerSpid(spid, slideNumber, shapeName);
+        return spid;
+    }
+
+    /**
+     * One more than the larger of every id the slide uses (shapes and animation
+     * targets) and the highest id already issued on it, so ids are never reused
+     * within a slide. The high-water mark is kept on the slide's DOM, so it
+     * follows the slide when slides are inserted, moved or deleted. The id
+     * counts as issued. Static for writers that have no session manager.
+     */
+    public static int nextSpidOnSlide(Document slide) {
+        int spid = Math.max(maxSpidInUse(slide), issuedSpidHighWater(slide)) + 1;
+        recordIssuedSpid(slide, spid);
+        return spid;
+    }
+
+    /** Count an id chosen some other way (e.g. a group's id) as issued on this slide. */
+    public static void recordIssuedSpid(Document slide, int spid) {
+        if (spid > issuedSpidHighWater(slide)) slide.setUserData(SPID_HIGH_WATER, spid, null);
+    }
+
+    private static int issuedSpidHighWater(Document slide) {
+        Object v = slide.getUserData(SPID_HIGH_WATER);
+        return v instanceof Integer i ? i : 0;
+    }
+
+    private static int maxSpidInUse(Document slide) {
+        return Math.max(maxIntAttribute(slide.getElementsByTagNameNS("*", "cNvPr"), "id"),
+                        maxIntAttribute(slide.getElementsByTagNameNS("*", "spTgt"), "spid"));
+    }
+
+    private static int maxIntAttribute(NodeList nodes, String attr) {
+        int max = 0;
+        for (int i = 0; i < nodes.getLength(); i++) {
+            try {
+                max = Math.max(max, Integer.parseInt(((Element) nodes.item(i)).getAttribute(attr)));
+            } catch (NumberFormatException ignored) {}
+        }
+        return max;
+    }
+
     /**
      * Register a SPID in the global registry
      */

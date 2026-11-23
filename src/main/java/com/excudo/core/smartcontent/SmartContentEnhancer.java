@@ -480,6 +480,9 @@ public class SmartContentEnhancer {
     
     
     private int generateUniqueSpid(ParsedSlideData slideData, int slideNumber) {
+        if (pptxDocument != null && pptxDocument.hasSlide(slideNumber)) {
+            return SPIDManager.nextSpidOnSlide(pptxDocument.getSlideDocument(slideNumber));
+        }
         try {
             SPIDManager spidManager = SPIDManager.getInstance();
             return spidManager.allocateSpidForShape("picture", slideNumber, false, false, null);

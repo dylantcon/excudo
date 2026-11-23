@@ -70,20 +70,7 @@ public class ShapeWriter {
     try {
       int spid;
 
-      if (spidManager != null) {
-        spid = spidManager.allocateSpidForShape("custom", slideNumber, false, false, null);
-        // Guard against stale registry: if this SPID already exists in the DOM,
-        // compute the next available SPID directly from the document and register it.
-        if (spidExistsInDocument(spid)) {
-          int conflictingSpid = spid;
-          spid = computeNextAvailableSpidFromDocument();
-          spidManager.registerSpid(spid, slideNumber, "custom_shape");
-          logger.warn("SPID collision detected: {} already in DOM on slide {}, using {} instead",
-              conflictingSpid, slideNumber, spid);
-        }
-      } else {
-        spid = nextAvailableSpid++;
-      }
+      spid = allocateSpid(slideNumber, "custom_shape");
 
       ShapeFactory factory = shapeFactoryRegistry.getFactory(shapeType);
       if (factory == null) {
@@ -526,12 +513,7 @@ public class ShapeWriter {
    */
   public int injectPictureShape(String name, String relationshipId,
       ShapeGeometry geometry, int slideNumber) throws XMLParsingException {
-    int spid;
-    if (spidManager != null) {
-      spid = spidManager.allocateSpidForShape("picture", slideNumber, false, false, null);
-    } else {
-      spid = nextAvailableSpid++;
-    }
+    int spid = allocateSpid(slideNumber, "picture");
     String resolvedName = (name == null || name.isBlank()) ? "Picture " + spid : name;
     addPictureShape(spid, resolvedName, relationshipId, geometry);
     return spid;
@@ -768,22 +750,7 @@ public class ShapeWriter {
       Integer startSpid, Integer startIdx, Integer endSpid, Integer endIdx,
       String customPath, int slideNumber) throws XMLParsingException {
     try {
-      int spid;
-      if (spidManager != null) {
-        spid = spidManager.allocateSpidForShape("connector", slideNumber, false, false, null);
-        // Guard against stale registry: if this SPID already exists in the DOM,
-        // recompute the next available SPID directly from the document and
-        // register it (mirrors injectBasicShapeWithSlideContext).
-        if (spidExistsInDocument(spid)) {
-          int conflictingSpid = spid;
-          spid = computeNextAvailableSpidFromDocument();
-          spidManager.registerSpid(spid, slideNumber, "connector");
-          logger.warn("SPID collision detected: {} already in DOM on slide {}, using {} instead",
-              conflictingSpid, slideNumber, spid);
-        }
-      } else {
-        spid = nextAvailableSpid++;
-      }
+      int spid = allocateSpid(slideNumber, "connector");
 
       Element cxnSp = document.createElementNS(XMLConstants.PRESENTATION_NS, "p:cxnSp");
 
@@ -1293,6 +1260,7 @@ public class ShapeWriter {
       if (minX == Long.MAX_VALUE) { minX = 0; minY = 0; maxX = 0; maxY = 0; }
 
       int groupSpid = computeNextAvailableSpidFromDocument() + shapes.size();
+      SPIDManager.recordIssuedSpid(document, groupSpid);
       if (spidManager != null) {
         spidManager.registerSpid(groupSpid, -1, "group_shape");
       }
@@ -1514,39 +1482,16 @@ public class ShapeWriter {
     return (Element) xpath.evaluate(grpXpath, document, XPathConstants.NODE);
   }
 
-  /**
-   * Returns true if any element in the document already has this SPID in its p:cNvPr/@id.
-   * Used to guard against stale SPIDManager registry after sequential slide creation.
-   */
-  private boolean spidExistsInDocument(int spid) {
-    try {
-      String expr = String.format("//p:cNvPr[@id='%d']", spid);
-      org.w3c.dom.Node found = (org.w3c.dom.Node) xpath.evaluate(expr, document, XPathConstants.NODE);
-      return found != null;
-    } catch (XPathExpressionException e) {
-      return false; // Fail open: assume no collision
-    }
+  /** The next id for a shape added to this slide; see {@link SPIDManager#nextSpidOnSlide}. */
+  private int computeNextAvailableSpidFromDocument() {
+    return SPIDManager.nextSpidOnSlide(document);
   }
 
-  /**
-   * Computes the next available SPID by scanning the current document for the
-   * highest existing id value and returning max+1. Used as a fallback when the
-   * SPIDManager registry is stale due to sequential slide creation patterns.
-   */
-  private int computeNextAvailableSpidFromDocument() {
-    try {
-      NodeList allIds = (NodeList) xpath.evaluate("//p:cNvPr/@id", document, XPathConstants.NODESET);
-      int max = 0;
-      for (int i = 0; i < allIds.getLength(); i++) {
-        try {
-          int id = Integer.parseInt(allIds.item(i).getNodeValue());
-          if (id > max) max = id;
-        } catch (NumberFormatException ignored) {}
-      }
-      return max + 1;
-    } catch (XPathExpressionException e) {
-      return 100; // Safe large fallback
-    }
+  private int allocateSpid(int slideNumber, String kind) {
+    if (spidManager != null) return spidManager.allocateSpidOnSlide(document, slideNumber, kind);
+    int spid = SPIDManager.nextSpidOnSlide(document);
+    nextAvailableSpid = spid + 1;
+    return spid;
   }
 
   private int calculateNextSpid() throws XPathExpressionException {

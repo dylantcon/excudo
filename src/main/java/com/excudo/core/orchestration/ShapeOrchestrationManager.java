@@ -141,6 +141,14 @@ public class ShapeOrchestrationManager {
         return performShapeXMLOperation(slideNumber, "RemoveShape", (document, writer) -> {
             logger.info("Attempting to remove shape with SPID {} from slide {}", spid, slideNumber);
 
+            // Its animations go with it: left behind they target a missing
+            // shape (PowerPoint repairs that by dropping them), or the next
+            // shape given that id
+            int removedAnimations = removeAnimationsTargeting(document, writer, spid);
+            if (removedAnimations > 0) {
+                logger.info("Removed {} animation(s) of shape {} on slide {}", removedAnimations, spid, slideNumber);
+            }
+
             // Remove the shape and handle media cleanup
             com.excudo.xml.writers.SlideXMLWriter.ShapeRemovalResult removalResult =
                 writer.removeShapeBySpid(spid);
@@ -164,6 +172,77 @@ public class ShapeOrchestrationManager {
 
             return null;
         });
+    }
+
+    /**
+     * Remove every animation and build entry that targets the shape, or a shape
+     * inside it when it's a group. Returns the number of effects removed.
+     */
+    private int removeAnimationsTargeting(org.w3c.dom.Document document,
+            com.excudo.xml.writers.SlideXMLWriter writer, int spid) throws Exception {
+        org.w3c.dom.Element shape = writer.findShapeBySpid(spid);
+        if (shape == null) return 0;
+        java.util.Set<String> spids = new java.util.HashSet<>();
+        spids.add(String.valueOf(spid));
+        org.w3c.dom.NodeList inner = shape.getElementsByTagNameNS("*", "cNvPr");
+        for (int i = 0; i < inner.getLength(); i++) {
+            spids.add(((org.w3c.dom.Element) inner.item(i)).getAttribute("id"));
+        }
+
+        java.util.List<Integer> effectIds = new java.util.ArrayList<>();
+        org.w3c.dom.NodeList ctns = document.getElementsByTagNameNS("*", "cTn");
+        for (int i = 0; i < ctns.getLength(); i++) {
+            org.w3c.dom.Element cTn = (org.w3c.dom.Element) ctns.item(i);
+            if (!cTn.hasAttribute("presetClass")) continue;
+            org.w3c.dom.NodeList targets = cTn.getElementsByTagNameNS("*", "spTgt");
+            for (int t = 0; t < targets.getLength(); t++) {
+                if (spids.contains(((org.w3c.dom.Element) targets.item(t)).getAttribute("spid"))) {
+                    try { effectIds.add(Integer.parseInt(cTn.getAttribute("id"))); } catch (NumberFormatException ignored) {}
+                    break;
+                }
+            }
+        }
+        int removed = 0;
+        for (int id : effectIds) {
+            var result = writer.removeAnimation(id);
+            if (result.isSuccess()) {
+                removed++;
+            } else {
+                logger.warn("Could not remove animation {} of shape {}: {}", id, spid, result.getMessage());
+            }
+        }
+
+        // Build entries removeAnimation didn't cover (e.g. ones with no effect left)
+        org.w3c.dom.NodeList bldLsts = document.getElementsByTagNameNS("*", "bldLst");
+        for (int i = bldLsts.getLength() - 1; i >= 0; i--) {
+            org.w3c.dom.Element bldLst = (org.w3c.dom.Element) bldLsts.item(i);
+            for (org.w3c.dom.Node n = bldLst.getFirstChild(); n != null; ) {
+                org.w3c.dom.Node next = n.getNextSibling();
+                if (n instanceof org.w3c.dom.Element e && spids.contains(e.getAttribute("spid"))) bldLst.removeChild(e);
+                n = next;
+            }
+            if (bldLst.getElementsByTagNameNS("*", "*").getLength() == 0 && bldLst.getParentNode() != null) {
+                bldLst.getParentNode().removeChild(bldLst);
+            }
+        }
+
+        // No animations left: drop the empty timeline, as a slide without
+        // animations has none
+        if (removed > 0) {
+            org.w3c.dom.NodeList timing = document.getElementsByTagNameNS("*", "timing");
+            if (timing.getLength() == 1) {
+                org.w3c.dom.Element t = (org.w3c.dom.Element) timing.item(0);
+                boolean anyEffect = false;
+                org.w3c.dom.NodeList left = t.getElementsByTagNameNS("*", "cTn");
+                for (int i = 0; i < left.getLength() && !anyEffect; i++) {
+                    anyEffect = ((org.w3c.dom.Element) left.item(i)).hasAttribute("presetClass");
+                }
+                if (!anyEffect && t.getElementsByTagNameNS("*", "bldLst").getLength() == 0) {
+                    t.getParentNode().removeChild(t);
+                }
+            }
+        }
+        return removed;
     }
 
     /**

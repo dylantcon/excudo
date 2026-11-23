@@ -48,6 +48,8 @@ public class RemoveShapeCommand implements Command {
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
     private org.w3c.dom.Element capturedElement = null;
+    /** The slide's timeline before removal: removing a shape removes its animations too. */
+    private org.w3c.dom.Element capturedTiming = null;
 
     public RemoveShapeCommand(int slideNumber, int spid, PPTXOrchestrator orchestrator) {
         if (orchestrator == null) {
@@ -77,6 +79,8 @@ public class RemoveShapeCommand implements Command {
                 "Failed to capture shape for undo: " + captureResult.getMessage());
         }
         capturedElement = captureResult.getData().orElse(null);
+        org.w3c.dom.Element timing = timingOf(slideDom());
+        capturedTiming = timing == null ? null : (org.w3c.dom.Element) timing.cloneNode(true);
 
         // Now remove
         ExecutionResult<Void> removeResult = orchestrator.removeShape(slideNumber, spid);
@@ -103,8 +107,46 @@ public class RemoveShapeCommand implements Command {
             throw new CommandExecutionException(getDescription(), "undo",
                 "Failed to restore shape: " + restoreResult.getMessage());
         }
+        restoreTiming();
 
         executed = false;
+    }
+
+    private org.w3c.dom.Document slideDom() {
+        return orchestrator.getContext()
+            .map(c -> c.getDocument())
+            .filter(d -> d != null && d.hasSlide(slideNumber))
+            .map(d -> d.getSlideDocument(slideNumber))
+            .orElse(null);
+    }
+
+    private static org.w3c.dom.Element timingOf(org.w3c.dom.Document dom) {
+        if (dom == null) return null;
+        for (org.w3c.dom.Node n = dom.getDocumentElement().getFirstChild(); n != null; n = n.getNextSibling()) {
+            if (n instanceof org.w3c.dom.Element e && "timing".equals(e.getLocalName())) return e;
+        }
+        return null;
+    }
+
+    /** Put back the timeline as it was, animations of the removed shape included. */
+    private void restoreTiming() {
+        if (capturedTiming == null) return;
+        org.w3c.dom.Document dom = slideDom();
+        if (dom == null) return;
+        org.w3c.dom.Element root = dom.getDocumentElement();
+        org.w3c.dom.Element current = timingOf(dom);
+        org.w3c.dom.Element restored = (org.w3c.dom.Element) capturedTiming.cloneNode(true);
+        if (current != null) {
+            root.replaceChild(restored, current);
+        } else {
+            // p:timing sits after p:transition and before p:extLst
+            org.w3c.dom.Node before = null;
+            for (org.w3c.dom.Node n = root.getFirstChild(); n != null; n = n.getNextSibling()) {
+                if (n instanceof org.w3c.dom.Element e && "extLst".equals(e.getLocalName())) before = e;
+            }
+            root.insertBefore(restored, before);
+        }
+        orchestrator.getContext().get().getDocument().putSlideDocument(slideNumber, dom);
     }
 
     @Override
