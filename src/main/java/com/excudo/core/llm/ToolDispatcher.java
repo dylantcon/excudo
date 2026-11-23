@@ -1446,6 +1446,40 @@ public class ToolDispatcher {
         return out.toString();
     }
 
+    /**
+     * Text the batch left nearly invisible (under 2:1 against what's behind
+     * it), on the slides it touched. The contrast check only ran when the agent
+     * called validate_layout, which it rarely did, so dark text on a dark theme
+     * went unnoticed. Milder issues stay in validate_layout.
+     */
+    private void appendContrastWarnings(StringBuilder out, List<RequestSchema.ActionRequest> actions) {
+        try {
+            var ctx = orchestrator.getContext();
+            if (ctx.isEmpty() || ctx.get().getDocument() == null) return;
+            com.excudo.core.model.PPTXDocument doc = ctx.get().getDocument();
+            java.util.Set<Integer> slides = new java.util.TreeSet<>();
+            for (RequestSchema.ActionRequest action : actions) {
+                Object n = action.getParameters().get("slideNumber");
+                if (n == null) n = action.getParameters().get("slide");
+                if (n == null) continue;
+                try { slides.add(Integer.parseInt(String.valueOf(n).trim())); } catch (NumberFormatException ignored) {}
+            }
+            for (int slide : slides) {
+                if (!doc.hasSlide(slide)) continue;
+                List<SlideShape> shapes = getContextService().getSlideContext(slide)
+                    .getSlideData().getShapeRegistry().getAllShapes();
+                for (LayoutIssue issue : com.excudo.core.introspection.ContrastChecker.check(
+                        doc, slide, shapes, orchestrator.getClrMap())) {
+                    if (issue.getType() != LayoutIssue.Type.LOW_CONTRAST) continue;
+                    out.append("\n  contrast, slide ").append(slide).append(": ").append(issue.getDescription());
+                    if (issue.getSuggestion() != null) out.append(" ").append(issue.getSuggestion());
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Contrast check after batch skipped: {}", e.getMessage());
+        }
+    }
+
     /** "#2 add-shape: spid 4" -- which command (1-based) made which shapes. */
     private static String createdLine(int position, String actionType, List<Integer> spids) {
         StringBuilder line = new StringBuilder("#").append(position).append(' ').append(actionType)
@@ -1652,6 +1686,7 @@ public class ToolDispatcher {
                         ok.append("\n  ").append(trimmed);
                     }
                 }
+                appendContrastWarnings(ok, actions);
                 return ok.toString();
             } else {
                 return batchFailure(actions.size(), failedAt, details.toString(), applied, appliedNames);
