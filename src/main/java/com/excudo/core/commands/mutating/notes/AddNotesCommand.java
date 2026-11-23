@@ -23,12 +23,13 @@ import com.excudo.core.results.ExecutionResult;
 public class AddNotesCommand implements Command {
 
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
-        .slideNumber().description("Slide number").required().build();
+        .slideNumber().description("Slide number").llmName("slideNumber").required().build();
     static final Parameter<String> TEXT = Parameter.ofString("text")
-        .description("Notes text content").required().variableLength(true).build();
+        .description("Notes text; each line becomes a paragraph").required().variableLength(true).build();
 
     public static final CommandSchema SCHEMA = CommandSchema.builder()
-        .description("Add speaker notes to a slide")
+        .description("Set a slide's speaker notes, replacing any it has")
+        .llmEnabled(true)
         .parameter(SLIDE)
         .parameter(TEXT)
         .example("add-notes 1 \"Speaker notes for slide 1\"")
@@ -45,6 +46,8 @@ public class AddNotesCommand implements Command {
     private final String notesText;
     private final PPTXOrchestrator orchestrator;
     private boolean executed = false;
+    /** The notes before this command; null when the slide had none. */
+    private String previousNotes;
 
     public AddNotesCommand(int slideNumber, String notesText, PPTXOrchestrator orchestrator) {
         if (orchestrator == null) throw new IllegalArgumentException("PPTXOrchestrator cannot be null");
@@ -59,6 +62,11 @@ public class AddNotesCommand implements Command {
     public void execute() {
         if (executed) throw new CommandExecutionException(getDescription(), "execute", "Already executed");
         try {
+            previousNotes = orchestrator.getContext()
+                .map(c -> c.getDocument())
+                .filter(d -> d != null && d.hasSlide(slideNumber))
+                .map(d -> com.excudo.xml.writers.SpeakerNotesWriter.getNotes(d, slideNumber))
+                .orElse(null);
             ExecutionResult<Void> result = orchestrator.addNotes(slideNumber, notesText);
             if (result.isSuccess()) {
                 executed = true;
@@ -75,11 +83,16 @@ public class AddNotesCommand implements Command {
     @Override
     public void undo() {
         if (!executed) throw new CommandExecutionException(getDescription(), "undo", "Not executed");
-        throw new CommandExecutionException(getDescription(), "undo", "Notes addition cannot be undone");
+        // A slide that had no notes keeps its (now empty) notes slide
+        ExecutionResult<Void> result = orchestrator.addNotes(slideNumber, previousNotes == null ? "" : previousNotes);
+        if (!result.isSuccess()) {
+            throw new CommandExecutionException(getDescription(), "undo", "Failed: " + result.getMessage());
+        }
+        executed = false;
     }
 
     @Override
-    public boolean canUndo() { return false; }
+    public boolean canUndo() { return executed; }
 
     @Override
     public String getDescription() {

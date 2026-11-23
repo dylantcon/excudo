@@ -760,8 +760,11 @@ public class PPTXOrchestratorImpl implements PPTXOrchestrator {
             if (pptxDoc == null) {
                 return ExecutionResult.failure("Add Notes", "No PPTXDocument available");
             }
-            // TODO: Migrate notes creation to in-memory DOM operations
-            throw new UnsupportedOperationException("addNotes not yet migrated to in-memory path");
+            if (!pptxDoc.hasSlide(slideNumber)) {
+                return ExecutionResult.failure("AddNotes", "Slide " + slideNumber + " not found");
+            }
+            com.excudo.xml.writers.SpeakerNotesWriter.setNotes(pptxDoc, slideNumber, notesText);
+            return ExecutionResult.success("AddNotes", null);
         } catch (Exception e) {
             logger.error("Failed to add notes to slide {}: {}", slideNumber, e.getMessage());
             return ExecutionResult.failure("AddNotes", "Failed: " + e.getMessage(), e);
