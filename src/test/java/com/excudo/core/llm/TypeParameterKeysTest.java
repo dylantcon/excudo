@@ -39,7 +39,7 @@ public class TypeParameterKeysTest {
     @Test
     public void transitionTypeSetsTheTransition() {
         String out = run("[{\"type\":\"set-transition\",\"slideNumber\":1,\"transitionType\":\"fade\",\"speed\":\"med\"}]");
-        assertFalse(out, out.contains("FAILED"));
+        assertTrue(out, out.startsWith("OK: 1 command(s) executed"));
         assertEquals("fade", transitionOn(1));
     }
 
@@ -51,7 +51,7 @@ public class TypeParameterKeysTest {
         assertEquals("fade", a.getParameters().get("type"));
 
         String out = run("[{\"command\":\"set-transition\",\"slideNumber\":2,\"type\":\"fade\"}]");
-        assertFalse(out, out.contains("FAILED"));
+        assertTrue(out, out.startsWith("OK: 1 command(s) executed"));
         assertEquals("fade", transitionOn(2));
     }
 
