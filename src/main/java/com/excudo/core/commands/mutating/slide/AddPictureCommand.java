@@ -27,7 +27,12 @@ import com.excudo.core.results.ExecutionResult;
  * paths (SmartContentEnhancer, icon injection) when media bytes need to
  * be copied in from disk.
  */
-public class AddPictureCommand implements Command {
+public class AddPictureCommand implements Command, com.excudo.core.commands.CreatesShapes {
+
+    @Override
+    public java.util.List<Integer> getCreatedSpids() {
+        return createdSpid == null ? java.util.List.of() : java.util.List.of(createdSpid);
+    }
 
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
         .slideNumber().description("Slide number").llmName("slideNumber").required().build();

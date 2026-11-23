@@ -1394,6 +1394,17 @@ public class ToolDispatcher {
     // Command execution handler
     // ------------------------------------------------------------------
 
+    /** "#2 add-shape: spid 4" -- which command (1-based) made which shapes. */
+    private static String createdLine(int position, String actionType, List<Integer> spids) {
+        StringBuilder line = new StringBuilder("#").append(position).append(' ').append(actionType)
+            .append(spids.size() == 1 ? ": spid " : ": spids ");
+        for (int i = 0; i < spids.size(); i++) {
+            if (i > 0) line.append(", ");
+            line.append(spids.get(i));
+        }
+        return line.toString();
+    }
+
     private String handleExecuteCommands(String toolInput) {
         try {
             JsonObject inputObj = JsonHelper.parseObject(toolInput);
@@ -1420,8 +1431,10 @@ public class ToolDispatcher {
             int succeeded = 0;
             int failed = 0;
             StringBuilder details = new StringBuilder();
+            int position = 0;
 
             for (RequestSchema.ActionRequest action : actions) {
+                position++;
                 try {
                     String actionType = action.getType();
                     boolean isNewCommand = "new-presentation".equals(actionType);
@@ -1480,6 +1493,12 @@ public class ToolDispatcher {
                     commandInvoker.executeCommand(command);
                     succeeded++;
                     details.append("OK: ").append(actionType).append("\n");
+                    if (command instanceof com.excudo.core.commands.CreatesShapes creates
+                            && !creates.getCreatedSpids().isEmpty()) {
+                        details.append("  created ")
+                               .append(createdLine(position, actionType, creates.getCreatedSpids()))
+                               .append("\n");
+                    }
 
                     // Save and render write external state that stateless
                     // MCP callers need to verify. Pin the resulting file's
@@ -1537,6 +1556,7 @@ public class ToolDispatcher {
                     String trimmed = line.trim();
                     if (trimmed.startsWith("saved ")
                             || trimmed.startsWith("rendered ")
+                            || trimmed.startsWith("created ")
                             || trimmed.startsWith("WARNING:")) {
                         ok.append("\n  ").append(trimmed);
                     }
@@ -1556,7 +1576,8 @@ public class ToolDispatcher {
                 // whether at least one write landed even if others failed.
                 for (String line : details.toString().split("\n")) {
                     String trimmed = line.trim();
-                    if (trimmed.startsWith("saved ") || trimmed.startsWith("rendered ")) {
+                    if (trimmed.startsWith("saved ") || trimmed.startsWith("rendered ")
+                            || trimmed.startsWith("created ")) {
                         failDetails.append("  ").append(trimmed).append("\n");
                     }
                 }

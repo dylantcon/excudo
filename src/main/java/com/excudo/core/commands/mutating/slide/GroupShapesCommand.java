@@ -21,7 +21,12 @@ import java.util.List;
  * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
  * the canonical name {@code group-shapes} derives from the class name.
  */
-public class GroupShapesCommand implements Command {
+public class GroupShapesCommand implements Command, com.excudo.core.commands.CreatesShapes {
+
+    @Override
+    public java.util.List<Integer> getCreatedSpids() {
+        return groupSpid == null ? java.util.List.of() : java.util.List.of(groupSpid);
+    }
 
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
         .slideNumber().description("Slide number").llmName("slideNumber").required().build();

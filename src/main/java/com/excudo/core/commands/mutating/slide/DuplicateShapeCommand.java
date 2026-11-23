@@ -23,7 +23,12 @@ import com.excudo.core.results.ExecutionResult;
  * <p>Self-registers via {@link com.excudo.core.commands.CommandClassRegistry}:
  * the canonical name {@code duplicate-shape} derives from the class name.
  */
-public class DuplicateShapeCommand implements Command {
+public class DuplicateShapeCommand implements Command, com.excudo.core.commands.CreatesShapes {
+
+    @Override
+    public java.util.List<Integer> getCreatedSpids() {
+        return newSpid == null ? java.util.List.of() : java.util.List.of(newSpid);
+    }
 
     /** Default offset for duplicated shape: 0.5 inch in EMU. */
     public static final long DEFAULT_OFFSET_EMU = 457200L;

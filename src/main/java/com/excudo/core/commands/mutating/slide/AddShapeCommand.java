@@ -28,7 +28,12 @@ import com.excudo.core.results.ExecutionResult;
  * The command name is derived from the class name ({@code AddShapeCommand}
  * → {@code add-shape}) by {@link Command#getCommandName()}.
  */
-public class AddShapeCommand implements Command {
+public class AddShapeCommand implements Command, com.excudo.core.commands.CreatesShapes {
+
+    @Override
+    public java.util.List<Integer> getCreatedSpids() {
+        return createdSpid == null ? java.util.List.of() : java.util.List.of(createdSpid);
+    }
 
     // Typed parameter keys: each is the single source of truth for one
     // parameter -- name, wire type, default, LLM alias, and how to parse the

@@ -23,7 +23,12 @@ import java.util.ArrayList;
  * This command allows injecting smart content like icons, images, or other
  * enhancements to slides with undo capability.
  */
-public class EnhancedContentCommand implements Command {
+public class EnhancedContentCommand implements Command, com.excudo.core.commands.CreatesShapes {
+
+    @Override
+    public java.util.List<Integer> getCreatedSpids() {
+        return java.util.List.copyOf(addedSpids);
+    }
 
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
         .slideNumber().description("Slide number").llmName("slideNumber").required().build();
