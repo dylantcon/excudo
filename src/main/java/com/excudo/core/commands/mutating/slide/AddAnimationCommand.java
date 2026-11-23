@@ -52,7 +52,8 @@ public class AddAnimationCommand implements Command {
         .validValues("in", "out", "emphasis")
         .defaultValue("in").build();
     static final Parameter<String> TRIGGER = Parameter.ofString("trigger")
-        .description("Animation trigger")
+        .description("Animation trigger. As the slide's first animation, with-previous or "
+            + "after-previous starts it when the slide opens, with no click")
         .validValues("on-click", "with-previous", "after-previous")
         .llmName("animationGroup")
         .defaultValue("on-click").build();

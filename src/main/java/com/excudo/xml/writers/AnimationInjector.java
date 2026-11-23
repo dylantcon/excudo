@@ -66,10 +66,12 @@ public class AnimationInjector implements TimingNodeIdGenerator {
    * @throws XMLParsingException if injection fails
    */
   public void injectAnimation(AnimationBinding binding, ShapeGeometry geometry) throws XMLParsingException {
+    Element createdTiming = null;
     try {
       Element timingElement = (Element) xpath.evaluate("//p:timing", document, XPathConstants.NODE);
       if (timingElement == null) {
         timingElement = createTimingInfrastructure();
+        createdTiming = timingElement;
       }
 
       // Validate targeting level compatibility with existing animations on the same shape
@@ -96,8 +98,9 @@ public class AnimationInjector implements TimingNodeIdGenerator {
       } else if (binding.isWithPrevious() || binding.isAfterPrevious()) {
         clickNode = findLastClickTriggerNode(timingElement);
         if (clickNode == null) {
-          throw new XMLParsingException(
-              "Cannot use with-previous/after-previous as first animation on a slide");
+          // The slide's first animation: it starts when the slide opens
+          clickNode = createNewClickTrigger(timingElement, 0);
+          startOnSlideOpen(timingElement, clickNode);
         }
       } else {
         // on-click: always create a new top-level click container
@@ -149,10 +152,34 @@ public class AnimationInjector implements TimingNodeIdGenerator {
         ensureUniqueGroupId(timingElement, container, buildEntry, binding.getTargetSpid());
         addToBuildList(timingElement, buildEntry);
       }
+      createdTiming = null;
 
     } catch (XPathExpressionException e) {
       throw new XMLParsingException("Failed to inject animation", e);
+    } finally {
+      // A failed first animation doesn't leave an empty timeline behind
+      if (createdTiming != null && createdTiming.getParentNode() != null) {
+        createdTiming.getParentNode().removeChild(createdTiming);
+      }
     }
+  }
+
+  /**
+   * Make the main sequence's first group start when the slide opens, as
+   * PowerPoint writes a first animation set to With or After Previous: besides
+   * the click condition, it begins with the main sequence itself.
+   */
+  private void startOnSlideOpen(Element timingElement, Element clickPar) throws XPathExpressionException {
+    Element mainSeq = (Element) xpath.evaluate(".//p:cTn[@nodeType='mainSeq']", timingElement, XPathConstants.NODE);
+    Element stCondLst = (Element) xpath.evaluate("./p:cTn/p:stCondLst", clickPar, XPathConstants.NODE);
+    if (mainSeq == null || stCondLst == null) return;
+    Element cond = document.createElementNS(XMLConstants.PRESENTATION_NS, "p:cond");
+    cond.setAttribute("evt", "onBegin");
+    cond.setAttribute("delay", "0");
+    Element tn = document.createElementNS(XMLConstants.PRESENTATION_NS, "p:tn");
+    tn.setAttribute("val", mainSeq.getAttribute("id"));
+    cond.appendChild(tn);
+    stCondLst.appendChild(cond);
   }
 
   /**

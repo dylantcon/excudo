@@ -1134,6 +1134,9 @@ public class ToolDispatcher {
                         sb.append(" | Target SPID ").append(binding.getTargetSpid());
                         sb.append(" | ").append(binding.getAnimationType());
                         sb.append(" | ").append(binding.getAnimationGroup());
+                        if (startsOnSlideOpen(slideNumber, binding.getTimingNodeId())) {
+                            sb.append(" (starts when the slide opens)");
+                        }
                         sb.append(" | ").append(formatAnimationMs(binding.getDuration()));
                         String delay = binding.getDelay();
                         if (delay != null && !delay.isEmpty() && !"0".equals(delay)
@@ -1452,6 +1455,31 @@ public class ToolDispatcher {
             line.append(spids.get(i));
         }
         return line.toString();
+    }
+
+    /** Whether the effect is in a group that begins with the slide (onBegin), not on a click. */
+    private boolean startsOnSlideOpen(int slideNumber, int timingNodeId) {
+        if (timingNodeId <= 0) return false;
+        try {
+            org.w3c.dom.NodeList ctns = orchestrator.getContext().get().getDocument()
+                .getSlideDocument(slideNumber).getElementsByTagNameNS("*", "cTn");
+            for (int i = 0; i < ctns.getLength(); i++) {
+                org.w3c.dom.Element cTn = (org.w3c.dom.Element) ctns.item(i);
+                if (!String.valueOf(timingNodeId).equals(cTn.getAttribute("id"))) continue;
+                // effect cTn -> effect par -> childTnLst -> group cTn -> group par -> childTnLst -> click cTn
+                org.w3c.dom.Node n = cTn;
+                for (int up = 0; up < 6 && n != null; up++) n = n.getParentNode();
+                if (!(n instanceof org.w3c.dom.Element click) || !"cTn".equals(click.getLocalName())) return false;
+                org.w3c.dom.NodeList conds = click.getElementsByTagNameNS("*", "cond");
+                for (int c = 0; c < conds.getLength(); c++) {
+                    org.w3c.dom.Element cond = (org.w3c.dom.Element) conds.item(c);
+                    if ("onBegin".equals(cond.getAttribute("evt"))
+                            && cond.getParentNode().getParentNode() == click) return true;
+                }
+                return false;
+            }
+        } catch (RuntimeException ignored) {}
+        return false;
     }
 
     private String handleExecuteCommands(String toolInput) {
