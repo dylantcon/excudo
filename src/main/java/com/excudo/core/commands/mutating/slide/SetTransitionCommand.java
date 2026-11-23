@@ -27,7 +27,7 @@ public class SetTransitionCommand implements Command {
     // factory body stays pure construction.
     static final Parameter<TransitionType> TYPE = Parameter.of("type", TransitionType::parseType)
         .description("Transition type (fade, wipe-left, push-down, dissolve, etc.)")
-        .required().build();
+        .llmName("transitionType").required().build();
     static final Parameter<String> SPEED = Parameter.ofString("speed")
         .description("Transition speed")
         .validValues("slow", "med", "fast")

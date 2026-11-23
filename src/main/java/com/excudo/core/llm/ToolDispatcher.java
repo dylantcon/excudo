@@ -1820,14 +1820,14 @@ public class ToolDispatcher {
 
     /**
      * Parse a single JSON object into an ActionRequest.
-     * The "type" (or "command") field becomes the action type; all other fields become parameters.
+     * The "command" field, or failing that "type", names the action; all other
+     * fields become parameters. When "command" names it, "type" is a parameter
+     * ({"command":"set-transition","type":"fade"}), not a second command name.
      */
-    private RequestSchema.ActionRequest parseOneAction(JsonObject obj) {
-        String type = obj.has("type") ? obj.get("type").getAsString() : null;
-        if (type == null && obj.has("command")) {
-            type = obj.get("command").getAsString();
-        }
-        if (type == null) return null;
+    static RequestSchema.ActionRequest parseOneAction(JsonObject obj) {
+        String nameKey = obj.has("command") ? "command" : obj.has("type") ? "type" : null;
+        if (nameKey == null) return null;
+        String type = obj.get(nameKey).getAsString();
         // Accept aliases ("new", "create", ...) and normalize to the canonical name.
         String canonicalType = com.excudo.core.parsing.CommandRegistry.resolveName(type);
         if (canonicalType != null) type = canonicalType;
@@ -1835,7 +1835,7 @@ public class ToolDispatcher {
         Map<String, Object> params = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
             String key = entry.getKey();
-            if ("type".equals(key) || "command".equals(key)) continue;
+            if (nameKey.equals(key)) continue;
 
             JsonElement val = entry.getValue();
             if (val.isJsonPrimitive()) {

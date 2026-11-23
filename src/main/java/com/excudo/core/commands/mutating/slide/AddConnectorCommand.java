@@ -26,7 +26,8 @@ public class AddConnectorCommand implements Command {
     static final Parameter<Integer> SLIDE = Parameter.ofInt("slide")
         .slideNumber().description("Slide number").required().build();
     static final Parameter<String> TYPE = Parameter.ofString("type")
-        .description("Connector type: line, straight, elbow, curved").required().build();
+        .description("Connector type: line, straight, elbow, curved")
+        .llmName("connectorType").required().build();
     static final Parameter<Double> X = Parameter.ofDouble("x")
         .description("X position in EMUs").required().build();
     static final Parameter<Double> Y = Parameter.ofDouble("y")

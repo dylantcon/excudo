@@ -24,6 +24,7 @@ public class AddPlaceholderCommand implements Command {
         .description("Placeholder type (obj, pic, title, body, chart, tbl)")
         .validValues("obj", "pic", "title", "body", "ctrTitle", "subTitle",
             "chart", "tbl", "dt", "ftr", "sldNum")
+        .llmName("placeholderType")
         .required(false).build();
     static final Parameter<Integer> IDX = Parameter.ofInt("idx")
         .description("Placeholder index").required().build();

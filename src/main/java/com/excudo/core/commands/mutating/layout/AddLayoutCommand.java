@@ -29,6 +29,7 @@ public class AddLayoutCommand implements Command {
         .description("Layout type")
         .validValues("BLANK", "TITLE_SLIDE", "TITLE_CONTENT", "TWO_CONTENT",
             "COMPARISON", "TITLE_ONLY", "SECTION_HEADER")
+        .llmName("layoutType")
         .required(false).build();
     static final Parameter<String> PLACEHOLDERS = Parameter.ofString("placeholders")
         .description("JSON array of placeholder definitions").required(false).build();
