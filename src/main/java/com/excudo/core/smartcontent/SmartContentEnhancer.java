@@ -653,43 +653,45 @@ public class SmartContentEnhancer {
      * Write the picture shape to the actual slide XML file using SlideXMLWriter.
      * This ensures the shape persists in the PowerPoint file for proper undo/redo support.
      */
-    private void writeShapeToSlideXML(SlideShape iconShape, String relationshipId, int slideNumber) {
+    /** Writes the picture into the slide; false when it couldn't be written (no icon then). */
+    private boolean writeShapeToSlideXML(SlideShape iconShape, String relationshipId, int slideNumber) {
         try {
-            // Get the slide XML file
-            File slideFile = getSlideFile(slideNumber);
-            if (slideFile == null || !slideFile.exists()) {
-                logger.error("Slide file not found for slide " + slideNumber + " - shape will not persist");
-                return;
+            Document document;
+            File slideFile = null;
+            if (pptxDocument != null && pptxDocument.hasSlide(slideNumber)) {
+                document = pptxDocument.getSlideDocument(slideNumber);
+            } else {
+                slideFile = getSlideFile(slideNumber);
+                if (slideFile == null || !slideFile.exists()) {
+                    logger.error("Slide " + slideNumber + " not found - icon not written");
+                    return false;
+                }
+                document = new SlideXMLParser().parseSlideDocument(slideFile);
             }
-            
-            // Parse the slide document
-            SlideXMLParser parser = new SlideXMLParser();
-            Document document = parser.parseSlideDocument(slideFile);
-            
-            // Create SlideXMLWriter with the parsed document
+
             SlideXMLWriter writer = new SlideXMLWriter(document);
-            
-            // Call addPictureShape to write the shape to XML
             writer.addPictureShape(
                 iconShape.getSpid(),
                 iconShape.getName(),
                 relationshipId,
                 iconShape.getGeometry()
             );
-            
-            // Save the document back to the slide file using SlideXMLWriter's writeXML method
-            writer.writeXML(slideFile);
-            
-            logger.info("Successfully wrote picture shape to slide XML: SPID=" + iconShape.getSpid() + 
+
+            if (slideFile == null) {
+                pptxDocument.putSlideDocument(slideNumber, document);
+            } else {
+                writer.writeXML(slideFile);
+            }
+            logger.info("Successfully wrote picture shape to slide XML: SPID=" + iconShape.getSpid() +
                        ", relationshipId=" + relationshipId);
-            
+            return true;
+
         } catch (Exception e) {
-            logger.error("Failed to write shape to slide XML for slide " + slideNumber + 
-                        ": " + e.getMessage() + " - shape may not persist for undo operations");
-            // Don't fail the entire operation, but log the issue
+            logger.error("Failed to write shape to slide XML for slide " + slideNumber + ": " + e.getMessage());
+            return false;
         }
     }
-    
+
     /**
      * Performs complete OOXML image injection including file copying and relationship creation.
      * This is the critical method that was missing from the original implementation.
@@ -733,7 +735,10 @@ public class SmartContentEnhancer {
             // 4. Write the picture shape to the actual slide XML file
             logger.info("About to write shape to slide XML: SPID=" + iconShape.getSpid() + 
                        ", relationshipId=" + relationshipId + ", slideNumber=" + slideNumber);
-            writeShapeToSlideXML(iconShape, relationshipId, slideNumber);
+            if (!writeShapeToSlideXML(iconShape, relationshipId, slideNumber)) {
+                return ExecutionResult.failure("image-injection",
+                    "Found an icon but couldn't write it into slide " + slideNumber);
+            }
                 
             // 5. Register the shape in the slide data
             slideData.getShapeRegistry().addShape(iconShape);

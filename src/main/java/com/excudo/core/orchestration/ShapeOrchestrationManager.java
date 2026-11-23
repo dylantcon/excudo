@@ -226,6 +226,7 @@ public class ShapeOrchestrationManager {
                     context.getNotesSlideRegistry(),
                     context.getRelationshipManager()
                 );
+            enhancer.setPPTXDocument(pptxDoc);
 
             // Extract placement preference if provided in geometry map
             com.excudo.core.geometry.IntelligentLayoutEngine.PlacementPreference placementPref =
